@@ -1,0 +1,32 @@
+.oras-tickets-frontend {
+  margin-top: 28px;
+  padding: 16px;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 10px;
+}
+
+.oras-tickets-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.oras-tickets-table th,
+.oras-tickets-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.10);
+  vertical-align: top;
+}
+
+.oras-tickets-table tr.is-disabled {
+  opacity: 0.6;
+}
+
+.oras-ticket-note {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.oras-tickets-actions {
+  margin-top: 14px;
+}
