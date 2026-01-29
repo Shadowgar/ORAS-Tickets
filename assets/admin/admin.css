@@ -1,0 +1,48 @@
+#oras-tickets-app .oras-tickets-wrapper {
+  margin-top: 10px;
+}
+
+#oras-tickets-app .oras-tickets-topbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#oras-tickets-app .oras-tickets-help {
+  color: #646970;
+}
+
+#oras-tickets-app .oras-ticket-row .oras-ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 10px 16px;
+}
+
+#oras-tickets-app .oras-ticket-row label span {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+#oras-tickets-app .oras-ticket-row input[type="text"],
+#oras-tickets-app .oras-ticket-row input[type="number"],
+#oras-tickets-app .oras-ticket-row textarea {
+  width: 100%;
+}
+
+#oras-tickets-app .oras-ticket-desc {
+  display: block;
+  margin-top: 10px;
+}
+
+#oras-tickets-app .oras-ticket-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+#oras-tickets-app .oras-ticket-key {
+  color: #646970;
+}
