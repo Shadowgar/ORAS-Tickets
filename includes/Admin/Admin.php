@@ -84,6 +84,8 @@ final class Admin {
     }
 
     Tickets::instance()->set_event_tickets( $post_id, $decoded );
+	\ORAS\Tickets\Woo\Woo::instance()->sync_event_ticket_products( $post_id );
+
   }
 
   public function enqueue_admin_assets( string $hook ): void {
