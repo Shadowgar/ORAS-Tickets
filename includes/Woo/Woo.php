@@ -34,7 +34,7 @@ final class Woo {
     }
 
     $tickets = Tickets::instance()->get_event_tickets( $event_id );
-    if ( empty( $tickets ) ) {
+    if ( empty( $tickets ) || ! is_array( $tickets ) ) {
       unset( self::$syncing[ $event_id ] );
       return;
     }
@@ -83,6 +83,11 @@ final class Woo {
     unset( self::$syncing[ $event_id ] );
   }
 
+  /**
+   * Product identity is (event_id + ticket_key).
+   * We first try existing product_id, then look up by meta key pairing,
+   * and only then create a new product.
+   */
   private function upsert_ticket_product(
     int $event_id,
     string $event_title,
@@ -94,11 +99,12 @@ final class Woo {
     int $existing_product_id,
     int $cat_id
   ): int {
-    $ticket_label = trim( $ticket_name ) !== '' ? trim( $ticket_name ) : 'Ticket';
+    $ticket_label  = trim( $ticket_name ) !== '' ? trim( $ticket_name ) : 'Ticket';
     $product_title = trim( $event_title . ' — ' . $ticket_label );
 
     $product = null;
 
+    // 1) Try existing product_id
     if ( $existing_product_id > 0 ) {
       $p = wc_get_product( $existing_product_id );
       if ( $p && $p->get_type() === 'simple' ) {
@@ -106,6 +112,18 @@ final class Woo {
       }
     }
 
+    // 2) Fallback lookup by (event_id + ticket_key)
+    if ( ! $product ) {
+      $found_id = $this->find_product_by_event_and_key( $event_id, $ticket_key );
+      if ( $found_id > 0 ) {
+        $p = wc_get_product( $found_id );
+        if ( $p && $p->get_type() === 'simple' ) {
+          $product = $p;
+        }
+      }
+    }
+
+    // 3) Create only if we truly have none
     if ( ! $product ) {
       $product = new \WC_Product_Simple();
       $product->set_status( 'publish' );
@@ -113,9 +131,8 @@ final class Woo {
       $product->set_virtual( true );
     }
 
-    // Normalize price to numeric string.
-    $price = preg_replace( '/[^0-9.]/', '', $price );
-    if ( $price === '' ) $price = '0';
+    // Normalize price to a Woo decimal string (e.g., "75.00")
+    $price = $this->normalize_price( $price );
 
     $product->set_name( $product_title );
     $product->set_regular_price( $price );
@@ -140,9 +157,55 @@ final class Woo {
     // Keep products out of search results/catalog.
     $product->set_catalog_visibility( 'hidden' );
 
-    $product_id = (int) $product->save();
+    return (int) $product->save();
+  }
 
-    return $product_id;
+  /**
+   * Find an existing product by stable identity (event_id + ticket_key).
+   * This prevents duplicates when editing ticket details like price.
+   */
+  private function find_product_by_event_and_key( int $event_id, string $ticket_key ): int {
+    $q = new \WP_Query([
+      'post_type'      => 'product',
+      'post_status'    => [ 'publish', 'draft', 'private' ],
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [
+          'key'   => '_oras_event_id',
+          'value' => $event_id,
+        ],
+        [
+          'key'   => '_oras_ticket_key',
+          'value' => $ticket_key,
+        ],
+      ],
+    ]);
+
+    if ( ! empty( $q->posts ) ) {
+      return (int) $q->posts[0];
+    }
+
+    return 0;
+  }
+
+  private function normalize_price( string $price ): string {
+    $price = str_replace( ',', '.', $price );
+    $price = preg_replace( '/[^0-9.]/', '', $price );
+    if ( $price === '' ) {
+      $price = '0';
+    }
+
+    if ( function_exists( 'wc_format_decimal' ) ) {
+      return (string) wc_format_decimal( $price, 2 );
+    }
+
+    // Fallback: allow a single dot, no commas
+    $parts = explode( '.', $price, 3 );
+    if ( count( $parts ) > 1 ) {
+      return $parts[0] . '.' . substr( $parts[1], 0, 2 );
+    }
+    return $parts[0];
   }
 
   private function ensure_ticket_category(): int {
