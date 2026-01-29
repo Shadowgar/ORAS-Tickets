@@ -67,9 +67,25 @@ final class Tickets {
       }
 
       $name = isset( $t['name'] ) ? sanitize_text_field( (string) $t['name'] ) : '';
-      $price = isset( $t['price'] ) ? (string) $t['price'] : '0';
+	  $price = isset( $t['price'] ) ? (string) $t['price'] : '0';
+      $price = str_replace( ',', '.', $price ); // allow "75,50"
       $price = preg_replace( '/[^0-9.]/', '', $price );
-      if ( $price === '' ) $price = '0';
+      if ( $price === '' ) {
+      $price = '0';
+      }
+
+     if ( function_exists( 'wc_format_decimal' ) ) {
+     $price = (string) wc_format_decimal( $price, 2 ); // always "xx.xx"
+     } else {
+  // Fallback: allow a single dot, keep at most 2 decimals
+  $parts = explode( '.', $price, 3 );
+  if ( count( $parts ) > 1 ) {
+    $price = $parts[0] . '.' . substr( $parts[1], 0, 2 );
+  } else {
+    $price = $parts[0];
+  }
+}
+
 
       $capacity = isset( $t['capacity'] ) ? (int) $t['capacity'] : 0;
       if ( $capacity < 0 ) $capacity = 0;

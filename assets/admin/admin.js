@@ -28,7 +28,7 @@
 
         <label>
           <span>Price</span>
-          <input type="text" class="oras-ticket-price" value="${escapeHtml(String(t.price ?? '0'))}">
+          <input type="number" min="0" step="0.01" class="oras-ticket-price" value="${escapeHtml(String(t.price ?? '0'))}">
         </label>
 
         <label>
