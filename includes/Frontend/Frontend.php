@@ -14,8 +14,16 @@ final class Frontend {
   private function __construct() {}
 
   public function init(): void {
-    add_filter( 'the_content', [ $this, 'append_tickets_module_to_event' ], 50 );
+    // TEC-specific hook (most reliable for single event template output).
+    add_action( 'tribe_events_single_event_after_the_content', [ $this, 'output_module_on_single_event' ], 20 );
+
+    // Fallback: shortcode, so you can place it anywhere (Elementor/blocks/template).
+    add_shortcode( 'oras_tickets', [ $this, 'shortcode_oras_tickets' ] );
+
+    // Handle add-to-cart posts.
     add_action( 'template_redirect', [ $this, 'handle_add_to_cart_submit' ] );
+
+    // Front-end styles.
     add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
   }
 
@@ -32,19 +40,46 @@ final class Frontend {
     );
   }
 
-  public function append_tickets_module_to_event( string $content ): string {
-    if ( ! is_singular( Tickets::EVENT_POST_TYPE ) || ! in_the_loop() || ! is_main_query() ) {
-      return $content;
+  public function output_module_on_single_event(): void {
+    if ( ! is_singular( Tickets::EVENT_POST_TYPE ) ) {
+      return;
     }
 
     $event_id = get_the_ID();
     if ( ! $event_id ) {
-      return $content;
+      return;
     }
 
-    $tickets = Tickets::instance()->get_event_tickets( (int) $event_id );
+    echo $this->render_module( (int) $event_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+  }
+
+  public function shortcode_oras_tickets( $atts = [] ): string {
+    $event_id = 0;
+
+    if ( is_singular( Tickets::EVENT_POST_TYPE ) ) {
+      $event_id = (int) get_the_ID();
+    }
+
+    // Allow [oras_tickets event_id="123"]
+    if ( is_array( $atts ) && isset( $atts['event_id'] ) ) {
+      $event_id = (int) $atts['event_id'];
+    }
+
+    if ( $event_id <= 0 ) {
+      return '';
+    }
+
+    return $this->render_module( $event_id );
+  }
+
+  private function render_module( int $event_id ): string {
+    if ( ! function_exists( 'wc_get_product' ) ) {
+      return '';
+    }
+
+    $tickets = Tickets::instance()->get_event_tickets( $event_id );
     if ( empty( $tickets ) ) {
-      return $content;
+      return '';
     }
 
     // Only show if at least one ticket has a product_id.
@@ -53,15 +88,6 @@ final class Frontend {
       if ( ! empty( $t['product_id'] ) ) { $has_any_product = true; break; }
     }
     if ( ! $has_any_product ) {
-      return $content;
-    }
-
-    $content .= $this->render_module( (int) $event_id, $tickets );
-    return $content;
-  }
-
-  private function render_module( int $event_id, array $tickets ): string {
-    if ( ! function_exists( 'wc_get_product' ) ) {
       return '';
     }
 
@@ -90,7 +116,6 @@ final class Frontend {
             <?php foreach ( $tickets as $t ): ?>
               <?php
                 $ticket_name = (string) ( $t['name'] ?? '' );
-                $price_str   = (string) ( $t['price'] ?? '0' );
                 $sale_start  = (string) ( $t['sale_start'] ?? '' );
                 $sale_end    = (string) ( $t['sale_end'] ?? '' );
                 $product_id  = (int) ( $t['product_id'] ?? 0 );
@@ -122,13 +147,7 @@ final class Frontend {
                   <?php echo wp_kses_post( $product->get_price_html() ); ?>
                 </td>
                 <td>
-                  <?php
-                    if ( $remaining === null ) {
-                      echo esc_html( '—' );
-                    } else {
-                      echo esc_html( (string) $remaining );
-                    }
-                  ?>
+                  <?php echo esc_html( $remaining === null ? '—' : (string) $remaining ); ?>
                 </td>
                 <td>
                   <input
@@ -213,7 +232,6 @@ final class Frontend {
       $product = wc_get_product( $pid );
       if ( ! $product ) continue;
 
-      // Respect stock.
       if ( $product->managing_stock() ) {
         $stock = (int) $product->get_stock_quantity();
         if ( $stock <= 0 ) continue;
@@ -226,13 +244,7 @@ final class Frontend {
       }
     }
 
-    // Redirect back to cart if anything was added, else back to the event.
-    if ( $added_any ) {
-      wp_safe_redirect( wc_get_cart_url() );
-      exit;
-    }
-
-    wp_safe_redirect( get_permalink( $event_id ) );
+    wp_safe_redirect( $added_any ? wc_get_cart_url() : get_permalink( $event_id ) );
     exit;
   }
 
@@ -251,7 +263,6 @@ final class Frontend {
     if ( $ymd === '' ) return 0;
     if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ymd ) ) return 0;
 
-    // Convert in site timezone.
     $time = ( $mode === 'end' ) ? '23:59:59' : '00:00:00';
     $dt = date_create( $ymd . ' ' . $time, wp_timezone() );
     if ( ! $dt ) return 0;
