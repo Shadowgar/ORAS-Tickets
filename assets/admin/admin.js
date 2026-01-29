@@ -17,6 +17,7 @@
     const row = document.createElement('div');
     row.className = 'oras-ticket-row';
     row.dataset.key = t.key;
+	row.dataset.productId = String(t.product_id || 0);
 
     row.innerHTML = `
       <div class="oras-ticket-grid">
@@ -80,7 +81,8 @@
         sale_start: qs('.oras-ticket-sale-start', row).value.trim(),
         sale_end: qs('.oras-ticket-sale-end', row).value.trim(),
         description: qs('.oras-ticket-description', row).value || '',
-        product_id: 0
+        product_id: parseInt(row.dataset.productId || '0', 10) || 0
+
       };
     });
   }
