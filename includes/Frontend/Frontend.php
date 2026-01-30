@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 final class Frontend {
   private static ?Frontend $instance = null;
+  private bool $did_auto_insert = false;
 
   public static function instance(): Frontend {
     return self::$instance ??= new self();
@@ -14,10 +15,10 @@ final class Frontend {
   private function __construct() {}
 
   public function init(): void {
-    // TEC-specific hook (most reliable for single event template output).
-    add_action( 'tribe_events_single_event_after_the_content', [ $this, 'output_module_on_single_event' ], 20 );
+    // Auto-insert below event description (when the_content is used).
+    add_filter( 'the_content', [ $this, 'auto_insert_below_event_description' ], 999 );
 
-    // Fallback: shortcode, so you can place it anywhere (Elementor/blocks/template).
+    // Shortcode (still useful for templates/builders).
     add_shortcode( 'oras_tickets', [ $this, 'shortcode_oras_tickets' ] );
 
     // Handle add-to-cart posts.
@@ -40,17 +41,57 @@ final class Frontend {
     );
   }
 
-  public function output_module_on_single_event(): void {
+  /**
+   * Automatically append tickets below the event description.
+   * Safe guards:
+   * - single tribe_events only
+   * - main query + in the loop
+   * - runs once
+   * - does not double-insert if shortcode already present
+   */
+  public function auto_insert_below_event_description( string $content ): string {
+    if ( $this->did_auto_insert ) {
+      return $content;
+    }
+
     if ( ! is_singular( Tickets::EVENT_POST_TYPE ) ) {
-      return;
+      return $content;
     }
 
-    $event_id = get_the_ID();
-    if ( ! $event_id ) {
-      return;
+    if ( ! in_the_loop() || ! is_main_query() ) {
+      return $content;
     }
 
-    echo $this->render_module( (int) $event_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    // Prevent double insert if user placed shortcode manually.
+    if ( stripos( $content, '[oras_tickets' ) !== false ) {
+      return $content;
+    }
+
+    // Only insert if this event actually has synced ticket products.
+    $event_id = (int) get_the_ID();
+    if ( $event_id <= 0 ) {
+      return $content;
+    }
+
+    $tickets = Tickets::instance()->get_event_tickets( $event_id );
+    if ( empty( $tickets ) ) {
+      return $content;
+    }
+
+    $has_any_product = false;
+    foreach ( $tickets as $t ) {
+      if ( (int) ( $t['product_id'] ?? 0 ) > 0 ) {
+        $has_any_product = true;
+        break;
+      }
+    }
+    if ( ! $has_any_product ) {
+      return $content;
+    }
+
+    $this->did_auto_insert = true;
+
+    return $content . "\n\n" . do_shortcode( '[oras_tickets]' );
   }
 
   public function shortcode_oras_tickets( $atts = [] ): string {
@@ -85,7 +126,7 @@ final class Frontend {
     // Only show if at least one ticket has a product_id.
     $has_any_product = false;
     foreach ( $tickets as $t ) {
-      if ( ! empty( $t['product_id'] ) ) { $has_any_product = true; break; }
+      if ( (int) ( $t['product_id'] ?? 0 ) > 0 ) { $has_any_product = true; break; }
     }
     if ( ! $has_any_product ) {
       return '';
