@@ -15,8 +15,11 @@ final class Frontend {
   private function __construct() {}
 
   public function init(): void {
-    // Auto-insert below event description (when the_content is used).
-    add_filter( 'the_content', [ $this, 'auto_insert_below_event_description' ], 999 );
+    // Auto-insert below event description in TEC v2 views.
+    add_action(
+      'tribe_template_after_include:events/v2/single-event/description',
+      [ $this, 'render_after_event_description' ]
+    );
 
     // Shortcode (still useful for templates/builders).
     add_shortcode( 'oras_tickets', [ $this, 'shortcode_oras_tickets' ] );
@@ -42,40 +45,36 @@ final class Frontend {
   }
 
   /**
-   * Automatically append tickets below the event description.
+   * Render tickets below the TEC v2 event description template.
    * Safe guards:
    * - single tribe_events only
-   * - main query + in the loop
    * - runs once
    * - does not double-insert if shortcode already present
    */
-  public function auto_insert_below_event_description( string $content ): string {
+  public function render_after_event_description(): void {
     if ( $this->did_auto_insert ) {
-      return $content;
+      return;
     }
 
     if ( ! is_singular( Tickets::EVENT_POST_TYPE ) ) {
-      return $content;
-    }
-
-    if ( ! in_the_loop() || ! is_main_query() ) {
-      return $content;
+      return;
     }
 
     // Prevent double insert if user placed shortcode manually.
-    if ( stripos( $content, '[oras_tickets' ) !== false ) {
-      return $content;
+    $post = get_post( get_the_ID() );
+    if ( $post && stripos( (string) $post->post_content, '[oras_tickets' ) !== false ) {
+      return;
     }
 
     // Only insert if this event actually has synced ticket products.
     $event_id = (int) get_the_ID();
     if ( $event_id <= 0 ) {
-      return $content;
+      return;
     }
 
     $tickets = Tickets::instance()->get_event_tickets( $event_id );
     if ( empty( $tickets ) ) {
-      return $content;
+      return;
     }
 
     $has_any_product = false;
@@ -86,12 +85,11 @@ final class Frontend {
       }
     }
     if ( ! $has_any_product ) {
-      return $content;
+      return;
     }
 
     $this->did_auto_insert = true;
-
-    return $content . "\n\n" . do_shortcode( '[oras_tickets]' );
+    echo do_shortcode( '[oras_tickets]' );
   }
 
   public function shortcode_oras_tickets( $atts = [] ): string {
