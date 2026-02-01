@@ -83,7 +83,7 @@ final class Tickets_Display {
     }
 
     private function render_for_event( int $event_id ): void {
-        $envelope = Ticket_Collection::load_for_event( $event_id );
+        $envelope = Ticket_Collection::load_envelope_for_event( $event_id );
         $tickets = isset( $envelope['tickets'] ) && is_array( $envelope['tickets'] ) ? $envelope['tickets'] : [];
 
         if ( empty( $tickets ) ) {

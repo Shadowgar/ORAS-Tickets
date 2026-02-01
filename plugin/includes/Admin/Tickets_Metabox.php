@@ -66,7 +66,7 @@ final class Tickets_Metabox {
             return;
         }
 
-        $envelope = Ticket_Collection::load_for_event( $post->ID );
+        $envelope = Ticket_Collection::load_envelope_for_event( $post->ID );
         $tickets  = $envelope['tickets'] ?? [];
 
         // Nonce
