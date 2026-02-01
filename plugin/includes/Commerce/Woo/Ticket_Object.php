@@ -27,14 +27,6 @@ class Ticket_Object extends \Tribe__Tickets__Ticket_Object {
         foreach ( $args as $k => $v ) {
             $this->{$k} = $v;
         }
-
-        // If parent exists and is callable, call without arguments to avoid breaking expectations.
-        if ( is_callable( [ '\\Tribe__Tickets__Ticket_Object', '__construct' ] ) ) {
-            try {
-                parent::__construct();
-            } catch ( \Throwable $e ) {
-                // swallow — keep lightweight wrapper
-            }
-        }
+        // Keep this wrapper lightweight; do not call parent constructor.
     }
 }

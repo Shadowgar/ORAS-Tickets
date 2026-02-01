@@ -17,11 +17,9 @@ class Provider extends \Tribe__Tickets__Tickets {
 
     private static ?Provider $instance = null;
 
-    public static function init(): void {
-        // Hook early on plugins_loaded so Woo is available.
-        add_action( 'plugins_loaded', [ self::class, 'maybe_init' ], 5 );
-    }
-
+    /**
+     * maybe_init can be called multiple times; it will only construct a single instance.
+     */
     public static function maybe_init(): void {
         if ( self::$instance !== null ) {
             return;
@@ -38,10 +36,8 @@ class Provider extends \Tribe__Tickets__Tickets {
         // Identify provider for debugging/tracing in ET.
         $this->plugin_name = 'oras-tickets-woo-provider';
 
-        // Ensure parent initialization occurs.
-        if ( is_callable( [ '\\Tribe__Tickets__Tickets', '__construct' ] ) ) {
-            parent::__construct();
-        }
+        // Parent class should exist by the time this file is loaded and maybe_init() is called.
+        parent::__construct();
 
         // Provider-specific hooks could be added here if needed.
     }

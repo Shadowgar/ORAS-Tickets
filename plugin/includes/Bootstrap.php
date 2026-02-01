@@ -10,9 +10,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
-// Commerce provider (Woo) - enable Event Tickets native editor when available.
-require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Ticket_Object.php';
-require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Provider.php';
+// Commerce provider (Woo) - loaded later when dependencies are available.
 
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -63,6 +61,8 @@ final class Bootstrap {
 
 		// Phase 1 modules will be loaded here next.
 		add_action( 'init', [ $this, 'register_phase1' ], 20 );
+		// Register commerce provider once plugins are loaded and classes are available.
+		add_action( 'plugins_loaded', [ $this, 'register_commerce' ], 20 );
 
 		Logger::instance()->log( 'Bootstrap init complete' );
 	}
@@ -74,9 +74,31 @@ final class Bootstrap {
 		// Frontend: register read-only tickets display on single event pages.
 		\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
 
-		// Initialize Woo provider to enable native Event Tickets editor when available.
-		if ( class_exists( 'WooCommerce' ) && class_exists( 'Tribe__Tickets__Tickets' ) ) {
-			\ORAS\Tickets\Commerce\Woo\Provider::init();
+		// Commerce provider initialization moved to register_commerce() hooked on plugins_loaded.
+	}
+
+	/**
+	 * Load and initialize commerce provider when WP plugins have loaded and required classes exist.
+	 */
+	public function register_commerce(): void {
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return;
+		}
+
+		if ( ! class_exists( 'Tribe__Tickets__Tickets' ) ) {
+			return;
+		}
+
+		if ( ! class_exists( 'Tribe__Tickets__Ticket_Object' ) ) {
+			return;
+		}
+
+		require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Ticket_Object.php';
+		require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Provider.php';
+
+		// Safe to call maybe_init() multiple times.
+		if ( method_exists( '\\ORAS\\Tickets\\Commerce\\Woo\\Provider', 'maybe_init' ) ) {
+			\ORAS\Tickets\Commerce\Woo\Provider::maybe_init();
 		}
 	}
 }
