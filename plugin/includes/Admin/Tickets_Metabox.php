@@ -201,7 +201,12 @@ final class Tickets_Metabox {
         if ( is_array( $posted_indices ) ) {
             // Rebuild tickets in the posted order using numeric incremental keys.
             foreach ( $posted_indices as $idx ) {
-                $idx = (string) absint( $idx );
+                $idx_int = absint( $idx );
+                if ( $idx_int === 0 && (string) $idx !== '0' ) {
+                    // non-numeric index, skip
+                    continue;
+                }
+                $idx = (string) $idx_int;
                 if ( $idx === '' || ! isset( $raw[ $idx ] ) || ! is_array( $raw[ $idx ] ) ) {
                     continue;
                 }
