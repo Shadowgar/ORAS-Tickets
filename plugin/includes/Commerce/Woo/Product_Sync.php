@@ -123,9 +123,15 @@ final class Product_Sync {
                     $product->set_description( (string) $ticket['description'] );
                 }
 
-                // Price
+                // Price: normalize numeric values to two-decimal string, otherwise preserve string.
                 if ( isset( $ticket['price'] ) && method_exists( $product, 'set_regular_price' ) ) {
-                    $product->set_regular_price( (string) $ticket['price'] );
+                    $price_raw = $ticket['price'];
+                    if ( is_numeric( $price_raw ) ) {
+                        $price_val = number_format( (float) $price_raw, 2, '.', '' );
+                    } else {
+                        $price_val = (string) $price_raw;
+                    }
+                    $product->set_regular_price( $price_val );
                 }
 
                 // Sale dates (if provided): expect 'Y-m-d H:i' storage format
@@ -153,14 +159,14 @@ final class Product_Sync {
                     $product->set_status( 'private' );
                 }
 
-                // Stock / capacity
+                // Stock / capacity: always apply capacity rules so mapped products are updated.
                 $capacity = isset( $ticket['capacity'] ) ? absint( $ticket['capacity'] ) : 0;
                 if ( $capacity > 0 ) {
                     if ( method_exists( $product, 'set_manage_stock' ) ) {
                         $product->set_manage_stock( true );
                     }
                     if ( method_exists( $product, 'set_stock_quantity' ) ) {
-                        $product->set_stock_quantity( $capacity );
+                        $product->set_stock_quantity( (int) $capacity );
                     }
                     if ( method_exists( $product, 'set_stock_status' ) ) {
                         $product->set_stock_status( 'instock' );
@@ -172,6 +178,7 @@ final class Product_Sync {
                     if ( method_exists( $product, 'set_manage_stock' ) ) {
                         $product->set_manage_stock( false );
                     }
+                    // Clear stock quantity when not managing stock; set to 0 to avoid stale values.
                     if ( method_exists( $product, 'set_stock_quantity' ) ) {
                         $product->set_stock_quantity( 0 );
                     }
