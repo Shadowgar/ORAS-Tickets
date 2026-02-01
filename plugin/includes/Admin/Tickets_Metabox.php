@@ -109,10 +109,16 @@ final class Tickets_Metabox {
                                 <input type="number" min="0" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr( $capacity ); ?>" />
                             </td>
                             <td>
-                                <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr( $sale_start ); ?>" placeholder="YYYY-MM-DD HH:MM" />
+                                <?php
+                                $sale_start_val = $sale_start !== '' ? str_replace( ' ', 'T', $sale_start ) : '';
+                                ?>
+                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr( $sale_start_val ); ?>" />
                             </td>
                             <td>
-                                <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr( $sale_end ); ?>" placeholder="YYYY-MM-DD HH:MM" />
+                                <?php
+                                $sale_end_val = $sale_end !== '' ? str_replace( ' ', 'T', $sale_end ) : '';
+                                ?>
+                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr( $sale_end_val ); ?>" />
                             </td>
                             <td>
                                 <textarea name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="2"><?php echo esc_textarea( $description ); ?></textarea>
@@ -134,13 +140,13 @@ final class Tickets_Metabox {
             </p>
 
             <!-- Template row (uses <template> so it won't be submitted) -->
-            <template id="oras-ticket-template">
+                    <template id="oras-ticket-template">
                 <tr class="oras-ticket-row" data-index="__INDEX__">
                     <td><input type="text" name="oras_tickets_tickets[__INDEX__][name]" value="" /></td>
                     <td><input type="text" name="oras_tickets_tickets[__INDEX__][price]" value="0.00" /></td>
                     <td><input type="number" min="0" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" /></td>
-                    <td><input type="text" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" placeholder="YYYY-MM-DD HH:MM" /></td>
-                    <td><input type="text" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" placeholder="YYYY-MM-DD HH:MM" /></td>
+                    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" /></td>
+                    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" /></td>
                     <td><textarea name="oras_tickets_tickets[__INDEX__][description]" rows="2"></textarea></td>
                     <td><input type="checkbox" name="oras_tickets_tickets[__INDEX__][hide_sold_out]" value="1" /></td>
                     <td><button type="button" class="oras-remove-ticket button">Remove</button>
@@ -195,17 +201,51 @@ final class Tickets_Metabox {
         if ( is_array( $posted_indices ) ) {
             // Rebuild tickets in the posted order using numeric incremental keys.
             foreach ( $posted_indices as $idx ) {
-                if ( ! isset( $raw[ $idx ] ) || ! is_array( $raw[ $idx ] ) ) {
+                $idx = (string) absint( $idx );
+                if ( $idx === '' || ! isset( $raw[ $idx ] ) || ! is_array( $raw[ $idx ] ) ) {
                     continue;
                 }
                 $fields = $raw[ $idx ];
                 $name = isset( $fields['name'] ) ? sanitize_text_field( $fields['name'] ) : '';
+                // Price: normalize, ensure non-negative, two decimals
                 $price_raw = isset( $fields['price'] ) ? str_replace( ',', '.', $fields['price'] ) : '0';
                 $price_float = floatval( $price_raw );
+                if ( $price_float < 0 ) {
+                    $price_float = 0.0;
+                }
                 $price = number_format( $price_float, 2, '.', '' );
-                $capacity = isset( $fields['capacity'] ) ? intval( $fields['capacity'] ) : 0;
+                // Capacity: absolute int
+                $capacity = isset( $fields['capacity'] ) ? absint( $fields['capacity'] ) : 0;
                 $sale_start = isset( $fields['sale_start'] ) ? sanitize_text_field( $fields['sale_start'] ) : '';
                 $sale_end = isset( $fields['sale_end'] ) ? sanitize_text_field( $fields['sale_end'] ) : '';
+                // Accept datetime-local format (YYYY-MM-DDTHH:MM) and convert to storage format (YYYY-MM-DD HH:MM).
+                if ( $sale_start !== '' ) {
+                    $sale_start = str_replace( 'T', ' ', $sale_start );
+                    $sale_start = trim( $sale_start );
+                    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $sale_start ) ) {
+                        $sale_start = '';
+                    }
+                }
+                if ( $sale_end !== '' ) {
+                    $sale_end = str_replace( 'T', ' ', $sale_end );
+                    $sale_end = trim( $sale_end );
+                    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $sale_end ) ) {
+                        $sale_end = '';
+                    }
+                }
+                // If both present and out of order, swap to ensure start <= end
+                if ( $sale_start !== '' && $sale_end !== '' ) {
+                    $dt1 = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_start, wp_timezone() );
+                    $dt2 = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_end, wp_timezone() );
+                    if ( $dt1 instanceof \DateTimeInterface && $dt2 instanceof \DateTimeInterface ) {
+                        if ( $dt2->getTimestamp() < $dt1->getTimestamp() ) {
+                            // swap
+                            $tmp = $sale_start;
+                            $sale_start = $sale_end;
+                            $sale_end = $tmp;
+                        }
+                    }
+                }
                 $description = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
                 $hide_sold_out = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
 
@@ -233,12 +273,45 @@ final class Tickets_Metabox {
                 }
 
                 $name = isset( $fields['name'] ) ? sanitize_text_field( $fields['name'] ) : '';
+                // Price: normalize, ensure non-negative, two decimals
                 $price_raw = isset( $fields['price'] ) ? str_replace( ',', '.', $fields['price'] ) : '0';
                 $price_float = floatval( $price_raw );
+                if ( $price_float < 0 ) {
+                    $price_float = 0.0;
+                }
                 $price = number_format( $price_float, 2, '.', '' );
-                $capacity = isset( $fields['capacity'] ) ? intval( $fields['capacity'] ) : 0;
+                // Capacity: absolute int
+                $capacity = isset( $fields['capacity'] ) ? absint( $fields['capacity'] ) : 0;
                 $sale_start = isset( $fields['sale_start'] ) ? sanitize_text_field( $fields['sale_start'] ) : '';
                 $sale_end = isset( $fields['sale_end'] ) ? sanitize_text_field( $fields['sale_end'] ) : '';
+                // Accept datetime-local format (YYYY-MM-DDTHH:MM) and convert to storage format (YYYY-MM-DD HH:MM).
+                if ( $sale_start !== '' ) {
+                    $sale_start = str_replace( 'T', ' ', $sale_start );
+                    $sale_start = trim( $sale_start );
+                    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $sale_start ) ) {
+                        $sale_start = '';
+                    }
+                }
+                if ( $sale_end !== '' ) {
+                    $sale_end = str_replace( 'T', ' ', $sale_end );
+                    $sale_end = trim( $sale_end );
+                    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $sale_end ) ) {
+                        $sale_end = '';
+                    }
+                }
+                // If both present and out of order, swap to ensure start <= end
+                if ( $sale_start !== '' && $sale_end !== '' ) {
+                    $dt1 = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_start, wp_timezone() );
+                    $dt2 = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_end, wp_timezone() );
+                    if ( $dt1 instanceof \DateTimeInterface && $dt2 instanceof \DateTimeInterface ) {
+                        if ( $dt2->getTimestamp() < $dt1->getTimestamp() ) {
+                            // swap
+                            $tmp = $sale_start;
+                            $sale_start = $sale_end;
+                            $sale_end = $tmp;
+                        }
+                    }
+                }
                 $description = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
                 $hide_sold_out = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
 
