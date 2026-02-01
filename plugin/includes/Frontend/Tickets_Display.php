@@ -83,48 +83,122 @@ final class Tickets_Display {
     }
 
     private function render_for_event( int $event_id ): void {
-        $envelope = Ticket_Collection::load_envelope_for_event( $event_id );
-        $tickets = isset( $envelope['tickets'] ) && is_array( $envelope['tickets'] ) ? $envelope['tickets'] : [];
-
-        if ( empty( $tickets ) ) {
+        if ( ! is_singular( \ORAS\Tickets\Domain\Meta::EVENT_POST_TYPE ) ) {
             return;
         }
 
-        // Minimal markup: container + table of name, price, capacity.
+        // Load tickets as domain objects
+        $collection = Ticket_Collection::load_for_event( $event_id );
+        if ( $collection->count() === 0 ) {
+            echo '<p>Tickets not available</p>';
+            return;
+        }
+
+        // Load Woo mapping
+        $map = get_post_meta( $event_id, '_oras_tickets_woo_map_v1', true );
+        if ( ! is_array( $map ) || empty( $map ) ) {
+            echo '<p>Tickets not available</p>';
+            return;
+        }
+
+        // Handle POST submission (add to cart)
+        if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['oras_tickets_nonce'] ) ) {
+            if ( wp_verify_nonce( wp_unslash( $_POST['oras_tickets_nonce'] ), 'oras_tickets_add_to_cart' ) && is_singular( \ORAS\Tickets\Domain\Meta::EVENT_POST_TYPE ) ) {
+                if ( class_exists( 'WooCommerce' ) && function_exists( 'WC' ) && WC() && isset( WC()->cart ) ) {
+                    $posted = isset( $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] ) ? wp_unslash( $_POST['oras_qty'] ) : [];
+                    $added_any = false;
+                    $tickets = $collection->all();
+                    foreach ( $tickets as $idx => $ticket_obj ) {
+                        $key = (string) $idx;
+                        if ( ! isset( $posted[ $key ] ) ) {
+                            continue;
+                        }
+                        $qty = absint( $posted[ $key ] );
+                        if ( $qty <= 0 ) {
+                            continue;
+                        }
+
+                        $product_id = isset( $map[ $key ] ) ? absint( $map[ $key ] ) : 0;
+                        if ( $product_id <= 0 ) {
+                            continue;
+                        }
+
+                        $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+                        if ( ! $product ) {
+                            continue;
+                        }
+
+                        // Determine availability cap
+                        $manages = ( method_exists( $product, 'managing_stock' ) && $product->managing_stock() );
+                        if ( $manages ) {
+                            $max = method_exists( $product, 'get_stock_quantity' ) ? max( 0, (int) $product->get_stock_quantity() ) : 0;
+                        } else {
+                            $max = 10;
+                        }
+
+                        if ( $qty > $max ) {
+                            $qty = $max;
+                        }
+
+                        if ( $qty <= 0 ) {
+                            continue;
+                        }
+
+                        // Add to cart
+                        $added = WC()->cart->add_to_cart( $product_id, $qty );
+                        if ( $added ) {
+                            $added_any = true;
+                        }
+                    }
+
+                    if ( $added_any && function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( __( 'Added tickets to cart.', 'oras-tickets' ), 'success' );
+                    }
+
+                    // Redirect to avoid resubmission
+                    $redirect = add_query_arg( 'oras_added', $added_any ? '1' : '0', get_permalink( $event_id ) );
+                    wp_safe_redirect( $redirect );
+                    exit;
+                }
+            }
+        }
+
+        // Render simple purchase form
         echo '<section class="oras-tickets-section">';
         echo '<div id="oras-tickets-display" class="oras-tickets-display">';
         echo '<h2>Tickets</h2>';
+
+        echo '<form method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
+        wp_nonce_field( 'oras_tickets_add_to_cart', 'oras_tickets_nonce' );
+
         echo '<table class="oras-tickets-table">';
-        echo '<thead><tr><th>Name</th><th>Price</th><th>Status</th><th>Capacity</th></tr></thead>';
+        echo '<thead><tr><th>Ticket</th><th>Price</th><th>Status</th><th>Qty</th></tr></thead>';
         echo '<tbody>';
 
-        foreach ( $tickets as $ticket ) {
-            if ( ! is_array( $ticket ) ) {
+        $now = (int) current_time( 'timestamp' );
+        $tickets = $collection->all();
+        foreach ( $tickets as $index => $ticket_obj ) {
+            $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : [] );
+            $key = (string) $index;
+
+            // mapped product
+            $product_id = isset( $map[ $key ] ) ? absint( $map[ $key ] ) : 0;
+            if ( $product_id <= 0 ) {
+                continue;
+            }
+            $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+            if ( ! $product ) {
                 continue;
             }
 
-            $name = isset( $ticket['name'] ) ? esc_html( $ticket['name'] ) : '';
-            $price_raw = isset( $ticket['price'] ) ? $ticket['price'] : '';
-            if ( $price_raw !== '' && is_numeric( $price_raw ) ) {
-                $price = '$' . number_format( (float) $price_raw, 2, '.', '' );
-            } else {
-                $price = $price_raw !== '' ? (string) $price_raw : '';
-            }
+            $name = isset( $ticket['name'] ) ? esc_html( $ticket['name'] ) : $product->get_name();
+            $price_raw = isset( $ticket['price'] ) ? $ticket['price'] : $product->get_price();
+            $price_display = $price_raw !== '' && is_numeric( $price_raw ) ? '$' . number_format( (float) $price_raw, 2, '.', '' ) : esc_html( (string) $price_raw );
+            $description = isset( $ticket['description'] ) ? esc_html( $ticket['description'] ) : '';
 
-            // Capacity semantics for Phase 1.4:
-            // - Negative values are clamped to 0
-            // - capacity <= 0 is treated as Unlimited
-            $capacity_raw = isset( $ticket['capacity'] ) ? intval( $ticket['capacity'] ) : 0;
-            if ( $capacity_raw < 0 ) {
-                $capacity_raw = 0;
-            }
-            $is_unlimited = $capacity_raw <= 0;
-            $capacity_text = $is_unlimited ? 'Unlimited' : (string) $capacity_raw;
-
-            // Sale window parsing (site timezone). Strings are expected as "Y-m-d H:i".
+            // Sale window
             $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
             $sale_end = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
-            $now = (int) current_time( 'timestamp' );
             $start_ts = null;
             $end_ts = null;
             if ( $sale_start !== '' ) {
@@ -140,50 +214,56 @@ final class Tickets_Display {
                 }
             }
 
-            // Determine status per rules.
+            $status = 'On sale';
+            $disabled = false;
             if ( $start_ts !== null && $now < $start_ts ) {
                 $status = 'Not on sale yet';
+                $disabled = true;
             } elseif ( $end_ts !== null && $now > $end_ts ) {
-                $status = 'Sale ended';
+                $status = 'Sales ended';
+                $disabled = true;
+            }
+
+            // Availability from product
+            $manages = ( method_exists( $product, 'managing_stock' ) && $product->managing_stock() );
+            if ( $manages ) {
+                $max = method_exists( $product, 'get_stock_quantity' ) ? max( 0, (int) $product->get_stock_quantity() ) : 0;
             } else {
-                $status = 'On sale';
+                $max = 10;
             }
 
-            // For Phase 1.4 we do not track purchases yet; sold-out is not representable.
-            // Capacity semantics: negative values are clamped to 0; capacity == 0 means Unlimited; capacity > 0 shows available number.
-
-            echo '<tr>';
-            echo '<td>' . $name . '</td>';
-            echo '<td>' . esc_html( $price );
-
-            // Optionally show sale window text formatted for site timezone using wp_date().
-            // We parsed $start_ts and $end_ts above using \DateTime with wp_timezone().
-            $sale_subline = '';
-            if ( $start_ts !== null || $end_ts !== null ) {
-                if ( $start_ts !== null && $end_ts !== null ) {
-                    $start_label = wp_date( 'm/d/Y g:i A', $start_ts );
-                    $end_label = wp_date( 'm/d/Y g:i A', $end_ts );
-                    $sale_subline = 'Sales: ' . $start_label . ' – ' . $end_label;
-                } elseif ( $start_ts !== null ) {
-                    $start_label = wp_date( 'm/d/Y g:i A', $start_ts );
-                    $sale_subline = 'Sales start: ' . $start_label;
-                } else {
-                    $end_label = wp_date( 'm/d/Y g:i A', $end_ts );
-                    $sale_subline = 'Sales end: ' . $end_label;
+            $hide_sold_out = isset( $ticket['hide_sold_out'] ) && ( $ticket['hide_sold_out'] === '1' || $ticket['hide_sold_out'] === 1 || $ticket['hide_sold_out'] === true );
+            if ( $manages && $max <= 0 ) {
+                if ( $hide_sold_out ) {
+                    continue; // do not render this row
                 }
+                $status = 'Sold out';
+                $disabled = true;
             }
 
-            if ( $sale_subline !== '' ) {
-                echo '<div class="oras-ticket-sale"><small>' . esc_html( $sale_subline ) . '</small></div>';
-            }
-
-            echo '</td>';
+            // Render row
+            echo '<tr>';
+            echo '<td><strong>' . $name . '</strong>' . ( $description !== '' ? '<div class="oras-ticket-desc">' . $description . '</div>' : '' ) . '</td>';
+            echo '<td>' . esc_html( $price_display ) . '</td>';
             echo '<td>' . esc_html( $status ) . '</td>';
-            echo '<td>' . esc_html( $capacity_text ) . '</td>';
+
+            $input_attrs = '';
+            if ( $disabled ) {
+                $input_attrs .= ' disabled';
+            }
+            $input_max = $max > 0 ? $max : 0;
+            echo '<td>';
+            echo '<input type="number" name="oras_qty[' . esc_attr( $key ) . ']" min="0" value="0" max="' . esc_attr( $input_max ) . '"' . $input_attrs . ' />';
+            echo '</td>';
+
             echo '</tr>';
         }
 
         echo '</tbody></table>';
+
+        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">Add selected tickets to cart</button></p>';
+        echo '</form>';
+
         echo '</div>';
         echo '</section>';
     }
