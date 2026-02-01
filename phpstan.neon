@@ -1,0 +1,7 @@
+parameters:
+  level: 5
+  paths:
+    - plugin
+  tmpDir: .phpstan-cache
+  ignoreErrors:
+    - '#Call to an undefined function tribe\(#'

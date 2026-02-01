@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset name="ORAS Tickets">
+  <description>PHPCS rules for ORAS Tickets.</description>
+
+  <file>plugin</file>
+
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+  <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+  <rule ref="WordPress-Core" />
+  <rule ref="WordPress-Extra" />
+  <rule ref="WordPress-Docs" />
+
+  <config name="minimum_supported_wp_version" value="6.0"/>
+</ruleset>

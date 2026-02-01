@@ -1,0 +1,16 @@
+{
+  "name": "oras-tickets",
+  "private": true,
+  "scripts": {
+    "wp:start": "wp-env start",
+    "wp:stop": "wp-env stop",
+    "wp:destroy": "wp-env destroy",
+    "wp:reset": "wp-env destroy && wp-env start",
+    "wp:logs": "wp-env logs",
+    "lint:php": "composer phpcs",
+    "stan:php": "composer phpstan"
+  },
+  "devDependencies": {
+    "@wordpress/env": "^10.0.0"
+  }
+}

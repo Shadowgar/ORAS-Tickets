@@ -1,0 +1,29 @@
+{
+  "name": "oras/oras-tickets",
+  "description": "ORAS Tickets internal plugin",
+  "type": "project",
+  "require": {
+    "php": ">=8.0"
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "^3.13",
+    "wp-coding-standards/wpcs": "^3.3",
+    "phpstan/phpstan": "^1.11"
+  },
+  "scripts": {
+    "phpcs": [
+      "phpcs -p"
+    ],
+    "phpstan": [
+      "phpstan analyse -c phpstan.neon"
+    ],
+    "post-install-cmd": [
+      "@php -r \"file_exists('vendor/bin/phpcs') && shell_exec('vendor/bin/phpcs --config-set installed_paths vendor/wp-coding-standards/wpcs');\""
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  }
+}
