@@ -6,9 +6,13 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php';
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php';
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 // Admin metabox for Phase 1.2
+// Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
+// Commerce provider (Woo) - enable Event Tickets native editor when available.
+require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Ticket_Object.php';
+require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Provider.php';
 
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -67,12 +71,12 @@ final class Bootstrap {
 		// Register Phase 1 modules.
 		Logger::instance()->log( 'Phase 1 registration hook fired (init)' );
 
-		// Admin-only: register ticket metabox when editing events.
-		if ( is_admin() ) {
-			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
-		} else {
-			// Frontend: register read-only tickets display on single event pages.
-			\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
+		// Frontend: register read-only tickets display on single event pages.
+		\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
+
+		// Initialize Woo provider to enable native Event Tickets editor when available.
+		if ( class_exists( 'WooCommerce' ) && class_exists( 'Tribe__Tickets__Tickets' ) ) {
+			\ORAS\Tickets\Commerce\Woo\Provider::init();
 		}
 	}
 }
