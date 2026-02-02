@@ -26,6 +26,180 @@ final class Tickets_Display {
 
         // Handle POST submissions early in the request lifecycle.
         add_action( 'template_redirect', [ $this, 'handle_post' ], 10 );
+
+        // Revalidate cart items on cart/checkout views.
+        add_action( 'woocommerce_check_cart_items', [ $this, 'revalidate_cart_items' ], 10 );
+        add_action( 'woocommerce_before_checkout_process', [ $this, 'revalidate_cart_items' ], 10 );
+        add_action( 'woocommerce_checkout_process', [ $this, 'revalidate_cart_items' ], 10 );
+    }
+
+    /**
+     * Revalidate ORAS ticket items already in the cart.
+     */
+    public function revalidate_cart_items(): void {
+        static $ran = false;
+        if ( $ran ) {
+            return;
+        }
+        $ran = true;
+
+        if ( ! function_exists( 'WC' ) || ! WC() || ! isset( WC()->cart ) ) {
+            return;
+        }
+
+        $now = (int) current_time( 'timestamp', true );
+
+        $changed = false;
+
+        foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+            $product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+            if ( $product_id <= 0 ) {
+                continue;
+            }
+
+            $event_id_raw = get_post_meta( $product_id, '_oras_ticket_event_id', true );
+            $index_raw = get_post_meta( $product_id, '_oras_ticket_index', true );
+            if ( $event_id_raw === '' || $index_raw === '' ) {
+                continue;
+            }
+
+            $event_id = (int) $event_id_raw;
+            $index = (int) $index_raw;
+            if ( $event_id <= 0 || $index < 0 ) {
+                continue;
+            }
+
+            $ticket = $this->get_ticket_definition( $event_id, $index );
+            if ( ! $ticket ) {
+                WC()->cart->remove_cart_item( $cart_item_key );
+                $changed = true;
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( __( 'A ticket in your cart is no longer available and was removed.', 'oras-tickets' ), 'error' );
+                }
+                continue;
+            }
+
+            $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+            if ( ! $product || ! $product->is_purchasable() ) {
+                WC()->cart->remove_cart_item( $cart_item_key );
+                $changed = true;
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( __( 'A ticket in your cart is no longer available and was removed.', 'oras-tickets' ), 'error' );
+                }
+                continue;
+            }
+
+            $name = $this->get_ticket_name( $ticket, $product );
+
+            if ( ! $product->is_in_stock() && ! $product->backorders_allowed() ) {
+                WC()->cart->remove_cart_item( $cart_item_key );
+                $changed = true;
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( sprintf( __( 'Ticket %s is sold out and was removed from your cart.', 'oras-tickets' ), $name ), 'error' );
+                }
+                continue;
+            }
+
+            $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
+            $sale_end = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
+
+            if ( $sale_start !== '' ) {
+                $start_ts = strtotime( $sale_start . ' UTC' );
+                if ( $start_ts && $start_ts > $now ) {
+                    WC()->cart->remove_cart_item( $cart_item_key );
+                    $changed = true;
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Ticket %s is not on sale yet and was removed from your cart.', 'oras-tickets' ), $name ), 'error' );
+                    }
+                    continue;
+                }
+            }
+
+            if ( $sale_end !== '' ) {
+                $end_ts = strtotime( $sale_end . ' UTC' );
+                if ( $end_ts && $end_ts < $now ) {
+                    WC()->cart->remove_cart_item( $cart_item_key );
+                    $changed = true;
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Ticket %s sales have ended and was removed from your cart.', 'oras-tickets' ), $name ), 'error' );
+                    }
+                    continue;
+                }
+            }
+
+            $current_qty = isset( $cart_item['quantity'] ) ? (int) $cart_item['quantity'] : 0;
+
+            if ( method_exists( $product, 'managing_stock' ) && $product->managing_stock() ) {
+                $available = method_exists( $product, 'get_stock_quantity' ) ? (int) $product->get_stock_quantity() : 0;
+                if ( $available <= 0 ) {
+                    WC()->cart->remove_cart_item( $cart_item_key );
+                    $changed = true;
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Ticket %s is sold out and was removed from your cart.', 'oras-tickets' ), $name ), 'error' );
+                    }
+                    continue;
+                }
+
+                if ( $current_qty > $available ) {
+                    WC()->cart->set_quantity( $cart_item_key, $available, true );
+                    $changed = true;
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Quantity for %1$s was reduced to %2$d due to limited availability.', 'oras-tickets' ), $name, $available ), 'notice' );
+                    }
+                }
+            } else {
+                if ( $current_qty > 10 ) {
+                    WC()->cart->set_quantity( $cart_item_key, 10, true );
+                    $changed = true;
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Quantity for %s was reduced to 10.', 'oras-tickets' ), $name ), 'notice' );
+                    }
+                }
+            }
+        }
+
+        if ( $changed && isset( WC()->cart ) ) {
+            WC()->cart->calculate_totals();
+        }
+    }
+
+    /**
+     * Fetch the ticket definition for the given event and index.
+     */
+    private function get_ticket_definition( int $event_id, int $index ): ?array {
+        if ( $event_id <= 0 || $index < 0 ) {
+            return null;
+        }
+
+        $collection = Ticket_Collection::load_for_event( $event_id );
+        $tickets = $collection->all();
+
+        if ( ! array_key_exists( $index, $tickets ) ) {
+            return null;
+        }
+
+        $ticket_obj = $tickets[ $index ];
+        $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : [] );
+
+        return ! empty( $ticket ) ? $ticket : null;
+    }
+
+    /**
+     * Resolve the display name for a ticket.
+     *
+     * @param array $ticket
+     * @param mixed $product
+     */
+    private function get_ticket_name( array $ticket, $product ): string {
+        if ( isset( $ticket['name'] ) && $ticket['name'] !== '' ) {
+            return (string) $ticket['name'];
+        }
+
+        if ( $product && method_exists( $product, 'get_name' ) ) {
+            return (string) $product->get_name();
+        }
+
+        return __( 'Ticket', 'oras-tickets' );
     }
 
     /**
