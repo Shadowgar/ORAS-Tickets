@@ -67,13 +67,13 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 			// Register Phase 1 modules.
 			Logger::instance()->log( 'Phase 1 registration hook fired (init)' );
 
+			require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Product_Sync.php';
+			$ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
+			$ps->register();
+
 			// Admin-only (or WP-CLI): register ticket metabox and product sync when editing events.
 				if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
-					// Require Product_Sync only in admin or CLI contexts to avoid loading Woo APIs on frontend.
-					require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Product_Sync.php';
 					\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
-					$ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
-					$ps->register();
 					// do not return; allow further initialization below
 				}
 

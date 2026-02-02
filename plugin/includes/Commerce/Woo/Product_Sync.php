@@ -14,6 +14,79 @@ final class Product_Sync {
 
     public function register(): void {
         add_action( 'save_post_tribe_events', [ $this, 'on_save_event' ], 30, 3 );
+        add_action( 'woocommerce_checkout_create_order_line_item', [ $this, 'snapshot_order_item_ticket_meta' ], 10, 4 );
+    }
+
+    /**
+     * Snapshot ORAS ticket context onto Woo order items.
+     *
+     * @param \WC_Order_Item_Product $item
+     * @param string                 $cart_item_key
+     * @param array                  $values
+     * @param \\WC_Order             $order
+     */
+    public function snapshot_order_item_ticket_meta( $item, string $cart_item_key, array $values, $order ): void {
+        if ( ! $item || ! method_exists( $item, 'get_product_id' ) ) {
+            return;
+        }
+
+        $product_id = (int) $item->get_product_id();
+        if ( $product_id <= 0 ) {
+            return;
+        }
+
+        $event_id_raw = get_post_meta( $product_id, '_oras_ticket_event_id', true );
+        $index_raw = get_post_meta( $product_id, '_oras_ticket_index', true );
+        if ( $event_id_raw === '' || $index_raw === '' ) {
+            return;
+        }
+
+        $event_id = (int) $event_id_raw;
+        $index = (int) $index_raw;
+        if ( $event_id <= 0 || $index < 0 ) {
+            return;
+        }
+
+        $ticket_name = $this->get_ticket_name_for_event_index( $event_id, $index );
+        if ( $ticket_name === '' ) {
+            $ticket_name = $item->get_name();
+        }
+
+        $quantity = method_exists( $item, 'get_quantity' ) ? max( 1, (int) $item->get_quantity() ) : 1;
+        $subtotal = method_exists( $item, 'get_subtotal' ) ? (float) $item->get_subtotal() : 0.0;
+        $unit_price = $subtotal / $quantity;
+
+        $item->add_meta_data( '_oras_ticket_event_id', $event_id, true );
+        $item->add_meta_data( '_oras_ticket_index', $index, true );
+        $item->add_meta_data( '_oras_ticket_name', $ticket_name, true );
+        $item->add_meta_data( '_oras_ticket_unit_price', wc_format_decimal( $unit_price, wc_get_price_decimals() ), true );
+        $item->add_meta_data( '_oras_ticket_currency', get_woocommerce_currency(), true );
+        $item->add_meta_data( '_oras_ticket_schema', 1, true );
+    }
+
+    /**
+     * Fetch ticket name for an event/index from the ticket envelope.
+     */
+    private function get_ticket_name_for_event_index( int $event_id, int $index ): string {
+        if ( $event_id <= 0 || $index < 0 ) {
+            return '';
+        }
+
+        $collection = Ticket_Collection::load_for_event( $event_id );
+        $tickets = $collection->all();
+
+        if ( ! array_key_exists( $index, $tickets ) ) {
+            return '';
+        }
+
+        $ticket_obj = $tickets[ $index ];
+        $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : [];
+
+        if ( isset( $ticket['name'] ) && $ticket['name'] !== '' ) {
+            return (string) $ticket['name'];
+        }
+
+        return '';
     }
 
     /**
