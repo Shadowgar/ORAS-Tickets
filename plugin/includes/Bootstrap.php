@@ -8,8 +8,8 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 // Admin metabox for Phase 1.2
 // Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
 	require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
-	// Frontend tickets display (Phase 1.3 - read-only)
-	require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
+		// Frontend tickets display (Phase 1.3 - read-only)
+		require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
 
 	if ( ! defined( 'ABSPATH' ) ) {
 		exit;
@@ -68,16 +68,20 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 			Logger::instance()->log( 'Phase 1 registration hook fired (init)' );
 
 			// Admin-only (or WP-CLI): register ticket metabox and product sync when editing events.
-			if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
-				// Require Product_Sync only in admin or CLI contexts to avoid loading Woo APIs on frontend.
-				require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Product_Sync.php';
-				\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
-				$ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
-				$ps->register();
-				return;
-			}
+				if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+					// Require Product_Sync only in admin or CLI contexts to avoid loading Woo APIs on frontend.
+					require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Product_Sync.php';
+					\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
+					$ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
+					$ps->register();
+					// do not return; allow further initialization below
+				}
 
-			// Frontend: register read-only tickets display on single event pages.
-			\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
+				// Initialize Tickets_Display when not in admin contexts. This ensures frontend rendering
+				// runs in normal page requests and that WP-CLI can also initialize the frontend display
+				// when `is_admin()` is false.
+				if ( ! is_admin() ) {
+					\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
+				}
 		}
 }
