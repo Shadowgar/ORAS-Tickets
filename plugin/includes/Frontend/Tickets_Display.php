@@ -11,7 +11,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Tickets_Display {
 
     private static ?Tickets_Display $instance = null;
-    private bool $rendered = false;
 
     public static function instance(): Tickets_Display {
         return self::$instance ??= new self();
@@ -28,7 +27,6 @@ final class Tickets_Display {
         // Handle POST submissions early in the request lifecycle.
         add_action( 'template_redirect', [ $this, 'handle_post' ], 10 );
     }
-
 
     /**
      * Filter the main post content and append purchase form for single TEC events.
@@ -176,7 +174,7 @@ final class Tickets_Display {
      * Handle POST submission on template_redirect.
      */
     public function handle_post(): void {
-        if ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
+        if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
             return;
         }
 
@@ -197,7 +195,8 @@ final class Tickets_Display {
             return;
         }
 
-        if ( ! wp_verify_nonce( wp_unslash( $_POST['oras_tickets_nonce'] ), 'oras_tickets_add_to_cart' ) ) {
+        $nonce = (string) wp_unslash( $_POST['oras_tickets_nonce'] );
+        if ( ! wp_verify_nonce( $nonce, 'oras_tickets_add_to_cart' ) ) {
             return;
         }
 
