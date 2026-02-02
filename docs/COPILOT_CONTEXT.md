@@ -1,31 +1,23 @@
 # Copilot Context — ORAS Tickets (Internal)
 
-You are coding a WordPress plugin add-on for Event Tickets (free) + The Events Calendar + WooCommerce.
+You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 
 ## Non-negotiable rules
-- Do NOT modify Event Tickets or The Events Calendar plugin code.
-- Do NOT use shortcodes for display.
-- Do NOT use `the_content()` filters.
-- Must render tickets automatically on single event pages using TEC/ET v2 view system.
+- Do NOT modify The Events Calendar, Event Tickets, or WooCommerce plugin code.
+- No external services, license servers, or update engines.
 - WooCommerce is the commerce engine.
-- Keep code performance-safe: no broad hook dumping, no heavy queries on non-event pages.
-- Phase 1 only (ticket definition + Woo product sync + front-end ticket module + add-to-cart).
+- Follow WordPress Coding Standards.
+- Namespacing under ORAS\Tickets\
 
-## Required reading
-- docs/EVENT_TICKETS_ENGINE_ARCHITECTURE.md
-- docs/ET_CODEMAP.md
-- docs/ET_PLUS_PARITY_MATRIX.md
+## Frontend rendering (current state)
+- Tickets render automatically on single `tribe_events` pages.
+- Rendering is implemented via `the_content` filter.
+- POST handling via `template_redirect`.
+- Cart and checkout revalidation via Woo hooks.
+- Migration to ET v2 views is deferred to a later phase.
 
-## Current status
-- Plugin scaffold is live and logs successfully.
+## Current phase status
 - Phase 1.2 — Admin Ticket Metabox UI: ✅ Complete
-  - Metabox present on the `tribe_events` editor.
-  - Repeatable ticket rows implemented with vanilla JS.
-  - Persisting to the `_oras_tickets_v1` postmeta envelope via `ORAS\Tickets\Domain\Ticket_Collection::save_for_event()`.
-
-- Next: Ticket storage format (define schema)
-## Coding standards
-- PHP 8.0+
-- WordPress Coding Standards
-- Namespacing under ORAS\\Tickets\\
-- No global functions except template tags if required.
+- Phase 2.0 — Woo Product Sync: ✅ Complete
+- Phase 2.1B — POST Enforcement: ✅ Complete
+- Phase 2.1C — Cart & Checkout Revalidation: ✅ Complete
