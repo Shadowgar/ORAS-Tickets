@@ -170,20 +170,22 @@ final class Tickets_Metabox
                         <?php foreach ($tickets as $index => $data) :
                             $name = isset($data['name']) ? (string) $data['name'] : '';
                             $price = isset($data['price']) ? (string) $data['price'] : '0.00';
-                            $remaining = isset($data['capacity']) ? absint($data['capacity']) : 0;
+                            $remaining_data = $this->get_remaining_for_ticket($post->ID, (string) $index);
+                            $remaining_display = $remaining_data['display'];
+                            $remaining_value = $remaining_data['remaining'];
+                            $is_unlimited = $remaining_data['is_unlimited'];
                             $initial_capacity = isset($data['initial_capacity']) ? absint($data['initial_capacity']) : null;
-                            $is_limited = (null !== $initial_capacity && $initial_capacity > 0) || $remaining > 0;
 
-                            if (! $is_limited) {
+                            if ($is_unlimited) {
                                 $status = 'Unlimited';
-                            } elseif ($remaining > 0) {
+                            } elseif ((int) $remaining_value > 0) {
                                 $status = 'Available';
                             } else {
                                 $status = 'Sold out';
                             }
 
-                            if ($is_limited && null !== $initial_capacity && $initial_capacity > 0) {
-                                $sold = max(0, $initial_capacity - $remaining);
+                            if (! $is_unlimited && null !== $initial_capacity && $initial_capacity > 0 && null !== $remaining_value) {
+                                $sold = max(0, $initial_capacity - (int) $remaining_value);
                             } else {
                                 $sold = '—';
                             }
@@ -192,7 +194,7 @@ final class Tickets_Metabox
                                 <td><?php echo esc_html((string) $index); ?></td>
                                 <td><?php echo esc_html($name); ?></td>
                                 <td><?php echo esc_html($price); ?></td>
-                                <td><?php echo esc_html((string) $remaining); ?></td>
+                                <td><?php echo esc_html((string) $remaining_display); ?></td>
                                 <td><?php echo esc_html((string) $sold); ?></td>
                                 <td><?php echo esc_html($status); ?></td>
                             </tr>
@@ -225,6 +227,63 @@ final class Tickets_Metabox
 
 
 <?php
+    }
+
+    /**
+     * @return array{display:string|int,remaining:int|null,is_unlimited:bool}
+     */
+    private function get_remaining_for_ticket(int $event_id, string $index): array
+    {
+        $map = get_post_meta($event_id, '_oras_tickets_woo_map_v1', true);
+        if (! is_array($map)) {
+            $map = [];
+        }
+
+        $product_id = isset($map[$index]) ? absint($map[$index]) : 0;
+        if ($product_id <= 0) {
+            return [
+                'display' => '—',
+                'remaining' => null,
+                'is_unlimited' => false,
+            ];
+        }
+
+        $manage_stock = null;
+        $stock_qty = null;
+
+        if (function_exists('wc_get_product')) {
+            $product = wc_get_product($product_id);
+            if ($product) {
+                if (method_exists($product, 'get_manage_stock')) {
+                    $manage_stock = (bool) $product->get_manage_stock();
+                }
+                if (method_exists($product, 'get_stock_quantity')) {
+                    $stock_qty = $product->get_stock_quantity();
+                }
+            }
+        }
+
+        if (null === $manage_stock) {
+            $manage_stock = (string) get_post_meta($product_id, '_manage_stock', true) === 'yes';
+        }
+        if (null === $stock_qty) {
+            $stock_qty = get_post_meta($product_id, '_stock', true);
+        }
+
+        if (! $manage_stock) {
+            return [
+                'display' => esc_html__('Unlimited', 'oras-tickets'),
+                'remaining' => null,
+                'is_unlimited' => true,
+            ];
+        }
+
+        $remaining = max(0, (int) $stock_qty);
+        return [
+            'display' => $remaining,
+            'remaining' => $remaining,
+            'is_unlimited' => false,
+        ];
     }
 
     public function save_post(int $post_id, \WP_Post $post): void

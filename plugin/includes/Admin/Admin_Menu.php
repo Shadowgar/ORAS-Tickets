@@ -20,6 +20,7 @@ final class Admin_Menu
   public function register(): void
   {
     add_action('admin_menu', [$this, 'register_menu']);
+    add_action('admin_post_oras_tickets_export_csv', [$this, 'handle_export_csv']);
   }
 
   public function register_menu(): void
@@ -77,5 +78,10 @@ final class Admin_Menu
   public function render_settings(): void
   {
     (new Settings_Page())->render();
+  }
+
+  public function handle_export_csv(): void
+  {
+    (new Reports_Page())->export_csv();
   }
 }
