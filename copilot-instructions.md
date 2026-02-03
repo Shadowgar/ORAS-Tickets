@@ -1,20 +1,29 @@
-# ORAS-Tickets — Copilot Instructions (MUST FOLLOW)
+# ORAS Events Add-On (repo: ORAS-Tickets) — Copilot Instructions
 
-You are working in the ORAS-Tickets WordPress plugin repo.
+Authority:
 
-## Source of truth docs (read first)
-- docs/CURRENT_STATE.md
-- docs/ARCHITECTURE_BOUNDARIES.md
-- docs/COPILOT_CONTEXT.md
+- docs/CURRENT_STATE.md is the single source of truth for phase + scope.
+- docs/NEXT.md is the current objective. Do not work outside it.
+- docs/ARCHITECTURE_BOUNDARIES.md defines allowed code paths.
+- docs/CHANGELOG.md is append-only; do not rewrite history.
 
-## Non-negotiable rules
-- ORAS-Tickets is an add-on. Do NOT modify TEC/Event Tickets/WooCommerce.
-- No external services, license servers, or update engines.
-- Follow WordPress Coding Standards, PHP 8.x.
-- Do NOT introduce ET provider / Ticket_Object patterns unless explicitly instructed.
-- Current frontend rendering uses `the_content` + `template_redirect` + Woo cart/checkout hooks (see CURRENT_STATE.md).
-- Keep changes scoped to the requested phase and file list only.
+Non-negotiables:
 
-## Behavior
-- When generating code, cite which doc section you are following (briefly).
-- If a request conflicts with the docs, stop and propose the smallest compliant alternative.
+- Add-on only. Do NOT modify TEC, Event Tickets, or WooCommerce plugin code.
+- WooCommerce is the only commerce engine.
+- No external services, license servers, update engines, or SaaS calls.
+- Follow WordPress Coding Standards.
+- Use existing project namespaces and patterns (ORAS\Tickets\...).
+
+Output requirements (for every implementation):
+
+- List files to change before writing code.
+- Prefer small, auditable changes.
+- Include WP-CLI verification commands.
+- If requirements are unclear, ask ONE question, then wait.
+
+Token discipline:
+
+- Do not paste large files.
+- Quote only the minimum relevant snippets.
+- Summarize before proposing code.
