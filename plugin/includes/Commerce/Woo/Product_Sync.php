@@ -237,7 +237,8 @@ final class Product_Sync
                     $product->set_catalog_visibility('hidden');
                 }
                 if (method_exists($product, 'set_status')) {
-                    $product->set_status('private');
+                    // Must be publish for Woo to treat the product as purchasable.
+                    $product->set_status('publish');
                 }
 
                 // Stock / capacity: always apply capacity rules so mapped products are updated.

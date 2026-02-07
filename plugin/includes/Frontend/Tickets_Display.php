@@ -81,12 +81,24 @@ final class Tickets_Display
             $event_id_raw = get_post_meta($product_id, '_oras_ticket_event_id', true);
             $index_raw = get_post_meta($product_id, '_oras_ticket_index', true);
             if ($event_id_raw === '' || $index_raw === '') {
+                if ($event_id_raw !== '' || $index_raw !== '') {
+                    WC()->cart->remove_cart_item($cart_item_key);
+                    $changed = true;
+                    if (function_exists('wc_add_notice')) {
+                        wc_add_notice(__('A ticket in your cart is no longer available and was removed.', 'oras-tickets'), 'error');
+                    }
+                }
                 continue;
             }
 
             $event_id = (int) $event_id_raw;
             $index = (int) $index_raw;
             if ($event_id <= 0 || $index < 0) {
+                WC()->cart->remove_cart_item($cart_item_key);
+                $changed = true;
+                if (function_exists('wc_add_notice')) {
+                    wc_add_notice(__('A ticket in your cart is no longer available and was removed.', 'oras-tickets'), 'error');
+                }
                 continue;
             }
 
@@ -112,13 +124,17 @@ final class Tickets_Display
 
             $name = $this->get_ticket_name($ticket, $product);
 
+            $manages = (method_exists($product, 'managing_stock') && $product->managing_stock());
+
             if (! $product->is_in_stock() && ! $product->backorders_allowed()) {
-                WC()->cart->remove_cart_item($cart_item_key);
-                $changed = true;
-                if (function_exists('wc_add_notice')) {
-                    wc_add_notice(sprintf(__('Ticket %s is sold out and was removed from your cart.', 'oras-tickets'), $name), 'error');
+                if (! $manages) {
+                    WC()->cart->remove_cart_item($cart_item_key);
+                    $changed = true;
+                    if (function_exists('wc_add_notice')) {
+                        wc_add_notice(sprintf(__('Ticket %s is sold out and was removed from your cart.', 'oras-tickets'), $name), 'error');
+                    }
+                    continue;
                 }
-                continue;
             }
 
             $sale_start = isset($ticket['sale_start']) ? (string) $ticket['sale_start'] : '';
@@ -150,18 +166,10 @@ final class Tickets_Display
 
             $current_qty = isset($cart_item['quantity']) ? (int) $cart_item['quantity'] : 0;
 
-            if (method_exists($product, 'managing_stock') && $product->managing_stock()) {
+            if ($manages) {
                 $available = method_exists($product, 'get_stock_quantity') ? (int) $product->get_stock_quantity() : 0;
-                if ($available <= 0) {
-                    WC()->cart->remove_cart_item($cart_item_key);
-                    $changed = true;
-                    if (function_exists('wc_add_notice')) {
-                        wc_add_notice(sprintf(__('Ticket %s is sold out and was removed from your cart.', 'oras-tickets'), $name), 'error');
-                    }
-                    continue;
-                }
-
-                if ($current_qty > $available) {
+                // Woo can temporarily reserve stock during checkout; do not remove on 0 here.
+                if ($available > 0 && $current_qty > $available) {
                     WC()->cart->set_quantity($cart_item_key, $available, true);
                     $changed = true;
                     if (function_exists('wc_add_notice')) {
@@ -226,6 +234,45 @@ final class Tickets_Display
     }
 
     /**
+     * Return true when the ticket is currently on sale based on its sale window.
+     */
+    private function is_ticket_on_sale_now(array $ticket, int $now): bool
+    {
+        $sale_start = isset($ticket['sale_start']) ? (string) $ticket['sale_start'] : '';
+        $sale_end = isset($ticket['sale_end']) ? (string) $ticket['sale_end'] : '';
+
+        if ($sale_start !== '') {
+            $start_ts = strtotime($sale_start . ' UTC');
+            if ($start_ts && $start_ts > $now) {
+                return false;
+            }
+        }
+
+        if ($sale_end !== '') {
+            $end_ts = strtotime($sale_end . ' UTC');
+            if ($end_ts && $end_ts < $now) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function get_mapped_product_id(array $map, int $index): int
+    {
+        $string_key = (string) $index;
+        if (isset($map[$string_key])) {
+            return absint($map[$string_key]);
+        }
+
+        if (isset($map[$index])) {
+            return absint($map[$index]);
+        }
+
+        return 0;
+    }
+
+    /**
      * Filter the main post content and append purchase form for single TEC events.
      */
     public function the_content_filter(string $content): string
@@ -262,11 +309,34 @@ final class Tickets_Display
             return '<p>Tickets not available</p>';
         }
 
+        // All sale window comparisons are done in UTC.
+        $now = (int) current_time('timestamp', true);
+        $tickets = $collection->all();
+        $tickets_on_sale = [];
+        foreach ($tickets as $index => $ticket_obj) {
+            $ticket = method_exists($ticket_obj, 'to_array') ? $ticket_obj->to_array() : (is_array($ticket_obj) ? $ticket_obj : []);
+            if (! $this->is_ticket_on_sale_now($ticket, $now)) {
+                continue;
+            }
+            $tickets_on_sale[$index] = $ticket_obj;
+        }
+
         ob_start();
 
         echo '<section class="oras-tickets-section">';
         echo '<div id="oras-tickets-display" class="oras-tickets-display">';
         echo '<h2>Tickets</h2>';
+
+        if (function_exists('wc_print_notices')) {
+            wc_print_notices();
+        }
+
+        if (empty($tickets_on_sale)) {
+            echo '<p>Tickets are not currently on sale.</p>';
+            echo '</div>';
+            echo '</section>';
+            return (string) ob_get_clean();
+        }
 
         echo '<form method="post" action="' . esc_url(get_permalink($event_id)) . '">';
         echo wp_nonce_field('oras_tickets_add_to_cart', 'oras_tickets_nonce', true, false);
@@ -277,14 +347,11 @@ final class Tickets_Display
         echo '<thead><tr><th>Ticket</th><th>Price</th><th>Status</th><th>Qty</th></tr></thead>';
         echo '<tbody>';
 
-        // All sale window comparisons are done in UTC.
-        $now = (int) current_time('timestamp', true);
-        $tickets = $collection->all();
-        foreach ($tickets as $index => $ticket_obj) {
+        foreach ($tickets_on_sale as $index => $ticket_obj) {
             $ticket = method_exists($ticket_obj, 'to_array') ? $ticket_obj->to_array() : (is_array($ticket_obj) ? $ticket_obj : []);
             $key = (string) $index;
 
-            $product_id = isset($map[$key]) ? absint($map[$key]) : 0;
+            $product_id = $this->get_mapped_product_id($map, $index);
             if ($product_id <= 0) {
                 continue;
             }
@@ -306,14 +373,17 @@ final class Tickets_Display
             $end_ts = $sale_end !== '' ? strtotime($sale_end . ' UTC') : false;
 
             $status = 'On sale';
+            $status_class = 'oras-status--on-sale';
             $disabled = false;
             $disabled_reason = '';
             if ($start_ts && $now < $start_ts) {
                 $status = 'Not on sale yet';
+                $status_class = 'oras-status--not-yet';
                 $disabled = true;
                 $disabled_reason = 'Not on sale yet';
             } elseif ($end_ts && $now > $end_ts) {
                 $status = 'Sales ended';
+                $status_class = 'oras-status--ended';
                 $disabled = true;
                 $disabled_reason = 'Sales ended';
             }
@@ -327,8 +397,21 @@ final class Tickets_Display
 
             if ($manages && $max <= 0) {
                 $status = 'Sold out';
+                $status_class = 'oras-status--sold-out';
                 $disabled = true;
                 $disabled_reason = 'Sold out';
+            }
+
+            $stock_note = '';
+            if ($status_class === 'oras-status--on-sale') {
+                if ($manages) {
+                    $stock_qty = (int) $max;
+                    if ($stock_qty > 0) {
+                        $stock_note = '• ' . $stock_qty . ' left';
+                    }
+                } else {
+                    $stock_note = '• Unlimited';
+                }
             }
 
             echo '<tr>';
@@ -341,7 +424,11 @@ final class Tickets_Display
             }
             echo '</td>';
             echo '<td>' . esc_html($price_display) . '</td>';
-            echo '<td>' . esc_html($status) . '</td>';
+            echo '<td><span class="oras-ticket-status-badge ' . esc_attr($status_class) . '">' . esc_html($status);
+            if ($stock_note !== '') {
+                echo ' <span class="oras-ticket-stock-note">' . esc_html($stock_note) . '</span>';
+            }
+            echo '</span></td>';
 
             $input_attrs = '';
             if ($disabled) {
@@ -439,7 +526,7 @@ final class Tickets_Display
             $ticket = method_exists($ticket_obj, 'to_array') ? $ticket_obj->to_array() : (is_array($ticket_obj) ? $ticket_obj : []);
             $name = isset($ticket['name']) && $ticket['name'] !== '' ? (string) $ticket['name'] : __('Ticket', 'oras-tickets');
 
-            $product_id = isset($map[(string) $index]) ? absint($map[(string) $index]) : 0;
+            $product_id = $this->get_mapped_product_id($map, $index);
             if ($product_id <= 0) {
                 if (function_exists('wc_add_notice')) {
                     wc_add_notice(sprintf(__('Ticket %s is not available.', 'oras-tickets'), $name), 'error');
@@ -526,7 +613,19 @@ final class Tickets_Display
         }
 
         if ($added_any && function_exists('wc_add_notice')) {
-            wc_add_notice(__('Tickets added to cart.', 'oras-tickets'), 'success');
+            $cart_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '';
+            $message = sprintf(
+                /* translators: %s is the cart URL. */
+                __('Tickets added to cart. <a class="button" href="%s">View cart</a>', 'oras-tickets'),
+                esc_url($cart_url)
+            );
+            $allowed = [
+                'a' => [
+                    'class' => true,
+                    'href' => true,
+                ],
+            ];
+            wc_add_notice(wp_kses($message, $allowed), 'success');
         }
 
         if (! $added_any && ! $had_error && function_exists('wc_add_notice')) {
