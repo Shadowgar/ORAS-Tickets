@@ -1,73 +1,115 @@
 # ORAS-Tickets (Internal)
 
-ORAS-Tickets is an **internal-only** Event Tickets add-on for the Oil Region Astronomical Society.
+ORAS-Tickets is an **internal-only** WordPress add-on for the Oil Region Astronomical Society (ORAS).
 
-It is designed to **replace Event Tickets Plus** by providing equal or better functionality
-while integrating directly with **Event Tickets (free)**, **The Events Calendar**, and **WooCommerce**.
+Logical project name: **ORAS Events Add-On**  
+Repository name: **ORAS-Tickets** (unchanged):contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
 
-This plugin is:
-- GPL-compatible
-- Not sold
-- Not distributed
-- Used on a single private server
+It is built on top of:
+- The Events Calendar (TEC)
+- Event Tickets (free)
+- WooCommerce (Stripe via WooCommerce gateway)
+
+Tickets are a foundational module within a broader event-enhancement platform.
 
 ---
 
 ## Core Principles (DO NOT VIOLATE)
 
-1. **Event Tickets (free) remains installed and active**
-2. ORAS-Tickets is an **add-on**, not a fork
-3. No shortcode-based ticket rendering
-4. No reliance on `the_content()`
-5. Tickets must appear automatically on single event pages
-6. WooCommerce is the commerce engine
-7. Event Tickets view system (v2) is the rendering layer
-8. No external services, no license servers, no update engines
+1. **Event Tickets (free) remains installed and active**:contentReference[oaicite:8]{index=8}
+2. ORAS-Tickets is an **add-on**, not a fork:contentReference[oaicite:9]{index=9}
+3. **Do NOT modify** TEC, Event Tickets, or WooCommerce core plugin files:contentReference[oaicite:10]{index=10}
+4. **WooCommerce is the commerce engine** (cart/checkout/stock behavior stays Woo-native):contentReference[oaicite:11]{index=11}
+5. **No external services** (no license servers, update engines, telemetry, SaaS dependencies):contentReference[oaicite:12]{index=12}
+6. **Deterministic, auditable behavior** (minimal magic; explicit logic):contentReference[oaicite:13]{index=13}
+7. **Frontend tickets render automatically on event pages**
+   - Current implementation uses the `the_content` filter (intentional and accepted):contentReference[oaicite:14]{index=14}
+   - Migration to ET v2 views is deferred to a later phase:contentReference[oaicite:15]{index=15}
 
 ---
 
 ## Required Reading (in order)
 
-Any AI or developer must read these files **before writing code**:
-
-1. `docs/EVENT_TICKETS_ENGINE_ARCHITECTURE.md`
-2. `docs/EVENT_TICKETS_PLUS_FEATURES.md`
-3. `docs/ET_CODEMAP.md`
-4. `docs/ET_PLUS_PARITY_MATRIX.md`
+Before writing or changing code, read:
+1. `docs/CURRENT_STATE.md` (authoritative state / roadmap; wins conflicts):contentReference[oaicite:16]{index=16}
+2. `docs/PROJECT_STATE.md` (what the project is)
+3. `docs/COPILOT_CONTEXT.md` (non-negotiables and “how we build” rules):contentReference[oaicite:17]{index=17}
+4. `docs/EVENT_TICKETS_ENGINE_ARCHITECTURE.md`
+5. `docs/EVENT_TICKETS_PLUS_FEATURES.md`
+6. `docs/ET_CODEMAP.md`
+7. `docs/ET_PLUS_PARITY_MATRIX.md`
 
 ---
 
-## Current Phase
+## Current Status
 
-**Phase 1 — Ticketing MVP**
+### Phases 1.x – 3.0: CLOSED
+Tickets core, Woo lifecycle, refunds, reporting, and admin UI are complete and closed:contentReference[oaicite:18]{index=18}.
 
-Goal:
-- Define tickets on the event editor
-- Sync tickets to WooCommerce products
-- Automatically render tickets on event pages using Event Tickets v2 views
-- Complete checkout via WooCommerce
+### Phase 3.1: COMPLETED (Frontend UX polish)
+Phase 3.1 is complete. Highlights:
+- Tickets render only when currently on sale (sale window enforced at display time):contentReference[oaicite:19]{index=19}
+- Sold-out tickets remain visible during sales window unless `hide_sold_out` is enabled:contentReference[oaicite:20]{index=20}
+- Woo products are `post_status=publish` and `catalog_visibility=hidden`:contentReference[oaicite:21]{index=21}
+- Add-to-cart uses a custom POST handler (event permalink), while cart/checkout validation uses Woo hooks:contentReference[oaicite:22]{index=22}
+- Phase 3.x exclusions remain explicit: no cart icon, no member logic, no merchandise, no attendees:contentReference[oaicite:23]{index=23}
 
-Nothing beyond Phase 1 should be started yet.
+### Next Allowed Phase: 3.2 — Time-based pricing / Early Bird
+Phase 3.2 scope includes:
+- Pricing phases per ticket
+- Automatic price switching
+- Early bird badge
+- Countdown to cutoff
+- Stripe metadata phase labels:contentReference[oaicite:24]{index=24}:contentReference[oaicite:25]{index=25}
 
-### Progress
+No new work should begin until documentation is aligned (this README update is part of that closeout):contentReference[oaicite:26]{index=26}.
 
-- Phase 1.2 — Admin Ticket Metabox UI: ✅ Complete
-	- Metabox added to the `tribe_events` editor with repeatable rows (vanilla JS).
-	- Persisting ticket definitions to `_oras_tickets_v1` via `ORAS\Tickets\Domain\Ticket_Collection::save_for_event()`.
-	- Implemented fields: `name`, `price`, `capacity`, `sale_start`, `sale_end`, `description`, `hide_sold_out`.
-	- Frontend rendering and commerce/provider sync are NOT implemented in Phase 1.2.
+---
+
+## High-level Architecture (Current)
+
+Frontend rendering (current implementation):
+- Tickets display is appended on single `tribe_events` via `the_content` filter
+- POST handling via `template_redirect`
+- Cart and checkout revalidation via Woo hooks:contentReference[oaicite:27]{index=27}
+
+Data model (versioned post meta):
+- Event meta:
+  - `_oras_tickets_v1` (ticket definitions envelope)
+  - `_oras_tickets_woo_map_v1` (ticket index → Woo product ID map)
+- Product meta:
+  - `_oras_ticket_event_id`
+  - `_oras_ticket_index`:contentReference[oaicite:28]{index=28}
+
+Commerce model:
+- One hidden WooCommerce product per ticket
+- Woo is responsible for checkout and stock mechanics; ORAS-Tickets only validates ticket-specific constraints (sale windows, malformed items) via hooks:contentReference[oaicite:29]{index=29}
 
 ---
 
 ## Forbidden Actions
 
-- Do NOT modify Event Tickets core files
-- Do NOT inject code into The Events Calendar templates
-- Do NOT use global hook dumping
-- Do NOT redesign architecture without updating docs first
-- Do NOT add licensing, update checks, or obfuscation
+- Do NOT modify Event Tickets core files:contentReference[oaicite:30]{index=30}
+- Do NOT modify The Events Calendar core files
+- Do NOT modify WooCommerce core files
+- Do NOT add licensing, update checks, telemetry, or external calls:contentReference[oaicite:31]{index=31}
+- Do NOT inject UI into themes (header/footer) as part of Phase 3.x (cart icon/widgets are post-3.x):contentReference[oaicite:32]{index=32}
 
 ---
 
-## Repository Layout
+## Development
 
+Local dev uses `wp-env` (repo includes configuration). Use the project’s existing workflow:
+- VS Code + GitHub Copilot (“vibe coding”)
+- One step at a time: Copilot prompt → review diff → test → next prompt
+
+Documentation-first rule:
+- If behavior changes, docs must be updated to match before moving phases.
+
+---
+
+## Roadmap (Authoritative)
+
+See:
+- `docs/CURRENT_STATE.md` for the active roadmap and locked order of phases:contentReference[oaicite:33]{index=33}
+- `docs/NEXT.md` for the single focus / next allowed work:contentReference[oaicite:34]{index=34}

@@ -1,9 +1,7 @@
 # NEXT — Single Focus
 
-Current Objective:
-Phase 3.1 — Frontend UX polish (Tickets)
+Phase 3.1 — Frontend UX polish (Tickets): COMPLETED
 
-Success Criteria:
-- Inventory visibility is clear
-- Sold-out tickets are visually distinct
-- Layout is clean and readable
+Status: Documentation alignment is the final closeout step; no new features should be added until Phase 3.1 docs are finalized.
+
+Next allowed development phase: Phase 3.2 — Time-based pricing / Early Bird.

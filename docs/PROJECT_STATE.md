@@ -24,3 +24,8 @@ Tickets are foundational, not exclusive.
 
 ## Authority
 If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
+
+## Current maturity (post Phase 3.1)
+- Ticketing is frontend-stable and production-ready for event pages: the ticket display, sales-window filtering, stock visibility, and add-to-cart flow are complete and intended for live use.
+- ORAS-Tickets is evolving toward a broader "event add-on" system; ticketing remains the foundational module and primary supported surface.
+- This document does not introduce new phases or feature commitments — it records the current scope and maturity only.
