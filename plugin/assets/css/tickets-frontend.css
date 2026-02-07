@@ -1,0 +1,47 @@
+.oras-tickets-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.oras-tickets-table td:first-child {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.oras-tickets-table th:nth-child(2),
+.oras-tickets-table td:nth-child(2) {
+  width: 7.5em;
+}
+
+.oras-tickets-table th:nth-child(3),
+.oras-tickets-table td:nth-child(3) {
+  width: 8.5em;
+}
+
+.oras-tickets-table th:nth-child(4),
+.oras-tickets-table td:nth-child(4) {
+  width: 6.5em;
+}
+
+.oras-tickets-table input[type="number"][name^="oras_qty["] {
+  min-width: 4.5em;
+  width: 100%;
+  padding-right: 1.75em;
+  box-sizing: border-box;
+}
+/* Qty column: give Firefox enough horizontal room */
+.oras-tickets-table th:nth-child(4),
+.oras-tickets-table td:nth-child(4) {
+  width: 8.5em;
+  min-width: 8.5em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Qty input: let Firefox place spinners naturally */
+.oras-tickets-table input[type="number"][name^="oras_qty["] {
+  width: 100%;
+  min-width: 0;
+  padding-right: 0.5em; /* small, not spinner-sized */
+  box-sizing: border-box;
+}
