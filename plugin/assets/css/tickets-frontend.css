@@ -25,6 +25,31 @@
   color: #555;
 }
 
+.oras-ticket-phase {
+  display: inline-block;
+  margin-top: 0.4em;
+  padding: 0.15em 0.5em;
+  border-radius: 999px;
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: #e8f2ff;
+  color: #1f4c7a;
+}
+
+.oras-ticket-phase-countdown {
+  margin-top: 0.35em;
+  display: inline-block;
+  padding: 0.2em 0.5em;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: #fff3cd;
+  color: #7a5b00;
+  border: 1px solid #f0d58c;
+}
+
 .oras-tickets-table th:nth-child(2),
 .oras-tickets-table td:nth-child(2) {
   width: 7.5em;

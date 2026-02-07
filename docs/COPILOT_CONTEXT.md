@@ -38,3 +38,17 @@ Forbidden in ticket phases (explicit):
 Guidance for future phases:
 - Cart UI widgets and visual cart affordances belong in post-3.x phases and require separate design/UX work.
 - Member hub and member-only features are separate concerns and should be scoped to dedicated phases.
+
+## Locked Phases
+Phases 0 through 3.2 are complete and must not be modified without an explicit design review and a documented migration plan.
+
+Prohibited changes (unless explicitly approved):
+- Time-based pricing resolver logic (`ORAS\Tickets\Domain\Pricing\Price_Resolver`).
+- Cart pricing hook logic (server-side cart price application).
+- Order item snapshot metadata keys and behavior (order item meta written during checkout).
+- Phase 3.1 sale window filtering, cart safety checks, and frontend UX behaviors.
+
+## Upcoming Work (Not Implemented Yet)
+- Phase 3.3 — Admin UX redesign for the tickets editor (vertical tabs, WooCommerce-style).
+- This is UI-only: no data-model changes unless explicitly instructed in follow-up design work.
+- Do NOT implement Phase 3.3 without explicit approval and instruction in chat.

@@ -98,6 +98,7 @@ final class Tickets_Metabox
                     <?php foreach ($tickets as $index => $data) :
                         $name = isset($data['name']) ? $data['name'] : '';
                         $price = isset($data['price']) ? $data['price'] : '0.00';
+                        $price_phases = isset($data['price_phases']) && is_array($data['price_phases']) ? $data['price_phases'] : [];
                         $capacity = isset($data['capacity']) ? $data['capacity'] : 0;
                         $sale_start = isset($data['sale_start']) ? $data['sale_start'] : '';
                         $sale_end = isset($data['sale_end']) ? $data['sale_end'] : '';
@@ -111,118 +112,197 @@ final class Tickets_Metabox
                             </td>
                             <td>
                                 <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price]" value="<?php echo esc_attr($price); ?>" />
-                            </td>
-                            <td>
-                                <input type="number" min="0" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr($capacity); ?>" />
-                                <p class="description"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
-                            </td>
-                            <td>
-                                <?php
-                                $sale_start_val = $sale_start !== '' ? str_replace(' ', 'T', $sale_start) : '';
-                                ?>
-                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr($sale_start_val); ?>" />
-                            </td>
-                            <td>
-                                <?php
-                                $sale_end_val = $sale_end !== '' ? str_replace(' ', 'T', $sale_end) : '';
-                                ?>
-                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr($sale_end_val); ?>" />
-                            </td>
-                            <td>
-                                <textarea name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="2"><?php echo esc_textarea($description); ?></textarea>
-                            </td>
-                            <td>
-                                <input type="checkbox" name="oras_tickets_tickets[<?php echo $idx; ?>][hide_sold_out]" value="1" <?php checked($hide_sold_out); ?> />
-                            </td>
-                            <td>
-                                <button type="button" class="oras-remove-ticket button">Remove</button>
-                                <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
-                            </td>
+                                <div class="oras-phase-section">
+                                    <div class="oras-phase-header">Pricing phases</div>
+                                    <table class="widefat striped oras-phase-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Key</th>
+                                                <th>Label</th>
+                                                <th>Price</th>
+                                                <th>Start (UTC)</th>
+                                                <th>End (UTC)</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (! empty($price_phases)) : ?>
+                                                <?php foreach ($price_phases as $phase_index => $phase) :
+                                                    if (! is_array($phase)) {
+                                                        continue;
+                                                    }
+                                                    $phase_idx = esc_attr((string) $phase_index);
+                                                    $phase_key = isset($phase['key']) ? (string) $phase['key'] : '';
+                                                    $phase_label = isset($phase['label']) ? (string) $phase['label'] : '';
+                                                    $phase_price = isset($phase['price']) ? (string) $phase['price'] : '';
+                                                    $phase_start = isset($phase['start']) ? (string) $phase['start'] : '';
+                                                    $phase_end = isset($phase['end']) ? (string) $phase['end'] : '';
+                                                ?>
+                                                    <tr class="oras-phase-row" data-phase-index="<?php echo $phase_idx; ?>">
+                                                        <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][key]" value="<?php echo esc_attr($phase_key); ?>" /></td>
+                                                        <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][label]" value="<?php echo esc_attr($phase_label); ?>" /></td>
+                                                        <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][price]" value="<?php echo esc_attr($phase_price); ?>" /></td>
+                                                        <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][start]" placeholder="YYYY-MM-DD HH:MM" value="<?php echo esc_attr($phase_start); ?>" /></td>
+                                                        <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][end]" placeholder="YYYY-MM-DD HH:MM" value="<?php echo esc_attr($phase_end); ?>" /></td>
+                                                        <td><button type="button" class="button oras-phase-remove">Remove</button></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </tbody>
+                                    </table>
+                                    <p><button type="button" class="button oras-phase-add" data-ticket-index="<?php echo $idx; ?>">Add phase</button></p>
+                                    <template class="oras-phase-template" data-ticket-index="<?php echo $idx; ?>">
+                        <tr class="oras-phase-row" data-phase-index="__PHASE__">
+                            <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][key]" value="" /></td>
+                            <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][label]" value="" /></td>
+                            <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][price]" value="" /></td>
+                            <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][start]" placeholder="YYYY-MM-DD HH:MM" value="" /></td>
+                            <td><input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][end]" placeholder="YYYY-MM-DD HH:MM" value="" /></td>
+                            <td><button type="button" class="button oras-phase-remove">Remove</button></td>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-
-            <p>
-                <button type="button" id="oras-add-ticket" class="button">Add Ticket</button>
-            </p>
-
-            <hr />
-
-            <h4>Ticket Sales Summary</h4>
-            <table class="widefat striped" id="oras-tickets-summary">
-                <thead>
-                    <tr>
-                        <th>Index</th>
-                        <th>Name</th>
-                        <th>Price</th>
-                        <th>Remaining</th>
-                        <th>Sold</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($tickets)) : ?>
-                        <tr>
-                            <td colspan="6">No tickets yet.</td>
-                        </tr>
-                    <?php else : ?>
-                        <?php foreach ($tickets as $index => $data) :
-                            $name = isset($data['name']) ? (string) $data['name'] : '';
-                            $price = isset($data['price']) ? (string) $data['price'] : '0.00';
-                            $remaining_data = $this->get_remaining_for_ticket($post->ID, (string) $index);
-                            $remaining_display = $remaining_data['display'];
-                            $remaining_value = $remaining_data['remaining'];
-                            $is_unlimited = $remaining_data['is_unlimited'];
-                            $initial_capacity = isset($data['initial_capacity']) ? absint($data['initial_capacity']) : null;
-
-                            if ($is_unlimited) {
-                                $status = 'Unlimited';
-                            } elseif ((int) $remaining_value > 0) {
-                                $status = 'Available';
-                            } else {
-                                $status = 'Sold out';
-                            }
-
-                            if (! $is_unlimited && null !== $initial_capacity && $initial_capacity > 0 && null !== $remaining_value) {
-                                $sold = max(0, $initial_capacity - (int) $remaining_value);
-                            } else {
-                                $sold = '—';
-                            }
-                        ?>
-                            <tr>
-                                <td><?php echo esc_html((string) $index); ?></td>
-                                <td><?php echo esc_html($name); ?></td>
-                                <td><?php echo esc_html($price); ?></td>
-                                <td><?php echo esc_html((string) $remaining_display); ?></td>
-                                <td><?php echo esc_html((string) $sold); ?></td>
-                                <td><?php echo esc_html($status); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-
-            <!-- Template row (uses <template> so it won't be submitted) -->
-            <template id="oras-ticket-template">
-                <tr class="oras-ticket-row" data-index="__INDEX__">
-                    <td><input type="text" name="oras_tickets_tickets[__INDEX__][name]" value="" /></td>
-                    <td><input type="text" name="oras_tickets_tickets[__INDEX__][price]" value="0.00" /></td>
-                    <td>
-                        <input type="number" min="0" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" />
-                        <p class="description"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
-                    </td>
-                    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" /></td>
-                    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" /></td>
-                    <td><textarea name="oras_tickets_tickets[__INDEX__][description]" rows="2"></textarea></td>
-                    <td><input type="checkbox" name="oras_tickets_tickets[__INDEX__][hide_sold_out]" value="1" /></td>
-                    <td><button type="button" class="oras-remove-ticket button">Remove</button>
-                        <input type="hidden" name="oras_tickets_index[]" value="__INDEX__" />
-                    </td>
-                </tr>
-            </template>
-
+                        </template>
         </div>
+        </td>
+        <td>
+            <input type="number" min="0" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr($capacity); ?>" />
+            <p class="description"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
+        </td>
+        <td>
+            <?php
+                        $sale_start_val = $sale_start !== '' ? str_replace(' ', 'T', $sale_start) : '';
+            ?>
+            <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr($sale_start_val); ?>" />
+        </td>
+        <td>
+            <?php
+                        $sale_end_val = $sale_end !== '' ? str_replace(' ', 'T', $sale_end) : '';
+            ?>
+            <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr($sale_end_val); ?>" />
+        </td>
+        <td>
+            <textarea name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="2"><?php echo esc_textarea($description); ?></textarea>
+        </td>
+        <td>
+            <input type="checkbox" name="oras_tickets_tickets[<?php echo $idx; ?>][hide_sold_out]" value="1" <?php checked($hide_sold_out); ?> />
+        </td>
+        <td>
+            <button type="button" class="oras-remove-ticket button">Remove</button>
+            <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
+        </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    </table>
+
+    <p>
+        <button type="button" id="oras-add-ticket" class="button">Add Ticket</button>
+    </p>
+
+    <hr />
+
+    <h4>Ticket Sales Summary</h4>
+    <table class="widefat striped" id="oras-tickets-summary">
+        <thead>
+            <tr>
+                <th>Index</th>
+                <th>Name</th>
+                <th>Price</th>
+                <th>Remaining</th>
+                <th>Sold</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($tickets)) : ?>
+                <tr>
+                    <td colspan="6">No tickets yet.</td>
+                </tr>
+            <?php else : ?>
+                <?php foreach ($tickets as $index => $data) :
+                    $name = isset($data['name']) ? (string) $data['name'] : '';
+                    $price = isset($data['price']) ? (string) $data['price'] : '0.00';
+                    $remaining_data = $this->get_remaining_for_ticket($post->ID, (string) $index);
+                    $remaining_display = $remaining_data['display'];
+                    $remaining_value = $remaining_data['remaining'];
+                    $is_unlimited = $remaining_data['is_unlimited'];
+                    $initial_capacity = isset($data['initial_capacity']) ? absint($data['initial_capacity']) : null;
+
+                    if ($is_unlimited) {
+                        $status = 'Unlimited';
+                    } elseif ((int) $remaining_value > 0) {
+                        $status = 'Available';
+                    } else {
+                        $status = 'Sold out';
+                    }
+
+                    if (! $is_unlimited && null !== $initial_capacity && $initial_capacity > 0 && null !== $remaining_value) {
+                        $sold = max(0, $initial_capacity - (int) $remaining_value);
+                    } else {
+                        $sold = '—';
+                    }
+                ?>
+                    <tr>
+                        <td><?php echo esc_html((string) $index); ?></td>
+                        <td><?php echo esc_html($name); ?></td>
+                        <td><?php echo esc_html($price); ?></td>
+                        <td><?php echo esc_html((string) $remaining_display); ?></td>
+                        <td><?php echo esc_html((string) $sold); ?></td>
+                        <td><?php echo esc_html($status); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <!-- Template row (uses <template> so it won't be submitted) -->
+    <template id="oras-ticket-template">
+        <tr class="oras-ticket-row" data-index="__INDEX__">
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][name]" value="" /></td>
+            <td>
+                <input type="text" name="oras_tickets_tickets[__INDEX__][price]" value="0.00" />
+                <div class="oras-phase-section">
+                    <div class="oras-phase-header">Pricing phases</div>
+                    <table class="widefat striped oras-phase-table">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Label</th>
+                                <th>Price</th>
+                                <th>Start (UTC)</th>
+                                <th>End (UTC)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <p><button type="button" class="button oras-phase-add" data-ticket-index="__INDEX__">Add phase</button></p>
+                    <template class="oras-phase-template" data-ticket-index="__INDEX__">
+        <tr class="oras-phase-row" data-phase-index="__PHASE__">
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][key]" value="" /></td>
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][label]" value="" /></td>
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][price]" value="" /></td>
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][start]" placeholder="YYYY-MM-DD HH:MM" value="" /></td>
+            <td><input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][end]" placeholder="YYYY-MM-DD HH:MM" value="" /></td>
+            <td><button type="button" class="button oras-phase-remove">Remove</button></td>
+        </tr>
+    </template>
+    </div>
+    </td>
+    <td>
+        <input type="number" min="0" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" />
+        <p class="description"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
+    </td>
+    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" /></td>
+    <td><input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" /></td>
+    <td><textarea name="oras_tickets_tickets[__INDEX__][description]" rows="2"></textarea></td>
+    <td><input type="checkbox" name="oras_tickets_tickets[__INDEX__][hide_sold_out]" value="1" /></td>
+    <td><button type="button" class="oras-remove-ticket button">Remove</button>
+        <input type="hidden" name="oras_tickets_index[]" value="__INDEX__" />
+    </td>
+    </tr>
+    </template>
+
+    </div>
 
 
 
@@ -298,6 +378,10 @@ final class Tickets_Metabox
             return;
         }
 
+        if (wp_is_post_autosave($post_id)) {
+            return;
+        }
+
         if (wp_is_post_revision($post_id)) {
             return;
         }
@@ -311,8 +395,6 @@ final class Tickets_Metabox
         }
 
         if (! isset($_POST['oras_tickets_tickets']) || ! is_array($_POST['oras_tickets_tickets'])) {
-            // Clear tickets if none provided
-            Ticket_Collection::save_for_event($post_id, ['schema' => 1, 'tickets' => []]);
             return;
         }
 
@@ -397,7 +479,33 @@ final class Tickets_Metabox
                     $initial_capacity = $capacity;
                 }
 
-                $clean_tickets[] = [
+                $price_phases_clean = [];
+                $price_phases_raw = isset($fields['price_phases']) ? $fields['price_phases'] : null;
+                if (is_array($price_phases_raw)) {
+                    foreach ($price_phases_raw as $phase_fields) {
+                        if (! is_array($phase_fields)) {
+                            continue;
+                        }
+                        $phase_key = isset($phase_fields['key']) ? sanitize_text_field($phase_fields['key']) : '';
+                        $phase_label = isset($phase_fields['label']) ? sanitize_text_field($phase_fields['label']) : '';
+                        $phase_price_raw = isset($phase_fields['price']) ? str_replace(',', '.', $phase_fields['price']) : '';
+                        $phase_price = is_numeric($phase_price_raw)
+                            ? number_format((float) $phase_price_raw, 2, '.', '')
+                            : sanitize_text_field($phase_price_raw);
+                        $phase_start = isset($phase_fields['start']) ? sanitize_text_field($phase_fields['start']) : '';
+                        $phase_end = isset($phase_fields['end']) ? sanitize_text_field($phase_fields['end']) : '';
+
+                        $price_phases_clean[] = [
+                            'key' => $phase_key,
+                            'label' => $phase_label,
+                            'price' => $phase_price,
+                            'start' => $phase_start,
+                            'end' => $phase_end,
+                        ];
+                    }
+                }
+
+                $ticket_row = [
                     'name' => $name,
                     'price' => $price,
                     'capacity' => $capacity,
@@ -407,6 +515,12 @@ final class Tickets_Metabox
                     'description' => $description,
                     'hide_sold_out' => $hide_sold_out,
                 ];
+
+                if (is_array($price_phases_raw)) {
+                    $ticket_row['price_phases'] = $price_phases_clean;
+                }
+
+                $clean_tickets[] = $ticket_row;
             }
         } else {
             // Fallback: preserve posted order of the tickets values.
@@ -472,7 +586,33 @@ final class Tickets_Metabox
                     $initial_capacity = $capacity;
                 }
 
-                $clean_tickets[] = [
+                $price_phases_clean = [];
+                $price_phases_raw = isset($fields['price_phases']) ? $fields['price_phases'] : null;
+                if (is_array($price_phases_raw)) {
+                    foreach ($price_phases_raw as $phase_fields) {
+                        if (! is_array($phase_fields)) {
+                            continue;
+                        }
+                        $phase_key = isset($phase_fields['key']) ? sanitize_text_field($phase_fields['key']) : '';
+                        $phase_label = isset($phase_fields['label']) ? sanitize_text_field($phase_fields['label']) : '';
+                        $phase_price_raw = isset($phase_fields['price']) ? str_replace(',', '.', $phase_fields['price']) : '';
+                        $phase_price = is_numeric($phase_price_raw)
+                            ? number_format((float) $phase_price_raw, 2, '.', '')
+                            : sanitize_text_field($phase_price_raw);
+                        $phase_start = isset($phase_fields['start']) ? sanitize_text_field($phase_fields['start']) : '';
+                        $phase_end = isset($phase_fields['end']) ? sanitize_text_field($phase_fields['end']) : '';
+
+                        $price_phases_clean[] = [
+                            'key' => $phase_key,
+                            'label' => $phase_label,
+                            'price' => $phase_price,
+                            'start' => $phase_start,
+                            'end' => $phase_end,
+                        ];
+                    }
+                }
+
+                $ticket_row = [
                     'name' => $name,
                     'price' => $price,
                     'capacity' => $capacity,
@@ -482,6 +622,12 @@ final class Tickets_Metabox
                     'description' => $description,
                     'hide_sold_out' => $hide_sold_out,
                 ];
+
+                if (is_array($price_phases_raw)) {
+                    $ticket_row['price_phases'] = $price_phases_clean;
+                }
+
+                $clean_tickets[] = $ticket_row;
                 $position++;
             }
         }

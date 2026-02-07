@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Commerce\Woo;
 
+use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket_Collection;
 
 if (! defined('ABSPATH')) {
@@ -56,6 +57,31 @@ final class Product_Sync
             $ticket_name = $item->get_name();
         }
 
+        $collection = Ticket_Collection::load_for_event($event_id);
+        $tickets = $collection->all();
+        $ticket_data = [];
+        if (array_key_exists($index, $tickets)) {
+            $ticket_obj = $tickets[$index];
+            $ticket_data = method_exists($ticket_obj, 'to_array') ? $ticket_obj->to_array() : (is_array($ticket_obj) ? $ticket_obj : []);
+        }
+
+        $resolved = ! empty($ticket_data) ? Price_Resolver::resolve_ticket_price($ticket_data) : [];
+        $phase_key = isset($resolved['phase_key']) && is_string($resolved['phase_key']) ? $resolved['phase_key'] : '';
+        $phase_label = isset($resolved['phase_label']) && is_string($resolved['phase_label']) ? $resolved['phase_label'] : '';
+        $phase_price = isset($resolved['price']) ? $resolved['price'] : '';
+        $has_phase = ($phase_key !== '' || $phase_label !== '');
+        $base_price = '';
+        if (isset($ticket_data['price'])) {
+            $base_price_raw = $ticket_data['price'];
+            $base_price = is_numeric($base_price_raw)
+                ? number_format((float) $base_price_raw, 2, '.', '')
+                : (string) $base_price_raw;
+        }
+        $phase_price_differs = false;
+        if (is_numeric($phase_price) && is_numeric($base_price)) {
+            $phase_price_differs = abs((float) $phase_price - (float) $base_price) > 0.0001;
+        }
+
         $quantity = method_exists($item, 'get_quantity') ? max(1, (int) $item->get_quantity()) : 1;
         $subtotal = method_exists($item, 'get_subtotal') ? (float) $item->get_subtotal() : 0.0;
         $unit_price = $subtotal / $quantity;
@@ -66,6 +92,20 @@ final class Product_Sync
         $item->add_meta_data('_oras_ticket_unit_price', wc_format_decimal($unit_price, wc_get_price_decimals()), true);
         $item->add_meta_data('_oras_ticket_currency', get_woocommerce_currency(), true);
         $item->add_meta_data('_oras_ticket_schema', 1, true);
+
+        if ($has_phase) {
+            if ($phase_key !== '') {
+                $item->add_meta_data('_oras_ticket_price_phase_key', $phase_key, true);
+            }
+            if ($phase_label !== '') {
+                $item->add_meta_data('_oras_ticket_price_phase_label', $phase_label, true);
+            }
+            if (is_numeric($phase_price)) {
+                $item->add_meta_data('_oras_ticket_price_phase_price', wc_format_decimal($phase_price, wc_get_price_decimals()), true);
+            }
+        } elseif ($phase_price_differs && is_numeric($phase_price)) {
+            $item->add_meta_data('_oras_ticket_price_phase_price', wc_format_decimal($phase_price, wc_get_price_decimals()), true);
+        }
     }
 
     /**

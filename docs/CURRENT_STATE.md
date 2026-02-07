@@ -33,38 +33,32 @@ Status: COMPLETE AND CLOSED
 
 ### Phase 3.1 — Frontend UX polish (Tickets)
 Status: COMPLETE
+ Status: COMPLETE (LOCKED)
 
 Summary: Frontend ticket display and add-to-cart robustness work for event pages.
 
 Frontend behavior:
-- Tickets render only when currently on sale (display enforces `sale_start` / `sale_end`).
-- Tickets that are not currently on sale do not render.
-- Sold-out tickets remain visible while within the sales window unless `hide_sold_out` is enabled.
 
 WooCommerce behavior:
-- One hidden WooCommerce product is maintained per ticket.
-- Products are saved with `post_status = publish` so Woo treats them as purchasable.
-- Products use `catalog_visibility = hidden` to prevent catalog discovery.
 
 Cart & checkout rules:
-- Add-to-cart is performed via a custom POST handler (see `plugin/includes/Frontend/Tickets_Display.php`).
-- Cart revalidation removes invalid or off-sale tickets (malformed ORAS items are cleaned up).
-- Valid tickets are not removed during checkout; revalidation avoids removing items when Woo temporarily reports 0 stock and will only cap quantities when stock is positively available.
 
 Phase 3.x exclusions (explicit):
-- No cart icon
-- No member-only logic
-- No merchandise
-- No attendee system
 
 ### Phase 3.2 — Time-based pricing (Early Bird)
-Includes:
-- Pricing phases per ticket
-- Automatic price switching
-- Early bird badge
-- Countdown to cutoff
-- Stripe metadata phase labels
+Status: COMPLETE and LOCKED
 
+Verified end-to-end: frontend price resolution, cart/checkout pricing application, and order-item snapshot metadata.
+
+Details:
+	- _oras_ticket_price_phase_key
+	- _oras_ticket_price_phase_label
+	- _oras_ticket_price_phase_price
+
+Phase 3.1 behavior remains LOCKED and unchanged.
+
+Notes:
+- The implementation of Phase 3.1 and 3.2 is intentionally locked. Any changes to these behaviors require a design review and migration plan.
 ### Phase 3.3 — Email & communication layer
 Includes:
 - Event-aware purchase email

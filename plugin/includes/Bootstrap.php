@@ -7,6 +7,7 @@ use ORAS\Tickets\Support\Logger;
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php';
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php';
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Pricing/Price_Resolver.php';
 // Admin metabox for Phase 1.2
 // Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
@@ -18,6 +19,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php';
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
+require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php';
 
 if (! defined('ABSPATH')) {
 	exit;
@@ -86,6 +88,8 @@ final class Bootstrap
 		require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Capacity_Consumption.php';
 		$cc = new \ORAS\Tickets\Commerce\Woo\Capacity_Consumption();
 		$cc->register();
+
+		\ORAS\Tickets\Commerce\Woo\Cart_Pricing::register();
 
 		// Admin-only (or WP-CLI): register ticket metabox and admin hub.
 		if (is_admin() || (defined('WP_CLI') && WP_CLI)) {

@@ -29,3 +29,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Ticketing is frontend-stable and production-ready for event pages: the ticket display, sales-window filtering, stock visibility, and add-to-cart flow are complete and intended for live use.
 - ORAS-Tickets is evolving toward a broader "event add-on" system; ticketing remains the foundational module and primary supported surface.
 - This document does not introduce new phases or feature commitments — it records the current scope and maturity only.
+
+- Phase 3.2: Time-based pricing resolver is implemented and verified (frontend display, cart/checkout pricing, and order-item snapshot metadata).
+- Next planned work: Phase 3.3 — Admin UX redesign (vertical tabs ticket editor).
+
+## Locked Phases
+- Phase 3.1 and Phase 3.2 are complete and locked. Any change affecting time-based pricing, cart price application, or the Phase 3.1 frontend sale-window behaviors requires a documented design review and migration plan.

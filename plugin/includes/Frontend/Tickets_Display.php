@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Frontend;
 
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket_Collection;
 
 if (! defined('ABSPATH')) {
@@ -361,7 +362,8 @@ final class Tickets_Display
             }
 
             $name = isset($ticket['name']) ? esc_html($ticket['name']) : $product->get_name();
-            $price_raw = isset($ticket['price']) ? $ticket['price'] : $product->get_price();
+            $resolved = Price_Resolver::resolve_ticket_price($ticket);
+            $price_raw = $resolved['price'];
             $price_display = $price_raw !== '' && is_numeric($price_raw) ? '$' . number_format((float) $price_raw, 2, '.', '') : esc_html((string) $price_raw);
             $description = isset($ticket['description']) ? esc_html($ticket['description']) : '';
 
@@ -418,6 +420,32 @@ final class Tickets_Display
             echo '<td><strong>' . $name . '</strong>';
             if ($description !== '') {
                 echo '<div class="oras-ticket-desc">' . $description . '</div>';
+            }
+            if (! empty($resolved['phase_label']) && is_string($resolved['phase_label'])) {
+                $phase_label = (string) $resolved['phase_label'];
+                if (strtolower($phase_label) !== 'standard') {
+                    echo '<div class="oras-ticket-phase">' . esc_html($phase_label) . '</div>';
+                }
+            }
+            if (isset($resolved['phase_end_ts']) && is_int($resolved['phase_end_ts']) && $resolved['phase_end_ts'] > $now) {
+                $remaining = max(0, $resolved['phase_end_ts'] - $now);
+                $total_minutes = (int) floor($remaining / 60);
+                $days = (int) floor($total_minutes / 1440);
+                $hours = (int) floor(($total_minutes % 1440) / 60);
+                $minutes = (int) ($total_minutes % 60);
+                $parts = [];
+                if ($days > 0) {
+                    $parts[] = $days . 'd';
+                }
+                if ($hours > 0) {
+                    $parts[] = $hours . 'h';
+                }
+                if ($minutes > 0) {
+                    $parts[] = $minutes . 'm';
+                }
+                if (! empty($parts)) {
+                    echo '<div class="oras-ticket-phase-countdown">' . esc_html('Price increases in: ' . implode(' ', $parts)) . '</div>';
+                }
             }
             if ($disabled && $disabled_reason !== '') {
                 echo '<div class="oras-ticket-status">' . esc_html($disabled_reason) . '</div>';

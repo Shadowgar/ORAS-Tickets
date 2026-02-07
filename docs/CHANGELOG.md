@@ -13,3 +13,15 @@
 - Robust cart revalidation: malformed or off-sale ORAS ticket items are removed; valid items are preserved during checkout.
 - Product purchasability fix: Woo products saved with `post_status = publish` and `catalog_visibility = hidden`.
 - Improved add-to-cart success notice includes a cart link.
+
+Status: COMPLETE (LOCKED)
+
+Notes: Phase 3.1 behaviors (sale-window filtering, add-to-cart revalidation, frontend UX fixes) are locked; changes require a design review.
+
+## Phase 3.2 — COMPLETED
+- Implemented server-side `price_phases` resolver for time-based pricing.
+- Frontend ticket display shows active phase badge and server-rendered countdown.
+- Cart and checkout totals apply resolved phase pricing server-side.
+- Order item metadata now includes active `price_phase` snapshot keys for audits and reporting.
+
+Status: COMPLETE (LOCKED)
