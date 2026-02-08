@@ -2,6 +2,10 @@
 
 namespace ORAS\Tickets\Admin;
 
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
+
+use ORAS\Tickets\Domain\Ticket_Collection;
+
 if (! defined('ABSPATH')) {
   exit;
 }
@@ -15,7 +19,7 @@ final class Reports_Aggregator
    * @param int $event_id
    * @param string[] $statuses
    * @param array{after?:string,before?:string} $date_range
-   * @return array{summary:array,by_ticket:array}
+   * @return array{summary:array,by_ticket:array,phase_breakdown:array}
    */
   public function get_aggregates(int $event_id, array $statuses, array $date_range = []): array
   {
@@ -41,6 +45,10 @@ final class Reports_Aggregator
     ];
 
     $by_ticket = [];
+    $phase_breakdown = [];
+
+    // Presale is defined as the earliest configured phase key by start datetime per ticket.
+    $presale_key_by_ticket_index = $this->get_presale_key_map($event_id);
 
     $refund_statuses = array_unique(array_merge($statuses, ['cancelled', 'refunded']));
 
@@ -48,7 +56,7 @@ final class Reports_Aggregator
       $event_id,
       $refund_statuses,
       $date_range,
-      function ($order) use (&$summary, &$by_ticket, $event_id, $statuses): void {
+      function ($order) use (&$summary, &$by_ticket, &$phase_breakdown, $event_id, $statuses, $presale_key_by_ticket_index): void {
         if (! $order || ! method_exists($order, 'get_refunds')) {
           return;
         }
@@ -60,6 +68,7 @@ final class Reports_Aggregator
         $order_oras_gross = 0.0;
         $order_oras_qty = 0;
         $order_by_ticket = [];
+        $order_by_phase = [];
 
         $order_items = method_exists($order, 'get_items') ? $order->get_items('line_item') : [];
         foreach ($order_items as $item) {
@@ -76,17 +85,51 @@ final class Reports_Aggregator
             $order_oras_gross += $line_total;
             $order_oras_qty += $qty;
 
-            $ticket_key = $context['ticket_index'] !== '' ? (string) $context['ticket_index'] : (string) $context['ticket_name'];
-            if (! isset($order_by_ticket[$ticket_key])) {
-              $order_by_ticket[$ticket_key] = [
+            $ti = (string) $context['ticket_index'];
+            if ($ti === '') {
+              $ti = (string) $context['ticket_name'];
+            }
+            // Normalize ticket index key so presale and phase breakdown stay aligned.
+            if (! isset($order_by_ticket[$ti])) {
+              $order_by_ticket[$ti] = [
                 'ticket_name' => (string) $context['ticket_name'],
                 'ticket_index' => (string) $context['ticket_index'],
                 'sold_qty' => 0,
                 'gross' => 0.0,
+                'presale_qty' => 0,
+                'after_qty' => 0,
               ];
             }
-            $order_by_ticket[$ticket_key]['sold_qty'] += $qty;
-            $order_by_ticket[$ticket_key]['gross'] += $line_total;
+            $order_by_ticket[$ti]['sold_qty'] += $qty;
+            $order_by_ticket[$ti]['gross'] += $line_total;
+
+            $phase_snapshot = $this->get_phase_snapshot($item);
+            $phase_key = $phase_snapshot['key'];
+            $phase_label = $phase_snapshot['label'];
+
+            if (! isset($order_by_phase[$ti])) {
+              $order_by_phase[$ti] = [];
+            }
+            if (! isset($order_by_phase[$ti][$phase_key])) {
+              $order_by_phase[$ti][$phase_key] = [
+                'label' => $phase_label,
+                'qty' => 0,
+                'gross' => 0.0,
+                'refunded_qty' => 0,
+                'refunded_amount' => 0.0,
+                'net_qty' => 0,
+                'net' => 0.0,
+              ];
+            }
+            $order_by_phase[$ti][$phase_key]['qty'] += $qty;
+            $order_by_phase[$ti][$phase_key]['gross'] += $line_total;
+
+            $presale_key = $presale_key_by_ticket_index[$ti] ?? null;
+            if ($presale_key !== null && $phase_key === $presale_key) {
+              $order_by_ticket[$ti]['presale_qty'] += $qty;
+            } else {
+              $order_by_ticket[$ti]['after_qty'] += $qty;
+            }
           }
         }
 
@@ -129,15 +172,20 @@ final class Reports_Aggregator
               continue;
             }
 
-            $ticket_key = $context['ticket_index'] !== '' ? (string) $context['ticket_index'] : (string) $context['ticket_name'];
-            if (! isset($by_ticket[$ticket_key])) {
-              $by_ticket[$ticket_key] = [
+            $ti = (string) $context['ticket_index'];
+            if ($ti === '') {
+              $ti = (string) $context['ticket_name'];
+            }
+            if (! isset($by_ticket[$ti])) {
+              $by_ticket[$ti] = [
                 'ticket_name'     => (string) $context['ticket_name'],
                 'ticket_index'    => (string) $context['ticket_index'],
                 'sold_qty'        => 0,
                 'gross'           => 0.0,
                 'refunded_qty'    => 0,
                 'refunded_amount' => 0.0,
+                'presale_qty'     => 0,
+                'after_qty'       => 0,
                 'net'             => 0.0,
               ];
             }
@@ -145,10 +193,30 @@ final class Reports_Aggregator
             $ref_qty = abs((int) $ref_item->get_quantity());
             $ref_total = abs((float) $ref_item->get_total());
 
-            $by_ticket[$ticket_key]['refunded_qty'] += $ref_qty;
-            $by_ticket[$ticket_key]['refunded_amount'] += $ref_total;
+            $by_ticket[$ti]['refunded_qty'] += $ref_qty;
+            $by_ticket[$ti]['refunded_amount'] += $ref_total;
             $mapped_this_refund += $ref_total;
             $mapped_qty_sum += $ref_qty;
+
+            $phase_snapshot = $this->get_phase_snapshot($orig_item);
+            $phase_key = $phase_snapshot['key'];
+            $phase_label = $phase_snapshot['label'];
+            if (! isset($phase_breakdown[$ti])) {
+              $phase_breakdown[$ti] = [];
+            }
+            if (! isset($phase_breakdown[$ti][$phase_key])) {
+              $phase_breakdown[$ti][$phase_key] = [
+                'label' => $phase_label,
+                'qty' => 0,
+                'gross' => 0.0,
+                'refunded_qty' => 0,
+                'refunded_amount' => 0.0,
+                'net_qty' => 0,
+                'net' => 0.0,
+              ];
+            }
+            $phase_breakdown[$ti][$phase_key]['refunded_qty'] += $ref_qty;
+            $phase_breakdown[$ti][$phase_key]['refunded_amount'] += $ref_total;
           }
 
           $other_abs_items = 0.0;
@@ -200,11 +268,36 @@ final class Reports_Aggregator
                 'gross'           => 0.0,
                 'refunded_qty'    => 0,
                 'refunded_amount' => 0.0,
+                'presale_qty'     => 0,
+                'after_qty'       => 0,
                 'net'             => 0.0,
               ];
             }
             $by_ticket[$ticket_key]['sold_qty'] += $data['sold_qty'];
             $by_ticket[$ticket_key]['gross'] += $data['gross'];
+            $by_ticket[$ticket_key]['presale_qty'] += $data['presale_qty'];
+            $by_ticket[$ticket_key]['after_qty'] += $data['after_qty'];
+          }
+
+          foreach ($order_by_phase as $phase_ticket_key => $phase_rows) {
+            if (! isset($phase_breakdown[$phase_ticket_key])) {
+              $phase_breakdown[$phase_ticket_key] = [];
+            }
+            foreach ($phase_rows as $phase_key => $phase_row) {
+              if (! isset($phase_breakdown[$phase_ticket_key][$phase_key])) {
+                $phase_breakdown[$phase_ticket_key][$phase_key] = [
+                  'label' => $phase_row['label'],
+                  'qty' => 0,
+                  'gross' => 0.0,
+                  'refunded_qty' => 0,
+                  'refunded_amount' => 0.0,
+                  'net_qty' => 0,
+                  'net' => 0.0,
+                ];
+              }
+              $phase_breakdown[$phase_ticket_key][$phase_key]['qty'] += $phase_row['qty'];
+              $phase_breakdown[$phase_ticket_key][$phase_key]['gross'] += $phase_row['gross'];
+            }
           }
         }
       }
@@ -215,6 +308,20 @@ final class Reports_Aggregator
 
     foreach ($by_ticket as $ticket_key => $data) {
       $by_ticket[$ticket_key]['net'] = $by_ticket[$ticket_key]['gross'] - $by_ticket[$ticket_key]['refunded_amount'];
+      $by_ticket[$ticket_key]['presale_qty'] = (int) ($by_ticket[$ticket_key]['presale_qty'] ?? 0);
+      $by_ticket[$ticket_key]['after_qty'] = (int) ($by_ticket[$ticket_key]['after_qty'] ?? 0);
+    }
+
+    foreach ($phase_breakdown as $ticket_key => $phases) {
+      foreach ($phases as $phase_key => $phase_row) {
+        $qty = isset($phase_row['qty']) ? (int) $phase_row['qty'] : 0;
+        $ref_qty = isset($phase_row['refunded_qty']) ? (int) $phase_row['refunded_qty'] : 0;
+        $gross = isset($phase_row['gross']) ? (float) $phase_row['gross'] : 0.0;
+        $ref_amount = isset($phase_row['refunded_amount']) ? (float) $phase_row['refunded_amount'] : 0.0;
+
+        $phase_breakdown[$ticket_key][$phase_key]['net_qty'] = max(0, $qty - $ref_qty);
+        $phase_breakdown[$ticket_key][$phase_key]['net'] = $gross - $ref_amount;
+      }
     }
 
     $rows = array_values($by_ticket);
@@ -233,6 +340,8 @@ final class Reports_Aggregator
         'gross' => 0.0,
         'refunded_qty' => 0,
         'refunded_amount' => $summary['unattributed_refunds_amount'],
+        'presale_qty' => 0,
+        'after_qty' => 0,
         'net' => 0.0 - $summary['unattributed_refunds_amount'],
       ];
     }
@@ -240,6 +349,7 @@ final class Reports_Aggregator
     $result = [
       'summary' => $summary,
       'by_ticket' => $rows,
+      'phase_breakdown' => $phase_breakdown,
     ];
 
     set_transient($cache_key, $result, self::CACHE_TTL);
@@ -272,13 +382,9 @@ final class Reports_Aggregator
         'order' => 'DESC',
       ];
 
-      if (! empty($date_range['after'])) {
-        $args['date_created'] = $args['date_created'] ?? [];
-        $args['date_created']['after'] = $date_range['after'];
-      }
-      if (! empty($date_range['before'])) {
-        $args['date_created'] = $args['date_created'] ?? [];
-        $args['date_created']['before'] = $date_range['before'];
+      $date_created = $this->build_date_created_arg($date_range);
+      if ($date_created !== '') {
+        $args['date_created'] = $date_created;
       }
 
       $orders = wc_get_orders($args);
@@ -313,6 +419,7 @@ final class Reports_Aggregator
           $unit_price = (string) $item->get_meta('_oras_ticket_unit_price', true);
           $line_total = method_exists($item, 'get_total') ? (string) $item->get_total() : '';
           $currency = (string) $item->get_meta('_oras_ticket_currency', true);
+          $phase_snapshot = $this->get_phase_snapshot($item);
 
           $callback(
             [
@@ -325,6 +432,8 @@ final class Reports_Aggregator
               'unit_price' => $unit_price,
               'line_total' => $line_total,
               'currency' => $currency,
+              'phase_key' => $phase_snapshot['key'],
+              'phase_label' => $phase_snapshot['label'],
             ]
           );
         }
@@ -359,13 +468,9 @@ final class Reports_Aggregator
         'order' => 'DESC',
       ];
 
-      if (! empty($date_range['after'])) {
-        $args['date_created'] = $args['date_created'] ?? [];
-        $args['date_created']['after'] = $date_range['after'];
-      }
-      if (! empty($date_range['before'])) {
-        $args['date_created'] = $args['date_created'] ?? [];
-        $args['date_created']['before'] = $date_range['before'];
+      $date_created = $this->build_date_created_arg($date_range);
+      if ($date_created !== '') {
+        $args['date_created'] = $date_created;
       }
 
       $orders = wc_get_orders($args);
@@ -438,5 +543,138 @@ final class Reports_Aggregator
   {
     $key = $event_id . '|' . implode(',', $statuses) . '|' . ($date_range['after'] ?? '') . '|' . ($date_range['before'] ?? '');
     return 'oras_tickets_reports_' . md5($key);
+  }
+
+  /**
+   * @param array{after?:string,before?:string} $date_range
+   */
+  private function build_date_created_arg(array $date_range): string
+  {
+    $after = isset($date_range['after']) ? (string) $date_range['after'] : '';
+    $before = isset($date_range['before']) ? (string) $date_range['before'] : '';
+
+    if ($after !== '' && $before !== '') {
+      return $after . '...' . $before;
+    }
+
+    if ($after !== '') {
+      return '>=' . $after;
+    }
+
+    if ($before !== '') {
+      return '<=' . $before;
+    }
+
+    return '';
+  }
+
+  /**
+   * Presale is the earliest configured phase key by start datetime per ticket.
+   *
+   * @return array<string,string|null>
+   */
+  private function get_presale_key_map(int $event_id): array
+  {
+    $envelope = Ticket_Collection::load_envelope_for_event($event_id);
+    $tickets = isset($envelope['tickets']) && is_array($envelope['tickets']) ? $envelope['tickets'] : [];
+    $presale = [];
+
+    foreach ($tickets as $index => $ticket) {
+      if (! is_array($ticket)) {
+        $presale[(string) $index] = null;
+        continue;
+      }
+
+      $phases = isset($ticket['price_phases']) && is_array($ticket['price_phases']) ? $ticket['price_phases'] : [];
+      $earliest_ts = null;
+      $earliest_key = null;
+      $first_key = null;
+
+      foreach ($phases as $phase) {
+        if (! is_array($phase)) {
+          continue;
+        }
+
+        $phase_key = isset($phase['key']) ? (string) $phase['key'] : '';
+        $start_raw = isset($phase['start']) ? (string) $phase['start'] : '';
+        if ($phase_key === '') {
+          continue;
+        }
+
+        if ($first_key === null) {
+          $first_key = $phase_key;
+        }
+
+        $start_ts = $this->phase_start_to_timestamp($start_raw);
+        if ($start_ts === null) {
+          continue;
+        }
+        if ($earliest_ts === null || $start_ts < $earliest_ts) {
+          $earliest_ts = $start_ts;
+          $earliest_key = $phase_key;
+        }
+      }
+
+      if ($earliest_key !== null) {
+        $presale[(string) $index] = $earliest_key;
+      } elseif ($first_key !== null) {
+        $presale[(string) $index] = $first_key;
+      } else {
+        $presale[(string) $index] = null;
+      }
+    }
+
+    return $presale;
+  }
+
+  /**
+   * '__none__' indicates no phase snapshot meta was present on the order item.
+   *
+   * @param \WC_Order_Item_Product|\WC_Order_Item $item
+   * @return array{key:string,label:string}
+   */
+  private function get_phase_snapshot($item): array
+  {
+    $phase_key = $item->get_meta('_oras_ticket_price_phase_key', true);
+    $phase_label = $item->get_meta('_oras_ticket_price_phase_label', true);
+
+    $phase_key = is_string($phase_key) ? $phase_key : '';
+    $phase_label = is_string($phase_label) ? $phase_label : '';
+
+    if ($phase_key === '') {
+      $phase_key = '__none__';
+    }
+
+    if ($phase_label === '') {
+      $phase_label = 'No phase snapshot';
+    }
+
+    return [
+      'key' => $phase_key,
+      'label' => $phase_label,
+    ];
+  }
+
+  private function phase_start_to_timestamp(string $value): ?int
+  {
+    $raw = trim($value);
+    if ($raw === '') {
+      return null;
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+      $raw .= ' 00:00:00';
+    } elseif (preg_match('/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/', $raw)) {
+      $raw .= ':00';
+    } elseif (! preg_match('/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/', $raw)) {
+      return null;
+    }
+
+    $dt = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw, wp_timezone());
+    if (! $dt instanceof \DateTimeImmutable) {
+      return null;
+    }
+
+    return $dt->getTimestamp();
   }
 }

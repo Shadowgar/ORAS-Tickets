@@ -3,9 +3,11 @@
 namespace ORAS\Tickets\Admin\Pages;
 
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php';
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php';
 
 use ORAS\Tickets\Admin\Reports_Aggregator;
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Ticket_Collection;
 
 if (! defined('ABSPATH')) {
   exit;
@@ -26,9 +28,11 @@ final class Reports_Page
     $default_event_id = ! empty($events) ? (int) $events[0] : 0;
     $selected_event_id = isset($_GET['oras_tickets_event_id']) ? absint($_GET['oras_tickets_event_id']) : $default_event_id;
     $selected_statuses = $this->get_selected_statuses();
+    $range_data = $this->get_date_range_from_request($_GET);
+    $date_range = $range_data['date_range'];
 
     $aggregator = new Reports_Aggregator();
-    $aggregates = $selected_event_id > 0 ? $aggregator->get_aggregates($selected_event_id, $selected_statuses, []) : [
+    $aggregates = $selected_event_id > 0 ? $aggregator->get_aggregates($selected_event_id, $selected_statuses, $date_range) : [
       'summary' => [
         'gross_sales' => 0.0,
         'refunded_mapped_total' => 0.0,
@@ -42,7 +46,27 @@ final class Reports_Page
         'adjustments_detected' => false,
       ],
       'by_ticket' => [],
+      'phase_breakdown' => [],
     ];
+
+    $by_ticket_rows = isset($aggregates['by_ticket']) && is_array($aggregates['by_ticket']) ? $aggregates['by_ticket'] : [];
+    $phase_breakdown = isset($aggregates['phase_breakdown']) && is_array($aggregates['phase_breakdown']) ? $aggregates['phase_breakdown'] : [];
+    $presale_total = 0;
+    $after_total = 0;
+    $ticket_name_by_index = [];
+
+    foreach ($by_ticket_rows as $row) {
+      if (! is_array($row)) {
+        continue;
+      }
+      $ticket_index = isset($row['ticket_index']) ? (string) $row['ticket_index'] : '';
+      $ticket_name = isset($row['ticket_name']) ? (string) $row['ticket_name'] : '';
+      if ($ticket_index !== '' && $ticket_name !== '') {
+        $ticket_name_by_index[$ticket_index] = $ticket_name;
+      }
+      $presale_total += (int) ($row['presale_qty'] ?? 0);
+      $after_total += (int) ($row['after_qty'] ?? 0);
+    }
 
 ?>
     <div class="wrap oras-tickets-reports">
@@ -221,6 +245,24 @@ final class Reports_Page
                     </div>
                   </td>
                 </tr>
+                <tr>
+                  <th scope="row"><label for="oras_tickets_range"><?php echo esc_html__('Date range', 'oras-tickets'); ?></label></th>
+                  <td>
+                    <select name="oras_tickets_range" id="oras_tickets_range">
+                      <option value="last_30" <?php selected($range_data['range'], 'last_30'); ?>><?php echo esc_html__('Last 30 days', 'oras-tickets'); ?></option>
+                      <option value="last_90" <?php selected($range_data['range'], 'last_90'); ?>><?php echo esc_html__('Last 90 days', 'oras-tickets'); ?></option>
+                      <option value="last_365" <?php selected($range_data['range'], 'last_365'); ?>><?php echo esc_html__('Last 365 days', 'oras-tickets'); ?></option>
+                      <option value="this_year" <?php selected($range_data['range'], 'this_year'); ?>><?php echo esc_html__('This year', 'oras-tickets'); ?></option>
+                      <option value="custom" <?php selected($range_data['range'], 'custom'); ?>><?php echo esc_html__('Custom', 'oras-tickets'); ?></option>
+                    </select>
+                    <div class="oras-note">
+                      <label for="oras_tickets_after"><?php echo esc_html__('After', 'oras-tickets'); ?></label>
+                      <input type="date" name="oras_tickets_after" id="oras_tickets_after" value="<?php echo esc_attr($range_data['after']); ?>" placeholder="YYYY-MM-DD" />
+                      <label for="oras_tickets_before"><?php echo esc_html__('Before', 'oras-tickets'); ?></label>
+                      <input type="date" name="oras_tickets_before" id="oras_tickets_before" value="<?php echo esc_attr($range_data['before']); ?>" placeholder="YYYY-MM-DD" />
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
 
@@ -234,6 +276,9 @@ final class Reports_Page
               <?php wp_nonce_field(self::NONCE_ACTION, 'oras_tickets_reports_nonce'); ?>
               <input type="hidden" name="action" value="oras_tickets_export_csv" />
               <input type="hidden" name="oras_tickets_event_id" value="<?php echo esc_attr((string) $selected_event_id); ?>" />
+              <input type="hidden" name="oras_tickets_range" value="<?php echo esc_attr($range_data['range']); ?>" />
+              <input type="hidden" name="oras_tickets_after" value="<?php echo esc_attr($range_data['after']); ?>" />
+              <input type="hidden" name="oras_tickets_before" value="<?php echo esc_attr($range_data['before']); ?>" />
               <?php foreach ($selected_statuses as $status) : ?>
                 <input type="hidden" name="oras_tickets_statuses[]" value="<?php echo esc_attr($status); ?>" />
               <?php endforeach; ?>
@@ -266,6 +311,14 @@ final class Reports_Page
               <strong><?php echo esc_html((string) $aggregates['summary']['orders_count']); ?></strong>
             </div>
           </div>
+          <div class="oras-kpi">
+            <div class="oras-kpi__label"><?php echo esc_html__('Presale tickets sold', 'oras-tickets'); ?></div>
+            <div class="oras-kpi__value"><?php echo esc_html((string) $presale_total); ?></div>
+          </div>
+          <div class="oras-kpi">
+            <div class="oras-kpi__label"><?php echo esc_html__('After presale tickets sold', 'oras-tickets'); ?></div>
+            <div class="oras-kpi__value"><?php echo esc_html((string) $after_total); ?></div>
+          </div>
         </div>
 
         <?php if (! empty($aggregates['summary']['unattributed_refunds_amount'])) : ?>
@@ -287,6 +340,22 @@ final class Reports_Page
             <?php echo esc_html__('Adjustments detected were excluded from sales totals.', 'oras-tickets'); ?>
           </p>
         <?php endif; ?>
+
+        <p class="description oras-note">
+          <?php echo esc_html__('Presale = earliest configured price phase for each ticket.', 'oras-tickets'); ?>
+        </p>
+
+        <p class="description oras-note">
+          <?php
+          echo esc_html(
+            sprintf(
+              /* translators: %s: range label */
+              __('Showing: %s', 'oras-tickets'),
+              $range_data['label']
+            )
+          );
+          ?>
+        </p>
       </div>
 
       <div class="oras-card">
@@ -325,6 +394,8 @@ final class Reports_Page
             <tr>
               <th><?php echo esc_html__('Ticket', 'oras-tickets'); ?></th>
               <th><?php echo esc_html__('Sold qty', 'oras-tickets'); ?></th>
+              <th><?php echo esc_html__('Presale', 'oras-tickets'); ?></th>
+              <th><?php echo esc_html__('After', 'oras-tickets'); ?></th>
               <th class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
               <th><?php echo esc_html__('Refunded qty', 'oras-tickets'); ?></th>
               <th class="is-right"><?php echo esc_html__('Refunded amount', 'oras-tickets'); ?></th>
@@ -334,13 +405,15 @@ final class Reports_Page
           <tbody>
             <?php if (empty($aggregates['by_ticket'])) : ?>
               <tr>
-                <td colspan="6"><?php echo esc_html__('No data for selected filters.', 'oras-tickets'); ?></td>
+                <td colspan="8"><?php echo esc_html__('No data for selected filters.', 'oras-tickets'); ?></td>
               </tr>
             <?php else : ?>
               <?php foreach ($aggregates['by_ticket'] as $row) : ?>
                 <tr>
                   <td><?php echo esc_html($row['ticket_name']); ?></td>
                   <td><?php echo esc_html((string) $row['sold_qty']); ?></td>
+                  <td><?php echo esc_html((string) ($row['presale_qty'] ?? 0)); ?></td>
+                  <td><?php echo esc_html((string) ($row['after_qty'] ?? 0)); ?></td>
                   <td class="is-right"><?php echo esc_html($this->format_money($row['gross'])); ?></td>
                   <td><?php echo esc_html((string) $row['refunded_qty']); ?></td>
                   <td class="is-right"><?php echo esc_html($this->format_money($row['refunded_amount'])); ?></td>
@@ -354,6 +427,8 @@ final class Reports_Page
               <tr>
                 <th><?php echo esc_html__('Totals', 'oras-tickets'); ?></th>
                 <th><?php echo esc_html((string) $aggregates['summary']['tickets_sold']); ?></th>
+                <th><?php echo esc_html((string) $presale_total); ?></th>
+                <th><?php echo esc_html((string) $after_total); ?></th>
                 <th class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['gross_sales'])); ?></th>
                 <th><?php echo esc_html((string) $aggregates['summary']['refunded_qty']); ?></th>
                 <th class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['refunded_amount'])); ?></th>
@@ -363,6 +438,77 @@ final class Reports_Page
           <?php endif; ?>
         </table>
         <p class="description oras-note"><?php echo esc_html__('Unattributed refunds are amount-only refunds not tied to a ticket line item.', 'oras-tickets'); ?></p>
+      </div>
+
+      <div class="oras-card">
+        <h2><?php echo esc_html__('Pricing phase breakdown', 'oras-tickets'); ?></h2>
+        <?php if (empty($phase_breakdown)) : ?>
+          <p><?php echo esc_html__('No phase data for selected filters.', 'oras-tickets'); ?></p>
+        <?php else : ?>
+          <?php
+          $ticket_indexes = array_keys($phase_breakdown);
+          usort(
+            $ticket_indexes,
+            static function (string $a, string $b): int {
+              if ($a === '') {
+                return 1;
+              }
+              if ($b === '') {
+                return -1;
+              }
+              $a_is_num = ctype_digit($a);
+              $b_is_num = ctype_digit($b);
+              if ($a_is_num && $b_is_num) {
+                return (int) $a <=> (int) $b;
+              }
+              return strcmp($a, $b);
+            }
+          );
+          ?>
+          <?php foreach ($ticket_indexes as $ticket_index) :
+            $phases = isset($phase_breakdown[$ticket_index]) && is_array($phase_breakdown[$ticket_index]) ? $phase_breakdown[$ticket_index] : [];
+            $ticket_label = $ticket_name_by_index[$ticket_index] ?? '';
+            if ($ticket_label === '' && $ticket_index !== '') {
+              $ticket_label = sprintf('Ticket #%s', $ticket_index);
+            }
+            if ($ticket_label === '') {
+              $ticket_label = __('Unknown ticket', 'oras-tickets');
+            }
+          ?>
+            <h3><?php echo esc_html($ticket_label); ?></h3>
+            <table class="widefat striped oras-table">
+              <thead>
+                <tr>
+                  <th><?php echo esc_html__('Phase', 'oras-tickets'); ?></th>
+                  <th><?php echo esc_html__('Qty', 'oras-tickets'); ?></th>
+                  <th class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (empty($phases)) : ?>
+                  <tr>
+                    <td colspan="3"><?php echo esc_html__('No phase data for this ticket.', 'oras-tickets'); ?></td>
+                  </tr>
+                <?php else : ?>
+                  <?php foreach ($phases as $phase_key => $phase_row) :
+                    $phase_label = isset($phase_row['label']) ? (string) $phase_row['label'] : '';
+                    if ($phase_label === '') {
+                      $phase_label = $phase_key === '__none__' ? __('No phase snapshot', 'oras-tickets') : $phase_key;
+                    }
+                    $phase_qty = isset($phase_row['qty']) ? (int) $phase_row['qty'] : 0;
+                    $phase_gross = isset($phase_row['gross']) ? (float) $phase_row['gross'] : 0.0;
+                  ?>
+                    <tr>
+                      <td><?php echo esc_html($phase_label); ?></td>
+                      <td><?php echo esc_html((string) $phase_qty); ?></td>
+                      <td class="is-right"><?php echo esc_html($this->format_money($phase_gross)); ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          <?php endforeach; ?>
+        <?php endif; ?>
       </div>
     </div>
 <?php
@@ -386,6 +532,10 @@ final class Reports_Page
     $statuses = isset($_POST['oras_tickets_statuses']) && is_array($_POST['oras_tickets_statuses'])
       ? array_map('sanitize_text_field', wp_unslash($_POST['oras_tickets_statuses']))
       : [];
+    $range_data = $this->get_date_range_from_request($_POST);
+    $date_range = $range_data['date_range'];
+
+    $presale_key_by_ticket_index = $this->get_presale_key_map($event_id);
 
     $filename = 'oras-tickets-event-' . $event_id . '-' . gmdate('Ymd-His') . '.csv';
 
@@ -411,6 +561,9 @@ final class Reports_Page
         'unit_price',
         'line_total',
         'currency',
+        'phase_key',
+        'phase_label',
+        'presale_bucket',
       ]
     );
 
@@ -418,8 +571,24 @@ final class Reports_Page
     $aggregator->iterate_order_items(
       $event_id,
       $statuses,
-      [],
-      function (array $row) use ($output): void {
+      $date_range,
+      function (array $row) use ($output, $presale_key_by_ticket_index): void {
+        $ticket_index = isset($row['ticket_index']) ? (string) $row['ticket_index'] : '';
+        $phase_key = isset($row['phase_key']) ? (string) $row['phase_key'] : '__none__';
+        $phase_label = isset($row['phase_label']) ? (string) $row['phase_label'] : '';
+        if ($phase_label === '') {
+          $phase_label = $phase_key === '__none__' ? __('No phase snapshot', 'oras-tickets') : $phase_key;
+        }
+
+        $presale_key = $presale_key_by_ticket_index[$ticket_index] ?? null;
+        if ($presale_key === null) {
+          $bucket = 'No phases configured';
+        } elseif ($phase_key === $presale_key) {
+          $bucket = 'Presale';
+        } else {
+          $bucket = 'After';
+        }
+
         fputcsv(
           $output,
           [
@@ -432,6 +601,9 @@ final class Reports_Page
             $row['unit_price'],
             $row['line_total'],
             $row['currency'],
+            $phase_key,
+            $phase_label,
+            $bucket,
           ]
         );
       }
@@ -439,6 +611,58 @@ final class Reports_Page
 
     fclose($output);
     exit;
+  }
+
+  /**
+   * @param array $source
+   * @return array{range:string,after:string,before:string,date_range:array,label:string}
+   */
+  private function get_date_range_from_request(array $source): array
+  {
+    $range = isset($source['oras_tickets_range']) ? sanitize_text_field(wp_unslash($source['oras_tickets_range'])) : 'last_90';
+    $after = isset($source['oras_tickets_after']) ? sanitize_text_field(wp_unslash($source['oras_tickets_after'])) : '';
+    $before = isset($source['oras_tickets_before']) ? sanitize_text_field(wp_unslash($source['oras_tickets_before'])) : '';
+
+    $date_range = [];
+    $now_ts = current_time('timestamp');
+
+    switch ($range) {
+      case 'last_30':
+        $date_range['after'] = wp_date('Y-m-d 00:00:00', $now_ts - (30 * DAY_IN_SECONDS));
+        $label = __('Last 30 days', 'oras-tickets');
+        break;
+      case 'last_365':
+        $date_range['after'] = wp_date('Y-m-d 00:00:00', $now_ts - (365 * DAY_IN_SECONDS));
+        $label = __('Last 365 days', 'oras-tickets');
+        break;
+      case 'this_year':
+        $date_range['after'] = wp_date('Y-01-01 00:00:00', $now_ts);
+        $label = __('This year', 'oras-tickets');
+        break;
+      case 'custom':
+        if ($after !== '') {
+          $date_range['after'] = $after . ' 00:00:00';
+        }
+        if ($before !== '') {
+          $date_range['before'] = $before . ' 23:59:59';
+        }
+        $label = __('Custom range', 'oras-tickets');
+        break;
+      case 'last_90':
+      default:
+        $range = 'last_90';
+        $date_range['after'] = wp_date('Y-m-d 00:00:00', $now_ts - (90 * DAY_IN_SECONDS));
+        $label = __('Last 90 days', 'oras-tickets');
+        break;
+    }
+
+    return [
+      'range' => $range,
+      'after' => $after,
+      'before' => $before,
+      'date_range' => $date_range,
+      'label' => $label,
+    ];
   }
 
   /**
@@ -504,5 +728,70 @@ final class Reports_Page
     }
 
     return number_format_i18n($amount, 2);
+  }
+
+  /**
+   * Presale is the earliest configured phase key by start datetime per ticket.
+   *
+   * @return array<string,string|null>
+   */
+  private function get_presale_key_map(int $event_id): array
+  {
+    $envelope = Ticket_Collection::load_envelope_for_event($event_id);
+    $tickets = isset($envelope['tickets']) && is_array($envelope['tickets']) ? $envelope['tickets'] : [];
+    $presale = [];
+
+    foreach ($tickets as $index => $ticket) {
+      if (! is_array($ticket)) {
+        $presale[(string) $index] = null;
+        continue;
+      }
+
+      $phases = isset($ticket['price_phases']) && is_array($ticket['price_phases']) ? $ticket['price_phases'] : [];
+      $earliest_ts = null;
+      $earliest_key = null;
+
+      foreach ($phases as $phase) {
+        if (! is_array($phase)) {
+          continue;
+        }
+
+        $phase_key = isset($phase['key']) ? (string) $phase['key'] : '';
+        $start_raw = isset($phase['start']) ? (string) $phase['start'] : '';
+        if ($phase_key === '' || $start_raw === '') {
+          continue;
+        }
+
+        $start_dt = $this->parse_site_datetime($start_raw);
+        if (! $start_dt) {
+          continue;
+        }
+
+        $start_ts = $start_dt->getTimestamp();
+        if ($earliest_ts === null || $start_ts < $earliest_ts) {
+          $earliest_ts = $start_ts;
+          $earliest_key = $phase_key;
+        }
+      }
+
+      $presale[(string) $index] = $earliest_key;
+    }
+
+    return $presale;
+  }
+
+  private function parse_site_datetime(string $value): ?\DateTimeInterface
+  {
+    $tz = wp_timezone();
+    $formats = ['Y-m-d H:i', 'Y-m-d H:i:s'];
+
+    foreach ($formats as $format) {
+      $dt = \DateTime::createFromFormat($format, $value, $tz);
+      if ($dt instanceof \DateTimeInterface) {
+        return $dt;
+      }
+    }
+
+    return null;
   }
 }

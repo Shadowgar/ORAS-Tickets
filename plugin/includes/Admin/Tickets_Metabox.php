@@ -27,6 +27,7 @@ final class Tickets_Metabox
         add_action('add_meta_boxes', [$this, 'register_metabox']);
         add_action('save_post', [$this, 'save_post'], 10, 2);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_action('admin_notices', [$this, 'maybe_show_phase_key_notice']);
     }
 
     public function enqueue_assets($hook_suffix): void
@@ -811,7 +812,83 @@ final class Tickets_Metabox
             'tickets' => $clean_tickets,
         ];
 
+        $did_normalize = false;
+        $envelope['tickets'] = $this->normalize_price_phase_keys($envelope['tickets'], $did_normalize);
+        if ($did_normalize) {
+            add_filter(
+                'redirect_post_location',
+                static function (string $location): string {
+                    return add_query_arg('oras_phase_keys_normalized', '1', $location);
+                }
+            );
+        }
+
         Ticket_Collection::save_for_event($post_id, $envelope);
         Logger::instance()->log("Saved tickets from metabox for event {$post_id} (count=" . count($clean_tickets) . ")");
+    }
+
+    public function maybe_show_phase_key_notice(): void
+    {
+        if (! isset($_GET['oras_phase_keys_normalized'])) {
+            return;
+        }
+
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if (! $screen || ! isset($screen->post_type) || $screen->post_type !== Meta::EVENT_POST_TYPE) {
+            return;
+        }
+
+        echo '<div class="notice notice-info is-dismissible">';
+        echo '<p>' . esc_html__('Duplicate or empty pricing phase keys were detected and normalized to unique keys.', 'oras-tickets') . '</p>';
+        echo '</div>';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $tickets
+     */
+    private function normalize_price_phase_keys(array $tickets, bool &$did_normalize): array
+    {
+        foreach ($tickets as $ticket_index => $ticket) {
+            if (! is_array($ticket)) {
+                continue;
+            }
+
+            $phases = $ticket['price_phases'] ?? null;
+            if (! is_array($phases)) {
+                continue;
+            }
+
+            $seen = [];
+            foreach ($phases as $phase_index => $phase) {
+                if (! is_array($phase)) {
+                    continue;
+                }
+
+                $raw_key = isset($phase['key']) ? (string) $phase['key'] : '';
+                $key = sanitize_key($raw_key);
+                if ($key === '') {
+                    $label_key = isset($phase['label']) ? sanitize_key((string) $phase['label']) : '';
+                    $key = $label_key !== '' ? $label_key : 'phase';
+                }
+
+                $base = $key;
+                $n = 2;
+                while (isset($seen[$key])) {
+                    $key = $base . '_' . $n;
+                    $n++;
+                }
+
+                if ($key !== $raw_key) {
+                    $phases[$phase_index]['key'] = $key;
+                    $did_normalize = true;
+                }
+
+                $seen[$key] = true;
+            }
+
+            $tickets[$ticket_index]['price_phases'] = $phases;
+        }
+
+        return $tickets;
     }
 }
