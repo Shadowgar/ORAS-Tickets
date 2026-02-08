@@ -1,0 +1,271 @@
+#oras_tickets_metabox .oras-tickets-layout {
+    display: flex;
+    gap: 16px;
+}
+
+#oras_tickets_metabox .oras-ticket-panels,
+#oras_tickets_metabox .oras-tickets-panels {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#oras_tickets_metabox .oras-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+#oras_tickets_metabox .oras-table-scroll table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+}
+
+#oras_tickets_metabox .oras-table-scroll th,
+#oras_tickets_metabox .oras-table-scroll td {
+    white-space: nowrap;
+}
+
+#oras_tickets_metabox .oras-table-scroll input,
+#oras_tickets_metabox .oras-table-scroll textarea,
+#oras_tickets_metabox .oras-table-scroll select {
+    box-sizing: border-box;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 190px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs li {
+    margin: 0;
+    border-bottom: 1px solid #dcdcde;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs li:last-child {
+    border-bottom: 0;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs li a {
+    display: block;
+    padding: 10px 12px;
+    text-align: left;
+    text-decoration: none;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs li a:hover {
+    background: #f0f0f1;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .wc-tabs li.active a {
+    background: #ffffff;
+    border-left: 3px solid #2271b1;
+    padding-left: 9px;
+    color: #1d2327;
+}
+
+#oras_tickets_metabox .panel-wrap.oras-ticket-data .panel.woocommerce_options_panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 1px solid #dcdcde;
+    background: #ffffff;
+    padding: 16px;
+}
+
+#oras_tickets_metabox .oras-tickets-tabs {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+}
+
+#oras_tickets_metabox #oras-ticket-tabs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#oras_tickets_metabox #oras-ticket-tabs li {
+    margin: 0;
+    border-bottom: 1px solid #dcdcde;
+}
+
+#oras_tickets_metabox #oras-ticket-tabs li:last-child {
+    border-bottom: 0;
+}
+
+#oras_tickets_metabox .oras-ticket-tab {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    padding: 10px 12px;
+    color: #1d2327;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+#oras_tickets_metabox .oras-ticket-tab-title,
+#oras_tickets_metabox .oras-ticket-tab-meta {
+    display: block;
+}
+
+#oras_tickets_metabox .oras-ticket-tab-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+#oras_tickets_metabox .oras-ticket-tab-meta {
+    font-size: 12px;
+    color: #50575e;
+}
+
+#oras_tickets_metabox .oras-ticket-tab:hover {
+    background: #f0f0f1;
+}
+
+#oras_tickets_metabox .oras-ticket-tab.is-active,
+#oras_tickets_metabox .oras-ticket-tab.button-primary {
+    background: #ffffff;
+    border-left: 3px solid #2271b1;
+    padding-left: 9px;
+}
+
+#oras_tickets_metabox .oras-ticket-tab.is-active .oras-ticket-tab-title,
+#oras_tickets_metabox .oras-ticket-tab.button-primary .oras-ticket-tab-title {
+    font-weight: 700;
+}
+
+#oras_tickets_metabox .oras-phase-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#oras_tickets_metabox .oras-phase-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+#oras_tickets_metabox .oras-phase-help {
+    font-size: 12px;
+    color: #50575e;
+}
+
+#oras_tickets_metabox .oras-phase-item {
+    border: 1px solid #dcdcde;
+    background: #fafafa;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 4px;
+}
+
+#oras_tickets_metabox .oras-phase-cardhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+#oras_tickets_metabox .oras-phase-cardtitle {
+    font-weight: 600;
+}
+
+#oras_tickets_metabox .oras-phase-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: #2271b1;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 12px;
+}
+
+#oras_tickets_metabox .oras-phase-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+#oras_tickets_metabox .oras-phase-row-main {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+#oras_tickets_metabox .oras-phase-row-advanced {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+#oras_tickets_metabox .oras-phase-item.is-collapsed .oras-phase-row-advanced {
+    display: none;
+}
+
+#oras_tickets_metabox .oras-phase-row + .oras-phase-row {
+    margin-top: 10px;
+}
+
+#oras_tickets_metabox .oras-phase-row label {
+    display: block;
+    font-size: 12px;
+    color: #50575e;
+    margin-bottom: 4px;
+}
+
+#oras_tickets_metabox .oras-phase-row input,
+#oras_tickets_metabox .oras-phase-row-main input,
+#oras_tickets_metabox .oras-phase-row-advanced input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#oras_tickets_metabox .oras-phase-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+#oras_tickets_metabox .oras-ticket-row > td > p:empty,
+#oras_tickets_metabox .oras-ticket-row > td > div:empty {
+    display: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+@media (max-width: 782px) {
+    #oras_tickets_metabox .oras-phase-row {
+        grid-template-columns: 1fr;
+    }
+    #oras_tickets_metabox .oras-phase-row-main {
+        grid-template-columns: 1fr;
+    }
+    #oras_tickets_metabox .oras-phase-row-advanced {
+        grid-template-columns: 1fr;
+    }
+    #oras_tickets_metabox .oras-phase-actions {
+        justify-content: flex-start;
+    }
+}

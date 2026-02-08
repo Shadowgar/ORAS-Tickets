@@ -59,12 +59,27 @@ Phase 3.1 behavior remains LOCKED and unchanged.
 
 Notes:
 - The implementation of Phase 3.1 and 3.2 is intentionally locked. Any changes to these behaviors require a design review and migration plan.
-### Phase 3.3 — Email & communication layer
-Includes:
-- Event-aware purchase email
-- Ticket summary (non-QR)
-- Event info & admin notes
-- ORAS branding
+### Phase 3.3 — Admin UX redesign (tickets editor improvements)
+Admin-only UI improvements to the tickets editor metabox:
+
+- Vertical tabs down the left (WooCommerce-style layout)
+- Better organization and usability for ticket editing
+- UI-only work: no data model changes unless explicitly approved
+- No behavior changes to sale windows, cart, checkout, pricing, or frontend rendering (Phases 3.1 and 3.2 are locked)
+
+#### Phase 3.3 Scope
+- IN:
+	- Admin UI layout and structure
+	- Field grouping and visual organization
+	- Usability and clarity improvements
+	- Validation and messaging improvements (UI only)
+- OUT:
+	- Cart icons or header widgets
+	- Member-only logic
+	- Attendees, check-in, QR codes
+	- Speakers or agenda systems
+	- Zoom or video integrations
+	- External services, APIs, telemetry
 
 ### Phase 3.4 — Admin polish & treasurer confidence
 Includes:
