@@ -32,8 +32,7 @@ Status: COMPLETE AND CLOSED
 ## Active Roadmap (Authoritative)
 
 ### Phase 3.1 — Frontend UX polish (Tickets)
-Status: COMPLETE
- Status: COMPLETE (LOCKED)
+Status: COMPLETE (LOCKED)
 
 Summary: Frontend ticket display and add-to-cart robustness work for event pages.
 
@@ -60,14 +59,21 @@ Phase 3.1 behavior remains LOCKED and unchanged.
 Notes:
 - The implementation of Phase 3.1 and 3.2 is intentionally locked. Any changes to these behaviors require a design review and migration plan.
 ### Phase 3.3 — Admin UX redesign (tickets editor improvements)
-Admin-only UI improvements to the tickets editor metabox:
+Status: COMPLETE
 
-- Vertical tabs down the left (WooCommerce-style layout)
-- Better organization and usability for ticket editing
-- UI-only work: no data model changes unless explicitly approved
-- No behavior changes to sale windows, cart, checkout, pricing, or frontend rendering (Phases 3.1 and 3.2 are locked)
+Admin-only UI improvements to the tickets editor metabox (delivered):
+
+- WooCommerce-style vertical tabs inside each ticket editor (General, Inventory, Sale window, Pricing, Pricing phases)
+- Pricing phases redesigned into card/grid layout with Advanced expand/collapse
+- Left ticket rail improved with title + meta (price + status), live updates while editing
+- Add Ticket / Remove Ticket update the UI instantly (no refresh required)
+- Initialization fixes prevent blank/ghost rows on refresh
+- Inline styles reduced/moved to CSS for maintainability
+
+Explicit: No data model changes; no behavior changes to sale window, cart, checkout, or pricing logic.
 
 #### Phase 3.3 Scope
+Completed via UI-only changes listed above. IN/OUT remain unchanged.
 - IN:
 	- Admin UI layout and structure
 	- Field grouping and visual organization

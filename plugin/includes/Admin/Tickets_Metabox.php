@@ -88,10 +88,10 @@ final class Tickets_Metabox
 
 ?>
         <div id="oras-tickets-metabox">
-            <div class="oras-tickets-layout" style="display:flex; gap:16px; align-items:flex-start;">
-                <div class="oras-tickets-tabs" style="width:220px; border:1px solid #dcdcde; background:#f6f7f7; padding:8px;">
-                    <div style="font-weight:600; margin:4px 4px 8px;">Tickets</div>
-                    <ul id="oras-ticket-tabs" style="list-style:none; margin:0; padding:0;">
+            <div class="oras-tickets-layout oras-tickets-layout-flex">
+                <div class="oras-tickets-tabs oras-tickets-rail">
+                    <div class="oras-tickets-rail-title">Tickets</div>
+                    <ul id="oras-ticket-tabs" class="oras-ticket-tabs-list">
                         <?php foreach ($tickets as $index => $data) :
                             $tab_name = isset($data['name']) ? (string) $data['name'] : '';
                             $tab_label = $tab_name !== '' ? $tab_name : sprintf('Ticket #%d', (int) $index);
@@ -124,25 +124,25 @@ final class Tickets_Metabox
                             }
                             $idx = esc_attr((string) $index);
                         ?>
-                            <li style="margin:0 0 6px;">
-                                <button type="button" class="button oras-ticket-tab" data-index="<?php echo $idx; ?>" style="width:100%; text-align:left;">
+                            <li class="oras-ticket-tab-item">
+                                <button type="button" class="button oras-ticket-tab" data-index="<?php echo $idx; ?>">
                                     <span class="oras-ticket-tab-title"><?php echo esc_html($tab_label); ?></span>
                                     <span class="oras-ticket-tab-meta"><?php echo esc_html($price . ' · ' . $sale_status); ?></span>
                                 </button>
                             </li>
                         <?php endforeach; ?>
                     </ul>
-                    <div id="oras-tickets-empty" style="margin:8px 4px; <?php echo empty($tickets) ? '' : 'display:none;'; ?>">
-                        <p style="margin:0 0 8px;">No tickets yet.</p>
+                    <div id="oras-tickets-empty" class="oras-tickets-empty <?php echo empty($tickets) ? '' : 'is-hidden'; ?>">
+                        <p class="oras-tickets-empty-text">No tickets yet.</p>
                     </div>
-                    <p style="margin:8px 4px 0;">
+                    <p class="oras-add-ticket-row">
                         <button type="button" id="oras-add-ticket" class="button">Add Ticket</button>
                     </p>
                 </div>
 
-                <div class="oras-ticket-panels oras-tickets-panels" style="flex:1; min-width:0;">
-                    <table class="widefat" id="oras-tickets-table" style="border:none; background:transparent; box-shadow:none; width:100%; display:block;">
-                        <tbody style="display:block;">
+                <div class="oras-ticket-panels oras-tickets-panels oras-ticket-panels-wrap">
+                    <table class="widefat oras-tickets-table" id="oras-tickets-table">
+                        <tbody class="oras-tickets-tbody">
                             <?php
                             $is_first_panel = true;
                             foreach ($tickets as $index => $data) :
@@ -158,11 +158,10 @@ final class Tickets_Metabox
                                 $sale_start_val = $sale_start !== '' ? str_replace(' ', 'T', $sale_start) : '';
                                 $sale_end_val = $sale_end !== '' ? str_replace(' ', 'T', $sale_end) : '';
                                 $panel_class = $is_first_panel ? 'is-active' : 'is-hidden';
-                                $panel_style = $is_first_panel ? '' : 'display:none;';
                             ?>
-                                <tr class="oras-ticket-row" data-index="<?php echo $idx; ?>" style="display:block; margin:0 0 12px; border:1px solid #dcdcde; background:#fff; padding:12px;">
-                                    <td style="display:block; padding:0; border:none;">
-                                        <div class="oras-ticket-panel <?php echo esc_attr($panel_class); ?>" data-index="<?php echo $idx; ?>" <?php echo $panel_style !== '' ? ' style="' . esc_attr($panel_style) . '"' : ''; ?>>
+                                <tr class="oras-ticket-row oras-ticket-row-card" data-index="<?php echo $idx; ?>">
+                                    <td class="oras-ticket-cell">
+                                        <div class="oras-ticket-panel <?php echo esc_attr($panel_class); ?>" data-index="<?php echo $idx; ?>">
                                             <div class="panel-wrap oras-ticket-data">
                                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                                     <li class="general_tab"><a href="#oras_ticket_<?php echo $idx; ?>_general">General</a></li>
@@ -172,20 +171,20 @@ final class Tickets_Metabox
                                                     <li class="pricing_phases_tab"><a href="#oras_ticket_<?php echo $idx; ?>_pricing_phases">Pricing phases</a></li>
                                                 </ul>
                                                 <div id="oras_ticket_<?php echo $idx; ?>_general" class="panel woocommerce_options_panel">
-                                                    <div style="margin-bottom:12px;">
+                                                    <div class="oras-field-block">
                                                         <label><strong>Name</strong></label><br />
-                                                        <input type="text" class="oras-ticket-name-input" name="oras_tickets_tickets[<?php echo $idx; ?>][name]" value="<?php echo esc_attr($name); ?>" style="width:100%;" />
+                                                        <input type="text" class="oras-ticket-name-input oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][name]" value="<?php echo esc_attr($name); ?>" />
                                                     </div>
                                                     <div>
                                                         <label><strong>Description</strong></label><br />
-                                                        <textarea name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="3" style="width:100%;"><?php echo esc_textarea($description); ?></textarea>
+                                                        <textarea class="oras-textarea-full" name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="3"><?php echo esc_textarea($description); ?></textarea>
                                                     </div>
                                                 </div>
-                                                <div id="oras_ticket_<?php echo $idx; ?>_inventory" class="panel woocommerce_options_panel" style="display:none;">
+                                                <div id="oras_ticket_<?php echo $idx; ?>_inventory" class="panel woocommerce_options_panel oras-panel-hidden">
                                                     <label><strong><?php echo esc_html__('Stock', 'oras-tickets'); ?></strong></label><br />
-                                                    <input type="number" min="0" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr($capacity); ?>" style="width:100%;" />
-                                                    <p class="description" style="margin:4px 0 0;"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
-                                                    <div style="margin-top:12px;">
+                                                    <input type="number" min="0" class="oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr($capacity); ?>" />
+                                                    <p class="description oras-help-text"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
+                                                    <div class="oras-field-block oras-field-block-spaced">
                                                         <label><strong>Hide sold out</strong></label><br />
                                                         <label>
                                                             <input type="checkbox" name="oras_tickets_tickets[<?php echo $idx; ?>][hide_sold_out]" value="1" <?php checked($hide_sold_out); ?> />
@@ -193,23 +192,23 @@ final class Tickets_Metabox
                                                         </label>
                                                     </div>
                                                 </div>
-                                                <div id="oras_ticket_<?php echo $idx; ?>_sale_window" class="panel woocommerce_options_panel" style="display:none;">
-                                                    <div style="margin-bottom:12px;">
+                                                <div id="oras_ticket_<?php echo $idx; ?>_sale_window" class="panel woocommerce_options_panel oras-panel-hidden">
+                                                    <div class="oras-field-block">
                                                         <label><strong>Sale start</strong></label><br />
-                                                        <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr($sale_start_val); ?>" style="width:100%;" />
+                                                        <input type="datetime-local" class="oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_start]" value="<?php echo esc_attr($sale_start_val); ?>" />
                                                     </div>
                                                     <div>
                                                         <label><strong>Sale end</strong></label><br />
-                                                        <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr($sale_end_val); ?>" style="width:100%;" />
+                                                        <input type="datetime-local" class="oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][sale_end]" value="<?php echo esc_attr($sale_end_val); ?>" />
                                                     </div>
                                                 </div>
-                                                <div id="oras_ticket_<?php echo $idx; ?>_pricing" class="panel woocommerce_options_panel" style="display:none;">
+                                                <div id="oras_ticket_<?php echo $idx; ?>_pricing" class="panel woocommerce_options_panel oras-panel-hidden">
                                                     <label><strong>Price</strong></label><br />
-                                                    <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price]" value="<?php echo esc_attr($price); ?>" style="width:100%;" />
+                                                    <input type="text" class="oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][price]" value="<?php echo esc_attr($price); ?>" />
                                                 </div>
-                                                <div id="oras_ticket_<?php echo $idx; ?>_pricing_phases" class="panel woocommerce_options_panel" style="display:none;">
+                                                <div id="oras_ticket_<?php echo $idx; ?>_pricing_phases" class="panel woocommerce_options_panel oras-panel-hidden">
                                                     <div class="oras-phase-section">
-                                                        <div class="oras-phase-header" style="font-weight:600; margin-bottom:8px;">Pricing phases</div>
+                                                        <div class="oras-phase-header">Pricing phases</div>
                                                         <div class="oras-phase-toolbar">
                                                             <div class="oras-phase-help">Use phases to set time-based prices (UTC).</div>
                                                             <button type="button" class="button oras-phase-add" data-ticket-index="<?php echo $idx; ?>">Add phase</button>
@@ -301,7 +300,7 @@ final class Tickets_Metabox
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="oras-ticket-actions" style="margin-top:12px;">
+                                            <div class="oras-ticket-actions">
                                                 <button type="button" class="oras-remove-ticket button">Remove</button>
                                                 <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
                                             </div>
@@ -375,9 +374,9 @@ final class Tickets_Metabox
 
             <!-- Template row (uses <template> so it won't be submitted) -->
             <template id="oras-ticket-template">
-                <tr class="oras-ticket-row" data-index="__INDEX__" style="display:block; margin:0 0 12px; border:1px solid #dcdcde; background:#fff; padding:12px;">
-                    <td style="display:block; padding:0; border:none;">
-                        <div class="oras-ticket-panel is-hidden" data-index="__INDEX__" style="display:none;">
+                <tr class="oras-ticket-row oras-ticket-row-card" data-index="__INDEX__">
+                    <td class="oras-ticket-cell">
+                        <div class="oras-ticket-panel is-hidden" data-index="__INDEX__">
                             <div class="panel-wrap oras-ticket-data">
                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                     <li class="general_tab"><a href="#oras_ticket___INDEX___general">General</a></li>
@@ -387,20 +386,20 @@ final class Tickets_Metabox
                                     <li class="pricing_phases_tab"><a href="#oras_ticket___INDEX___pricing_phases">Pricing phases</a></li>
                                 </ul>
                                 <div id="oras_ticket___INDEX___general" class="panel woocommerce_options_panel">
-                                    <div style="margin-bottom:12px;">
+                                    <div class="oras-field-block">
                                         <label><strong>Name</strong></label><br />
-                                        <input type="text" class="oras-ticket-name-input" name="oras_tickets_tickets[__INDEX__][name]" value="" style="width:100%;" />
+                                        <input type="text" class="oras-ticket-name-input oras-input-full" name="oras_tickets_tickets[__INDEX__][name]" value="" />
                                     </div>
                                     <div>
                                         <label><strong>Description</strong></label><br />
-                                        <textarea name="oras_tickets_tickets[__INDEX__][description]" rows="3" style="width:100%;"></textarea>
+                                        <textarea class="oras-textarea-full" name="oras_tickets_tickets[__INDEX__][description]" rows="3"></textarea>
                                     </div>
                                 </div>
-                                <div id="oras_ticket___INDEX___inventory" class="panel woocommerce_options_panel" style="display:none;">
+                                <div id="oras_ticket___INDEX___inventory" class="panel woocommerce_options_panel oras-panel-hidden">
                                     <label><strong><?php echo esc_html__('Stock', 'oras-tickets'); ?></strong></label><br />
-                                    <input type="number" min="0" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" style="width:100%;" />
-                                    <p class="description" style="margin:4px 0 0;"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
-                                    <div style="margin-top:12px;">
+                                    <input type="number" min="0" class="oras-input-full" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" />
+                                    <p class="description oras-help-text"><?php echo esc_html__('0 = unlimited', 'oras-tickets'); ?></p>
+                                    <div class="oras-field-block oras-field-block-spaced">
                                         <label><strong>Hide sold out</strong></label><br />
                                         <label>
                                             <input type="checkbox" name="oras_tickets_tickets[__INDEX__][hide_sold_out]" value="1" />
@@ -408,23 +407,23 @@ final class Tickets_Metabox
                                         </label>
                                     </div>
                                 </div>
-                                <div id="oras_ticket___INDEX___sale_window" class="panel woocommerce_options_panel" style="display:none;">
-                                    <div style="margin-bottom:12px;">
+                                <div id="oras_ticket___INDEX___sale_window" class="panel woocommerce_options_panel oras-panel-hidden">
+                                    <div class="oras-field-block">
                                         <label><strong>Sale start</strong></label><br />
-                                        <input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" style="width:100%;" />
+                                        <input type="datetime-local" class="oras-input-full" name="oras_tickets_tickets[__INDEX__][sale_start]" value="" />
                                     </div>
                                     <div>
                                         <label><strong>Sale end</strong></label><br />
-                                        <input type="datetime-local" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" style="width:100%;" />
+                                        <input type="datetime-local" class="oras-input-full" name="oras_tickets_tickets[__INDEX__][sale_end]" value="" />
                                     </div>
                                 </div>
-                                <div id="oras_ticket___INDEX___pricing" class="panel woocommerce_options_panel" style="display:none;">
+                                <div id="oras_ticket___INDEX___pricing" class="panel woocommerce_options_panel oras-panel-hidden">
                                     <label><strong>Price</strong></label><br />
-                                    <input type="text" name="oras_tickets_tickets[__INDEX__][price]" value="0.00" style="width:100%;" />
+                                    <input type="text" class="oras-input-full" name="oras_tickets_tickets[__INDEX__][price]" value="0.00" />
                                 </div>
-                                <div id="oras_ticket___INDEX___pricing_phases" class="panel woocommerce_options_panel" style="display:none;">
+                                <div id="oras_ticket___INDEX___pricing_phases" class="panel woocommerce_options_panel oras-panel-hidden">
                                     <div class="oras-phase-section">
-                                        <div class="oras-phase-header" style="font-weight:600; margin-bottom:8px;">Pricing phases</div>
+                                        <div class="oras-phase-header">Pricing phases</div>
                                         <div class="oras-phase-toolbar">
                                             <div class="oras-phase-help">Use phases to set time-based prices (UTC).</div>
                                             <button type="button" class="button oras-phase-add" data-ticket-index="__INDEX__">Add phase</button>
@@ -468,7 +467,7 @@ final class Tickets_Metabox
                                     </div>
                                 </div>
                             </div>
-                            <div class="oras-ticket-actions" style="margin-top:12px;">
+                            <div class="oras-ticket-actions">
                                 <button type="button" class="oras-remove-ticket button">Remove</button>
                                 <input type="hidden" name="oras_tickets_index[]" value="__INDEX__" />
                             </div>

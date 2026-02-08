@@ -48,7 +48,6 @@ Prohibited changes (unless explicitly approved):
 - Order item snapshot metadata keys and behavior (order item meta written during checkout).
 - Phase 3.1 sale window filtering, cart safety checks, and frontend UX behaviors.
 
-## Upcoming Work (Not Implemented Yet)
-- Phase 3.3 — Admin UX redesign for the tickets editor (vertical tabs, WooCommerce-style).
-- This is UI-only: no data-model changes unless explicitly instructed in follow-up design work.
-- Do NOT implement Phase 3.3 without explicit approval and instruction in chat.
+## Upcoming Work
+- Phase 3.3 — Admin UX redesign for the tickets editor (vertical tabs, WooCommerce-style): ✅ Complete (UI-only)
+- Next planned phase: Phase 3.4 — Admin polish & treasurer confidence.

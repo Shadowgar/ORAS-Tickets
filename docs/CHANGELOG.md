@@ -25,3 +25,13 @@ Notes: Phase 3.1 behaviors (sale-window filtering, add-to-cart revalidation, fro
 - Order item metadata now includes active `price_phase` snapshot keys for audits and reporting.
 
 Status: COMPLETE (LOCKED)
+
+## Phase 3.3 — COMPLETED
+- Admin tickets editor now uses WooCommerce-style vertical tabs within each ticket (General, Inventory, Sale window, Pricing, Pricing phases).
+- Pricing phases UI redesigned into a card/grid layout with Advanced expand/collapse.
+- Left ticket rail shows title + meta (price + status) and updates live while editing.
+- Add Ticket / Remove Ticket update the UI immediately (no refresh required).
+- Initialization fixes prevent blank/ghost rows on refresh.
+- Inline styles reduced/moved to CSS for maintainability.
+
+Status: COMPLETE (UI-only)

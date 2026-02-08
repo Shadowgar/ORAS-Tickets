@@ -1,6 +1,13 @@
 #oras_tickets_metabox .oras-tickets-layout {
     display: flex;
     gap: 16px;
+    align-items: flex-start;
+}
+
+#oras_tickets_metabox .oras-tickets-tabs {
+    flex: 0 0 220px;
+    min-width: 220px;
+    box-sizing: border-box;
 }
 
 #oras_tickets_metabox .oras-ticket-panels,
@@ -82,6 +89,63 @@
     border: 1px solid #dcdcde;
     background: #ffffff;
     padding: 16px;
+}
+
+#oras_tickets_metabox .oras-panel-hidden {
+    display: none;
+}
+
+#oras_tickets_metabox .oras-ticket-panel.is-hidden {
+    display: none;
+}
+
+#oras_tickets_metabox .oras-ticket-panel.is-active {
+    display: block;
+}
+
+#oras_tickets_metabox .oras-ticket-row {
+    display: none;
+}
+
+#oras_tickets_metabox .oras-ticket-row.oras-ticket-row-card {
+    display: block;
+    margin: 0 0 12px;
+    border: 1px solid #dcdcde;
+    background: #ffffff;
+    padding: 12px;
+}
+
+#oras_tickets_metabox .oras-ticket-cell {
+    display: block;
+    padding: 0;
+    border: 0;
+}
+
+#oras_tickets_metabox .oras-field-block {
+    margin-bottom: 12px;
+}
+
+#oras_tickets_metabox .oras-field-block-spaced {
+    margin-top: 12px;
+}
+
+#oras_tickets_metabox .oras-input-full,
+#oras_tickets_metabox .oras-textarea-full {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#oras_tickets_metabox .oras-help-text {
+    margin: 4px 0 0;
+}
+
+#oras_tickets_metabox .oras-ticket-actions {
+    margin-top: 12px;
+}
+
+#oras_tickets_metabox .oras-phase-header {
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
 #oras_tickets_metabox .oras-tickets-tabs {
