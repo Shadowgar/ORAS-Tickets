@@ -1,0 +1,247 @@
+:root {
+  --oras-ink: #111;
+  --oras-muted: #5a5a5a;
+  --oras-line: #d6d6d6;
+  --oras-accent: #111;
+  --oras-paper: #ffffff;
+  --oras-panel: #f6f5f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.oras-ticket-print-body {
+  margin: 0;
+  padding: 24px;
+  background: var(--oras-paper);
+  color: var(--oras-ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.oras-ticket-print {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.oras-ticket-card {
+  background: var(--oras-paper);
+  border: 2px solid var(--oras-ink);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.oras-ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 2px solid var(--oras-ink);
+  background: var(--oras-panel);
+}
+
+.oras-ticket-brand {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.oras-ticket-event {
+  flex: 1;
+  text-align: center;
+}
+
+.oras-ticket-event-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.oras-ticket-event-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--oras-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.oras-ticket-mark {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  border: 1px solid var(--oras-ink);
+  border-radius: 999px;
+}
+
+.oras-ticket-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 0;
+}
+
+.oras-ticket-main {
+  padding: 20px 22px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 14px;
+}
+
+.oras-ticket-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oras-ticket-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--oras-muted);
+}
+
+.oras-ticket-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.oras-ticket-price {
+  font-size: 16px;
+}
+
+.oras-ticket-stub {
+  border-left: 2px dashed var(--oras-line);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafafa;
+  position: relative;
+}
+
+.oras-ticket-stub::before,
+.oras-ticket-stub::after {
+  content: "";
+  position: absolute;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--oras-ink);
+  border-radius: 50%;
+  background: var(--oras-paper);
+}
+
+.oras-ticket-stub::before {
+  top: 12px;
+}
+
+.oras-ticket-stub::after {
+  bottom: 12px;
+}
+
+.oras-ticket-stub-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.oras-ticket-stub-seq {
+  font-size: 11px;
+  color: var(--oras-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.oras-ticket-stub-barcode {
+  width: 100%;
+  height: 54px;
+  background: repeating-linear-gradient(
+    90deg,
+    #111,
+    #111 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.oras-ticket-stub-order {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.oras-ticket-stub-event {
+  font-size: 10px;
+  text-align: center;
+  color: var(--oras-muted);
+}
+
+.oras-ticket-footer {
+  border-top: 1px solid var(--oras-line);
+  padding: 12px 22px 18px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--oras-muted);
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body.oras-ticket-print-body {
+    padding: 0;
+  }
+
+  .oras-ticket-card {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .oras-ticket-card:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  body.oras-ticket-print-body {
+    padding: 16px;
+  }
+
+  .oras-ticket-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .oras-ticket-body {
+    grid-template-columns: 1fr;
+  }
+
+  .oras-ticket-main {
+    grid-template-columns: 1fr;
+  }
+
+  .oras-ticket-stub {
+    border-left: none;
+    border-top: 2px dashed var(--oras-line);
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .oras-ticket-stub::before,
+  .oras-ticket-stub::after {
+    display: none;
+  }
+}

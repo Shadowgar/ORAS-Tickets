@@ -19,7 +19,9 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php';
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php';
+require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php';
 
 if (! defined('ABSPATH')) {
 	exit;
@@ -91,6 +93,9 @@ final class Bootstrap
 
 		\ORAS\Tickets\Commerce\Woo\Cart_Pricing::register();
 
+		$api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
+		$api->register();
+
 		// Admin-only (or WP-CLI): register ticket metabox and admin hub.
 		if (is_admin() || (defined('WP_CLI') && WP_CLI)) {
 			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
@@ -105,6 +110,7 @@ final class Bootstrap
 		// when `is_admin()` is false.
 		if (! is_admin()) {
 			\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
+			\ORAS\Tickets\Frontend\Ticket_Print_Controller::instance()->init();
 		}
 	}
 }
