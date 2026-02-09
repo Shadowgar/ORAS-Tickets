@@ -547,7 +547,7 @@ final class Reports_Aggregator
       'date_range' => $date_range,
     ];
 
-    return $this->build_cache_key($filters, 'single');
+    return $this->build_cache_key($filters, 'reports_single');
   }
 
   /**
@@ -566,15 +566,32 @@ final class Reports_Aggregator
    */
   private function sort_filter_array(array $filters): array
   {
+    $normalized = [];
     foreach ($filters as $key => $value) {
       if (is_array($value)) {
-        $filters[$key] = $this->sort_filter_array($value);
+        $normalized[$key] = $this->sort_filter_array($value);
+      } else {
+        $normalized[$key] = is_scalar($value) ? (string) $value : '';
       }
     }
 
-    ksort($filters);
+    if ($this->is_list_array($normalized)) {
+      sort($normalized, SORT_STRING);
+      return array_values($normalized);
+    }
 
-    return $filters;
+    ksort($normalized);
+
+    return $normalized;
+  }
+
+  /**
+   * @param array<string|int,mixed> $value
+   */
+  private function is_list_array(array $value): bool
+  {
+    $keys = array_keys($value);
+    return $keys === array_keys($keys);
   }
 
   /**
