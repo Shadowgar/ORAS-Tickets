@@ -541,8 +541,40 @@ final class Reports_Aggregator
    */
   private function get_cache_key(int $event_id, array $statuses, array $date_range): string
   {
-    $key = $event_id . '|' . implode(',', $statuses) . '|' . ($date_range['after'] ?? '') . '|' . ($date_range['before'] ?? '');
-    return 'oras_tickets_reports_' . md5($key);
+    $filters = [
+      'event_id' => $event_id,
+      'statuses' => $statuses,
+      'date_range' => $date_range,
+    ];
+
+    return $this->build_cache_key($filters, 'single');
+  }
+
+  /**
+   * @param array<string,mixed> $filters
+   */
+  private function build_cache_key(array $filters, string $scope): string
+  {
+    $sorted = $this->sort_filter_array($filters);
+    $payload = wp_json_encode($sorted);
+    return 'oras_tickets_reports_' . $scope . '_' . md5((string) $payload);
+  }
+
+  /**
+   * @param array<string,mixed> $filters
+   * @return array<string,mixed>
+   */
+  private function sort_filter_array(array $filters): array
+  {
+    foreach ($filters as $key => $value) {
+      if (is_array($value)) {
+        $filters[$key] = $this->sort_filter_array($value);
+      }
+    }
+
+    ksort($filters);
+
+    return $filters;
   }
 
   /**

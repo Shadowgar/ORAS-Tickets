@@ -30,6 +30,7 @@ final class Reports_Page
     $selected_statuses = $this->get_selected_statuses();
     $range_data = $this->get_date_range_from_request($_GET);
     $date_range = $range_data['date_range'];
+    $event_summary_rows = $this->get_event_summary_rows($selected_statuses, $date_range, $range_data, $selected_event_id);
 
     $aggregator = new Reports_Aggregator();
     $aggregates = $selected_event_id > 0 ? $aggregator->get_aggregates($selected_event_id, $selected_statuses, $date_range) : [
@@ -51,6 +52,7 @@ final class Reports_Page
 
     $by_ticket_rows = isset($aggregates['by_ticket']) && is_array($aggregates['by_ticket']) ? $aggregates['by_ticket'] : [];
     $phase_breakdown = isset($aggregates['phase_breakdown']) && is_array($aggregates['phase_breakdown']) ? $aggregates['phase_breakdown'] : [];
+    $presale_key_by_ticket_index = $selected_event_id > 0 ? $this->get_presale_key_map($selected_event_id) : [];
     $presale_total = 0;
     $after_total = 0;
     $ticket_name_by_index = [];
@@ -289,6 +291,49 @@ final class Reports_Page
       </div>
 
       <div class="oras-card">
+        <h2><?php echo esc_html__('Event Summary', 'oras-tickets'); ?></h2>
+        <p class="description"><?php echo esc_html__('Sales summary for ticketed events in the selected period.', 'oras-tickets'); ?></p>
+        <?php if (empty($event_summary_rows)) : ?>
+          <p><?php echo esc_html__('No ticket sales for selected filters.', 'oras-tickets'); ?></p>
+        <?php else : ?>
+          <table class="widefat striped oras-table">
+            <thead>
+              <tr>
+                <th><?php echo esc_html__('Event', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('Event date', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('Orders', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('Tickets sold', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('First phase', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('After first phase', 'oras-tickets'); ?></th>
+                <th class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
+                <th class="is-right"><?php echo esc_html__('Refunded', 'oras-tickets'); ?></th>
+                <th class="is-right"><?php echo esc_html__('Net', 'oras-tickets'); ?></th>
+                <th><?php echo esc_html__('Last sale', 'oras-tickets'); ?></th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($event_summary_rows as $row) : ?>
+                <tr>
+                  <td>
+                    <a href="<?php echo esc_url($row['url']); ?>"><?php echo esc_html($row['title']); ?></a>
+                  </td>
+                  <td><?php echo esc_html($row['event_date']); ?></td>
+                  <td><?php echo esc_html((string) $row['orders']); ?></td>
+                  <td><?php echo esc_html((string) $row['tickets_sold']); ?></td>
+                  <td><?php echo esc_html((string) $row['presale_tickets_sold']); ?></td>
+                  <td><?php echo esc_html((string) $row['after_presale_tickets_sold']); ?></td>
+                  <td class="is-right"><?php echo esc_html($this->format_money($row['gross_sales'])); ?></td>
+                  <td class="is-right"><?php echo esc_html($this->format_money($row['refunded_amount'])); ?></td>
+                  <td class="is-right"><?php echo esc_html($this->format_money($row['net_sales'])); ?></td>
+                  <td><?php echo esc_html($row['last_sale']); ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+
+      <div class="oras-card">
         <div class="oras-grid oras-grid--kpi">
           <div class="oras-kpi">
             <div class="oras-kpi__label"><?php echo esc_html__('Gross sales', 'oras-tickets'); ?></div>
@@ -312,11 +357,11 @@ final class Reports_Page
             </div>
           </div>
           <div class="oras-kpi">
-            <div class="oras-kpi__label"><?php echo esc_html__('Presale tickets sold', 'oras-tickets'); ?></div>
+            <div class="oras-kpi__label"><?php echo esc_html__('Tickets sold during first pricing phase', 'oras-tickets'); ?></div>
             <div class="oras-kpi__value"><?php echo esc_html((string) $presale_total); ?></div>
           </div>
           <div class="oras-kpi">
-            <div class="oras-kpi__label"><?php echo esc_html__('After presale tickets sold', 'oras-tickets'); ?></div>
+            <div class="oras-kpi__label"><?php echo esc_html__('Tickets sold after first pricing phase', 'oras-tickets'); ?></div>
             <div class="oras-kpi__value"><?php echo esc_html((string) $after_total); ?></div>
           </div>
         </div>
@@ -342,7 +387,7 @@ final class Reports_Page
         <?php endif; ?>
 
         <p class="description oras-note">
-          <?php echo esc_html__('Presale = earliest configured price phase for each ticket.', 'oras-tickets'); ?>
+          <?php echo esc_html__('First pricing phase = earliest configured pricing phase per ticket.', 'oras-tickets'); ?>
         </p>
 
         <p class="description oras-note">
@@ -394,8 +439,6 @@ final class Reports_Page
             <tr>
               <th><?php echo esc_html__('Ticket', 'oras-tickets'); ?></th>
               <th><?php echo esc_html__('Sold qty', 'oras-tickets'); ?></th>
-              <th><?php echo esc_html__('Presale', 'oras-tickets'); ?></th>
-              <th><?php echo esc_html__('After', 'oras-tickets'); ?></th>
               <th class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
               <th><?php echo esc_html__('Refunded qty', 'oras-tickets'); ?></th>
               <th class="is-right"><?php echo esc_html__('Refunded amount', 'oras-tickets'); ?></th>
@@ -405,15 +448,13 @@ final class Reports_Page
           <tbody>
             <?php if (empty($aggregates['by_ticket'])) : ?>
               <tr>
-                <td colspan="8"><?php echo esc_html__('No data for selected filters.', 'oras-tickets'); ?></td>
+                <td colspan="6"><?php echo esc_html__('No data for selected filters.', 'oras-tickets'); ?></td>
               </tr>
             <?php else : ?>
               <?php foreach ($aggregates['by_ticket'] as $row) : ?>
                 <tr>
                   <td><?php echo esc_html($row['ticket_name']); ?></td>
                   <td><?php echo esc_html((string) $row['sold_qty']); ?></td>
-                  <td><?php echo esc_html((string) ($row['presale_qty'] ?? 0)); ?></td>
-                  <td><?php echo esc_html((string) ($row['after_qty'] ?? 0)); ?></td>
                   <td class="is-right"><?php echo esc_html($this->format_money($row['gross'])); ?></td>
                   <td><?php echo esc_html((string) $row['refunded_qty']); ?></td>
                   <td class="is-right"><?php echo esc_html($this->format_money($row['refunded_amount'])); ?></td>
@@ -427,8 +468,6 @@ final class Reports_Page
               <tr>
                 <th><?php echo esc_html__('Totals', 'oras-tickets'); ?></th>
                 <th><?php echo esc_html((string) $aggregates['summary']['tickets_sold']); ?></th>
-                <th><?php echo esc_html((string) $presale_total); ?></th>
-                <th><?php echo esc_html((string) $after_total); ?></th>
                 <th class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['gross_sales'])); ?></th>
                 <th><?php echo esc_html((string) $aggregates['summary']['refunded_qty']); ?></th>
                 <th class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['refunded_amount'])); ?></th>
@@ -474,6 +513,7 @@ final class Reports_Page
             if ($ticket_label === '') {
               $ticket_label = __('Unknown ticket', 'oras-tickets');
             }
+            $presale_key = $presale_key_by_ticket_index[$ticket_index] ?? null;
           ?>
             <h3><?php echo esc_html($ticket_label); ?></h3>
             <table class="widefat striped oras-table">
@@ -481,26 +521,91 @@ final class Reports_Page
                 <tr>
                   <th><?php echo esc_html__('Phase', 'oras-tickets'); ?></th>
                   <th><?php echo esc_html__('Qty', 'oras-tickets'); ?></th>
+                  <th class="is-right"><?php echo esc_html__('Unit price', 'oras-tickets'); ?></th>
                   <th class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
                 </tr>
               </thead>
               <tbody>
                 <?php if (empty($phases)) : ?>
                   <tr>
-                    <td colspan="3"><?php echo esc_html__('No phase data for this ticket.', 'oras-tickets'); ?></td>
+                    <td colspan="4"><?php echo esc_html__('No phase data for this ticket.', 'oras-tickets'); ?></td>
                   </tr>
                 <?php else : ?>
-                  <?php foreach ($phases as $phase_key => $phase_row) :
+                  <?php
+                  $phase_rows = [];
+                  $position = 0;
+                  foreach ($phases as $phase_key => $phase_row) {
                     $phase_label = isset($phase_row['label']) ? (string) $phase_row['label'] : '';
-                    if ($phase_label === '') {
-                      $phase_label = $phase_key === '__none__' ? __('No phase snapshot', 'oras-tickets') : $phase_key;
+                    $label_check = strtolower(trim($phase_label));
+                    $is_regular = $phase_key === '__none__' || $label_check === 'no phase snapshot';
+                    $display_label = $is_regular ? __('Regular price', 'oras-tickets') : $phase_label;
+                    if (! $is_regular && $display_label === '') {
+                      $display_label = $phase_key;
                     }
                     $phase_qty = isset($phase_row['qty']) ? (int) $phase_row['qty'] : 0;
                     $phase_gross = isset($phase_row['gross']) ? (float) $phase_row['gross'] : 0.0;
+                    $phase_rows[] = [
+                      'key' => (string) $phase_key,
+                      'label' => $display_label,
+                      'qty' => $phase_qty,
+                      'gross' => $phase_gross,
+                      'is_regular' => $is_regular,
+                      'position' => $position,
+                    ];
+                    $position++;
+                  }
+
+                  usort(
+                    $phase_rows,
+                    static function (array $a, array $b) use ($presale_key): int {
+                      if ($a['key'] === $presale_key && $b['key'] !== $presale_key) {
+                        return -1;
+                      }
+                      if ($b['key'] === $presale_key && $a['key'] !== $presale_key) {
+                        return 1;
+                      }
+                      if ($a['is_regular'] && ! $b['is_regular']) {
+                        return 1;
+                      }
+                      if ($b['is_regular'] && ! $a['is_regular']) {
+                        return -1;
+                      }
+                      return $a['position'] <=> $b['position'];
+                    }
+                  );
+
+                  $label_totals = [];
+                  foreach ($phase_rows as $phase_row) {
+                    if ($phase_row['is_regular']) {
+                      continue;
+                    }
+                    $label = $phase_row['label'];
+                    $label_totals[$label] = ($label_totals[$label] ?? 0) + 1;
+                  }
+                  $label_seen = [];
+                  ?>
+                  <?php foreach ($phase_rows as $phase_row) :
+                    $phase_key = $phase_row['key'];
+                    $phase_qty = $phase_row['qty'];
+                    $phase_gross = $phase_row['gross'];
+                    $unit_price = $phase_qty > 0 ? ($phase_gross / $phase_qty) : 0.0;
+
+                    if ($phase_row['is_regular']) {
+                      $display_label = __('Regular price', 'oras-tickets');
+                    } else {
+                      $label = $phase_row['label'];
+                      $label_seen[$label] = ($label_seen[$label] ?? 0) + 1;
+                      if (($label_totals[$label] ?? 0) > 1) {
+                        $display_label = sprintf('%s — Phase %d (%s)', $label, (int) $label_seen[$label], $phase_key);
+                      } else {
+                        $display_label = sprintf('%s (%s)', $label, $phase_key);
+                      }
+                    }
                   ?>
                     <tr>
-                      <td><?php echo esc_html($phase_label); ?></td>
+                      <td><?php echo esc_html($display_label); ?></td>
                       <td><?php echo esc_html((string) $phase_qty); ?></td>
+                      <td class="is-right"><?php echo esc_html($this->format_money($unit_price)); ?></td>
                       <td class="is-right"><?php echo esc_html($this->format_money($phase_gross)); ?></td>
                     </tr>
                   <?php endforeach; ?>
@@ -728,6 +833,351 @@ final class Reports_Page
     }
 
     return number_format_i18n($amount, 2);
+  }
+
+  /**
+   * @param string[] $statuses
+   * @param array{after?:string,before?:string} $date_range
+   * @param array{range:string,after:string,before:string,date_range:array,label:string} $range_data
+   * @return array<int,array<string,mixed>>
+   */
+  private function get_event_summary_rows(array $statuses, array $date_range, array $range_data, int $event_id): array
+  {
+    $statuses = $this->normalize_statuses($statuses);
+    $cache_key = $this->get_event_summary_cache_key($statuses, $date_range, $range_data, $event_id);
+    $cached = get_transient($cache_key);
+    if (is_array($cached)) {
+      return $cached;
+    }
+
+    if (! function_exists('wc_get_orders')) {
+      return [];
+    }
+
+    $event_rows = [];
+    $event_phase_keys = [];
+    $event_last_sale_ts = [];
+    $page = 1;
+    $per_page = 50;
+    $date_created = $this->build_date_created_arg($date_range);
+
+    do {
+      $args = [
+        'limit' => $per_page,
+        'page' => $page,
+        'status' => $statuses,
+        'orderby' => 'date',
+        'order' => 'DESC',
+      ];
+      if ($date_created !== '') {
+        $args['date_created'] = $date_created;
+      }
+
+      $orders = wc_get_orders($args);
+      if (empty($orders)) {
+        break;
+      }
+
+      foreach ($orders as $order) {
+        if (! $order || ! method_exists($order, 'get_items')) {
+          continue;
+        }
+
+        $order_date = $order->get_date_created();
+        $order_ts = $order_date ? $order_date->getTimestamp() : null;
+        $order_event_ids = [];
+
+        $items = $order->get_items('line_item');
+        foreach ($items as $item) {
+          if (! $item) {
+            continue;
+          }
+          $event_id = (int) $item->get_meta('_oras_ticket_event_id', true);
+          if ($event_id <= 0) {
+            continue;
+          }
+
+          $qty = method_exists($item, 'get_quantity') ? (int) $item->get_quantity() : 0;
+          if ($qty <= 0) {
+            continue;
+          }
+
+          $line_total = method_exists($item, 'get_total') ? (float) $item->get_total() : 0.0;
+          $phase_key = (string) $item->get_meta('_oras_ticket_price_phase_key', true);
+
+          if (! isset($event_rows[$event_id])) {
+            $event_rows[$event_id] = [
+              'gross_sales' => 0.0,
+              'refunded_amount' => 0.0,
+              'tickets_sold' => 0,
+              'orders' => 0,
+              'phase_qty' => [],
+            ];
+          }
+
+          $event_rows[$event_id]['gross_sales'] += $line_total;
+          $event_rows[$event_id]['tickets_sold'] += $qty;
+
+          if ($phase_key !== '') {
+            $event_phase_keys[$event_id][$phase_key] = true;
+            $event_rows[$event_id]['phase_qty'][$phase_key] = ($event_rows[$event_id]['phase_qty'][$phase_key] ?? 0) + $qty;
+          }
+
+          $order_event_ids[$event_id] = true;
+        }
+
+        if ($order_ts) {
+          foreach ($order_event_ids as $event_id => $_value) {
+            if (! isset($event_rows[$event_id])) {
+              $event_rows[$event_id] = [
+                'gross_sales' => 0.0,
+                'refunded_amount' => 0.0,
+                'tickets_sold' => 0,
+                'orders' => 0,
+                'phase_qty' => [],
+              ];
+            }
+            $event_rows[$event_id]['orders']++;
+            if (! isset($event_last_sale_ts[$event_id]) || $order_ts > $event_last_sale_ts[$event_id]) {
+              $event_last_sale_ts[$event_id] = $order_ts;
+            }
+          }
+        }
+
+        if (! method_exists($order, 'get_refunds')) {
+          continue;
+        }
+
+        foreach ($order->get_refunds() as $refund) {
+          if (! $refund) {
+            continue;
+          }
+
+          $refund_items = method_exists($refund, 'get_items') ? $refund->get_items('line_item') : [];
+          foreach ($refund_items as $ref_item) {
+            $orig_id = (int) $ref_item->get_meta('_refunded_item_id');
+            if ($orig_id <= 0) {
+              continue;
+            }
+            $orig_item = $order->get_item($orig_id);
+            if (! $orig_item) {
+              continue;
+            }
+            $event_id = (int) $orig_item->get_meta('_oras_ticket_event_id', true);
+            if ($event_id <= 0) {
+              continue;
+            }
+            if (! isset($event_rows[$event_id])) {
+              $event_rows[$event_id] = [
+                'gross_sales' => 0.0,
+                'refunded_amount' => 0.0,
+                'tickets_sold' => 0,
+                'orders' => 0,
+                'phase_qty' => [],
+              ];
+            }
+            $event_rows[$event_id]['refunded_amount'] += abs((float) $ref_item->get_total());
+          }
+        }
+      }
+
+      $page++;
+    } while (! empty($orders) && count($orders) === $per_page);
+
+    if (empty($event_rows)) {
+      // Dev note: clear transients if summary rows appear stale.
+      set_transient($cache_key, [], 300);
+      return [];
+    }
+
+    $rows = [];
+    foreach ($event_rows as $event_id => $data) {
+      $tickets_sold = isset($data['tickets_sold']) ? (int) $data['tickets_sold'] : 0;
+      if ($tickets_sold <= 0) {
+        continue;
+      }
+
+      $phase_keys = isset($event_phase_keys[$event_id]) ? array_keys($event_phase_keys[$event_id]) : [];
+      $first_phase_key = $this->pick_first_phase_key($phase_keys);
+      $phase_qty = isset($data['phase_qty']) && is_array($data['phase_qty']) ? $data['phase_qty'] : [];
+
+      $first_phase_qty = $first_phase_key !== null ? (int) ($phase_qty[$first_phase_key] ?? 0) : 0;
+      $after_qty = $tickets_sold - $first_phase_qty;
+
+      $event_title = get_the_title($event_id);
+      $event_date = $this->get_event_date_display($event_id);
+      $last_sale = isset($event_last_sale_ts[$event_id]) ? wp_date('Y-m-d', $event_last_sale_ts[$event_id]) : '—';
+
+      $rows[] = [
+        'event_id' => $event_id,
+        'title' => $event_title !== '' ? $event_title : (string) $event_id,
+        'event_date' => $event_date !== '' ? $event_date : '—',
+        'orders' => isset($data['orders']) ? (int) $data['orders'] : 0,
+        'tickets_sold' => $tickets_sold,
+        'presale_tickets_sold' => $first_phase_qty,
+        'after_presale_tickets_sold' => max(0, $after_qty),
+        'gross_sales' => isset($data['gross_sales']) ? (float) $data['gross_sales'] : 0.0,
+        'refunded_amount' => isset($data['refunded_amount']) ? (float) $data['refunded_amount'] : 0.0,
+        'net_sales' => (isset($data['gross_sales']) ? (float) $data['gross_sales'] : 0.0) - (isset($data['refunded_amount']) ? (float) $data['refunded_amount'] : 0.0),
+        'last_sale' => $last_sale,
+        'url' => $this->build_event_report_url($event_id, $statuses, $range_data),
+      ];
+    }
+
+    usort(
+      $rows,
+      static function (array $a, array $b): int {
+        $net_a = isset($a['net_sales']) ? (float) $a['net_sales'] : 0.0;
+        $net_b = isset($b['net_sales']) ? (float) $b['net_sales'] : 0.0;
+        return $net_b <=> $net_a;
+      }
+    );
+
+    // Dev note: clear transients if summary rows appear stale.
+    set_transient($cache_key, $rows, 300);
+
+    return $rows;
+  }
+
+  /**
+   * @param string[] $statuses
+   * @param array{after?:string,before?:string} $date_range
+   * @param array{range:string,after:string,before:string,date_range:array,label:string} $range_data
+   */
+  private function get_event_summary_cache_key(array $statuses, array $date_range, array $range_data, int $event_id): string
+  {
+    $filters = [
+      'event_id' => $event_id,
+      'statuses' => $statuses,
+      'date_range' => $date_range,
+      'range_data' => [
+        'range' => $range_data['range'] ?? '',
+        'after' => $range_data['after'] ?? '',
+        'before' => $range_data['before'] ?? '',
+      ],
+    ];
+
+    return $this->build_cache_key($filters, 'summary');
+  }
+
+  /**
+   * @param array<string,mixed> $filters
+   */
+  private function build_cache_key(array $filters, string $scope): string
+  {
+    $sorted = $this->sort_filter_array($filters);
+    $payload = wp_json_encode($sorted);
+    return 'oras_tickets_reports_' . $scope . '_' . md5((string) $payload);
+  }
+
+  /**
+   * @param array<string,mixed> $filters
+   * @return array<string,mixed>
+   */
+  private function sort_filter_array(array $filters): array
+  {
+    foreach ($filters as $key => $value) {
+      if (is_array($value)) {
+        $filters[$key] = $this->sort_filter_array($value);
+      }
+    }
+
+    ksort($filters);
+
+    return $filters;
+  }
+
+  /**
+   * @param string[] $statuses
+   * @return string[]
+   */
+  private function normalize_statuses(array $statuses): array
+  {
+    $allowed = array_keys($this->get_status_options());
+    $filtered = array_values(array_intersect($allowed, $statuses));
+    return ! empty($filtered) ? $filtered : $allowed;
+  }
+
+  /**
+   * @param array{after?:string,before?:string} $date_range
+   */
+  private function build_date_created_arg(array $date_range): string
+  {
+    $after = isset($date_range['after']) ? (string) $date_range['after'] : '';
+    $before = isset($date_range['before']) ? (string) $date_range['before'] : '';
+
+    if ($after !== '' && $before !== '') {
+      return $after . '...' . $before;
+    }
+
+    if ($after !== '') {
+      return '>=' . $after;
+    }
+
+    if ($before !== '') {
+      return '<=' . $before;
+    }
+
+    return '';
+  }
+
+  private function get_event_date_display(int $event_id): string
+  {
+    if (function_exists('tribe_get_start_date')) {
+      $start = tribe_get_start_date($event_id, true, 'Y-m-d');
+      if (is_string($start) && $start !== '') {
+        return $start;
+      }
+    }
+
+    return '—';
+  }
+
+  /**
+   * @param string[] $phase_keys
+   */
+  private function pick_first_phase_key(array $phase_keys): ?string
+  {
+    if (empty($phase_keys)) {
+      return null;
+    }
+
+    usort(
+      $phase_keys,
+      static function (string $a, string $b): int {
+        $a_lower = strtolower($a);
+        $b_lower = strtolower($b);
+        $a_first = (bool) preg_match('/phase_1|_1$/', $a_lower);
+        $b_first = (bool) preg_match('/phase_1|_1$/', $b_lower);
+        if ($a_first && ! $b_first) {
+          return -1;
+        }
+        if ($b_first && ! $a_first) {
+          return 1;
+        }
+        return strnatcasecmp($a, $b);
+      }
+    );
+
+    return $phase_keys[0] ?? null;
+  }
+
+  /**
+   * @param string[] $statuses
+   * @param array{range:string,after:string,before:string,date_range:array,label:string} $range_data
+   */
+  private function build_event_report_url(int $event_id, array $statuses, array $range_data): string
+  {
+    $args = [
+      'page' => 'oras-tickets-reports',
+      'oras_tickets_event_id' => $event_id,
+      'oras_tickets_range' => $range_data['range'],
+      'oras_tickets_after' => $range_data['after'],
+      'oras_tickets_before' => $range_data['before'],
+      'oras_tickets_statuses' => $statuses,
+    ];
+
+    return add_query_arg($args, admin_url('admin.php'));
   }
 
   /**
