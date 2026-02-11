@@ -13,6 +13,8 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Pricing/Price_Resolver.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
 // Admin hub (Phase 2.9)
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Speaker_CPT.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Event_Speakers_Metabox.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';

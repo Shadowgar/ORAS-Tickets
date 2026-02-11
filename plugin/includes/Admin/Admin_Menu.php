@@ -4,10 +4,14 @@ namespace ORAS\Tickets\Admin;
 
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Speaker_Obligations_Page.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Speaker_Reports_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php';
 
 use ORAS\Tickets\Admin\Pages\Dashboard_Page;
 use ORAS\Tickets\Admin\Pages\Reports_Page;
+use ORAS\Tickets\Admin\Pages\Speaker_Obligations_Page;
+use ORAS\Tickets\Admin\Pages\Speaker_Reports_Page;
 use ORAS\Tickets\Admin\Pages\Settings_Page;
 
 if (! defined('ABSPATH')) {
@@ -21,6 +25,8 @@ final class Admin_Menu
   {
     add_action('admin_menu', [$this, 'register_menu']);
     add_action('admin_post_oras_tickets_export_csv', [$this, 'handle_export_csv']);
+    (new Speaker_Obligations_Page())->register();
+    (new Speaker_Reports_Page())->register();
   }
 
   public function register_menu(): void
@@ -57,6 +63,24 @@ final class Admin_Menu
 
     add_submenu_page(
       'oras-tickets',
+      __('Speaker Obligations', 'oras-tickets'),
+      __('Speaker Obligations', 'oras-tickets'),
+      $capability,
+      'oras-tickets-speaker-obligations',
+      [$this, 'render_speaker_obligations']
+    );
+
+    add_submenu_page(
+      'oras-tickets',
+      __('Speaker Reports', 'oras-tickets'),
+      __('Speaker Reports', 'oras-tickets'),
+      $capability,
+      'oras-tickets-speaker-reports',
+      [$this, 'render_speaker_reports']
+    );
+
+    add_submenu_page(
+      'oras-tickets',
       __('Settings', 'oras-tickets'),
       __('Settings', 'oras-tickets'),
       $capability,
@@ -78,6 +102,16 @@ final class Admin_Menu
   public function render_settings(): void
   {
     (new Settings_Page())->render();
+  }
+
+  public function render_speaker_obligations(): void
+  {
+    (new Speaker_Obligations_Page())->render();
+  }
+
+  public function render_speaker_reports(): void
+  {
+    (new Speaker_Reports_Page())->render();
   }
 
   public function handle_export_csv(): void

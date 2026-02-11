@@ -8,6 +8,15 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - WooCommerce is the commerce engine.
 - Follow WordPress Coding Standards.
 - Namespacing under ORAS\Tickets\
+- ORAS-Tickets owns all ticket logic, pricing, reporting, REST, and printable tickets.
+- ORAS Member Hub is member-facing UI only and must not contain ticket logic.
+- Speakers are not WordPress users by default; linking to a WP user is optional and only for complimentary PMPro membership use cases.
+- No scope creep into public features unless explicitly approved.
+- Speakers are CPT records (`post_type` = `oras_speaker`); no public rendering in Phase 4.1.
+- Speaker CPT schema keys are locked (v1):
+	- `_oras_speaker_email`, `_oras_speaker_affiliation`, `_oras_speaker_website_url`, `_oras_speaker_headshot_id`, `_oras_speaker_wp_user_id`, `_oras_speaker_status`, `_oras_speaker_internal_notes`.
+- Speaker to Event assignments live in TEC event meta `_oras_speakers_v1` (v1 envelope).
+- No automation or emails in Phase 4.1 beyond explicit admin actions.
 
 ## Frontend rendering (current state)
 - Tickets render automatically on single `tribe_events` pages.
@@ -21,6 +30,11 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - Phase 2.0 — Woo Product Sync: ✅ Complete
 - Phase 2.1B — POST Enforcement: ✅ Complete
 - Phase 2.1C — Cart & Checkout Revalidation: ✅ Complete
+- Phase 3.4 — Treasurer Reporting: ✅ Complete
+- Phase 3.5-A — REST API: ✅ Complete
+- Phase 3.5-B — Grouped-by-event API: ✅ Complete
+- Phase 3.5-C — Member Hub UI rendering: ✅ Complete
+- Phase 3.5-D — Printable tickets: ✅ Complete
 
 ## Phase 3.1 — Locked (Frontend & UX)
 The Phase 3.1 frontend behaviors are locked and must not be regressed. Implementations that change the runtime display, purchasability, or cart revalidation behavior described below require an explicit design review and a versioned migration plan.
@@ -40,7 +54,7 @@ Guidance for future phases:
 - Member hub and member-only features are separate concerns and should be scoped to dedicated phases.
 
 ## Locked Phases
-Phases 0 through 3.2 are complete and must not be modified without an explicit design review and a documented migration plan.
+Phases 0 through 3.5 are complete and must not be modified without an explicit design review and a documented migration plan.
 
 Prohibited changes (unless explicitly approved):
 - Time-based pricing resolver logic (`ORAS\Tickets\Domain\Pricing\Price_Resolver`).
@@ -50,4 +64,4 @@ Prohibited changes (unless explicitly approved):
 
 ## Upcoming Work
 - Phase 3.3 — Admin UX redesign for the tickets editor (vertical tabs, WooCommerce-style): ✅ Complete (UI-only)
-- Next planned phase: Phase 3.4 — Admin polish & treasurer confidence.
+- Next planned phase: Phase 4.1 — Speaker Management (MVP, internal only).

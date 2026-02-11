@@ -20,106 +20,41 @@ No completed functionality is removed or reset.
 
 ---
 
-## Locked & Completed
-
-### Phases 1.x – 3.0 (CLOSED)
-Tickets core, Woo lifecycle, refunds, reporting, admin UI
-
-Status: COMPLETE AND CLOSED
-
----
-
-## Active Roadmap (Authoritative)
-
-### Phase 3.1 — Frontend UX polish (Tickets)
-Status: COMPLETE (LOCKED)
-
-Summary: Frontend ticket display and add-to-cart robustness work for event pages.
-
-Frontend behavior:
-
-WooCommerce behavior:
-
-Cart & checkout rules:
-
-Phase 3.x exclusions (explicit):
-
-### Phase 3.2 — Time-based pricing (Early Bird)
-Status: COMPLETE and LOCKED
-
-Verified end-to-end: frontend price resolution, cart/checkout pricing application, and order-item snapshot metadata.
-
-Details:
-	- _oras_ticket_price_phase_key
-	- _oras_ticket_price_phase_label
-	- _oras_ticket_price_phase_price
-
-Phase 3.1 behavior remains LOCKED and unchanged.
-
-Notes:
-- The implementation of Phase 3.1 and 3.2 is intentionally locked. Any changes to these behaviors require a design review and migration plan.
-### Phase 3.3 — Admin UX redesign (tickets editor improvements)
-Status: COMPLETE
-
-Admin-only UI improvements to the tickets editor metabox (delivered):
-
-- WooCommerce-style vertical tabs inside each ticket editor (General, Inventory, Sale window, Pricing, Pricing phases)
-- Pricing phases redesigned into card/grid layout with Advanced expand/collapse
-- Left ticket rail improved with title + meta (price + status), live updates while editing
-- Add Ticket / Remove Ticket update the UI instantly (no refresh required)
-- Initialization fixes prevent blank/ghost rows on refresh
-- Inline styles reduced/moved to CSS for maintainability
-
-Explicit: No data model changes; no behavior changes to sale window, cart, checkout, or pricing logic.
-
-#### Phase 3.3 Scope
-Completed via UI-only changes listed above. IN/OUT remain unchanged.
-- IN:
-	- Admin UI layout and structure
-	- Field grouping and visual organization
-	- Usability and clarity improvements
-	- Validation and messaging improvements (UI only)
-- OUT:
-	- Cart icons or header widgets
-	- Member-only logic
-	- Attendees, check-in, QR codes
-	- Speakers or agenda systems
-	- Zoom or video integrations
-	- External services, APIs, telemetry
-
-### Phase 3.4 — Admin polish & treasurer confidence
-Includes:
-- Event sales status panel
-- Capacity bars
-- Pricing phase awareness
-- Stripe metadata audit view
-- Admin warnings
+## Current System State (Authoritative)
+- ORAS-Tickets provides full backend ticketing, reporting, REST API, and printable tickets.
+- ORAS Member Hub provides member-facing display only and consumes the ORAS-Tickets REST API.
+- System is operational end-to-end.
+- Treasurer reporting is complete and reliable.
+- Printable tickets are complete and internal (secure direct URLs with ownership validation).
+- No attendance tracking or QR scanning exists.
+- Speakers are not implemented.
 
 ---
 
-## Expansion Phases (Locked Order)
-
-### Phase 4.0 — Plugin rebrand & modularization
-Purpose: Prepare codebase for expansion without breaking tickets
-
-Includes:
-- Logical rename to ORAS Events Add-On
-- Formal module boundaries
-- Feature-flag-friendly bootstrap
-- No functional regressions
-
-### Phase 4.1 — Speakers module
-### Phase 4.2 — Agenda / schedule builder
-### Phase 4.3 — Door prizes
-### Phase 4.4 — Event enhancements
-### Phase 4.5 — Polish & hardening
+## Locked & Completed Phases
+- Phase 0: Foundations (repo structure, bootstrapping, tooling, namespaces).
+- Phase 1: Ticket core model (event ticket envelope meta, deterministic identity, safe admin save paths).
+- Phase 2: WooCommerce integration (one hidden Woo product per ticket, cart/checkout validation and revalidation).
+- Phase 3.1: Frontend ticket rendering (TEC single event pages, on-sale logic, sold-out behavior, add-to-cart flow).
+- Phase 3.2: Time-based pricing (pricing phases, price resolver, snapshot meta stored on order items).
+- Phase 3.3: Admin UX redesign (tickets editor improvements, UI-only).
+- Phase 3.4: Treasurer reporting (pricing aggregates, KPI correctness, multi-event summaries, filtering, CSV export).
+- Phase 3.5-A: REST API.
+- Phase 3.5-B: Grouped-by-event API.
+- Phase 3.5-C: Member Hub UI rendering.
+- Phase 3.5-D: Secure printable ticket pages (ticket-card layout, one card per ticket quantity, logged-in ownership validation, no QR or check-in).
 
 ---
 
-## Explicitly Out of Scope
-- Attendees
-- Check-in / QR
-- RSVP / free tickets
-- TEC Pro view replacement
-- SaaS / licensing
-- Marketplace distribution
+## Not Implemented Yet
+- Speakers, public speaker profiles, or speaker reporting.
+- Attendance tracking, QR codes, or check-in.
+- Member-only gating beyond existing PMPro membership usage.
+- Zoom or external integrations.
+
+---
+
+## Speakers (Planned)
+- Not implemented yet.
+- Phase 4.1 will be internal only (admin/treasurer).
+- Public speaker profiles and event page display are planned for Phase 4.1-B.

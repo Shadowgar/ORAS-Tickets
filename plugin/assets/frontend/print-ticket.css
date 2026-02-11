@@ -207,6 +207,8 @@ body.oras-ticket-print-body {
     box-shadow: none;
     break-after: page;
     page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .oras-ticket-card:last-child {

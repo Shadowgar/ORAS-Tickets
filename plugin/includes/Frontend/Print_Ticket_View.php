@@ -101,11 +101,6 @@ $location_text = wp_strip_all_tags($location_text);
 
 $event_start_display = $format_datetime($event_start);
 $purchase_date_display = $format_datetime($purchase_date);
-$total_tickets = 0;
-foreach ($items as $item) {
-  $total_tickets += isset($item['quantity']) ? max(1, (int) $item['quantity']) : 1;
-}
-$ticket_sequence = 0;
 $printed_name = $purchaser_name !== '' ? $purchaser_name : __('Guest', 'oras-tickets');
 
 ?>
@@ -121,12 +116,11 @@ $printed_name = $purchaser_name !== '' ? $purchaser_name : __('Guest', 'oras-tic
 
     <?php for ($i = 0; $i < $quantity; $i++) : ?>
       <?php
-      $ticket_sequence++;
       $sequence_label = sprintf(
         /* translators: 1: current ticket number, 2: total tickets */
         __('Ticket %1$d of %2$d', 'oras-tickets'),
-        $ticket_sequence,
-        $total_tickets
+        $i + 1,
+        $quantity
       );
       ?>
       <article class="oras-ticket-card">
