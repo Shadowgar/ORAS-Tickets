@@ -35,3 +35,30 @@ Status: COMPLETE (LOCKED)
 - Inline styles reduced/moved to CSS for maintainability.
 
 Status: COMPLETE (UI-only)
+
+## Phase 3.4 — COMPLETED
+- Treasurer reporting finalized (pricing aggregates, KPI correctness, multi-event summaries).
+- Filtering and CSV export verified.
+
+Status: COMPLETE (LOCKED)
+
+## Phase 3.5-C — COMPLETED
+- Member Hub UI renders purchased tickets via ORAS-Tickets REST API.
+- Member-facing display only; no ticket logic in Member Hub.
+
+Status: COMPLETE (LOCKED)
+
+## Phase 3.5-D — COMPLETED
+- Secure printable ticket pages delivered with ticket-card layout.
+- One card per ticket quantity with ownership validation.
+- No QR codes or check-in functionality.
+
+Status: COMPLETE (LOCKED)
+
+## Phase 4.1 — DEFINED (Planning Only)
+- Speaker Management (MVP, internal only) defined as the next phase.
+- No implementation work started.
+
+## Phase 4.1 — PLANNING DETAILS (Not Implemented)
+- Phase 4.1 defined: Speaker CPT + event meta assignments (`_oras_speakers_v1`).
+- Optional WP user link for PMPro fulfillment (planning only).
