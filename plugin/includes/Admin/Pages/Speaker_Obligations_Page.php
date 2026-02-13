@@ -592,8 +592,5 @@ final class Speaker_Obligations_Page
       ['Content-Type: text/plain; charset=UTF-8']
     );
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-      error_log('[ORAS-Tickets] speaker fulfill notify sent=' . ($sent ? '1' : '0') . ' to=' . implode(',', $recipients));
-    }
   }
 }
