@@ -58,8 +58,11 @@ Before writing or changing code, read these files in this order:
 - **Phase 3.3:** Complete / closed  
 - **Phase 3.4-A / 3.4-B:** Complete / closed  
 - **Phase 3.5-A / 3.5-B / 3.5-C:** Complete / closed  
-- **Phase 4.1:** Speaker Management (MVP) complete
-- **Phase 4.2:** Speaker reporting + fulfillment history + internal notifications complete
+- **Phase 4.1:** Speaker Management (MVP) complete / closed
+- **Phase 4.1-B:** Public speaker profiles + speaker event display complete / closed
+- **Phase 4.5.1:** Agenda MVP (multi-day metabox + frontend renderer) complete / closed
+- **Phase 4.5.3:** Current-slot highlight + autoscroll complete / closed
+- **Phase 4.5.4:** Agenda speaker modal UX complete / closed
 
 > The definitive, locked phase plan is maintained in `docs/CURRENT_STATE.md`.
 
@@ -82,6 +85,7 @@ Stored on the **event**:
 - `_oras_tickets_v1` — ticket definitions envelope
 - `_oras_tickets_woo_map_v1` — ticket index → Woo product ID map
 - `_oras_speakers_v1` — event speaker assignments envelope (Phase 4)
+- `_oras_agenda_v1` — event agenda envelope (`settings`, `days[]`, `slots[]`)
 
 Stored on the **Woo product** (hidden per-ticket products):
 - `_oras_ticket_event_id`
@@ -102,8 +106,9 @@ This plugin includes internal admin pages and tooling for ORAS operations, inclu
 - Reporting and exports (treasurer/admin visibility)
 - Speaker management (CPT + event assignments)
 - Speaker obligations fulfillment (including PMPro membership fulfillment)
-- Speaker reports/history + CSV export
-- Internal email-only notifications on successful fulfillment
+- Agenda management metabox (multi-day, nested day/slot/speaker repeaters, date/time pickers)
+- Frontend agenda rendering with current-slot highlight/autoscroll option
+- Speaker modal popup from agenda slots with profile-link handoff
 
 Exact behavior and phase scope details belong in `docs/CURRENT_STATE.md` and `docs/PROJECT_STATE.md`.
 
@@ -174,7 +179,11 @@ The authoritative roadmap and phase details live in `docs/CURRENT_STATE.md`. Thi
 ### Completed (closed)
 - Phases 0 → 3.5 (ticketing core + pricing phases + reporting)
 - Phase 4.1 — Speaker Management (MVP)
-- Phase 4.2 — Speaker reporting + fulfillment history + internal notifications
+- Phase 4.1-B — Public Speaker Profiles & Event Display
+- Phase 4.5.1 / 4.5.3 / 4.5.4 — Agenda + Current Highlight + Speaker Modal
+
+### Next (approved)
+- Phase 4.2 — Speaker Reporting & Automation refinements
 
 ### Phase 5+ — Future (explicitly NOT NOW unless approved)
 These items are intentionally deferred. Do not start them without explicit approval.
@@ -190,7 +199,7 @@ These items are intentionally deferred. Do not start them without explicit appro
   - Tight integration rules with PMPro
 
 - Agenda / speakers / resources expansion
-  - Rich agenda blocks per event
+  - Rich agenda blocks per event (beyond current `_oras_agenda_v1` baseline)
   - Speaker resource uploads and distribution
   - Public vs internal resource visibility controls
 
