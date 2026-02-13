@@ -1,5 +1,16 @@
 # CHANGELOG (Append-Only)
 
+## 2026-02-12 — Agenda + Speaker Modal (Completed)
+- Delivered multi-day agenda management via event meta `_oras_agenda_v1` with settings/day/slot envelope.
+- Added admin agenda metabox with nested repeaters (days -> slots -> speakers) and native date/time pickers.
+- Added frontend agenda renderer for TEC single event pages, including slot metadata and multi-day display.
+- Added current-slot highlighting and optional autoscroll behavior via `assets/js/agenda-now.js`.
+- Added slot speaker rendering under agenda items using per-slot speaker rows (`speaker_id`, `role`, optional `label`).
+- Added speaker modal popup UX from agenda clicks with abbreviated speaker info and "View full profile" permalink.
+- Speaker modal headshot uses `_oras_speaker_headshot_id` with fallback to Featured Image when meta is absent.
+
+Status: COMPLETE
+
 ## Phase 3.0 — COMPLETED
 - Woo product sync finalized
 - Stock = capacity logic implemented

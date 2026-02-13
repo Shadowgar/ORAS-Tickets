@@ -12,11 +12,11 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - ORAS Member Hub is member-facing UI only and must not contain ticket logic.
 - Speakers are not WordPress users by default; linking to a WP user is optional and only for complimentary PMPro membership use cases.
 - No scope creep into public features unless explicitly approved.
-- Speakers are CPT records (`post_type` = `oras_speaker`); no public rendering in Phase 4.1.
+- Speakers are CPT records (`post_type` = `oras_speaker`) with public single profile support enabled.
 - Speaker CPT schema keys are locked (v1):
 	- `_oras_speaker_email`, `_oras_speaker_affiliation`, `_oras_speaker_website_url`, `_oras_speaker_headshot_id`, `_oras_speaker_wp_user_id`, `_oras_speaker_status`, `_oras_speaker_internal_notes`.
 - Speaker to Event assignments live in TEC event meta `_oras_speakers_v1` (v1 envelope).
-- No automation or emails in Phase 4.1 beyond explicit admin actions.
+- Agenda rendering uses TEC event meta `_oras_agenda_v1` and optional current-slot highlighting (`assets/js/agenda-now.js`).
 
 ## Frontend rendering (current state)
 - Tickets render automatically on single `tribe_events` pages.
@@ -35,6 +35,9 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - Phase 3.5-B — Grouped-by-event API: ✅ Complete
 - Phase 3.5-C — Member Hub UI rendering: ✅ Complete
 - Phase 3.5-D — Printable tickets: ✅ Complete
+- Phase 4.1 — Speaker Management MVP: ✅ Complete
+- Phase 4.1-B — Public speaker profiles and event display: ✅ Complete
+- Phase 4.5.x — Agenda + current-slot highlight + speaker modal: ✅ Complete
 
 ## Phase 3.1 — Locked (Frontend & UX)
 The Phase 3.1 frontend behaviors are locked and must not be regressed. Implementations that change the runtime display, purchasability, or cart revalidation behavior described below require an explicit design review and a versioned migration plan.
@@ -63,5 +66,4 @@ Prohibited changes (unless explicitly approved):
 - Phase 3.1 sale window filtering, cart safety checks, and frontend UX behaviors.
 
 ## Upcoming Work
-- Phase 3.3 — Admin UX redesign for the tickets editor (vertical tabs, WooCommerce-style): ✅ Complete (UI-only)
-- Next planned phase: Phase 4.1 — Speaker Management (MVP, internal only).
+- Next planned phase: Phase 4.2 — Speaker reporting and automation refinements.
