@@ -272,7 +272,10 @@
 .oras-modal {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .oras-modal__backdrop {
@@ -287,9 +290,14 @@
   overflow: hidden;
   border-radius: 18px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
-  margin: 8vh auto;
+  margin: 0;
   background: #fff;
   position: relative;
+  z-index: 1000000;
+}
+
+body.oras-modal-open {
+  overflow: hidden;
 }
 
 .oras-modal__close {
