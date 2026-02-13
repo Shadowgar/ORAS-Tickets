@@ -591,6 +591,5 @@ final class Speaker_Obligations_Page
       $body,
       ['Content-Type: text/plain; charset=UTF-8']
     );
-
   }
 }
