@@ -31,6 +31,7 @@ final class Speaker_CPT
     add_action('init', [$this, 'register_post_type']);
     add_action('add_meta_boxes', [$this, 'register_metabox']);
     add_action('save_post_' . self::POST_TYPE, [$this, 'save_post'], 10, 2);
+    add_action('save_post_' . self::POST_TYPE, [$this, 'sync_headshot_meta'], 20);
   }
 
   public function register_post_type(): void
@@ -50,15 +51,18 @@ final class Speaker_CPT
 
     $args = [
       'labels' => $labels,
-      'public' => false,
+      'public' => true,
       'show_ui' => true,
-      'publicly_queryable' => false,
-      'exclude_from_search' => true,
+      'publicly_queryable' => true,
+      'exclude_from_search' => false,
       'show_in_menu' => 'oras-tickets',
       'supports' => ['title', 'editor', 'thumbnail'],
       'capability_type' => 'post',
       'has_archive' => false,
-      'rewrite' => false,
+      'rewrite' => [
+        'slug' => 'speaker',
+        'with_front' => false,
+      ],
       'show_in_rest' => false,
     ];
 
@@ -295,6 +299,25 @@ final class Speaker_CPT
     $this->update_or_delete_meta($post_id, self::META_WEBSITE_URL, $website_url);
     $this->update_or_delete_meta($post_id, self::META_STATUS, $status);
     $this->update_or_delete_meta($post_id, self::META_INTERNAL_NOTES, $internal_notes);
+  }
+
+  public function sync_headshot_meta(int $post_id): void
+  {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+      return;
+    }
+
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
+      return;
+    }
+
+    $thumb_id = get_post_thumbnail_id($post_id);
+    if ($thumb_id) {
+      update_post_meta($post_id, '_oras_speaker_headshot_id', $thumb_id);
+      return;
+    }
+
+    delete_post_meta($post_id, '_oras_speaker_headshot_id');
   }
 
   private function update_or_delete_meta(int $post_id, string $meta_key, string $value): void

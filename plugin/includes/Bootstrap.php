@@ -15,13 +15,16 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Speaker_CPT.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Event_Speakers_Metabox.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Agenda_Metabox.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php';
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php';
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_Agenda_Render.php';
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php';
+require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php';
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php';
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php';
 
@@ -98,9 +101,16 @@ final class Bootstrap
 		$api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
 		$api->register();
 
+		$speaker_cpt = new \ORAS\Tickets\Admin\Speaker_CPT();
+		$speaker_cpt->register();
+
+		\ORAS\Tickets\Frontend\Event_Agenda_Render::register();
+		\ORAS\Tickets\Templates\Template_Loader::register();
+
 		// Admin-only (or WP-CLI): register ticket metabox and admin hub.
 		if (is_admin() || (defined('WP_CLI') && WP_CLI)) {
 			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
+			\ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
 			require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
 			$admin_menu = new \ORAS\Tickets\Admin\Admin_Menu();
 			$admin_menu->register();
