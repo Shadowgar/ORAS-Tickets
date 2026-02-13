@@ -1,20 +1,18 @@
 # NEXT — Single Focus
 
-Next approved development phase: Phase 4.1 — Speaker Management (MVP, internal only)
+Next approved development phase: Phase 4.2 — Speaker Reporting & Automation
 
-Status: Planning only. No coding begins until explicit approval after docs are updated.
+Status: Ready for implementation planning.
 
-Implementation Plan (4.1):
-1) Register `oras_speaker` CPT with admin metaboxes for the locked meta fields.
-2) Add Event edit metabox/panel to manage speaker assignments stored in `_oras_speakers_v1`.
-3) Treasurer view for unfulfilled obligations (fee unpaid or membership not granted), querying event meta directly (indexing deferred to 4.2).
-4) PMPro fulfillment action:
-	- If speaker has `_oras_speaker_wp_user_id`, use it.
-	- Else try to find a WP user by email; if none exists, create a Subscriber with a random password.
-	- Link WP user ID to speaker meta.
-	- Grant PMPro membership level (`pmpro_level_id`) and mark fulfilled.
+Concrete next phases:
+1) Phase 4.2-A — Reporting hardening
+	- Per-speaker assignment/fulfillment export views.
+	- Reporting performance pass for larger datasets.
+2) Phase 4.2-B — Automation refinements
+	- Optional internal notification refinements around fulfillment actions.
+	- Audit-friendly activity summaries for speaker obligations.
 
-Deferred to 4.1-B / 4.2:
-- Public speaker profiles and event page speaker display (Phase 4.1-B).
-- Automated emails and fulfillment automation (Phase 4.2).
-- Indexing or caching layer for reporting/export (Phase 4.2).
+Verification checklist (current features):
+- `wp post meta get <event_id> _oras_agenda_v1`
+- `wp post meta list <speaker_id> --keys=_oras_speaker_headshot_id`
+- `wp post get <speaker_id> --fields=ID,post_status,post_name`

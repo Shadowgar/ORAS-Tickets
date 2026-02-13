@@ -27,7 +27,8 @@ No completed functionality is removed or reset.
 - Treasurer reporting is complete and reliable.
 - Printable tickets are complete and internal (secure direct URLs with ownership validation).
 - No attendance tracking or QR scanning exists.
-- Speakers are not implemented.
+- Agenda (event schedule) is implemented for TEC single events via event meta `_oras_agenda_v1`.
+- Speaker management and speaker public profiles are implemented.
 
 ---
 
@@ -43,18 +44,42 @@ No completed functionality is removed or reset.
 - Phase 3.5-B: Grouped-by-event API.
 - Phase 3.5-C: Member Hub UI rendering.
 - Phase 3.5-D: Secure printable ticket pages (ticket-card layout, one card per ticket quantity, logged-in ownership validation, no QR or check-in).
+- Phase 4.1: Speaker Management MVP (CPT + event speaker assignments + obligations workflows).
+- Phase 4.1-B: Public Speaker Profiles & Event Display.
+- Phase 4.5.1: Agenda MVP (admin metabox + frontend agenda rendering).
+- Phase 4.5.3: Agenda "currently happening" highlight + autoscroll.
+- Phase 4.5.4: Agenda slot speaker modal UX.
 
 ---
 
 ## Not Implemented Yet
-- Speakers, public speaker profiles, or speaker reporting.
 - Attendance tracking, QR codes, or check-in.
 - Member-only gating beyond existing PMPro membership usage.
 - Zoom or external integrations.
 
----
+## Agenda (Implemented)
+- Event agenda data is stored in event meta `_oras_agenda_v1` using a versioned envelope.
+- Envelope shape: `settings` + `days[]`; each day contains `slots[]`.
+- Slot fields: `start`, `end`, `title`, `desc`, `type`, `location`, `visibility`, and `speakers[]`.
+- Admin metabox supports multi-day nested repeaters (days -> slots -> speakers).
+- Admin date/time inputs use native pickers; dates are stored as `YYYY-MM-DD` (browser UI may display locale forms such as `MM/DD/YYYY`), times stored as `HH:MM`.
+- Frontend agenda renders on single `tribe_events` pages.
+- "Highlight current" and optional autoscroll are handled by `assets/js/agenda-now.js`.
 
-## Speakers (Planned)
-- Not implemented yet.
-- Phase 4.1 will be internal only (admin/treasurer).
-- Public speaker profiles and event page display are planned for Phase 4.1-B.
+## Speaker Integration (Implemented)
+- Slot speakers are stored as `slot['speakers'][]` rows with `speaker_id`, `role`, and optional `label`.
+- Frontend agenda renders speakers beneath the slot title.
+- Clicking a speaker opens a modal (no navigation) with abbreviated profile info:
+	- headshot (uses `_oras_speaker_headshot_id` first; falls back to Featured Image),
+	- name,
+	- affiliation,
+	- short bio,
+	- website link,
+	- "View full profile" permalink link.
+- Speaker permalink pages are supported via publicly queryable `oras_speaker` CPT and plugin template loader.
+- Speaker rewrite slug is `speaker` (URLs like `/speaker/{post_name}/`).
+
+## Verification Checklist
+- `wp post meta get <event_id> _oras_agenda_v1`
+- `wp post meta list <speaker_id> --keys=_oras_speaker_headshot_id`
+- `wp post get <speaker_id> --fields=ID,post_status,post_name`

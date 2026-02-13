@@ -27,7 +27,7 @@ Tickets are foundational, not exclusive.
 ## Authority
 If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 
-## Current maturity (post Phase 3.5)
+## Current maturity (post Phase 4.5)
 - ORAS-Tickets provides full backend ticketing, reporting, REST, and printable tickets.
 - ORAS Member Hub provides member-facing display only.
 - System is operational end-to-end.
@@ -39,6 +39,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 3.3: Admin UX redesign completed (tickets editor UI-only improvements).
 - Phase 3.4: Treasurer reporting is complete and verified.
 - Phase 3.5: Member tickets and visibility are complete (REST API, member hub display, printable tickets).
+- Phase 4.1: Speaker management MVP is implemented (speaker CPT, event assignment envelope, obligations workflow).
+- Phase 4.1-B: Public speaker profiles and speaker single page template routing are implemented.
+- Phase 4.5.x: Agenda is implemented (multi-day admin metabox, frontend rendering, current-slot highlight/autoscroll, speaker modal popups).
 
 ## Locked Phases
 - Phase 0 is complete and locked (foundations, bootstrapping, tooling, namespaces).
@@ -50,6 +53,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 3.5-A and Phase 3.5-B are complete and locked (REST API, grouped-by-event API).
 - Phase 3.5-C is complete and locked (Member Hub ticket display).
 - Phase 3.5-D is complete and locked (Printable tickets).
+- Phase 4.1 is complete and locked (Speaker management MVP).
+- Phase 4.1-B is complete and locked (Public speaker profiles/event display baseline).
+- Phase 4.5 is complete and locked (Agenda + speaker modal UX baseline).
 
 ## Full Phase List (Trackable)
 - Phase 0 — Foundations (COMPLETE/LOCKED)
@@ -63,59 +69,26 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 3.5-B — Grouped-by-Event API (COMPLETE/LOCKED)
 - Phase 3.5-C — Member Hub UI Rendering (COMPLETE/LOCKED)
 - Phase 3.5-D — Printable Tickets (COMPLETE/LOCKED)
-- Phase 4.1 — Speaker Management (MVP, internal only) (APPROVED/PLANNED)
-- Phase 4.1-B — Public Speaker Profiles & Event Display (PLANNED)
+- Phase 4.1 — Speaker Management (MVP) (COMPLETE/LOCKED)
+- Phase 4.1-B — Public Speaker Profiles & Event Display (COMPLETE/LOCKED)
+- Phase 4.5.1 — Agenda MVP (COMPLETE/LOCKED)
+- Phase 4.5.3 — Agenda Current Highlight/Autoscroll (COMPLETE/LOCKED)
+- Phase 4.5.4 — Agenda Speaker Modal (COMPLETE/LOCKED)
 - Phase 4.2 — Speaker Reporting & Automation (PLANNED)
 - Phase 5+ — Future (DEFERRED)
 
+## Agenda + Speakers (Implemented Schema Notes)
+- Event agenda envelope key: `_oras_agenda_v1` (`settings` + `days[]` + `slots[]`).
+- Slot schema: `start`, `end`, `title`, `desc`, `type`, `location`, `visibility`, `speakers[]`.
+- Slot speaker rows: `speaker_id`, `role`, optional `label`.
+- Current-slot highlighting/autoscroll uses `assets/js/agenda-now.js`.
+- Speaker modal data is embedded per-event and includes headshot fallback from `_oras_speaker_headshot_id` to featured image.
+- Speaker single URLs use CPT rewrite slug `speaker` and plugin template loading.
+
 ## Planned Phases (Not Started)
-Phase 4.1 — Speaker Management (MVP, internal only)
-- Speaker entity stored as a WordPress Custom Post Type (CPT).
-	- `post_type`: `oras_speaker`.
-	- Purpose: internal speaker records (not WP users by default).
-	- Public display: not in Phase 4.1 (planned in Phase 4.1-B).
-- Field schema (locked, v1):
-	- Post Title: Speaker full name (authoritative display name).
-	- Post Content (editor): Long bio (internal now; reusable for 4.1-B).
-	- Post meta keys:
-		- `_oras_speaker_email` (string, internal; never public).
-		- `_oras_speaker_affiliation` (string).
-		- `_oras_speaker_website_url` (url, optional).
-		- `_oras_speaker_headshot_id` (int attachment ID, optional).
-		- `_oras_speaker_wp_user_id` (int nullable; set only when PMPro membership is granted).
-		- `_oras_speaker_status` (enum: `active`|`inactive`).
-		- `_oras_speaker_internal_notes` (string/textarea).
-- Speaker to Event assignments stored on the TEC Event as a single versioned meta envelope.
-	- Meta key: `_oras_speakers_v1`.
-	- Value: array of assignments; each assignment includes:
-		- `speaker_id` (int post ID).
-		- `role` (string).
-		- `is_primary` (bool).
-		- `compensation_type` (enum: `membership`|`fee`|`none`).
-		- `fee_amount` (number; only if `compensation_type = fee`).
-		- `pmpro_level_id` (int; only if `compensation_type = membership`).
-		- `fulfilled` (bool).
-		- `fulfilled_date` (date string or timestamp).
-		- `internal_notes` (string).
-- Admin UX (locked, MVP):
-	- TEC Event edit screen includes one metabox/panel: "Speakers for this Event".
-	- Add existing speaker via search/select.
-	- Repeater rows per assignment with fields above.
-	- Conditional inputs (fee vs membership).
-	- Mark fulfilled with date and internal notes per assignment.
-- For current implementation sequencing and tasks, see docs/NEXT.md.
-- Reporting queries event meta directly in Phase 4.1; performance indexing may be added in Phase 4.2.
-- Hard rules: Speakers are not WP users unless membership fulfillment requires it; never expose email publicly in 4.1; no automated emails in 4.1.
-
-Phase 4.1-B — Public Speaker Profiles & Event Display (planned)
-- Optional public speaker profiles (bio, photo, links).
-- Speakers displayed on event pages with visibility controls.
-- No speaker self-service accounts.
-- No compensation logic changes.
-
-Phase 4.2 — Speaker Reporting & Automation (planned)
-- Per-speaker history and treasurer exports.
-- Internal email notifications and automation.
+Phase 4.2 — Speaker Reporting & Automation
+- Per-speaker exports/analytics hardening.
+- Optional internal notification refinements.
 
 Phase 5+ — Future (explicitly deferred)
 - QR codes and check-in.
