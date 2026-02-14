@@ -19,8 +19,14 @@
     "phpstan": [
       "phpstan analyse -c phpstan.neon"
     ],
+    "phpcs:config": [
+      "@php -r \"file_exists('vendor/bin/phpcs') && shell_exec('vendor/bin/phpcs --config-set installed_paths vendor/wp-coding-standards/wpcs,vendor/phpcsstandards/phpcsextra,vendor/phpcsstandards/phpcsutils');\""
+    ],
     "post-install-cmd": [
-      "@php -r \"file_exists('vendor/bin/phpcs') && shell_exec('vendor/bin/phpcs --config-set installed_paths vendor/wp-coding-standards/wpcs');\""
+      "@phpcs:config"
+    ],
+    "post-update-cmd": [
+      "@phpcs:config"
     ]
   },
   "config": {

@@ -5,332 +5,293 @@ namespace ORAS\Tickets\Frontend;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Ticket_Collection;
 
-if (! defined('ABSPATH')) {
-  exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-final class Ticket_Print_Controller
-{
+final class Ticket_Print_Controller {
 
-  private static ?Ticket_Print_Controller $instance = null;
 
-  public static function instance(): Ticket_Print_Controller
-  {
-    return self::$instance ??= new self();
-  }
 
-  private function __construct() {}
+	private static ?Ticket_Print_Controller $instance = null;
 
-  public function init(): void
-  {
-    add_filter('query_vars', [$this, 'register_query_vars']);
-    add_action('template_redirect', [$this, 'maybe_render_print_page'], 1);
+	public static function instance(): Ticket_Print_Controller {
+		return self::$instance ??= new self();
+	}
 
-    if (did_action('init')) {
-      $this->register_rewrite();
-    } else {
-      add_action('init', [$this, 'register_rewrite']);
-    }
-  }
+	private function __construct() {}
 
-  /**
-   * @param string[] $vars
-   * @return string[]
-   */
-  public function register_query_vars(array $vars): array
-  {
-    $vars[] = 'oras_ticket_print';
-    $vars[] = 'order_id';
-    $vars[] = 'event_id';
+	public function init(): void {
+		add_filter( 'query_vars', array( $this, 'register_query_vars' ) );
+		add_action( 'template_redirect', array( $this, 'maybe_render_print_page' ), 1 );
 
-    return $vars;
-  }
+		if ( did_action( 'init' ) ) {
+			$this->register_rewrite();
+		} else {
+			add_action( 'init', array( $this, 'register_rewrite' ) );
+		}
+	}
 
-  public function register_rewrite(): void
-  {
-    add_rewrite_rule('^oras-ticket/print/?$', 'index.php?oras_ticket_print=1', 'top');
-  }
+	/**
+	 * @param string[] $vars
+	 * @return string[]
+	 */
+	public function register_query_vars( array $vars ): array {
+		$vars[] = 'oras_ticket_print';
+		$vars[] = 'order_id';
+		$vars[] = 'event_id';
 
-  public function maybe_render_print_page(): void
-  {
-    if (! $this->is_print_request()) {
-      return;
-    }
+		return $vars;
+	}
 
-    if (! is_user_logged_in()) {
-      $this->deny();
-    }
+	public function register_rewrite(): void {
+		add_rewrite_rule( '^oras-ticket/print/?$', 'index.php?oras_ticket_print=1', 'top' );
+	}
 
-    $order_id = $this->get_request_int('order_id');
-    $event_id = $this->get_request_int('event_id');
+	public function maybe_render_print_page(): void {
+		if ( ! $this->is_print_request() ) {
+			return;
+		}
 
-    if ($order_id <= 0 || $event_id <= 0) {
-      $this->deny();
-    }
+		if ( ! is_user_logged_in() ) {
+			$this->deny();
+		}
 
-    if (! function_exists('wc_get_order')) {
-      $this->deny();
-    }
+		$order_id = $this->get_request_int( 'order_id' );
+		$event_id = $this->get_request_int( 'event_id' );
 
-    $order = wc_get_order($order_id);
-    if (! $order || ! $order instanceof \WC_Order) {
-      $this->deny();
-    }
+		if ( $order_id <= 0 || $event_id <= 0 ) {
+			$this->deny();
+		}
 
-    $user_id = (int) get_current_user_id();
-    if ($user_id <= 0 || (int) $order->get_user_id() !== $user_id) {
-      $this->deny();
-    }
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			$this->deny();
+		}
 
-    $event = get_post($event_id);
-    if (! $event || ! isset($event->post_type) || $event->post_type !== Meta::EVENT_POST_TYPE) {
-      $this->deny();
-    }
+		$order = wc_get_order( $order_id );
+		if ( ! $order || ! $order instanceof \WC_Order ) {
+			$this->deny();
+		}
 
-    $items = $this->get_oras_items_for_event($order, $event_id);
-    if (empty($items)) {
-      $this->deny();
-    }
+		$user_id = (int) get_current_user_id();
+		if ( $user_id <= 0 || (int) $order->get_user_id() !== $user_id ) {
+			$this->deny();
+		}
 
-    $event_title = (string) get_the_title($event_id);
-    $event_start = $this->get_event_start($event_id);
+		$event = get_post( $event_id );
+		if ( ! $event || ! isset( $event->post_type ) || $event->post_type !== Meta::EVENT_POST_TYPE ) {
+			$this->deny();
+		}
 
-    $this->render_page(
-      [
-        'event_title' => $event_title,
-        'event_start' => $event_start,
-        'event_id' => $event_id,
-        'order_id' => $order_id,
-        'items' => $items,
-      ]
-    );
-  }
+		$items = $this->get_oras_items_for_event( $order, $event_id );
+		if ( empty( $items ) ) {
+			$this->deny();
+		}
 
-  private function is_print_request(): bool
-  {
-    $flag = get_query_var('oras_ticket_print');
-    if ($flag !== '' && $flag !== null) {
-      return true;
-    }
+		$event_title = (string) get_the_title( $event_id );
+		$event_start = $this->get_event_start( $event_id );
 
-    $path = isset($_SERVER['REQUEST_URI'])
-      ? (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH)
-      : '';
+		$this->render_page(
+			array(
+				'event_title' => $event_title,
+				'event_start' => $event_start,
+				'event_id'    => $event_id,
+				'order_id'    => $order_id,
+				'items'       => $items,
+			)
+		);
+	}
 
-    return rtrim($path, '/') === '/oras-ticket/print';
-  }
+	private function is_print_request(): bool {
+		$flag = get_query_var( 'oras_ticket_print' );
+		if ( $flag !== '' && $flag !== null ) {
+			return true;
+		}
 
-  private function get_request_int(string $key): int
-  {
-    $value = get_query_var($key);
-    if ($value === '' || $value === null) {
-      $raw = isset($_GET[$key]) ? wp_unslash($_GET[$key]) : '';
-      $value = is_scalar($raw) ? (string) $raw : '';
-    }
+		$path = isset( $_SERVER['REQUEST_URI'] )
+			? (string) wp_parse_url( (string) $_SERVER['REQUEST_URI'], PHP_URL_PATH )
+			: '';
 
-    return absint($value);
-  }
+		return rtrim( $path, '/' ) === '/oras-ticket/print';
+	}
 
-  private function deny(): void
-  {
-    wp_die('', '', ['response' => 403]);
-  }
+	private function get_request_int( string $key ): int {
+		$value = get_query_var( $key );
+		if ( $value === '' || $value === null ) {
+			$raw   = isset( $_GET[ $key ] ) ? wp_unslash( $_GET[ $key ] ) : '';
+			$value = is_scalar( $raw ) ? (string) $raw : '';
+		}
 
-  /**
-   * @return array<int,array<string,mixed>>
-   */
-  private function get_oras_items_for_event(\WC_Order $order, int $event_id): array
-  {
-    $items = [];
-    $line_items = $order->get_items('line_item');
+		return absint( $value );
+	}
 
-    foreach ($line_items as $item) {
-      if (! $item || ! method_exists($item, 'get_meta')) {
-        continue;
-      }
+	private function deny(): void {
+		wp_die( '', '', array( 'response' => 403 ) );
+	}
 
-      $context = $this->get_item_ticket_context($item);
-      if ($context['event_id'] !== $event_id) {
-        continue;
-      }
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function get_oras_items_for_event( \WC_Order $order, int $event_id ): array {
+		$items      = array();
+		$line_items = $order->get_items( 'line_item' );
 
-      if ($context['ticket_name'] === '') {
-        $context['ticket_name'] = $this->get_ticket_name_from_collection($event_id, $context['ticket_index']);
-      }
+		foreach ( $line_items as $item ) {
+			if ( ! $item || ! method_exists( $item, 'get_meta' ) ) {
+				continue;
+			}
 
-      $items[] = $context;
-    }
+			$context = $this->get_item_ticket_context( $item );
+			if ( $context['event_id'] !== $event_id ) {
+				continue;
+			}
 
-    return $items;
-  }
+			if ( $context['ticket_name'] === '' ) {
+				$context['ticket_name'] = $this->get_ticket_name_from_collection( $event_id, $context['ticket_index'] );
+			}
 
-  /**
-   * @param \WC_Order_Item_Product|\WC_Order_Item $item
-   * @return array{event_id:int,ticket_index:int,ticket_name:string,quantity:int,unit_price:float,currency:string,phase_label:string}
-   */
-  private function get_item_ticket_context($item): array
-  {
-    $event_id = $item->get_meta('_oras_ticket_event_id', true);
-    $ticket_index = $item->get_meta('_oras_ticket_index', true);
+			$items[] = $context;
+		}
 
-    if ($event_id === '' || $event_id === null || (int) $event_id <= 0) {
-      $product_id = method_exists($item, 'get_product_id') ? (int) $item->get_product_id() : 0;
-      if ($product_id > 0) {
-        $event_id = get_post_meta($product_id, '_oras_ticket_event_id', true);
-        $ticket_index = get_post_meta($product_id, '_oras_ticket_index', true);
-      }
-    }
+		return $items;
+	}
 
-    $ticket_name = (string) $item->get_meta('_oras_ticket_name', true);
-    if ($ticket_name === '') {
-      $ticket_name = method_exists($item, 'get_name') ? (string) $item->get_name() : '';
-    }
+	/**
+	 * @param \WC_Order_Item_Product|\WC_Order_Item $item
+	 * @return array{event_id:int,ticket_index:int,ticket_name:string,quantity:int,unit_price:float,currency:string,phase_label:string}
+	 */
+	private function get_item_ticket_context( $item ): array {
+		$event_id     = $item->get_meta( '_oras_ticket_event_id', true );
+		$ticket_index = $item->get_meta( '_oras_ticket_index', true );
 
-    $quantity = method_exists($item, 'get_quantity') ? max(1, (int) $item->get_quantity()) : 1;
+		if ( $event_id === '' || $event_id === null || (int) $event_id <= 0 ) {
+			$product_id = method_exists( $item, 'get_product_id' ) ? (int) $item->get_product_id() : 0;
+			if ( $product_id > 0 ) {
+				$event_id     = get_post_meta( $product_id, '_oras_ticket_event_id', true );
+				$ticket_index = get_post_meta( $product_id, '_oras_ticket_index', true );
+			}
+		}
 
-    $unit_price = (float) $item->get_meta('_oras_ticket_unit_price', true);
-    if ($unit_price <= 0 && method_exists($item, 'get_subtotal')) {
-      $subtotal = (float) $item->get_subtotal();
-      $unit_price = $quantity > 0 ? $subtotal / $quantity : 0.0;
-    }
+		$ticket_name = (string) $item->get_meta( '_oras_ticket_name', true );
+		if ( $ticket_name === '' ) {
+			$ticket_name = method_exists( $item, 'get_name' ) ? (string) $item->get_name() : '';
+		}
 
-    $currency = (string) $item->get_meta('_oras_ticket_currency', true);
-    if ($currency === '' && method_exists($item, 'get_order')) {
-      $order = $item->get_order();
-      $currency = $order ? (string) $order->get_currency() : '';
-    }
+		$quantity = method_exists( $item, 'get_quantity' ) ? max( 1, (int) $item->get_quantity() ) : 1;
 
-    $phase_label = (string) $item->get_meta('_oras_ticket_price_phase_label', true);
-    if ($phase_label === '') {
-      $phase_label = (string) $item->get_meta('_oras_ticket_price_phase_key', true);
-    }
-    if ($phase_label === '') {
-      $phase_label = __('Standard', 'oras-tickets');
-    }
+		$unit_price = (float) $item->get_meta( '_oras_ticket_unit_price', true );
+		if ( $unit_price <= 0 && method_exists( $item, 'get_subtotal' ) ) {
+			$subtotal   = (float) $item->get_subtotal();
+			$unit_price = $quantity > 0 ? $subtotal / $quantity : 0.0;
+		}
 
-    return [
-      'event_id' => (int) $event_id,
-      'ticket_index' => (int) $ticket_index,
-      'ticket_name' => $ticket_name,
-      'quantity' => $quantity,
-      'unit_price' => $unit_price,
-      'currency' => $currency,
-      'phase_label' => $phase_label,
-    ];
-  }
+		$currency = (string) $item->get_meta( '_oras_ticket_currency', true );
+		if ( $currency === '' && method_exists( $item, 'get_order' ) ) {
+			$order    = $item->get_order();
+			$currency = $order ? (string) $order->get_currency() : '';
+		}
 
-  private function get_ticket_name_from_collection(int $event_id, int $index): string
-  {
-    if ($event_id <= 0 || $index < 0) {
-      return '';
-    }
+		$phase_label = (string) $item->get_meta( '_oras_ticket_price_phase_label', true );
+		if ( $phase_label === '' ) {
+			$phase_label = (string) $item->get_meta( '_oras_ticket_price_phase_key', true );
+		}
+		if ( $phase_label === '' ) {
+			$phase_label = __( 'Standard', 'oras-tickets' );
+		}
 
-    $collection = Ticket_Collection::load_for_event($event_id);
-    $tickets = $collection->all();
+		return array(
+			'event_id'     => (int) $event_id,
+			'ticket_index' => (int) $ticket_index,
+			'ticket_name'  => $ticket_name,
+			'quantity'     => $quantity,
+			'unit_price'   => $unit_price,
+			'currency'     => $currency,
+			'phase_label'  => $phase_label,
+		);
+	}
 
-    if (! array_key_exists($index, $tickets)) {
-      return '';
-    }
+	private function get_ticket_name_from_collection( int $event_id, int $index ): string {
+		if ( $event_id <= 0 || $index < 0 ) {
+			return '';
+		}
 
-    $ticket_obj = $tickets[$index];
-    $ticket = method_exists($ticket_obj, 'to_array') ? $ticket_obj->to_array() : [];
+		$collection = Ticket_Collection::load_for_event( $event_id );
+		$tickets    = $collection->all();
 
-    if (isset($ticket['name']) && $ticket['name'] !== '') {
-      return (string) $ticket['name'];
-    }
+		if ( ! array_key_exists( $index, $tickets ) ) {
+			return '';
+		}
 
-    return '';
-  }
+		$ticket_obj = $tickets[ $index ];
+		$ticket     = $ticket_obj->to_array();
 
-  private function get_event_start(int $event_id): ?string
-  {
-    if ($event_id <= 0) {
-      return null;
-    }
+		if ( isset( $ticket['name'] ) && $ticket['name'] !== '' ) {
+			return (string) $ticket['name'];
+		}
 
-    if (function_exists('tribe_get_start_date')) {
-      $start = tribe_get_start_date($event_id, false, 'c');
-      if (is_string($start) && $start !== '') {
-        return $start;
-      }
-    }
+		return '';
+	}
 
-    $raw = get_post_meta($event_id, '_EventStartDateUTC', true);
-    if ($raw === '') {
-      $raw = get_post_meta($event_id, '_EventStartDate', true);
-    }
+	private function get_event_start( int $event_id ): ?string {
+		if ( $event_id <= 0 ) {
+			return null;
+		}
 
-    if (! is_string($raw) || $raw === '') {
-      return null;
-    }
+		if ( function_exists( 'tribe_get_start_date' ) ) {
+			$start = tribe_get_start_date( $event_id, false, 'c' );
+			if ( is_string( $start ) && $start !== '' ) {
+				return $start;
+			}
+		}
 
-    $timestamp = strtotime($raw);
-    if (! $timestamp) {
-      return null;
-    }
+		$raw = get_post_meta( $event_id, '_EventStartDateUTC', true );
+		if ( $raw === '' ) {
+			$raw = get_post_meta( $event_id, '_EventStartDate', true );
+		}
 
-    return wp_date('c', $timestamp);
-  }
+		if ( ! is_string( $raw ) || $raw === '' ) {
+			return null;
+		}
 
-  private function format_event_start(?string $event_start): string
-  {
-    if (! is_string($event_start) || $event_start === '') {
-      return __('TBD', 'oras-tickets');
-    }
+		$timestamp = strtotime( $raw );
+		if ( ! $timestamp ) {
+			return null;
+		}
 
-    $timestamp = strtotime($event_start);
-    if (! $timestamp) {
-      return __('TBD', 'oras-tickets');
-    }
+		return wp_date( 'c', $timestamp );
+	}
 
-    $date_format = (string) get_option('date_format');
-    $time_format = (string) get_option('time_format');
-    $format = trim($date_format . ' ' . $time_format);
+	/**
+	 * @param array<string,mixed> $data
+	 */
+	private function render_page( array $data ): void {
+		status_header( 200 );
+		nocache_headers();
 
-    return wp_date($format !== '' ? $format : 'M j, Y g:i a', $timestamp);
-  }
+		$css_url   = ORAS_TICKETS_URL . 'assets/frontend/print-ticket.css';
+		$view_path = ORAS_TICKETS_DIR . 'includes/Frontend/Print_Ticket_View.php';
 
-  private function format_price(float $price, string $currency): string
-  {
-    if (function_exists('wc_price')) {
-      return (string) wc_price($price, ['currency' => $currency]);
-    }
+		echo '<!doctype html>';
+		echo '<html lang="en">';
+		echo '<head>';
+		echo '<meta charset="utf-8">';
+		echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+		echo '<title>' . esc_html__( 'Ticket Print', 'oras-tickets' ) . '</title>';
+		echo '<link rel="stylesheet" href="' . esc_url( $css_url ) . '?ver=' . esc_attr( ORAS_TICKETS_VERSION ) . '">';
+		echo '</head>';
+		echo '<body class="oras-ticket-print-body">';
+		echo '<main class="oras-ticket-print-main">';
 
-    return esc_html(number_format($price, 2));
-  }
+		if ( file_exists( $view_path ) ) {
+			include $view_path;
+		} else {
+			echo '<p>' . esc_html__( 'Print view unavailable.', 'oras-tickets' ) . '</p>';
+		}
 
-  /**
-   * @param array<string,mixed> $data
-   */
-  private function render_page(array $data): void
-  {
-    status_header(200);
-    nocache_headers();
+		echo '</main>';
+		echo '</body>';
+		echo '</html>';
 
-    $css_url = ORAS_TICKETS_URL . 'assets/frontend/print-ticket.css';
-    $view_path = ORAS_TICKETS_DIR . 'includes/Frontend/Print_Ticket_View.php';
-
-    echo '<!doctype html>';
-    echo '<html lang="en">';
-    echo '<head>';
-    echo '<meta charset="utf-8">';
-    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
-    echo '<title>' . esc_html__('Ticket Print', 'oras-tickets') . '</title>';
-    echo '<link rel="stylesheet" href="' . esc_url($css_url) . '?ver=' . esc_attr(ORAS_TICKETS_VERSION) . '">';
-    echo '</head>';
-    echo '<body class="oras-ticket-print-body">';
-    echo '<main class="oras-ticket-print-main">';
-
-    if (file_exists($view_path)) {
-      include $view_path;
-    } else {
-      echo '<p>' . esc_html__('Print view unavailable.', 'oras-tickets') . '</p>';
-    }
-
-    echo '</main>';
-    echo '</body>';
-    echo '</html>';
-
-    exit;
-  }
+		exit;
+	}
 }

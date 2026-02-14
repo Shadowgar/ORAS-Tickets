@@ -1,7 +1,13 @@
 parameters:
   level: 5
+  treatPhpDocTypesAsCertain: false
   paths:
     - plugin
+  scanFiles:
+    - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+    - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+    - stubs/pmpro-signatures.php
+  bootstrapFiles:
+    - vendor/autoload.php
+    - tools/phpstan-bootstrap.php
   tmpDir: .phpstan-cache
-  ignoreErrors:
-    - '#Call to an undefined function tribe\(#'

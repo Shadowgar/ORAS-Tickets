@@ -10,6 +10,15 @@
   <rule ref="WordPress-Core" />
   <rule ref="WordPress-Extra" />
   <rule ref="WordPress-Docs" />
+  <rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+    <exclude-pattern>*/templates/single-oras_speaker.php</exclude-pattern>
+    <exclude-pattern>*/includes/Support/Logger.php</exclude-pattern>
+    <exclude-pattern>*/includes/*</exclude-pattern>
+  </rule>
+  <rule ref="WordPress.Files.FileName.InvalidClassFileName">
+    <exclude-pattern>*/includes/Support/Logger.php</exclude-pattern>
+    <exclude-pattern>*/includes/*</exclude-pattern>
+  </rule>
 
   <config name="minimum_supported_wp_version" value="6.0"/>
 </ruleset>

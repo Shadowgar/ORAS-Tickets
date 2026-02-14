@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Ticket collection aggregate.
+ *
+ * @package ORAS\Tickets
+ */
+
 namespace ORAS\Tickets\Domain;
 
 use ORAS\Tickets\Support\Logger;
@@ -8,13 +14,25 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
+/**
+ * Collection wrapper for event tickets.
+ */
 final class Ticket_Collection
 {
 
-	/** @var Ticket[] */
-	private array $tickets = [];
+	/**
+	 * Ticket list.
+	 *
+	 * @var Ticket[]
+	 */
+	private array $tickets = array();
 
-	public function __construct(array $tickets = [])
+	/**
+	 * Constructor.
+	 *
+	 * @param Ticket[] $tickets Initial tickets.
+	 */
+	public function __construct(array $tickets = array())
 	{
 		$this->tickets = $tickets;
 	}
@@ -28,6 +46,8 @@ final class Ticket_Collection
 	 *
 	 * Returns a Ticket_Collection instance. If the stored envelope is missing
 	 * or the schema is not 1, an empty collection is returned.
+	 *
+	 * @param int $event_id Event post ID.
 	 */
 	public static function load_for_event(int $event_id): self
 	{
@@ -37,14 +57,14 @@ final class Ticket_Collection
 			return new self();
 		}
 
-		$schema  = isset($raw['schema']) ? (int) $raw['schema'] : 1;
+		$schema = isset($raw['schema']) ? (int) $raw['schema'] : 1;
 		if (1 !== $schema) {
 			return new self();
 		}
 
-		$tickets_raw = isset($raw['tickets']) && is_array($raw['tickets']) ? $raw['tickets'] : [];
+		$tickets_raw = isset($raw['tickets']) && is_array($raw['tickets']) ? $raw['tickets'] : array();
 
-		$tickets = [];
+		$tickets = array();
 		foreach ($tickets_raw as $maybe_key => $ticket_arr) {
 			if (! is_array($ticket_arr)) {
 				continue;
@@ -67,6 +87,7 @@ final class Ticket_Collection
 	 *
 	 * Always returns an envelope with 'schema' and 'tickets' keys.
 	 *
+	 * @param int $event_id Event post ID.
 	 * @return array{schema:int,tickets:array}
 	 */
 	public static function load_envelope_for_event(int $event_id): array
@@ -74,30 +95,36 @@ final class Ticket_Collection
 		$raw = get_post_meta($event_id, Meta::META_KEY_TICKETS, true);
 
 		if (! is_array($raw)) {
-			return [
+			return array(
 				'schema'  => 1,
-				'tickets' => [],
-			];
+				'tickets' => array(),
+			);
 		}
 
 		$schema  = isset($raw['schema']) ? (int) $raw['schema'] : 1;
-		$tickets = isset($raw['tickets']) && is_array($raw['tickets']) ? $raw['tickets'] : [];
+		$tickets = isset($raw['tickets']) && is_array($raw['tickets']) ? $raw['tickets'] : array();
 
-		return [
+		return array(
 			'schema'  => $schema,
 			'tickets' => $tickets,
-		];
+		);
 	}
 
+	/**
+	 * Persist ticket envelope for an event.
+	 *
+	 * @param int   $event_id Event post ID.
+	 * @param array $envelope Envelope payload.
+	 */
 	public static function save_for_event(int $event_id, array $envelope): void
 	{
-		$existing = self::load_envelope_for_event($event_id);
+		$existing         = self::load_envelope_for_event($event_id);
 		$existing_tickets = isset($existing['tickets']) && is_array($existing['tickets'])
 			? $existing['tickets']
-			: [];
+			: array();
 
 		$schema  = isset($envelope['schema']) ? (int) $envelope['schema'] : 1;
-		$tickets = isset($envelope['tickets']) && is_array($envelope['tickets']) ? $envelope['tickets'] : [];
+		$tickets = isset($envelope['tickets']) && is_array($envelope['tickets']) ? $envelope['tickets'] : array();
 
 		foreach ($tickets as $index => $ticket) {
 			if (! is_array($ticket)) {
@@ -117,11 +144,11 @@ final class Ticket_Collection
 			} else {
 				$price_phases = $ticket['price_phases'];
 				if (! is_array($price_phases)) {
-					$price_phases = [];
+					$price_phases = array();
 				} else {
 					foreach ($price_phases as $phase) {
 						if (! is_array($phase)) {
-							$price_phases = [];
+							$price_phases = array();
 							break;
 						}
 					}
@@ -132,10 +159,10 @@ final class Ticket_Collection
 			$tickets[$index] = $ticket;
 		}
 
-		$clean = [
+		$clean = array(
 			'schema'  => $schema,
 			'tickets' => $tickets,
-		];
+		);
 
 		update_post_meta($event_id, Meta::META_KEY_TICKETS, $clean);
 		Logger::instance()->log("Saved tickets meta for event {$event_id} (count=" . count($tickets) . ')');
@@ -143,6 +170,7 @@ final class Ticket_Collection
 
 	/**
 	 * Return tickets as an ordered array of Ticket objects.
+	 *
 	 * @return Ticket[]
 	 */
 	public function all(): array
@@ -150,11 +178,17 @@ final class Ticket_Collection
 		return $this->tickets;
 	}
 
+	/**
+	 * Return ticket count.
+	 */
 	public function count(): int
 	{
 		return count($this->tickets);
 	}
 
+	/**
+	 * Return whether collection is empty.
+	 */
 	public function is_empty(): bool
 	{
 		return empty($this->tickets);

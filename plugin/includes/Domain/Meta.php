@@ -1,11 +1,23 @@
 <?php
+
+/**
+ * Domain meta constants.
+ *
+ * @package ORAS\Tickets
+ */
+
 namespace ORAS\Tickets\Domain;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (! defined('ABSPATH')) {
 	exit;
 }
 
-final class Meta {
+/**
+ * Domain meta key definitions.
+ */
+final class Meta
+{
+
 	public const EVENT_POST_TYPE = 'tribe_events';
 
 	/**

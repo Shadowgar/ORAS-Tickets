@@ -7,6 +7,8 @@
  * Author: ORAS
  * Requires at least: 6.0
  * Requires PHP: 8.0
+ *
+ * @package ORAS\Tickets
  */
 
 if (! defined('ABSPATH')) {
@@ -18,8 +20,8 @@ define('ORAS_TICKETS_FILE', __FILE__);
 define('ORAS_TICKETS_DIR', plugin_dir_path(__FILE__));
 define('ORAS_TICKETS_URL', plugin_dir_url(__FILE__));
 
-// Toggle debug logging by setting in wp-config.php:
-// define('ORAS_TICKETS_DEBUG', true);
+// Toggle debug logging by setting in wp-config.php.
+// Example in wp-config.php.
 if (! defined('ORAS_TICKETS_DEBUG')) {
 	define('ORAS_TICKETS_DEBUG', false);
 }
@@ -27,14 +29,18 @@ if (! defined('ORAS_TICKETS_DEBUG')) {
 require_once ORAS_TICKETS_DIR . 'includes/Support/Logger.php';
 require_once ORAS_TICKETS_DIR . 'includes/Bootstrap.php';
 
-add_action('plugins_loaded', static function () {
-	$speaker_cpt = new \ORAS\Tickets\Admin\Speaker_CPT();
-	$speaker_cpt->register();
+add_action(
+	'plugins_loaded',
+	static function () {
+		$speaker_cpt = new \ORAS\Tickets\Admin\Speaker_CPT();
+		$speaker_cpt->register();
 
-	if (is_admin()) {
-		$event_speakers = new \ORAS\Tickets\Admin\Event_Speakers_Metabox();
-		$event_speakers->register();
-	}
+		if (is_admin()) {
+			$event_speakers = new \ORAS\Tickets\Admin\Event_Speakers_Metabox();
+			$event_speakers->register();
+		}
 
-	\ORAS\Tickets\Bootstrap::instance()->init();
-}, 20);
+		\ORAS\Tickets\Bootstrap::instance()->init();
+	},
+	20
+);
