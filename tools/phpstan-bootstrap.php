@@ -23,3 +23,7 @@ if (! defined('ORAS_TICKETS_DIR')) {
 if (! defined('ORAS_TICKETS_URL')) {
   define('ORAS_TICKETS_URL', 'https://example.test/wp-content/plugins/oras-tickets/');
 }
+
+if (! defined('DAY_IN_SECONDS')) {
+  define('DAY_IN_SECONDS', 86400);
+}

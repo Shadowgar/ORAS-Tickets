@@ -569,6 +569,7 @@ final class Speaker_Obligations_Page {
 		$fulfilled_by_name = $fulfilled_by instanceof \WP_User ? $fulfilled_by->display_name : '';
 
 		$subject = sprintf(
+			/* translators: %s is the speaker name. */
 			__( 'ORAS Speaker Membership Fulfilled: %s', 'oras-tickets' ),
 			$speaker_name
 		);

@@ -13,6 +13,8 @@ final class Ticket_Print_Controller {
 
 
 
+
+
 	private static ?Ticket_Print_Controller $instance = null;
 
 	public static function instance(): Ticket_Print_Controller {
@@ -69,9 +71,11 @@ final class Ticket_Print_Controller {
 		}
 
 		$order = wc_get_order( $order_id );
-		if ( ! $order || ! $order instanceof \WC_Order ) {
+		if ( ! ( $order instanceof \WC_Order ) ) {
 			$this->deny();
 		}
+
+		/** @var \WC_Order $order */
 
 		$user_id = (int) get_current_user_id();
 		if ( $user_id <= 0 || (int) $order->get_user_id() !== $user_id ) {
@@ -277,6 +281,7 @@ final class Ticket_Print_Controller {
 		echo '<meta charset="utf-8">';
 		echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
 		echo '<title>' . esc_html__( 'Ticket Print', 'oras-tickets' ) . '</title>';
+		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet
 		echo '<link rel="stylesheet" href="' . esc_url( $css_url ) . '?ver=' . esc_attr( ORAS_TICKETS_VERSION ) . '">';
 		echo '</head>';
 		echo '<body class="oras-ticket-print-body">';

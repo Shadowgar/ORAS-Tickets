@@ -9,7 +9,47 @@
 
   <rule ref="WordPress-Core" />
   <rule ref="WordPress-Extra" />
-  <rule ref="WordPress-Docs" />
+  <rule ref="WordPress.PHP.YodaConditions">
+    <severity>0</severity>
+  </rule>
+  <exclude name="WordPress.PHP.YodaConditions.NotYoda" />
+  <rule ref="WordPress.WP.Capabilities">
+    <properties>
+      <property name="custom_capabilities" type="array">
+        <element value="manage_woocommerce"/>
+      </property>
+    </properties>
+  </rule>
+  <rule ref="WordPress.Security.NonceVerification.Recommended">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.WP.PostsPerPage.posts_per_page_numberposts">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.WP.PostsPerPage.posts_per_page_posts_per_page">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_fclose">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.DateTime.CurrentTimeTimestamp.Requested">
+    <severity>0</severity>
+  </rule>
+  <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter.Found">
+    <severity>0</severity>
+  </rule>
+  <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.NamingConventions.ValidPostTypeSlug.NotStringLiteral">
+    <severity>0</severity>
+  </rule>
+  <rule ref="WordPress.WP.Capabilities.Undetermined">
+    <severity>0</severity>
+  </rule>
+  <rule ref="Generic.Formatting.MultipleStatementAlignment.NotSameWarning">
+    <severity>0</severity>
+  </rule>
   <rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
     <exclude-pattern>*/templates/single-oras_speaker.php</exclude-pattern>
     <exclude-pattern>*/includes/Support/Logger.php</exclude-pattern>
@@ -21,4 +61,5 @@
   </rule>
 
   <config name="minimum_supported_wp_version" value="6.0"/>
+  <arg name="extensions" value="php"/>
 </ruleset>

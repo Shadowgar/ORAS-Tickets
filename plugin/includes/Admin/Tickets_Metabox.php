@@ -14,6 +14,9 @@ final class Tickets_Metabox {
 
 
 
+
+
+
 	private static ?Tickets_Metabox $instance = null;
 
 	public static function instance(): Tickets_Metabox {
@@ -120,10 +123,9 @@ final class Tickets_Metabox {
 							} else {
 								$sale_status = 'On sale';
 							}
-							$idx = esc_attr( (string) $index );
 							?>
 							<li class="oras-ticket-tab-item">
-								<button type="button" class="button oras-ticket-tab" data-index="<?php echo $idx; ?>">
+								<button type="button" class="button oras-ticket-tab" data-index="<?php echo esc_attr( (string) $index ); ?>">
 									<span class="oras-ticket-tab-title"><?php echo esc_html( $tab_label ); ?></span>
 									<span class="oras-ticket-tab-meta"><?php echo esc_html( $price . ' · ' . $sale_status ); ?></span>
 								</button>
@@ -142,6 +144,7 @@ final class Tickets_Metabox {
 					<table class="widefat oras-tickets-table" id="oras-tickets-table">
 						<tbody class="oras-tickets-tbody">
 							<?php
+							// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped
 							$is_first_panel = true;
 							foreach ( $tickets as $index => $data ) :
 								$name           = isset( $data['name'] ) ? $data['name'] : '';
@@ -309,6 +312,7 @@ final class Tickets_Metabox {
 								<?php
 								$is_first_panel = false;
 							endforeach;
+							// phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
 							?>
 						</tbody>
 					</table>

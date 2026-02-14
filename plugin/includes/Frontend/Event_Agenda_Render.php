@@ -103,6 +103,7 @@ final class Event_Agenda_Render {
 			if ( $tz === '' ) {
 				$tz = 'UTC';
 			}
+			/* translators: %s is the site timezone abbreviation or identifier. */
 			$html .= '<p class="oras-agenda__timezone">' . esc_html( sprintf( __( 'Times shown in %s', 'oras-tickets' ), $tz ) ) . '</p>';
 		}
 
@@ -235,6 +236,7 @@ final class Event_Agenda_Render {
 				continue;
 			}
 
+			/* translators: %d is the day number in the agenda. */
 			$day_title = $day_label !== '' ? $day_label : sprintf( __( 'Day %d', 'oras-tickets' ), ( (int) $day_index + 1 ) );
 			$panel_id  = 'oras-agenda-day-' . (int) $day_index;
 			$tab_id    = 'oras-agenda-tab-' . (int) $day_index;

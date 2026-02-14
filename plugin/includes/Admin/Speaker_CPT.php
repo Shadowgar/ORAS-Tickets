@@ -106,6 +106,7 @@ final class Speaker_CPT {
 		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
 
 		$linked_label = $linked_user_id > 0
+		/* translators: %d is the linked WordPress user ID. */
 		? sprintf( __( 'Linked WP User: ID %d', 'oras-tickets' ), $linked_user_id )
 		: __( 'Linked WP User: none', 'oras-tickets' );
 
