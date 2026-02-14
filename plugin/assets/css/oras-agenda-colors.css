@@ -1,0 +1,9 @@
+html.oras-dark-on .oras-agenda__timeline::before {
+    background-color: #00ff00 !important;
+    box-shadow: 0 0 5px #00ff00 !important;
+}
+
+html.oras-dark-on .oras-agenda__item::before {
+    background-color: #00ff00 !important;
+    box-shadow: 0 0 5px #00ff00 !important;
+}
