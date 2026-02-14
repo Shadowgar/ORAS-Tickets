@@ -96,6 +96,10 @@ final class Bootstrap {
 		$cc = new \ORAS\Tickets\Commerce\Woo\Capacity_Consumption();
 		$cc->register();
 
+		require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Order_Autocomplete.php';
+		$oa = new \ORAS\Tickets\Commerce\Woo\Order_Autocomplete();
+		$oa->register();
+
 		\ORAS\Tickets\Commerce\Woo\Cart_Pricing::register();
 
 		$api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
