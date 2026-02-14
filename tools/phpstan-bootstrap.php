@@ -9,7 +9,7 @@
 declare(strict_types=1);
 
 if (! defined('ORAS_TICKETS_VERSION')) {
-  define('ORAS_TICKETS_VERSION', '0.1.0');
+  define('ORAS_TICKETS_VERSION', '0.2.0');
 }
 
 if (! defined('ORAS_TICKETS_FILE')) {
