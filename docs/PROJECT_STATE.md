@@ -27,7 +27,7 @@ Tickets are foundational, not exclusive.
 ## Authority
 If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 
-## Current maturity (post Phase 4.5)
+## Current maturity (post Phase 4.7)
 - ORAS-Tickets provides full backend ticketing, reporting, REST, and printable tickets.
 - ORAS Member Hub provides member-facing display only.
 - System is operational end-to-end.
@@ -42,6 +42,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.1: Speaker management MVP is implemented (speaker CPT, event assignment envelope, obligations workflow).
 - Phase 4.1-B: Public speaker profiles and speaker single page template routing are implemented.
 - Phase 4.5.x: Agenda is implemented (multi-day admin metabox, frontend rendering, current-slot highlight/autoscroll, speaker modal popups).
+- Phase 4.6.1: Speaker historical index is implemented (_oras_speaker_history_v1 envelope).
+- Phase 4.6.2: Speaker resource archive is implemented (slot-level resources, speaker page rendering).
+- Phase 4.7: Recurrence guardrail is implemented (prevents ORAS ticketing on recurring TEC events).
 
 ## Locked Phases
 - Phase 0 is complete and locked (foundations, bootstrapping, tooling, namespaces).
@@ -56,6 +59,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.1 is complete and locked (Speaker management MVP).
 - Phase 4.1-B is complete and locked (Public speaker profiles/event display baseline).
 - Phase 4.5 is complete and locked (Agenda + speaker modal UX baseline).
+- Phase 4.6.1 is complete and locked (Speaker historical index).
+- Phase 4.6.2 is complete and locked (Speaker resource archive).
+- Phase 4.7 is complete and locked (Recurrence guardrail).
 
 ## Full Phase List (Trackable)
 - Phase 0 — Foundations (COMPLETE/LOCKED)
@@ -74,6 +80,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.5.1 — Agenda MVP (COMPLETE/LOCKED)
 - Phase 4.5.3 — Agenda Current Highlight/Autoscroll (COMPLETE/LOCKED)
 - Phase 4.5.4 — Agenda Speaker Modal (COMPLETE/LOCKED)
+- Phase 4.6.1 — Speaker Historical Index (COMPLETE/LOCKED)
+- Phase 4.6.2 — Speaker Resource Archive (COMPLETE/LOCKED)
+- Phase 4.7 — Recurrence Guardrail (COMPLETE/LOCKED)
 - Phase 4.2 — Speaker Reporting & Automation (PLANNED)
 - Phase 5+ — Future (DEFERRED)
 
@@ -95,3 +104,272 @@ Phase 5+ — Future (explicitly deferred)
 - Attendance tracking.
 - Member-only gating.
 - Zoom or external integrations.
+
+---
+
+# Complete Structured Phase Map
+
+## ✅ PHASE 0 — Foundations (Completed)
+
+* Plugin bootstrap architecture
+* Namespacing: `ORAS\Tickets`
+* Dependency checks (TEC, WooCommerce, etc.)
+* Deterministic envelope structure patterns
+* Backwards-compatible meta design
+* Minimal-diff discipline established
+
+## ✅ PHASE 1 — Core Ticket Engine (Completed)
+
+* `_oras_tickets_v1` envelope
+* `_oras_tickets_woo_map_v1`
+* Hidden Woo products per ticket
+* Capacity lifecycle logic
+* Sale start / end windows
+* Auto-complete ticket-only orders
+* `_oras_autocompleted` marker
+* Ticket print route
+* Frontend ticket injection
+
+## ✅ PHASE 2 — Commerce Integrity (Completed)
+
+* Capacity consumption on order
+* Prevent oversell
+* Ticket ↔ Woo product mapping sync
+* Deterministic price enforcement
+* Basic reporting groundwork
+
+## ✅ PHASE 3 — Agenda System (Completed)
+
+* `_oras_agenda_v1` envelope
+* Multi-day structure
+* Slot definitions
+* Slot types (talk, break, slides, etc.)
+* Visibility rules
+* Agenda frontend renderer
+* Speaker slot association
+* Resource slot association
+
+## ✅ PHASE 4 — Speaker Intelligence System
+
+### Phase 4.1 — Speaker Management (Completed)
+
+* CPT: `oras_speaker`
+* Speaker meta schema
+* Event ↔ speaker association (`_oras_speakers_v1`)
+* Compensation tracking
+* PMPro fulfillment
+* Admin visibility
+
+### Phase 4.2 — Speaker Reporting (Planned)
+
+* Treasurer reporting structure
+* Per-speaker history view
+* Notification groundwork
+
+### Phase 4.3 — Agenda ↔ Speaker Rendering (Completed)
+
+* Speaker modal integration
+* Agenda speaker linking
+* Speaker public template
+
+### Phase 4.6.1 — Speaker Historical Index (Completed)
+
+* `_oras_speaker_history_v1`
+* Rebuilt on agenda save
+* Historical slot index
+
+### Phase 4.6.2 — Speaker Resource Archive (Completed)
+
+* Slot-level resource uploads
+* Speaker page resource rendering
+* Resource visibility enforcement
+
+## ✅ PHASE 4.7 — Recurrence Guardrail (Completed)
+
+* Detect TEC recurrence:
+  * `_EventRecurrence`
+  * `_tribe_blocks_recurrence_rules`
+  * `_EventRecurrenceID`
+* Prevent ORAS ticketing on recurring events
+* Deterministic envelope clearing
+* Guardrail meta markers
+
+## 🔜 PHASE 5 — Registration & Capacity Intelligence
+
+### 5.1 — RSVP System (Non-Commerce)
+
+* `_oras_rsvp_v1` envelope
+* Per-user RSVP state tracking
+* Capacity management for free events
+* Waitlist logic with priority promotion
+* Email confirmations and cancellation
+* Admin dashboard with attendee counts
+* CSV/Excel export capabilities
+* PMPro integration for member restrictions
+
+### 5.2 — RSVP Admin Dashboard
+
+* Real-time capacity and waitlist metrics
+* Bulk waitlist management actions
+* Custom field collection and export
+* Verification email flows
+
+## 🔜 PHASE 6 — Advanced Ticketing Intelligence
+
+### 6.1 — Ticket Tier System Enhancements
+
+* Structured tier model (early bird/member/public)
+* Date-based automatic pricing windows
+* Member-only pricing with PMPro integration
+* Per-user purchase limits and enforcement
+* Automatic tier transitions without manual intervention
+
+### 6.2 — QR Code Ticket System
+
+* QR code generation per ticket
+* Secure ticket validation endpoints
+* Check-in system with attendance tracking
+* Mobile-optimized ticket display
+* Duplicate prevention and fraud protection
+
+### 6.3 — Reservation Window Logic
+
+* Temporary holds on ticket inventory
+* Configurable reservation timers
+* Automatic release of expired reservations
+* Integration with waitlist promotion
+* Real-time availability updates
+
+## 🔜 PHASE 7 — Speaker & Content Intelligence
+
+### 7.1 — Speaker Resource Archive (Completed as Phase 4.6)
+
+* Slot-level resource attachments (slides/handouts/links)
+* Speaker-specific resource association
+* Visibility controls (public vs internal)
+* Automatic speaker history building
+* Institutional memory preservation
+
+### 7.2 — Speaker Performance Analytics
+
+* Attendance metrics per speaker
+* Revenue attribution per speaker
+* Engagement and performance tracking
+* Historical speaking frequency analysis
+* Speaker contribution scoring system
+
+### 7.3 — Frontend Speaker Submission
+
+* Public proposal intake forms
+* Admin review queue system
+* Status tracking (pending/approved/declined)
+* Internal notes and feedback system
+* Automated workflow notifications
+
+## 🔜 PHASE 8 — Virtual & Hybrid Event System
+
+### 8.1 — Zoom Gated Access (Deterministic)
+
+* Ticket/RSVP-based Zoom link display
+* Controlled access for paid vs free participants
+* Virtual-only ticket types
+* Hybrid capacity modeling (in-person + virtual)
+* Meeting management integration
+
+### 8.2 — Virtual Event Infrastructure
+
+* Virtual attendance tracking
+* Recording access controls
+* Post-event content distribution
+* Virtual event reporting metrics
+
+## 🔜 PHASE 9 — User Dashboard (Member Hub Expansion)
+
+### 9.1 — My Tickets & RSVPs
+
+* Personal ticket history and management
+* RSVP status tracking and modification
+* Downloadable tickets and confirmations
+* Event-specific access controls
+
+### 9.2 — My Speaker History
+
+* Personal speaking engagement archive
+* Resource access for past presentations
+* Performance metrics visibility
+* Speaker profile management
+
+### 9.3 — Enhanced Member Experience
+
+* Printable badges and materials
+* Check-in status display
+* Invoice access and download
+* Personalized event recommendations
+
+## 🔜 PHASE 10 — Financial & Reporting Intelligence
+
+### 10.1 — Advanced Reporting Suite
+
+* Revenue analytics per event/tier/speaker
+* Member vs non-member revenue segmentation
+* Date range filtering and comparison
+* Comprehensive CSV/Excel export capabilities
+* Treasurer-grade financial reporting
+
+### 10.2 — Invoice Engine
+
+* Automated PDF invoice generation
+* ORAS branding and customization
+* Tax calculation and line items
+* Unique invoice numbering system
+* Email delivery integration
+
+### 10.3 — Refund Intelligence
+
+* Refund reason tracking and categorization
+* Refund rate analysis per event
+* Financial impact assessment
+* Automated refund processing workflows
+
+## 🔜 PHASE 11 — Discovery & UX Features
+
+* Event discovery and recommendation engine
+* Advanced search and filtering capabilities
+* User experience enhancements
+* Mobile optimization improvements
+* Accessibility compliance updates
+
+## 🔜 PHASE 12 — Automation & Notifications
+
+### 12.1 — Event Communication Automation
+
+* 24-hour pre-event reminders
+* 1-hour virtual event notifications
+* Customizable email templates
+* Automated communication workflows
+
+### 12.2 — Post-Event Follow-Up
+
+* Automated slides and resource distribution
+* Feedback form integration
+* Donation link distribution
+* Engagement tracking and analytics
+
+## Strategic Structure Summary
+
+| Layer           | Ownership                              |
+| --------------- | -------------------------------------- |
+| TEC             | Events, recurrence, core views         |
+| Woo             | Payment processing                     |
+| ORAS-Tickets    | Commerce logic, capacity, intelligence |
+| ORAS Member Hub | Frontend member experience             |
+
+## Strategic Positioning (TEC Pro Compatible)
+
+ORAS-Tickets builds **on top** of TEC Pro without duplicating its functionality:
+
+- **TEC Pro owns**: Calendar views, recurrence patterns, event rendering
+- **ORAS-Tickets owns**: Commerce intelligence, capacity lifecycle, speaker institutional memory, treasurer reporting, access gating rules
+- **Strategic differentiators**: Deterministic architecture, clean phase-based development, strong speaker intelligence, institutional memory archive, treasurer-grade reporting
+
+**Key policy**: Recurrence + ticketing guardrail prevents undefined behavior with TEC Pro's known limitations on recurring event ticketing.

@@ -557,13 +557,3 @@ Net-new parity items to retain in ORAS planning scope:
 10. Assets-per-page selective loading for waitlist JS/CSS.
 
 ---
-
-If you want next:
-
-I can now:
-
-* Rank this by priority for ORAS specifically.
-* Convert this into a 3-year structured build timeline.
-* Or collapse this into a “Core vs Premium” architecture if you ever commercialize ORAS-Tickets.
-
-Your move.

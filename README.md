@@ -63,6 +63,9 @@ Before writing or changing code, read these files in this order:
 - **Phase 4.5.1:** Agenda MVP (multi-day metabox + frontend renderer) complete / closed
 - **Phase 4.5.3:** Current-slot highlight + autoscroll complete / closed
 - **Phase 4.5.4:** Agenda speaker modal UX complete / closed
+- **Phase 4.6.1:** Speaker historical index complete / closed
+- **Phase 4.6.2:** Speaker resource archive complete / closed
+- **Phase 4.7:** Recurrence guardrail complete / closed
 
 > The definitive, locked phase plan is maintained in `docs/CURRENT_STATE.md`.
 
