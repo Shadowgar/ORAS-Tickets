@@ -1,29 +1,5 @@
 #!/usr/bin/env bash
-# Git post-commit hook to auto-generate a session and update MASTER_PROMPT.md
-# Install: git config core.hooksPath .githooks
-
-set -euo pipefail
-
-# Prevent recursive execution when this hook performs its own commit.
-if [[ "${ORAS_MASTER_PROMPT_HOOK_RUNNING:-0}" == "1" ]]; then
-  exit 0
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="${SCRIPT_DIR}/.."
-PYTHON="python3"
-
-cd "$REPO_ROOT"
-# Generate automatic session file
-SESSION_PATH=$($PYTHON tools/generate_auto_session.py)
-
-# Merge session into MASTER_PROMPT.md
-$PYTHON tools/update_master_prompt.py "$SESSION_PATH"
-
-# Stage and commit the updated master prompt and session file
-git add prompts/MASTER_PROMPT.md "$SESSION_PATH" || true
-if ! git diff --cached --quiet; then
-  ORAS_MASTER_PROMPT_HOOK_RUNNING=1 git commit -m "chore: auto-update MASTER_PROMPT.md from commit"
-fi
-
+# post-commit intentionally no-op.
+# We now update and stage MASTER_PROMPT.md in pre-commit
+# so a single VS Code commit includes everything.
 exit 0
