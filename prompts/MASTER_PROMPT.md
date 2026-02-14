@@ -330,6 +330,19 @@ Proceed carefully.
 ## Recent Sessions
 
 ### Session Snapshot
+- Date: 2026-02-14T07:42:51.930787Z
+- Author: ShadowGar <rocco.paul@gmail.com>
+- Commit: 928321f
+- Commit message: single-commit hook test
+- Goal: single-commit hook test
+- Checks:
+  - phpstan: OK
+  - phpcs: FAIL (exit 2)
+- Key files:
+  - prompts/MASTER_PROMPT.md
+  - prompts/sessions/auto-20260214-074106-b6041d9.md
+
+### Session Snapshot
 - Date: 2026-02-14T07:41:05.997918Z
 - Author: ShadowGar <rocco.paul@gmail.com>
 - Commit: b6041d9
@@ -392,16 +405,4 @@ Proceed carefully.
   - output-preview:
   - phpcs: FAIL (exit 2)
   - output-preview:
-
-### Session Snapshot
-- Date: 2026-02-14T07:29:57.257839Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Goal: Briefly describe why this commit was made (commit subject used).
-- Notes:
-  - .githooks/post-commit
-  - .github/workflows/update-master-prompt.yml
-  - 24-monthplan.md
-  - Makefile
-  - tools/generate_auto_session.py
-  - phpstan: OK
 
