@@ -73,3 +73,14 @@ Status: COMPLETE (LOCKED)
 ## Phase 4.1 — PLANNING DETAILS (Not Implemented)
 - Phase 4.1 defined: Speaker CPT + event meta assignments (`_oras_speakers_v1`).
 - Optional WP user link for PMPro fulfillment (planning only).
+
+## 2026-02-14 — Phase 4.1 + 4.1-B Implemented
+- Implemented Speaker CPT and event speaker assignments.
+- Implemented public speaker profiles and event speaker linkage.
+- Phase 4.1 and Phase 4.1-B are now implemented.
+
+## 2026-02-14 — Woo Ticket-Only Order Auto-Completion
+- Added `includes/Commerce/Woo/Order_Autocomplete.php`.
+- Hooks into `woocommerce_order_status_processing`.
+- Uses meta marker `_oras_autocompleted` to avoid duplicate processing.
+- Mixed merch orders remain in `processing` (no auto-complete).
