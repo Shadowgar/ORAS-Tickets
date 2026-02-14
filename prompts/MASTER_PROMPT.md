@@ -307,6 +307,20 @@ Proceed carefully.
 ## Recent Sessions
 
 ### Session Snapshot
+- Date: 2026-02-14T10:57:13.920595Z
+- Author: ShadowGar <rocco.paul@gmail.com>
+- Commit: 0b5fc35
+- Commit message: Change Speaker Contributes
+- Goal: Change Speaker Contributes
+- Checks:
+  - phpstan: FAIL (exit 1)
+  - phpcs: FAIL (exit 2)
+- Key files:
+  - plugin/templates/single-oras_speaker.php
+  - prompts/MASTER_PROMPT.md
+  - prompts/sessions/auto-20260214-100446-65af058.md
+
+### Session Snapshot
 - Date: 2026-02-14T10:04:46.686905Z
 - Author: ShadowGar <rocco.paul@gmail.com>
 - Commit: 65af058

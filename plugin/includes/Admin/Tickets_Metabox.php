@@ -29,7 +29,7 @@ final class Tickets_Metabox {
 		add_action( 'add_meta_boxes', array( $this, 'register_metabox' ) );
 		add_action( 'save_post', array( $this, 'save_post' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
-		add_action( 'admin_notices', array( $this, 'maybe_show_phase_key_notice' ) );
+		add_action( 'admin_notices', array( $this, 'maybe_show_admin_notices' ) );
 	}
 
 	public function enqueue_assets( $hook_suffix ): void {
@@ -543,6 +543,28 @@ final class Tickets_Metabox {
 		);
 	}
 
+	/**
+	 * Check if an event has TEC recurrence metadata.
+	 *
+	 * @param int $event_id Event post ID.
+	 * @return bool True if recurrence is detected.
+	 */
+	private function has_tec_recurrence( int $event_id ): bool {
+		if ( ! empty( get_post_meta( $event_id, '_EventRecurrence', true ) ) ) {
+			return true;
+		}
+
+		if ( ! empty( get_post_meta( $event_id, '_tribe_blocks_recurrence_rules', true ) ) ) {
+			return true;
+		}
+
+		if ( (int) get_post_meta( $event_id, '_EventRecurrenceID', true ) > 0 ) {
+			return true;
+		}
+
+		return false;
+	}
+
 	public function save_post( int $post_id, \WP_Post $post ): void {
 		// Only save for event post type
 		if ( $post->post_type !== Meta::EVENT_POST_TYPE ) {
@@ -824,8 +846,36 @@ final class Tickets_Metabox {
 			);
 		}
 
+		$has_recurrence = $this->has_tec_recurrence( $post_id );
+
+		// Recurrence Guardrail: If event has recurrence and ticket save is attempted, disable ORAS ticketing
+		if ( $has_recurrence && isset( $_POST['oras_tickets_tickets'] ) ) {
+			$envelope['tickets'] = array(); // Disable ORAS ticketing by clearing tickets
+
+			// Prove guardrail fired
+			update_post_meta( $post_id, '_oras_guardrail_last_fired', current_time( 'mysql' ) );
+			update_post_meta( $post_id, '_oras_guardrail_reason', 'recurrence_conflict' );
+
+			// Set one-time admin notice
+			$user_id = get_current_user_id();
+			$key     = 'oras_tickets_guardrail_notice_' . $user_id;
+			set_transient(
+				$key,
+				array(
+					'event_id' => (int) $post_id,
+					'message'  => 'ORAS Tickets cannot be used on recurring events. Disable recurrence or use RSVP mode.',
+				),
+				120
+			);
+		}
+
 		Ticket_Collection::save_for_event( $post_id, $envelope );
 		Logger::instance()->log( "Saved tickets from metabox for event {$post_id} (count=" . count( $clean_tickets ) . ')' );
+	}
+
+	public function maybe_show_admin_notices(): void {
+		$this->maybe_show_phase_key_notice();
+		$this->maybe_show_recurrence_guardrail_notice();
 	}
 
 	public function maybe_show_phase_key_notice(): void {
@@ -840,6 +890,38 @@ final class Tickets_Metabox {
 
 		echo '<div class="notice notice-info is-dismissible">';
 		echo '<p>' . esc_html__( 'Duplicate or empty pricing phase keys were detected and normalized to unique keys.', 'oras-tickets' ) . '</p>';
+		echo '</div>';
+	}
+
+	public function maybe_show_recurrence_guardrail_notice(): void {
+		$user_id = get_current_user_id();
+		$key     = 'oras_tickets_guardrail_notice_' . $user_id;
+		$data    = get_transient( $key );
+
+		// Backward compatibility: migrate old per-event transients
+		if ( ! $data ) {
+			$all_options = wp_load_alloptions();
+			$prefix      = '_transient_' . $key . '_';
+			foreach ( $all_options as $option_key => $value ) {
+				if ( strpos( $option_key, $prefix ) === 0 ) {
+					$data = maybe_unserialize( $value );
+					$key  = str_replace( '_transient_', '', $option_key );
+					break; // Use the first one found
+				}
+			}
+		}
+
+		if ( ! $data || ! is_array( $data ) || ! isset( $data['event_id'], $data['message'] ) ) {
+			return;
+		}
+
+		// Delete the transient so it only shows once
+		delete_transient( $key );
+
+		$edit_url = admin_url( 'post.php?post=' . (int) $data['event_id'] . '&action=edit' );
+
+		echo '<div class="notice notice-warning is-dismissible">';
+		echo '<p>' . esc_html( $data['message'] ) . ' <a href="' . esc_url( $edit_url ) . '">' . esc_html__( 'Edit Event', 'oras-tickets' ) . '</a></p>';
 		echo '</div>';
 	}
 
