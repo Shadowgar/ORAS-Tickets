@@ -1,6 +1,27 @@
-# ORAS-Tickets Strategic Roadmap
+# ORAS-Tickets Strategic Roadmap (Revised for TEC Pro)
 
-**Goal:** Surpass Modern Events Calendar in architecture clarity, determinism, and ORAS-specific workflows — not just clone features.
+**Goal:** Build a deterministic ORAS Event Operating System on top of The Events Calendar Pro — focusing on ticket intelligence, institutional memory, and operational tooling — without duplicating TEC Pro features.
+
+---
+
+# FOUNDATIONAL POLICY (Before Phase 5)
+
+## Recurrence + Ticketing Guardrail
+
+### What It Is
+
+A defined rule governing how ORAS-Tickets interacts with TEC Pro recurring events.
+
+### Why It Exists
+
+TEC Pro explicitly does not fully support ticketing on recurring patterns. This is a known limitation in Pro.
+
+### ORAS Policy Recommendation (Deterministic & Safe)
+
+* If ORAS tickets exist → recurrence is disabled.
+* If recurrence is enabled → ORAS ticket metabox is disabled.
+
+This prevents undefined behavior and protects reporting integrity.
 
 ---
 
@@ -34,6 +55,12 @@ ORAS public nights and educational talks often don’t require payment but still
 * Capacity decrement logic.
 * Waitlist queue logic.
 * Confirmation + cancellation flow.
+
+### Architecture Fit
+
+* Prefer a dedicated RSVP storage (custom DB table) to keep analytic queries fast and deterministic.
+* Inject RSVP UI via ORAS frontend content hooks — avoid touching TEC Pro recurrence rendering.
+* Do not duplicate TEC Pro recurrence logic; RSVP must be disabled when TEC Pro recurrence + ticketing conflicts would occur.
 
 ---
 
@@ -69,6 +96,12 @@ Prevents overbooking and reduces manual coordination.
 
 * Handles sold-out AstroBlast and special talks without spreadsheet fallback.
 * Keeps membership and login policy enforcement consistent across booking and waitlist paths.
+ 
+### Architecture Fit
+
+* Implement the waitlist module under `Domain/` with admin surfaces in `Admin/Pages/`.
+* Reuse secure route/token patterns (see `Print_Ticket_Controller`) for promotion and confirmation links.
+* Promotion logic should integrate with Woo stock/order flow but be owned by the waitlist module to keep separation of concerns.
 
 ---
 
@@ -84,8 +117,12 @@ Centralized capacity intelligence panel.
 * Shows RSVP count vs paid tickets.
 * Displays percentage full.
 * Predicts sellout timeline (optional analytics).
+ 
+### Architecture Fit
 
----
+* Extend the existing `Reports_Aggregator` to add a capacity tab.
+* Add a dedicated admin Reports page tab under the ORAS admin UI for capacity and waitlist metrics.
+
 
 # PHASE 6 — Advanced Ticketing Intelligence
 
@@ -178,8 +215,12 @@ Temporary inventory lock immediately after waitlist promotion.
 ### Why It Matters
 
 Prevents race conditions and creates a deterministic “fair chance” handoff from waitlist to checkout.
+ 
+### Architecture Fit
 
----
+* Hook reservation window logic into the waitlist module and Woo stock APIs so temporary holds are visible to commerce logic.
+* Persist reservation timers in the DB to avoid relying on transient caches.
+
 
 # PHASE 7 — Speaker & Content Intelligence
 
@@ -201,8 +242,12 @@ Structured attachment system per agenda slot.
 ### Why It Matters
 
 Creates long-term institutional memory for ORAS.
+ 
+### Architecture Fit
 
----
+* Extend `_oras_agenda_v1` and compute `_oras_speaker_history_v1` as domain-level artifacts.
+* Render via `single-oras_speaker.php` and expose admin editing under `Admin/` pages.
+
 
 ## 7.2 Speaker Performance Analytics
 
@@ -254,8 +299,12 @@ Controlled display of Zoom link based on purchase or RSVP.
 
   * Free ticket-only access.
   * Paid-only access.
+ 
+### Architecture Fit
 
----
+* Implement as a display-layer injection only — do not attempt to create/manage Zoom meetings from ORAS (leave meeting creation to other tooling).
+* Validate access by checking order ownership or RSVP records server-side before revealing links.
+
 
 ## 8.2 Auto Zoom Meeting Sync
 
@@ -475,6 +524,11 @@ Automated engagement.
 ---
 
 # Strategic Differentiator Opportunities
+
+# Strategic Positioning (With TEC Pro in Mind)
+
+ORAS-Tickets should not try to become a calendar plugin. TEC Pro handles views, recurrence, and rendering. ORAS-Tickets must own commerce intelligence, capacity lifecycle, waitlist logic, speaker institutional memory, check-in tooling, treasurer reporting, and access gating rules. Build on top of TEC Pro and avoid duplicating Pro functionality.
+
 
 Instead of copying MEC entirely, ORAS can win by:
 
