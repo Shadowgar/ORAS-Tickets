@@ -224,50 +224,87 @@ In Progress:
 
 # NEXT ENGINEERING PRIORITY
 
-1. Finalize Phase 4.6.2 (Speaker resources + history index).
-2. Implement Recurrence Guardrail.
-3. Begin Phase 5 — RSVP + Waitlist System.
+1. Phase 4.7 (Recurrence Guardrail) is complete.
+2. Begin Phase 5 — RSVP + Waitlist System.
 
 ---
 
 # UPCOMING PHASES (HIGH LEVEL)
 
+## Phase 4.7 — Recurrence Guardrail ✅ (Completed)
+
+* Detect TEC recurrence patterns
+* Prevent ORAS ticketing on recurring events
+* Admin notices with edit links
+
 ## Phase 5 — Registration & Capacity Intelligence
 
-* RSVP mode (non-commerce)
-* Waitlist system
-* Capacity dashboard
+* RSVP mode (non-commerce registration)
+* Waitlist system with priority promotion
+* Capacity tracking and management
+* Email confirmations and verification flows
+* Admin dashboard with real-time metrics
+* CSV/Excel export capabilities
+* PMPro member restrictions
 
 ## Phase 6 — Advanced Ticketing Intelligence
 
-* Tier automation
-* QR code generation
-* Check-in system
-* Reservation window logic
+* Structured ticket tier system (early bird/member/public)
+* Date-based automatic pricing windows
+* QR code generation and validation
+* Check-in system with attendance tracking
+* Reservation window logic with temporary holds
+* Per-user purchase limits and enforcement
 
-## Phase 7 — Speaker Intelligence Expansion
+## Phase 7 — Speaker & Content Intelligence
 
-* Resource archive
-* Speaker analytics
-* Frontend submission
+* Speaker resource archive (slides/handouts/links)
+* Speaker performance analytics and metrics
+* Frontend speaker submission system
+* Review queue and approval workflow
+* Institutional memory preservation
+* Speaker contribution scoring
 
-## Phase 8 — Virtual & Hybrid Enhancements
+## Phase 8 — Virtual & Hybrid Event System
 
-* Zoom gated access
-* Hybrid capacity model
+* Zoom gated access based on tickets/RSVP
+* Virtual-only ticket types
+* Hybrid capacity modeling
+* Virtual attendance tracking
+* Recording access controls
+* Post-event content distribution
 
-## Phase 9 — Member Hub Expansion
+## Phase 9 — User Dashboard (Member Hub Expansion)
 
-* My Tickets
-* My RSVPs
-* My Speaker History
-* Invoice access
+* My Tickets and RSVP management
+* My Speaker History archive
+* Downloadable tickets and invoices
+* Printable badges and materials
+* Check-in status display
+* Personalized event recommendations
 
-## Phase 10 — Treasurer Reporting
+## Phase 10 — Financial & Reporting Intelligence
 
-* Advanced revenue reporting
-* Refund intelligence
-* Invoice engine
+* Advanced revenue analytics suite
+* Automated PDF invoice generation
+* Refund intelligence and tracking
+* Treasurer-grade financial reporting
+* Comprehensive export capabilities
+* Tax calculation and compliance
+
+## Phase 11 — Discovery & UX Features
+
+* Event discovery and recommendation engine
+* Advanced search and filtering
+* Mobile optimization and accessibility
+* User experience enhancements
+
+## Phase 12 — Automation & Notifications
+
+* Event communication automation (reminders)
+* Post-event follow-up system
+* Feedback form integration
+* Engagement tracking and analytics
 
 ---
 
@@ -305,6 +342,22 @@ This is production software.
 Proceed carefully.
 
 ## Recent Sessions
+
+### Session Snapshot
+- Date: 2026-02-14T11:04:47.985446Z
+- Author: ShadowGar <rocco.paul@gmail.com>
+- Commit: 2f147bd
+- Commit message: Phase 4.7 Completed.
+- Goal: Phase 4.7 Completed.
+- Checks:
+  - phpstan: FAIL (exit 1)
+  - phpcs: FAIL (exit 2)
+- Key files:
+  - .wp-env.json
+  - .wp-env/php/php.ini
+  - plugin/includes/Admin/Tickets_Metabox.php
+  - prompts/MASTER_PROMPT.md
+  - prompts/sessions/auto-20260214-105713-0b5fc35.md
 
 ### Session Snapshot
 - Date: 2026-02-14T10:57:13.920595Z

@@ -49,6 +49,9 @@ No completed functionality is removed or reset.
 - Phase 4.5.1: Agenda MVP (admin metabox + frontend agenda rendering).
 - Phase 4.5.3: Agenda "currently happening" highlight + autoscroll.
 - Phase 4.5.4: Agenda slot speaker modal UX.
+- Phase 4.6.1: Speaker historical index (_oras_speaker_history_v1 envelope).
+- Phase 4.6.2: Speaker resource archive (slot-level resources, speaker page rendering).
+- Phase 4.7: Recurrence guardrail (prevents ORAS ticketing on recurring TEC events).
 
 ---
 
