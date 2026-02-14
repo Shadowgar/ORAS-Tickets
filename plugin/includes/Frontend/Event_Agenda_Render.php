@@ -85,6 +85,82 @@ final class Event_Agenda_Render {
 			true
 		);
 
+		$inline_css = '
+			.oras-agenda__timeline::before {
+				background: rgba(15,23,42,0.18) !important;
+			}
+			html.oras-dark-on .oras-agenda__timeline::before {
+				background: rgba(255,255,255,0.18) !important;
+			}
+			.oras-agenda__item::before {
+				background: rgba(15,23,42,0.18) !important;
+			}
+			html.oras-dark-on .oras-agenda__item::before {
+				background: rgba(255,255,255,0.18) !important;
+			}
+			.oras-agenda__time {
+				color: rgba(15,23,42,0.65) !important;
+			}
+			html.oras-dark-on .oras-agenda__time {
+				color: rgba(255,255,255,0.65) !important;
+			}
+			.oras-agenda__title {
+				color: rgba(15,23,42,0.95) !important;
+			}
+			html.oras-dark-on .oras-agenda__title {
+				color: rgba(255,255,255,0.92) !important;
+			}
+			.oras-agenda__desc {
+				color: rgba(15,23,42,0.78) !important;
+			}
+			html.oras-dark-on .oras-agenda__desc {
+				color: rgba(255,255,255,0.78) !important;
+			}
+			.oras-agenda__pill {
+				background: rgba(15,23,42,0.06) !important;
+				border-color: rgba(15,23,42,0.14) !important;
+			}
+			html.oras-dark-on .oras-agenda__pill {
+				background: rgba(255,255,255,0.08) !important;
+				border-color: rgba(255,255,255,0.14) !important;
+			}
+			.oras-agenda__speakers-label {
+				color: rgba(15,23,42,0.7) !important;
+			}
+			html.oras-dark-on .oras-agenda__speakers-label {
+				color: rgba(255,255,255,0.7) !important;
+			}
+			.oras-agenda-resources strong {
+				color: rgba(15,23,42,0.7) !important;
+				font-weight: normal !important;
+			}
+			html.oras-dark-on .oras-agenda-resources strong {
+				color: rgba(255,255,255,0.7) !important;
+			}
+			.oras-agenda__body {
+				display: flex !important;
+				flex-direction: column !important;
+				row-gap: 6px !important;
+				padding-top: 7px !important;
+				margin-left: -27px !important;
+				position: relative !important;
+			}
+			.oras-agenda__time,
+			.oras-agenda__title,
+			.oras-agenda__sub,
+			.oras-agenda__desc,
+			.oras-agenda__speakers,
+			.oras-agenda-resources {
+				margin: 0 !important;
+			}
+			.oras-agenda__pill {
+				position: absolute !important;
+				left: 120px !important;
+				top: 6px !important;
+			}
+		';
+		wp_add_inline_style( 'oras-agenda-now', $inline_css );
+
 		if ( $highlight_current ) {
 			wp_enqueue_script(
 				'oras-agenda-now',
