@@ -1,4 +1,4 @@
-# ✅ MASTER HANDOFF — ORAS-Tickets (TEC Pro Integrated)
+# ✅ MASTER HANDOFF — ORAS-Tickets (TEC Integrated)
 
 You are continuing a long-running **production WordPress plugin engineering project**.
 
@@ -23,7 +23,6 @@ Stack:
 
 * WordPress
 * The Events Calendar (TEC)
-* **The Events Calendar Pro (TEC Pro)**
 * Event Tickets (free)
 * WooCommerce
 * Stripe
@@ -40,7 +39,7 @@ Separate plugin:
 1. ORAS-Tickets is an ADD-ON.
 
    * Never modify TEC core.
-   * Never modify TEC Pro core.
+   * Never modify Event Tickets core.
    * Never modify WooCommerce core.
    * Never modify PMPro core.
 
@@ -111,6 +110,7 @@ Meta keys:
 * `_oras_speaker_wp_user_id`
 * `_oras_speaker_status`
 * `_oras_speaker_internal_notes`
+* `_oras_speaker_history_v1` (Phase 4.6)
 
 Event envelope:
 
@@ -145,18 +145,13 @@ Structure:
              'type',
              'location',
              'visibility',
-             'speakers' => []
+             'speakers' => [],
+             'resources' => []  // Phase 4.6
            ]
        ]
      ]
   ]
 ]
-```
-
-Phase 4.6 extends slots with:
-
-```
-'resources' => []
 ```
 
 ---
@@ -170,27 +165,9 @@ Phase 4.6 extends slots with:
 
 ---
 
-# TEC PRO INTEGRATION RULES
-
-TEC Pro provides:
-
-* Recurrence engine
-* Map/Week/Multi-day views
-* Additional Fields system
-* Enhanced templates
-
-ORAS-Tickets must NOT duplicate:
-
-* Recurrence logic
-* Calendar view systems
-* Map rendering systems
-* Generic event metadata
-
----
-
 # CRITICAL POLICY — RECURRENCE GUARDRAIL
 
-TEC Pro does not fully support ticketing on recurring events.
+TEC does not fully support ticketing on recurring events.
 
 Therefore ORAS must implement a deterministic guardrail:
 
@@ -205,9 +182,9 @@ This prevents undefined behavior and reporting corruption.
 
 # STRATEGIC DIRECTION
 
-ORAS-Tickets is not trying to replace TEC Pro.
+ORAS-Tickets is not trying to replace TEC.
 
-TEC Pro handles:
+TEC handles:
 
 * Views
 * Recurrence
@@ -237,16 +214,17 @@ Completed:
 * Agenda system
 * Speaker modal + rendering
 * Ticket print system
+* Speaker history index (Phase 4.6.1)
 
 In Progress:
 
-* Phase 4.6 — Speaker Resource Archive
+* Phase 4.6.2 — Speaker Resource Uploads + Historical Archive
 
 ---
 
 # NEXT ENGINEERING PRIORITY
 
-1. Finalize Phase 4.6 (Speaker resources + history index).
+1. Finalize Phase 4.6.2 (Speaker resources + history index).
 2. Implement Recurrence Guardrail.
 3. Begin Phase 5 — RSVP + Waitlist System.
 
@@ -326,92 +304,19 @@ This is production software.
 
 Proceed carefully.
 
-
 ## Recent Sessions
 
 ### Session Snapshot
-- Date: 2026-02-14T09:31:29.337905Z
+- Date: 2026-02-14T09:36:48.747270Z
 - Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: 4501a00
-- Commit message: Updated Agenda code
-- Goal: Updated Agenda code
+- Commit: 88d1631
+- Commit message: Agenda Updates
+- Goal: Agenda Updates
 - Checks:
   - phpstan: FAIL (exit 1)
   - phpcs: FAIL (exit 2)
 - Key files:
-  - plugin/assets/css/oras-agenda-colors.css
-  - plugin/assets/js/oras-darkmode-hook.js
-  - plugin/includes/Admin/Metaboxes/Event_Agenda_Metabox.php
   - plugin/includes/Frontend/Event_Agenda_Render.php
   - prompts/MASTER_PROMPT.md
-
-### Session Snapshot
-- Date: 2026-02-14T09:10:44.690224Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: 8de85be
-- Commit message: AutoCommit Testing
-- Goal: AutoCommit Testing
-- Checks:
-  - phpstan: FAIL (exit 1)
-  - phpcs: FAIL (exit 2)
-- Key files:
-  - .githooks/post-commit
-  - .githooks/pre-commit
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-074251-928321f.md
-
-### Session Snapshot
-- Date: 2026-02-14T07:42:51.930787Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: 928321f
-- Commit message: single-commit hook test
-- Goal: single-commit hook test
-- Checks:
-  - phpstan: OK
-  - phpcs: FAIL (exit 2)
-- Key files:
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-074106-b6041d9.md
-
-### Session Snapshot
-- Date: 2026-02-14T07:41:05.997918Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: b6041d9
-- Commit message: chore: auto-update MASTER_PROMPT.md from commit
-- Goal: chore: auto-update MASTER_PROMPT.md from commit
-- Checks:
-  - phpstan: OK
-  - phpcs: FAIL (exit 2)
-- Key files:
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-073803-0961d67.md
-
-### Session Snapshot
-- Date: 2026-02-14T07:38:03.154283Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: 0961d67
-- Commit message: Testing AutoPrompting
-- Goal: Testing AutoPrompting
-- Checks:
-  - phpstan: OK
-  - phpcs: FAIL (exit 2)
-- Key files:
-  - .githooks/post-commit
-  - prompts/MASTER_PROMPT.md
-  - prompts/USAGE_AUTOMATION.md
-  - prompts/sessions/auto-20260214-072957-aac06f8.md
-  - prompts/sessions/auto-20260214-073238-49adb21.md
-
-### Session Snapshot
-- Date: 2026-02-14T07:36:03.804866Z
-- Author: ShadowGar <rocco.paul@gmail.com>
-- Commit: 49adb21
-- Commit message: chore: auto-update MASTER_PROMPT.md from commit
-- Goal: chore: auto-update MASTER_PROMPT.md from commit
-- Checks:
-  - phpstan: OK
-  - phpcs: FAIL (exit 2)
-- Key files:
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-073219-fbd2bbe.md
+  - prompts/sessions/auto-20260214-093129-4501a00.md
 
