@@ -330,6 +330,22 @@ Proceed carefully.
 ## Recent Sessions
 
 ### Session Snapshot
+- Date: 2026-02-14T07:38:03.154283Z
+- Author: ShadowGar <rocco.paul@gmail.com>
+- Commit: 0961d67
+- Commit message: Testing AutoPrompting
+- Goal: Testing AutoPrompting
+- Checks:
+  - phpstan: OK
+  - phpcs: FAIL (exit 2)
+- Key files:
+  - .githooks/post-commit
+  - prompts/MASTER_PROMPT.md
+  - prompts/USAGE_AUTOMATION.md
+  - prompts/sessions/auto-20260214-072957-aac06f8.md
+  - prompts/sessions/auto-20260214-073238-49adb21.md
+
+### Session Snapshot
 - Date: 2026-02-14T07:36:03.804866Z
 - Author: ShadowGar <rocco.paul@gmail.com>
 - Commit: 49adb21
