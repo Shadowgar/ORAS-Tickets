@@ -28,6 +28,16 @@ python tools/assemble_prompt.py --session prompts/sessions/20260214-1430-waitlis
 
 4. Copy `ready_prompt.txt` into ChatGPT or your model UI. After the assistant responds, save the assistant reply into the same session file and commit both session + any code changes.
 
+No `make` installed? Use direct commands
+
+```bash
+cd /home/rocco/projects/ORAS-Tickets
+git config core.hooksPath .githooks
+python3 tools/generate_auto_session.py
+python3 tools/update_master_prompt.py latest-auto
+python3 tools/assemble_prompt.py --session prompts/sessions/<your-session>.md > ready_prompt.txt
+```
+
 Notes and best practices
 
 - Keep session files short and focused; the update script extracts Date, Author, Goal and up to 6 list items to create the snapshot.
