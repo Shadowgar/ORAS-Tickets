@@ -11,6 +11,10 @@
  * @package ORAS\Tickets
  */
 
+use ORAS\Tickets\Admin\Event_Speakers_Metabox;
+use ORAS\Tickets\Admin\Speaker_CPT;
+use ORAS\Tickets\Bootstrap;
+
 if (! defined('ABSPATH')) {
 	exit;
 }
@@ -32,15 +36,15 @@ require_once ORAS_TICKETS_DIR . 'includes/Bootstrap.php';
 add_action(
 	'plugins_loaded',
 	static function () {
-		$speaker_cpt = new \ORAS\Tickets\Admin\Speaker_CPT();
+		$speaker_cpt = new Speaker_CPT();
 		$speaker_cpt->register();
 
 		if (is_admin()) {
-			$event_speakers = new \ORAS\Tickets\Admin\Event_Speakers_Metabox();
+			$event_speakers = new Event_Speakers_Metabox();
 			$event_speakers->register();
 		}
 
-		\ORAS\Tickets\Bootstrap::instance()->init();
+		Bootstrap::instance()->init();
 	},
 	20
 );
