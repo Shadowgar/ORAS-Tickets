@@ -11,9 +11,8 @@ This script is safe to run locally and in CI. It requires `git` to be available.
 """
 from pathlib import Path
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
-import shlex
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSIONS_DIR = ROOT / 'prompts' / 'sessions'
@@ -29,14 +28,14 @@ def main():
         sha = run('git rev-parse --short HEAD')
         author = run('git log -1 --pretty=format:%an')
         email = run('git log -1 --pretty=format:%ae')
-        date = datetime.utcnow().isoformat() + 'Z'
+        date = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         msg = run('git log -1 --pretty=format:%s')
         files = run('git diff-tree --no-commit-id --name-only -r HEAD').splitlines()
     except Exception as e:
         print('Error reading git data:', e, file=sys.stderr)
         sys.exit(1)
 
-    filename = f"auto-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{sha}.md"
+    filename = f"auto-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{sha}.md"
     path = SESSIONS_DIR / filename
 
     # run quick static checks if available (phpstan, phpcs)
@@ -66,7 +65,7 @@ def main():
     lines.append("")
     lines.append("Master prompt note: generated automatically from latest commit metadata.")
     lines.append("")
-    lines.append("Goal: Briefly describe why this commit was made (commit subject used).")
+    lines.append(f"Goal: {msg}")
     lines.append("")
     lines.append(f"Commit: {sha}")
     lines.append(f"Commit message: {msg}")

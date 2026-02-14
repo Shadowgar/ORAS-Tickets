@@ -21,37 +21,69 @@ MASTER_PATH = ROOT / 'prompts' / 'MASTER_PROMPT.md'
 
 
 def extract_summary(session_text: str) -> str:
-    # Try to extract Date, Author, Goal, Top bullets
     lines = session_text.strip().splitlines()
     date = None
     author = None
     goal = None
-    bullets = []
-    for i, l in enumerate(lines[:60]):
+    commit = None
+    commit_message = None
+    files = []
+    checks = []
+    in_files = False
+
+    for l in lines[:240]:
         low = l.lower()
         if low.startswith('date:'):
             date = l.split(':', 1)[1].strip()
-        if low.startswith('author:'):
+        elif low.startswith('author:'):
             author = l.split(':', 1)[1].strip()
-        if low.startswith('goal:') or low.startswith('top-level intent:'):
+        elif low.startswith('goal:') or low.startswith('top-level intent:'):
             goal = l.split(':', 1)[1].strip()
-        if l.strip().startswith('- '):
-            bullets.append(l.strip())
-        if len(bullets) >= 6:
-            break
+        elif low.startswith('commit:'):
+            commit = l.split(':', 1)[1].strip()
+        elif low.startswith('commit message:'):
+            commit_message = l.split(':', 1)[1].strip()
+
+        if l.strip() == 'Files referenced:':
+            in_files = True
+            continue
+        if in_files:
+            if l.strip().startswith('- '):
+                files.append(l.strip()[2:])
+                continue
+            if l.strip() == '':
+                in_files = False
+
+        check_match = re.match(r'^-\s+(phpstan|phpcs):\s+(.+)$', l.strip(), flags=re.I)
+        if check_match:
+            checks.append((check_match.group(1).lower(), check_match.group(2).strip()))
+
     summary_lines = ["### Session Snapshot"]
     if date:
         summary_lines.append(f"- Date: {date}")
     if author:
         summary_lines.append(f"- Author: {author}")
+    if commit:
+        summary_lines.append(f"- Commit: {commit}")
+    if commit_message:
+        summary_lines.append(f"- Commit message: {commit_message}")
     if goal:
         summary_lines.append(f"- Goal: {goal}")
-    if bullets:
-        summary_lines.append("- Notes:")
-        for b in bullets[:6]:
-            summary_lines.append(f"  - {b[2:] if b.startswith('- ') else b}")
-    # include link to session file path placeholder
+    if checks:
+        summary_lines.append("- Checks:")
+        for name, status in checks[:3]:
+            summary_lines.append(f"  - {name}: {status}")
+    if files:
+        summary_lines.append("- Key files:")
+        for f in files[:5]:
+            summary_lines.append(f"  - {f}")
+
     return "\n".join(summary_lines) + "\n"
+
+
+def extract_commit_from_session(session_text: str):
+    match = re.search(r'^Commit:\s*(.+)$', session_text, flags=re.M)
+    return match.group(1).strip() if match else None
 
 
 def ensure_recent_section(master_text: str) -> (str, int, int):
@@ -88,14 +120,25 @@ def write_file(p: Path, s: str) -> None:
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: update_master_prompt.py <session-file.md>')
+        print('Usage: update_master_prompt.py <session-file.md|latest-auto>')
         sys.exit(2)
-    session_path = Path(sys.argv[1])
+
+    arg = sys.argv[1]
+    if arg == 'latest-auto':
+        candidates = sorted((ROOT / 'prompts' / 'sessions').glob('auto-*.md'))
+        if not candidates:
+            print('No auto session files found in prompts/sessions')
+            sys.exit(2)
+        session_path = candidates[-1]
+    else:
+        session_path = Path(arg)
+
     if not session_path.exists():
         print('Session file not found:', session_path)
         sys.exit(2)
     session_text = read_file(session_path)
     summary = extract_summary(session_text)
+    session_commit = extract_commit_from_session(session_text)
 
     if not MASTER_PATH.exists():
         print('MASTER_PROMPT.md not found at', MASTER_PATH)
@@ -104,14 +147,38 @@ def main():
     master_text, start, end = ensure_recent_section(master_text)
     # build current recent content
     recent_content = master_text[start:end]
+    should_insert = True
+    if session_commit and re.search(rf'^- Commit:\s*{re.escape(session_commit)}\s*$', recent_content, flags=re.M):
+        print('MASTER_PROMPT.md already contains session for commit', session_commit)
+        should_insert = False
     # insert new summary at top of recent_content
-    new_recent = '## Recent Sessions\n\n' + summary + '\n' + recent_content.replace('## Recent Sessions\n\n','')
+    body = recent_content.replace('## Recent Sessions\n\n','')
+    if should_insert:
+        new_recent = '## Recent Sessions\n\n' + summary + '\n' + body
+    else:
+        new_recent = '## Recent Sessions\n\n' + body
     # Keep only first MAX_SESSIONS occurrences of '### Session Snapshot'
     parts = new_recent.split('### Session Snapshot')
     # first element is header text
     header = parts[0]
     snapshots = parts[1:]
-    trimmed = snapshots[:MAX_SESSIONS]
+    deduped = []
+    seen_commits = set()
+    seen_snapshots = set()
+    for snap in snapshots:
+        normalized = re.sub(r'\s+', ' ', snap.strip())
+        commit_match = re.search(r'^- Commit:\s*(.+)$', snap, flags=re.M)
+        if commit_match:
+            commit_val = commit_match.group(1).strip()
+            if commit_val in seen_commits:
+                continue
+            seen_commits.add(commit_val)
+        else:
+            if normalized in seen_snapshots:
+                continue
+        seen_snapshots.add(normalized)
+        deduped.append(snap)
+    trimmed = deduped[:MAX_SESSIONS]
     rebuilt = header + ''.join('### Session Snapshot' + s for s in trimmed)
     # replace in master_text
     new_master = master_text[:start] + rebuilt + master_text[end:]
