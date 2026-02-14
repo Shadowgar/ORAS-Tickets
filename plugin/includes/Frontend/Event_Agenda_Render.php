@@ -70,6 +70,21 @@ final class Event_Agenda_Render {
 			true
 		);
 
+		wp_enqueue_style(
+			'oras-agenda-colors',
+			ORAS_TICKETS_URL . 'assets/css/oras-agenda-colors.css',
+			array( 'oras-agenda-now' ),
+			ORAS_TICKETS_VERSION
+		);
+
+		wp_enqueue_script(
+			'oras-darkmode-hook',
+			ORAS_TICKETS_URL . 'assets/js/oras-darkmode-hook.js',
+			array(),
+			ORAS_TICKETS_VERSION,
+			true
+		);
+
 		if ( $highlight_current ) {
 			wp_enqueue_script(
 				'oras-agenda-now',
@@ -226,6 +241,51 @@ final class Event_Agenda_Render {
 
 				if ( $show_descriptions && $desc !== '' ) {
 					$items_html .= '<div class="oras-agenda__desc">' . esc_html( $desc ) . '</div>';
+				}
+
+				$resources = isset( $slot['resources'] ) && is_array( $slot['resources'] ) ? $slot['resources'] : array();
+				if ( ! empty( $resources ) ) {
+					$resources_html = '';
+					foreach ( $resources as $resource ) {
+						if ( ! is_array( $resource ) ) {
+							continue;
+						}
+
+						$attachment_id = isset( $resource['attachment_id'] ) ? absint( $resource['attachment_id'] ) : 0;
+						$url = isset( $resource['url'] ) ? esc_url_raw( $resource['url'] ) : '';
+						$link_url = '';
+						if ( $attachment_id > 0 ) {
+							$link_url = wp_get_attachment_url( $attachment_id );
+						} elseif ( $url !== '' ) {
+							$link_url = $url;
+						}
+						if ( $link_url === '' ) {
+							continue;
+						}
+
+						$label = isset( $resource['label'] ) ? sanitize_text_field( $resource['label'] ) : '';
+						if ( $label === '' ) {
+							$label = basename( $link_url );
+						}
+
+						$visibility = isset( $resource['visibility'] ) ? $resource['visibility'] : 'public';
+						if ( $visibility === 'internal' && ! is_user_logged_in() ) {
+							continue;
+						}
+
+						$type = isset( $resource['type'] ) ? sanitize_text_field( $resource['type'] ) : '';
+						$resources_html .= '<li><a href="' . esc_url( $link_url ) . '" target="_blank" rel="noopener">' . esc_html( $label ) . '</a>';
+						if ( $type !== '' ) {
+							$resources_html .= ' <span class="oras-resource-type">(' . esc_html( $type ) . ')</span>';
+						}
+						$resources_html .= '</li>';
+					}
+					if ( $resources_html !== '' ) {
+						$items_html .= '<div class="oras-agenda-resources">';
+						$items_html .= '<strong>' . esc_html__( 'Resources:', 'oras-tickets' ) . '</strong>';
+						$items_html .= '<ul>' . $resources_html . '</ul>';
+						$items_html .= '</div>';
+					}
 				}
 
 				$items_html .= '</div>';
