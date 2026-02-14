@@ -1,6 +1,8 @@
 # NEXT — Single Focus
 
-Next approved development phase: Phase 4.2 — Speaker Reporting & Automation
+Next approved development phase: Phase 4.6 — Speaker Resource Uploads + Historical Archive
+
+Note: Phase 4.2 is deferred (retained below for reference).
 
 Status: Ready for implementation planning.
 
