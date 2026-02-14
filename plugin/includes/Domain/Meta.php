@@ -8,15 +8,15 @@
 
 namespace ORAS\Tickets\Domain;
 
-if (! defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 /**
  * Domain meta key definitions.
  */
-final class Meta
-{
+final class Meta {
+
 
 	public const EVENT_POST_TYPE = 'tribe_events';
 

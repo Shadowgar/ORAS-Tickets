@@ -31,11 +31,11 @@ final class Event_Speakers_Metabox {
 		}
 
 		$screen = get_current_screen();
-		if ( ! $screen || ! isset( $screen->post_type ) || $screen->post_type !== self::POST_TYPE ) {
+		if ( ! $screen || $screen->post_type !== self::POST_TYPE ) {
 			return;
 		}
 
-		$is_editor = ( isset( $screen->base ) && $screen->base === 'post' ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
+		$is_editor = ( $screen->base === 'post' ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
 		if ( ! $is_editor ) {
 			return;
 		}
@@ -100,10 +100,12 @@ final class Event_Speakers_Metabox {
 		</div>
 		<div class="oras-event-speakers-rows" data-next-index="<?php echo esc_attr( (string) $next_index ); ?>">
 		<?php foreach ( $assignments as $index => $assignment ) : ?>
+			<?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<?php echo $this->render_row( $speakers, $assignment, (int) $index ); ?>
 		<?php endforeach; ?>
 		</div>
 		<script type="text/template" id="oras-speaker-row-template">
+		<?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 		<?php echo $template; ?>
 		</script>
 	</div>

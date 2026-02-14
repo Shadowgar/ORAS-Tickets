@@ -10,10 +10,6 @@ $event_id    = isset( $data['event_id'] ) ? (int) $data['event_id'] : 0;
 $order_id    = isset( $data['order_id'] ) ? (int) $data['order_id'] : 0;
 $items       = isset( $data['items'] ) && is_array( $data['items'] ) ? $data['items'] : array();
 
-$esc = static function ( $value ): string {
-	return esc_html( (string) $value );
-};
-
 $format_datetime = static function ( ?string $iso ): string {
 	if ( ! is_string( $iso ) || $iso === '' ) {
 		return __( 'TBD', 'oras-tickets' );
@@ -39,18 +35,18 @@ $format_price = static function ( float $price, string $currency ): string {
 	return esc_html( number_format( $price, 2 ) );
 };
 
-$order          = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
+$wc_order       = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
 $purchaser_name = '';
 $purchase_date  = '';
-if ( $order && $order instanceof \WC_Order ) {
-	$user           = $order->get_user();
+if ( $wc_order && $wc_order instanceof \WC_Order ) {
+	$user           = $wc_order->get_user();
 	$display_name   = $user ? (string) $user->display_name : '';
-	$first          = (string) $order->get_billing_first_name();
-	$last           = (string) $order->get_billing_last_name();
+	$first          = (string) $wc_order->get_billing_first_name();
+	$last           = (string) $wc_order->get_billing_last_name();
 	$billing_name   = trim( $first . ' ' . $last );
 	$purchaser_name = $display_name !== '' ? $display_name : $billing_name;
 
-	$date_created  = $order->get_date_created();
+	$date_created  = $wc_order->get_date_created();
 	$purchase_date = $date_created ? $date_created->date( 'c' ) : '';
 }
 
@@ -127,9 +123,9 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
 				<header class="oras-ticket-header">
 					<div class="oras-ticket-brand">ORAS</div>
 					<div class="oras-ticket-event">
-						<div class="oras-ticket-event-title"><?php echo $esc( $event_title ); ?></div>
+						<div class="oras-ticket-event-title"><?php echo esc_html( $event_title ); ?></div>
 						<div class="oras-ticket-event-meta">
-							<span class="oras-ticket-event-time"><?php echo $esc( $event_start_display ); ?></span>
+							<span class="oras-ticket-event-time"><?php echo esc_html( $event_start_display ); ?></span>
 							<?php if ( $location_text !== '' ) : ?>
 								<span class="oras-ticket-event-location"><?php echo esc_html( $location_text ); ?></span>
 							<?php endif; ?>
@@ -142,19 +138,19 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
 					<div class="oras-ticket-main">
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Ticket name', 'oras-tickets' ); ?></div>
-							<div class="oras-ticket-value"><?php echo $esc( $ticket_name ); ?></div>
+							<div class="oras-ticket-value"><?php echo esc_html( $ticket_name ); ?></div>
 						</div>
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Order number', 'oras-tickets' ); ?></div>
-							<div class="oras-ticket-value">#<?php echo $esc( (string) $order_id ); ?></div>
+							<div class="oras-ticket-value">#<?php echo esc_html( (string) $order_id ); ?></div>
 						</div>
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Purchaser', 'oras-tickets' ); ?></div>
-							<div class="oras-ticket-value"><?php echo $esc( $printed_name ); ?></div>
+							<div class="oras-ticket-value"><?php echo esc_html( $printed_name ); ?></div>
 						</div>
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Purchase date', 'oras-tickets' ); ?></div>
-							<div class="oras-ticket-value"><?php echo $esc( $purchase_date_display ); ?></div>
+							<div class="oras-ticket-value"><?php echo esc_html( $purchase_date_display ); ?></div>
 						</div>
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Price', 'oras-tickets' ); ?></div>
@@ -162,22 +158,22 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
 						</div>
 						<div class="oras-ticket-row">
 							<div class="oras-ticket-label"><?php echo esc_html__( 'Pricing phase', 'oras-tickets' ); ?></div>
-							<div class="oras-ticket-value"><?php echo $esc( $phase_label ); ?></div>
+							<div class="oras-ticket-value"><?php echo esc_html( $phase_label ); ?></div>
 						</div>
 					</div>
 
 					<div class="oras-ticket-stub">
 						<div class="oras-ticket-stub-title"><?php echo esc_html__( 'Admit One', 'oras-tickets' ); ?></div>
-						<div class="oras-ticket-stub-seq"><?php echo $esc( $sequence_label ); ?></div>
+						<div class="oras-ticket-stub-seq"><?php echo esc_html( $sequence_label ); ?></div>
 						<div class="oras-ticket-stub-barcode" aria-hidden="true"></div>
-						<div class="oras-ticket-stub-order">#<?php echo $esc( (string) $order_id ); ?></div>
-						<div class="oras-ticket-stub-event"><?php echo $esc( $event_title ); ?></div>
+						<div class="oras-ticket-stub-order">#<?php echo esc_html( (string) $order_id ); ?></div>
+						<div class="oras-ticket-stub-event"><?php echo esc_html( $event_title ); ?></div>
 					</div>
 				</div>
 
 				<div class="oras-ticket-footer">
 					<span class="oras-ticket-footer-label"><?php echo esc_html__( 'Printed for', 'oras-tickets' ); ?></span>
-					<span class="oras-ticket-footer-value"><?php echo $esc( $printed_name ); ?></span>
+					<span class="oras-ticket-footer-value"><?php echo esc_html( $printed_name ); ?></span>
 				</div>
 			</article>
 		<?php endfor; ?>

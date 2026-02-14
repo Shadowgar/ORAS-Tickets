@@ -165,6 +165,7 @@ final class Event_Agenda_Metabox {
 								?>
 							<div class="oras-agenda-speaker-row" data-speaker-index="<?php echo esc_attr( (string) $speaker_index ); ?>" style="margin:6px 0;padding:6px;border:1px solid #ddd;">
 								<select class="widefat" name="oras_agenda[days][<?php echo esc_attr( (string) $day_index ); ?>][slots][<?php echo esc_attr( (string) $slot_index ); ?>][speakers][<?php echo esc_attr( (string) $speaker_index ); ?>][speaker_id]">
+								<?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 								<?php echo self::render_speaker_options( $available_speakers, $speaker_id ); ?>
 								</select>
 								<input type="text" class="widefat" style="margin-top:6px;" name="oras_agenda[days][<?php echo esc_attr( (string) $day_index ); ?>][slots][<?php echo esc_attr( (string) $slot_index ); ?>][speakers][<?php echo esc_attr( (string) $speaker_index ); ?>][label]" value="<?php echo esc_attr( $speaker_label ); ?>" placeholder="<?php echo esc_attr__( 'Label override', 'oras-tickets' ); ?>" />
@@ -513,7 +514,7 @@ final class Event_Agenda_Metabox {
 				);
 
 				if ( ! empty( $speakers ) ) {
-					$slot_data['speakers'] = array_values( $speakers );
+					$slot_data['speakers'] = $speakers;
 				}
 
 				$slots[] = $slot_data;

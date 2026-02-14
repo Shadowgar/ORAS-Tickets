@@ -281,7 +281,6 @@ final class Reports_Page {
 
 				<table class="form-table" role="presentation">
 				<tbody>
-					<?php if ( $view === 'detail' ) : ?>
 					<tr>
 						<th scope="row"><label for="oras_tickets_event_id"><?php echo esc_html__( 'Event', 'oras-tickets' ); ?></label></th>
 						<td>
@@ -302,7 +301,6 @@ final class Reports_Page {
 						<?php endif; ?>
 						</td>
 					</tr>
-					<?php endif; ?>
 					<tr>
 					<th scope="row"><?php echo esc_html__( 'Statuses', 'oras-tickets' ); ?></th>
 					<td>
@@ -1171,13 +1169,15 @@ final class Reports_Page {
 								'phase_qty'       => array(),
 							);
 						}
-						$event_rows[ $line_event_id ]['refunded_amount'] += abs( (float) $ref_item->get_total() );
+						$ref_total                                        = method_exists( $ref_item, 'get_total' ) ? (float) $ref_item->get_total() : 0.0;
+						$event_rows[ $line_event_id ]['refunded_amount'] += abs( $ref_total );
 					}
 				}
 			}
 
+			$orders_count = count( $orders );
 			++$page;
-		} while ( ! empty( $orders ) && count( $orders ) === $per_page );
+		} while ( $orders_count === $per_page );
 
 		if ( empty( $event_rows ) ) {
 			// Dev note: clear transients if summary rows appear stale.
@@ -1187,14 +1187,14 @@ final class Reports_Page {
 
 		$rows = array();
 		foreach ( $event_rows as $event_id => $data ) {
-			$tickets_sold = isset( $data['tickets_sold'] ) ? (int) $data['tickets_sold'] : 0;
+			$tickets_sold = (int) $data['tickets_sold'];
 			if ( $tickets_sold <= 0 ) {
 				continue;
 			}
 
 			$phase_keys      = isset( $event_phase_keys[ $event_id ] ) ? array_keys( $event_phase_keys[ $event_id ] ) : array();
 			$first_phase_key = $this->pick_first_phase_key( $phase_keys );
-			$phase_qty       = isset( $data['phase_qty'] ) && is_array( $data['phase_qty'] ) ? $data['phase_qty'] : array();
+			$phase_qty       = $data['phase_qty'];
 
 			$first_phase_qty = $first_phase_key !== null ? (int) ( $phase_qty[ $first_phase_key ] ?? 0 ) : 0;
 			$after_qty       = $tickets_sold - $first_phase_qty;
@@ -1203,17 +1203,20 @@ final class Reports_Page {
 			$event_date  = $this->get_event_date_display( $event_id );
 			$last_sale   = isset( $event_last_sale_ts[ $event_id ] ) ? wp_date( 'Y-m-d', $event_last_sale_ts[ $event_id ] ) : '—';
 
+			$gross_sales     = (float) $data['gross_sales'];
+			$refunded_amount = (float) $data['refunded_amount'];
+
 			$rows[] = array(
 				'event_id'                   => $event_id,
 				'title'                      => $event_title !== '' ? $event_title : (string) $event_id,
 				'event_date'                 => $event_date !== '' ? $event_date : '—',
-				'orders'                     => isset( $data['orders'] ) ? (int) $data['orders'] : 0,
+				'orders'                     => (int) $data['orders'],
 				'tickets_sold'               => $tickets_sold,
 				'presale_tickets_sold'       => $first_phase_qty,
 				'after_presale_tickets_sold' => max( 0, $after_qty ),
-				'gross_sales'                => isset( $data['gross_sales'] ) ? (float) $data['gross_sales'] : 0.0,
-				'refunded_amount'            => isset( $data['refunded_amount'] ) ? (float) $data['refunded_amount'] : 0.0,
-				'net_sales'                  => ( isset( $data['gross_sales'] ) ? (float) $data['gross_sales'] : 0.0 ) - ( isset( $data['refunded_amount'] ) ? (float) $data['refunded_amount'] : 0.0 ),
+				'gross_sales'                => $gross_sales,
+				'refunded_amount'            => $refunded_amount,
+				'net_sales'                  => $gross_sales - $refunded_amount,
 				'last_sale'                  => $last_sale,
 				'url'                        => $this->build_event_report_url( $event_id, $statuses, $range_data ),
 			);
@@ -1222,8 +1225,8 @@ final class Reports_Page {
 		usort(
 			$rows,
 			static function ( array $a, array $b ): int {
-				$net_a = isset( $a['net_sales'] ) ? (float) $a['net_sales'] : 0.0;
-				$net_b = isset( $b['net_sales'] ) ? (float) $b['net_sales'] : 0.0;
+				$net_a = (float) $a['net_sales'];
+				$net_b = (float) $b['net_sales'];
 				return $net_b <=> $net_a;
 			}
 		);
@@ -1241,7 +1244,6 @@ final class Reports_Page {
 	 */
 	private function get_event_summary_cache_key( array $statuses, array $date_range, array $range_data ): string {
 		$filters = array(
-			'event_id'   => $event_id,
 			'statuses'   => $statuses,
 			'date_range' => $date_range,
 			'range_data' => array(
@@ -1264,8 +1266,8 @@ final class Reports_Page {
 	}
 
 	/**
-	 * @param array<string,mixed> $filters
-	 * @return array<string,mixed>
+	 * @param array<int|string,mixed> $filters
+	 * @return array<int|string,mixed>
 	 */
 	private function sort_filter_array( array $filters ): array {
 		$normalized = array();
@@ -1278,8 +1280,17 @@ final class Reports_Page {
 		}
 
 		if ( $this->is_list_array( $normalized ) ) {
-			sort( $normalized, SORT_STRING );
-			return array_values( $normalized );
+			usort(
+				$normalized,
+				static function ( $left, $right ): int {
+					$left_value  = is_scalar( $left ) ? (string) $left : wp_json_encode( $left );
+					$right_value = is_scalar( $right ) ? (string) $right : wp_json_encode( $right );
+
+					return strcmp( (string) $left_value, (string) $right_value );
+				}
+			);
+
+			return $normalized;
 		}
 
 		ksort( $normalized );

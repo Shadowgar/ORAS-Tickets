@@ -11,8 +11,8 @@ namespace ORAS\Tickets\Domain\Pricing;
 /**
  * Resolve ticket price by active phase.
  */
-final class Price_Resolver
-{
+final class Price_Resolver {
+
 
 
 	/**
@@ -28,14 +28,13 @@ final class Price_Resolver
 	 *     phase_end_ts: int|null,
 	 * }
 	 */
-	public static function resolve_ticket_price(array $ticket, ?int $now_utc_ts = null): array
-	{
+	public static function resolve_ticket_price( array $ticket, ?int $now_utc_ts = null ): array {
 		$now        = null === $now_utc_ts ? (int) time() : (int) $now_utc_ts;
-		$base_price = self::normalize_price_string($ticket['price'] ?? null);
+		$base_price = self::normalize_price_string( $ticket['price'] ?? null );
 		$base_price = null !== $base_price ? $base_price : '0.00';
 
 		$phases = $ticket['price_phases'] ?? null;
-		if (! is_array($phases) || empty($phases)) {
+		if ( ! is_array( $phases ) || empty( $phases ) ) {
 			return array(
 				'price'        => $base_price,
 				'phase_key'    => null,
@@ -44,31 +43,31 @@ final class Price_Resolver
 			);
 		}
 
-		foreach ($phases as $phase) {
-			if (! is_array($phase)) {
+		foreach ( $phases as $phase ) {
+			if ( ! is_array( $phase ) ) {
 				continue;
 			}
 
-			$phase_price = self::normalize_price_string($phase['price'] ?? null);
-			if (null === $phase_price) {
+			$phase_price = self::normalize_price_string( $phase['price'] ?? null );
+			if ( null === $phase_price ) {
 				continue;
 			}
 
-			$start_ts = self::parse_utc_datetime_to_ts($phase['start'] ?? null);
-			$end_ts   = self::parse_utc_datetime_to_ts($phase['end'] ?? null);
+			$start_ts = self::parse_utc_datetime_to_ts( $phase['start'] ?? null );
+			$end_ts   = self::parse_utc_datetime_to_ts( $phase['end'] ?? null );
 
-			if (null !== $start_ts && $now < $start_ts) {
+			if ( null !== $start_ts && $now < $start_ts ) {
 				continue;
 			}
 
-			if (null !== $end_ts && $now > $end_ts) {
+			if ( null !== $end_ts && $now > $end_ts ) {
 				continue;
 			}
 
 			return array(
 				'price'        => $phase_price,
-				'phase_key'    => isset($phase['key']) && is_string($phase['key']) ? $phase['key'] : null,
-				'phase_label'  => isset($phase['label']) && is_string($phase['label']) ? $phase['label'] : null,
+				'phase_key'    => isset( $phase['key'] ) && is_string( $phase['key'] ) ? $phase['key'] : null,
+				'phase_label'  => isset( $phase['label'] ) && is_string( $phase['label'] ) ? $phase['label'] : null,
 				'phase_end_ts' => $end_ts,
 			);
 		}
@@ -88,14 +87,13 @@ final class Price_Resolver
 	 *
 	 * @return int|null
 	 */
-	private static function parse_utc_datetime_to_ts(?string $dt): ?int
-	{
-		if (null === $dt || '' === trim($dt)) {
+	private static function parse_utc_datetime_to_ts( ?string $dt ): ?int {
+		if ( null === $dt || '' === trim( $dt ) ) {
 			return null;
 		}
 
-		$timestamp = strtotime($dt . ' UTC');
-		if (false === $timestamp) {
+		$timestamp = strtotime( $dt . ' UTC' );
+		if ( false === $timestamp ) {
 			return null;
 		}
 
@@ -109,20 +107,19 @@ final class Price_Resolver
 	 *
 	 * @return string|null
 	 */
-	private static function normalize_price_string($value): ?string
-	{
-		if (is_string($value)) {
-			$value = trim($value);
+	private static function normalize_price_string( $value ): ?string {
+		if ( is_string( $value ) ) {
+			$value = trim( $value );
 		}
 
-		if ('' === $value || null === $value) {
+		if ( '' === $value || null === $value ) {
 			return null;
 		}
 
-		if (! is_numeric($value)) {
+		if ( ! is_numeric( $value ) ) {
 			return null;
 		}
 
-		return number_format((float) $value, 2, '.', '');
+		return number_format( (float) $value, 2, '.', '' );
 	}
 }
