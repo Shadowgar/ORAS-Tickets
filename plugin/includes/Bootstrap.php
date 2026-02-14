@@ -28,65 +28,65 @@ require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php';
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php';
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php';
 
-if (! defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-final class Bootstrap
-{
+final class Bootstrap {
+
 
 	private static ?Bootstrap $instance = null;
 
-	public static function instance(): Bootstrap
-	{
+	public static function instance(): Bootstrap {
 		return self::$instance ??= new self();
 	}
 
 	private function __construct() {}
 
-	public function init(): void
-	{
-		Logger::instance()->log('Bootstrap init start');
+	public function init(): void {
+		Logger::instance()->log( 'Bootstrap init start' );
 
 		// Hard deps: TEC (tribe_events) and WooCommerce.
-		$has_tec = post_type_exists('tribe_events') || class_exists('Tribe__Events__Main');
-		$has_woo = class_exists('WooCommerce');
+		$has_tec = post_type_exists( 'tribe_events' ) || class_exists( 'Tribe__Events__Main' );
+		$has_woo = class_exists( 'WooCommerce' );
 
-		Logger::instance()->log('TEC present? ' . ($has_tec ? 'yes' : 'no'));
-		Logger::instance()->log('WooCommerce present? ' . ($has_woo ? 'yes' : 'no'));
+		Logger::instance()->log( 'TEC present? ' . ( $has_tec ? 'yes' : 'no' ) );
+		Logger::instance()->log( 'WooCommerce present? ' . ( $has_woo ? 'yes' : 'no' ) );
 
-		if (! $has_tec || ! $has_woo) {
-			add_action('admin_notices', function () use ($has_tec, $has_woo) {
-				if (! current_user_can('activate_plugins')) {
-					return;
+		if ( ! $has_tec || ! $has_woo ) {
+			add_action(
+				'admin_notices',
+				function () use ( $has_tec, $has_woo ) {
+					if ( ! current_user_can( 'activate_plugins' ) ) {
+						return;
+					}
+					$missing = array();
+					if ( ! $has_tec ) {
+						$missing[] = 'The Events Calendar (tribe_events)';
+					}
+					if ( ! $has_woo ) {
+						$missing[] = 'WooCommerce';
+					}
+					printf(
+						'<div class="notice notice-error"><p><strong>ORAS Tickets</strong> requires: %s</p></div>',
+						esc_html( implode( ', ', $missing ) )
+					);
 				}
-				$missing = [];
-				if (! $has_tec) {
-					$missing[] = 'The Events Calendar (tribe_events)';
-				}
-				if (! $has_woo) {
-					$missing[] = 'WooCommerce';
-				}
-				printf(
-					'<div class="notice notice-error"><p><strong>ORAS Tickets</strong> requires: %s</p></div>',
-					esc_html(implode(', ', $missing))
-				);
-			});
+			);
 
-			Logger::instance()->log('Bootstrap aborted: missing dependencies');
+			Logger::instance()->log( 'Bootstrap aborted: missing dependencies' );
 			return;
 		}
 
 		// Phase 1 modules will be loaded here next.
-		add_action('init', [$this, 'register_phase1'], 20);
+		add_action( 'init', array( $this, 'register_phase1' ), 20 );
 
-		Logger::instance()->log('Bootstrap init complete');
+		Logger::instance()->log( 'Bootstrap init complete' );
 	}
 
-	public function register_phase1(): void
-	{
+	public function register_phase1(): void {
 		// Register Phase 1 modules.
-		Logger::instance()->log('Phase 1 registration hook fired (init)');
+		Logger::instance()->log( 'Phase 1 registration hook fired (init)' );
 
 		require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Product_Sync.php';
 		$ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
@@ -108,7 +108,7 @@ final class Bootstrap
 		\ORAS\Tickets\Templates\Template_Loader::register();
 
 		// Admin-only (or WP-CLI): register ticket metabox and admin hub.
-		if (is_admin() || (defined('WP_CLI') && WP_CLI)) {
+		if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
 			\ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
 			require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
@@ -120,7 +120,7 @@ final class Bootstrap
 		// Initialize Tickets_Display when not in admin contexts. This ensures frontend rendering
 		// runs in normal page requests and that WP-CLI can also initialize the frontend display
 		// when `is_admin()` is false.
-		if (! is_admin()) {
+		if ( ! is_admin() ) {
 			\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
 			\ORAS\Tickets\Frontend\Ticket_Print_Controller::instance()->init();
 		}

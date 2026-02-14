@@ -4,306 +4,301 @@ namespace ORAS\Tickets\Admin;
 
 use ORAS\Tickets\Domain\Meta;
 
-if (! defined('ABSPATH')) {
-  exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-final class Event_Speakers_Metabox
-{
-  private const META_KEY = '_oras_speakers_v1';
-  private const NONCE_ACTION = 'oras_speakers_metabox';
-  private const NONCE_NAME = 'oras_speakers_metabox_nonce';
-  private const POST_TYPE = Meta::EVENT_POST_TYPE;
+final class Event_Speakers_Metabox {
 
-  private const COMPENSATION_MEMBERSHIP = 'membership';
-  private const COMPENSATION_FEE = 'fee';
-  private const COMPENSATION_NONE = 'none';
+	private const META_KEY     = '_oras_speakers_v1';
+	private const NONCE_ACTION = 'oras_speakers_metabox';
+	private const NONCE_NAME   = 'oras_speakers_metabox_nonce';
+	private const POST_TYPE    = Meta::EVENT_POST_TYPE;
 
-  public function register(): void
-  {
-    add_action('add_meta_boxes', [$this, 'register_metabox']);
-    add_action('save_post_' . self::POST_TYPE, [$this, 'save_post'], 10, 2);
-    add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
-  }
+	private const COMPENSATION_MEMBERSHIP = 'membership';
+	private const COMPENSATION_FEE        = 'fee';
+	private const COMPENSATION_NONE       = 'none';
 
-  public function enqueue_assets(string $hook_suffix): void
-  {
-    if (! function_exists('get_current_screen')) {
-      return;
-    }
+	public function register(): void {
+		add_action( 'add_meta_boxes', array( $this, 'register_metabox' ) );
+		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save_post' ), 10, 2 );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
 
-    $screen = get_current_screen();
-    if (! $screen || ! isset($screen->post_type) || $screen->post_type !== self::POST_TYPE) {
-      return;
-    }
+	public function enqueue_assets( string $hook_suffix ): void {
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return;
+		}
 
-    $is_editor = (isset($screen->base) && $screen->base === 'post') || in_array($hook_suffix, ['post.php', 'post-new.php'], true);
-    if (! $is_editor) {
-      return;
-    }
+		$screen = get_current_screen();
+		if ( ! $screen || ! isset( $screen->post_type ) || $screen->post_type !== self::POST_TYPE ) {
+			return;
+		}
 
-    wp_enqueue_script(
-      'oras-tickets-event-speakers-metabox',
-      ORAS_TICKETS_URL . 'assets/admin/event-speakers-metabox.js',
-      [],
-      ORAS_TICKETS_VERSION,
-      true
-    );
-  }
+		$is_editor = ( isset( $screen->base ) && $screen->base === 'post' ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
+		if ( ! $is_editor ) {
+			return;
+		}
 
-  public function register_metabox(): void
-  {
-    add_meta_box(
-      'oras_event_speakers_metabox',
-      __('Speakers for this Event', 'oras-tickets'),
-      [$this, 'render_metabox'],
-      self::POST_TYPE,
-      'normal',
-      'default'
-    );
-  }
+		wp_enqueue_script(
+			'oras-tickets-event-speakers-metabox',
+			ORAS_TICKETS_URL . 'assets/admin/event-speakers-metabox.js',
+			array(),
+			ORAS_TICKETS_VERSION,
+			true
+		);
+	}
 
-  public function render_metabox(\WP_Post $post): void
-  {
-    if (! current_user_can('edit_post', $post->ID)) {
-      return;
-    }
+	public function register_metabox(): void {
+		add_meta_box(
+			'oras_event_speakers_metabox',
+			__( 'Speakers for this Event', 'oras-tickets' ),
+			array( $this, 'render_metabox' ),
+			self::POST_TYPE,
+			'normal',
+			'default'
+		);
+	}
 
-    $assignments = get_post_meta($post->ID, self::META_KEY, true);
-    if (! is_array($assignments)) {
-      $assignments = [];
-    }
+	public function render_metabox( \WP_Post $post ): void {
+		if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+			return;
+		}
 
-    $next_index = 0;
-    foreach (array_keys($assignments) as $key) {
-      $key_int = (int) $key;
-      if ($key_int >= $next_index) {
-        $next_index = $key_int + 1;
-      }
-    }
+		$assignments = get_post_meta( $post->ID, self::META_KEY, true );
+		if ( ! is_array( $assignments ) ) {
+			$assignments = array();
+		}
 
-    $speakers = get_posts([
-      'post_type' => 'oras_speaker',
-      'post_status' => 'publish',
-      'numberposts' => 300,
-      'orderby' => 'title',
-      'order' => 'ASC',
-      'suppress_filters' => false,
-    ]);
+		$next_index = 0;
+		foreach ( array_keys( $assignments ) as $key ) {
+			$key_int = (int) $key;
+			if ( $key_int >= $next_index ) {
+				$next_index = $key_int + 1;
+			}
+		}
 
-    $template = $this->render_row_template($speakers);
+		$speakers = get_posts(
+			array(
+				'post_type'        => 'oras_speaker',
+				'post_status'      => 'publish',
+				'numberposts'      => 300,
+				'orderby'          => 'title',
+				'order'            => 'ASC',
+				'suppress_filters' => false,
+			)
+		);
 
-    wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
+		$template = $this->render_row_template( $speakers );
 
-?>
-    <div id="oras-event-speakers-metabox">
-      <div class="oras-event-speakers-toolbar">
-        <button type="button" class="button" id="oras-add-speaker-row"><?php echo esc_html__('Add Speaker', 'oras-tickets'); ?></button>
-      </div>
-      <div class="oras-event-speakers-rows" data-next-index="<?php echo esc_attr((string) $next_index); ?>">
-        <?php foreach ($assignments as $index => $assignment) : ?>
-          <?php echo $this->render_row($speakers, $assignment, (int) $index); ?>
-        <?php endforeach; ?>
-      </div>
-      <script type="text/template" id="oras-speaker-row-template">
-        <?php echo $template; ?>
-      </script>
-    </div>
-  <?php
-  }
+		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
 
-  private function render_row_template(array $speakers): string
-  {
-    return $this->render_row($speakers, [], '__INDEX__');
-  }
+		?>
+	<div id="oras-event-speakers-metabox">
+		<div class="oras-event-speakers-toolbar">
+		<button type="button" class="button" id="oras-add-speaker-row"><?php echo esc_html__( 'Add Speaker', 'oras-tickets' ); ?></button>
+		</div>
+		<div class="oras-event-speakers-rows" data-next-index="<?php echo esc_attr( (string) $next_index ); ?>">
+		<?php foreach ( $assignments as $index => $assignment ) : ?>
+			<?php echo $this->render_row( $speakers, $assignment, (int) $index ); ?>
+		<?php endforeach; ?>
+		</div>
+		<script type="text/template" id="oras-speaker-row-template">
+		<?php echo $template; ?>
+		</script>
+	</div>
+		<?php
+	}
 
-  private function render_row(array $speakers, array $assignment, $index): string
-  {
-    $speaker_id = isset($assignment['speaker_id']) ? (int) $assignment['speaker_id'] : 0;
-    $role = isset($assignment['role']) ? (string) $assignment['role'] : '';
-    $is_primary = ! empty($assignment['is_primary']);
-    $compensation_type = isset($assignment['compensation_type']) ? (string) $assignment['compensation_type'] : self::COMPENSATION_NONE;
-    $fee_amount = isset($assignment['fee_amount']) ? (float) $assignment['fee_amount'] : 0.0;
-    $pmpro_level_id = isset($assignment['pmpro_level_id']) ? (int) $assignment['pmpro_level_id'] : 0;
-    $fulfilled = ! empty($assignment['fulfilled']);
-    $fulfilled_date = isset($assignment['fulfilled_date']) ? (string) $assignment['fulfilled_date'] : '';
-    $internal_notes = isset($assignment['internal_notes']) ? (string) $assignment['internal_notes'] : '';
+	private function render_row_template( array $speakers ): string {
+		return $this->render_row( $speakers, array(), '__INDEX__' );
+	}
 
-    if (! in_array($compensation_type, [self::COMPENSATION_MEMBERSHIP, self::COMPENSATION_FEE, self::COMPENSATION_NONE], true)) {
-      $compensation_type = self::COMPENSATION_NONE;
-    }
+	private function render_row( array $speakers, array $assignment, $index ): string {
+		$speaker_id        = isset( $assignment['speaker_id'] ) ? (int) $assignment['speaker_id'] : 0;
+		$role              = isset( $assignment['role'] ) ? (string) $assignment['role'] : '';
+		$is_primary        = ! empty( $assignment['is_primary'] );
+		$compensation_type = isset( $assignment['compensation_type'] ) ? (string) $assignment['compensation_type'] : self::COMPENSATION_NONE;
+		$fee_amount        = isset( $assignment['fee_amount'] ) ? (float) $assignment['fee_amount'] : 0.0;
+		$pmpro_level_id    = isset( $assignment['pmpro_level_id'] ) ? (int) $assignment['pmpro_level_id'] : 0;
+		$fulfilled         = ! empty( $assignment['fulfilled'] );
+		$fulfilled_date    = isset( $assignment['fulfilled_date'] ) ? (string) $assignment['fulfilled_date'] : '';
+		$internal_notes    = isset( $assignment['internal_notes'] ) ? (string) $assignment['internal_notes'] : '';
 
-    $index_attr = is_int($index) ? (string) $index : (string) $index;
+		if ( ! in_array( $compensation_type, array( self::COMPENSATION_MEMBERSHIP, self::COMPENSATION_FEE, self::COMPENSATION_NONE ), true ) ) {
+			$compensation_type = self::COMPENSATION_NONE;
+		}
 
-    ob_start();
-  ?>
-    <div class="oras-event-speaker-row" data-index="<?php echo esc_attr($index_attr); ?>">
-      <div class="oras-event-speaker-grid">
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Speaker', 'oras-tickets'); ?></label>
-          <select name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][speaker_id]">
-            <option value="0"><?php echo esc_html__('Select speaker', 'oras-tickets'); ?></option>
-            <?php foreach ($speakers as $speaker) : ?>
-              <?php
-              if (! $speaker instanceof \WP_Post) {
-                continue;
-              }
-              $speaker_value = (int) $speaker->ID;
-              ?>
-              <option value="<?php echo esc_attr((string) $speaker_value); ?>" <?php selected($speaker_id, $speaker_value); ?>>
-                <?php echo esc_html($speaker->post_title); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+		$index_attr = is_int( $index ) ? (string) $index : (string) $index;
 
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Role', 'oras-tickets'); ?></label>
-          <input type="text" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][role]" value="<?php echo esc_attr($role); ?>" />
-        </div>
+		ob_start();
+		?>
+	<div class="oras-event-speaker-row" data-index="<?php echo esc_attr( $index_attr ); ?>">
+		<div class="oras-event-speaker-grid">
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Speaker', 'oras-tickets' ); ?></label>
+			<select name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][speaker_id]">
+			<option value="0"><?php echo esc_html__( 'Select speaker', 'oras-tickets' ); ?></option>
+			<?php foreach ( $speakers as $speaker ) : ?>
+				<?php
+				if ( ! $speaker instanceof \WP_Post ) {
+					continue;
+				}
+				$speaker_value = (int) $speaker->ID;
+				?>
+				<option value="<?php echo esc_attr( (string) $speaker_value ); ?>" <?php selected( $speaker_id, $speaker_value ); ?>>
+				<?php echo esc_html( $speaker->post_title ); ?>
+				</option>
+			<?php endforeach; ?>
+			</select>
+		</div>
 
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Primary', 'oras-tickets'); ?></label>
-          <label>
-            <input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][is_primary]" value="1" <?php checked($is_primary); ?> />
-            <?php echo esc_html__('Yes', 'oras-tickets'); ?>
-          </label>
-        </div>
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Role', 'oras-tickets' ); ?></label>
+			<input type="text" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][role]" value="<?php echo esc_attr( $role ); ?>" />
+		</div>
 
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Compensation', 'oras-tickets'); ?></label>
-          <select class="oras-event-speaker-compensation" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][compensation_type]">
-            <option value="none" <?php selected($compensation_type, self::COMPENSATION_NONE); ?>><?php echo esc_html__('None', 'oras-tickets'); ?></option>
-            <option value="fee" <?php selected($compensation_type, self::COMPENSATION_FEE); ?>><?php echo esc_html__('Fee', 'oras-tickets'); ?></option>
-            <option value="membership" <?php selected($compensation_type, self::COMPENSATION_MEMBERSHIP); ?>><?php echo esc_html__('Membership', 'oras-tickets'); ?></option>
-          </select>
-        </div>
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Primary', 'oras-tickets' ); ?></label>
+			<label>
+			<input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][is_primary]" value="1" <?php checked( $is_primary ); ?> />
+				<?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
+			</label>
+		</div>
 
-        <div class="oras-event-speaker-field" data-compensation="fee">
-          <label><?php echo esc_html__('Fee Amount', 'oras-tickets'); ?></label>
-          <input type="number" step="0.01" min="0" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][fee_amount]" value="<?php echo esc_attr((string) $fee_amount); ?>" />
-        </div>
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Compensation', 'oras-tickets' ); ?></label>
+			<select class="oras-event-speaker-compensation" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][compensation_type]">
+			<option value="none" <?php selected( $compensation_type, self::COMPENSATION_NONE ); ?>><?php echo esc_html__( 'None', 'oras-tickets' ); ?></option>
+			<option value="fee" <?php selected( $compensation_type, self::COMPENSATION_FEE ); ?>><?php echo esc_html__( 'Fee', 'oras-tickets' ); ?></option>
+			<option value="membership" <?php selected( $compensation_type, self::COMPENSATION_MEMBERSHIP ); ?>><?php echo esc_html__( 'Membership', 'oras-tickets' ); ?></option>
+			</select>
+		</div>
 
-        <div class="oras-event-speaker-field" data-compensation="membership">
-          <label><?php echo esc_html__('PMPro Level ID', 'oras-tickets'); ?></label>
-          <input type="number" step="1" min="0" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][pmpro_level_id]" value="<?php echo esc_attr((string) $pmpro_level_id); ?>" />
-        </div>
+		<div class="oras-event-speaker-field" data-compensation="fee">
+			<label><?php echo esc_html__( 'Fee Amount', 'oras-tickets' ); ?></label>
+			<input type="number" step="0.01" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fee_amount]" value="<?php echo esc_attr( (string) $fee_amount ); ?>" />
+		</div>
 
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Fulfilled', 'oras-tickets'); ?></label>
-          <label>
-            <input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][fulfilled]" value="1" <?php checked($fulfilled); ?> />
-            <?php echo esc_html__('Yes', 'oras-tickets'); ?>
-          </label>
-        </div>
+		<div class="oras-event-speaker-field" data-compensation="membership">
+			<label><?php echo esc_html__( 'PMPro Level ID', 'oras-tickets' ); ?></label>
+			<input type="number" step="1" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][pmpro_level_id]" value="<?php echo esc_attr( (string) $pmpro_level_id ); ?>" />
+		</div>
 
-        <div class="oras-event-speaker-field">
-          <label><?php echo esc_html__('Fulfilled Date', 'oras-tickets'); ?></label>
-          <input type="date" name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][fulfilled_date]" value="<?php echo esc_attr($fulfilled_date); ?>" />
-        </div>
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Fulfilled', 'oras-tickets' ); ?></label>
+			<label>
+			<input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled]" value="1" <?php checked( $fulfilled ); ?> />
+				<?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
+			</label>
+		</div>
 
-        <div class="oras-event-speaker-field oras-event-speaker-notes">
-          <label><?php echo esc_html__('Internal Notes', 'oras-tickets'); ?></label>
-          <textarea name="oras_speakers_assignments[<?php echo esc_attr($index_attr); ?>][internal_notes]" rows="3"><?php echo esc_textarea($internal_notes); ?></textarea>
-        </div>
-      </div>
-      <div class="oras-event-speaker-actions">
-        <button type="button" class="button oras-remove-speaker-row"><?php echo esc_html__('Remove', 'oras-tickets'); ?></button>
-      </div>
-    </div>
-<?php
+		<div class="oras-event-speaker-field">
+			<label><?php echo esc_html__( 'Fulfilled Date', 'oras-tickets' ); ?></label>
+			<input type="date" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled_date]" value="<?php echo esc_attr( $fulfilled_date ); ?>" />
+		</div>
 
-    return (string) ob_get_clean();
-  }
+		<div class="oras-event-speaker-field oras-event-speaker-notes">
+			<label><?php echo esc_html__( 'Internal Notes', 'oras-tickets' ); ?></label>
+			<textarea name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][internal_notes]" rows="3"><?php echo esc_textarea( $internal_notes ); ?></textarea>
+		</div>
+		</div>
+		<div class="oras-event-speaker-actions">
+		<button type="button" class="button oras-remove-speaker-row"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+		</div>
+	</div>
+		<?php
 
-  public function save_post(int $post_id, \WP_Post $post): void
-  {
-    if (! isset($_POST[self::NONCE_NAME])) {
-      return;
-    }
+		return (string) ob_get_clean();
+	}
 
-    $nonce = sanitize_text_field(wp_unslash($_POST[self::NONCE_NAME]));
-    if (! wp_verify_nonce($nonce, self::NONCE_ACTION)) {
-      return;
-    }
+	public function save_post( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST[ self::NONCE_NAME ] ) ) {
+			return;
+		}
 
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-      return;
-    }
+		$nonce = sanitize_text_field( wp_unslash( $_POST[ self::NONCE_NAME ] ) );
+		if ( ! wp_verify_nonce( $nonce, self::NONCE_ACTION ) ) {
+			return;
+		}
 
-    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
-      return;
-    }
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-    if ($post->post_type !== self::POST_TYPE) {
-      return;
-    }
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
 
-    if (! current_user_can('edit_post', $post_id)) {
-      return;
-    }
+		if ( $post->post_type !== self::POST_TYPE ) {
+			return;
+		}
 
-    if (! isset($_POST['oras_speakers_assignments']) || ! is_array($_POST['oras_speakers_assignments'])) {
-      return;
-    }
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-    $rows = $_POST['oras_speakers_assignments'];
+		if ( ! isset( $_POST['oras_speakers_assignments'] ) || ! is_array( $_POST['oras_speakers_assignments'] ) ) {
+			return;
+		}
 
-    $assignments = [];
+		$rows = $_POST['oras_speakers_assignments'];
 
-    foreach ($rows as $row) {
-      if (! is_array($row)) {
-        continue;
-      }
+		$assignments = array();
 
-      $speaker_id = isset($row['speaker_id']) ? (int) $row['speaker_id'] : 0;
-      if ($speaker_id <= 0) {
-        continue;
-      }
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
 
-      $role = isset($row['role']) ? sanitize_text_field(wp_unslash($row['role'])) : '';
-      $is_primary = ! empty($row['is_primary']);
-      $compensation_type = isset($row['compensation_type'])
-        ? sanitize_key(wp_unslash($row['compensation_type']))
-        : self::COMPENSATION_NONE;
+			$speaker_id = isset( $row['speaker_id'] ) ? (int) $row['speaker_id'] : 0;
+			if ( $speaker_id <= 0 ) {
+				continue;
+			}
 
-      if (! in_array($compensation_type, [self::COMPENSATION_MEMBERSHIP, self::COMPENSATION_FEE, self::COMPENSATION_NONE], true)) {
-        $compensation_type = self::COMPENSATION_NONE;
-      }
+			$role              = isset( $row['role'] ) ? sanitize_text_field( wp_unslash( $row['role'] ) ) : '';
+			$is_primary        = ! empty( $row['is_primary'] );
+			$compensation_type = isset( $row['compensation_type'] )
+			? sanitize_key( wp_unslash( $row['compensation_type'] ) )
+			: self::COMPENSATION_NONE;
 
-      $fee_amount = 0.0;
-      if ($compensation_type === self::COMPENSATION_FEE) {
-        $fee_raw = isset($row['fee_amount']) ? (float) wp_unslash($row['fee_amount']) : 0.0;
-        $fee_amount = max(0.0, $fee_raw);
-      }
+			if ( ! in_array( $compensation_type, array( self::COMPENSATION_MEMBERSHIP, self::COMPENSATION_FEE, self::COMPENSATION_NONE ), true ) ) {
+				$compensation_type = self::COMPENSATION_NONE;
+			}
 
-      $pmpro_level_id = 0;
-      if ($compensation_type === self::COMPENSATION_MEMBERSHIP) {
-        $pmpro_level_id = isset($row['pmpro_level_id']) ? max(0, (int) $row['pmpro_level_id']) : 0;
-      }
+			$fee_amount = 0.0;
+			if ( $compensation_type === self::COMPENSATION_FEE ) {
+				$fee_raw    = isset( $row['fee_amount'] ) ? (float) wp_unslash( $row['fee_amount'] ) : 0.0;
+				$fee_amount = max( 0.0, $fee_raw );
+			}
 
-      $fulfilled = ! empty($row['fulfilled']);
-      $fulfilled_date = isset($row['fulfilled_date']) ? sanitize_text_field(wp_unslash($row['fulfilled_date'])) : '';
-      $internal_notes = isset($row['internal_notes']) ? sanitize_textarea_field(wp_unslash($row['internal_notes'])) : '';
+			$pmpro_level_id = 0;
+			if ( $compensation_type === self::COMPENSATION_MEMBERSHIP ) {
+				$pmpro_level_id = isset( $row['pmpro_level_id'] ) ? max( 0, (int) $row['pmpro_level_id'] ) : 0;
+			}
 
-      $assignments[] = [
-        'speaker_id' => $speaker_id,
-        'role' => $role,
-        'is_primary' => $is_primary,
-        'compensation_type' => $compensation_type,
-        'fee_amount' => $fee_amount,
-        'pmpro_level_id' => $pmpro_level_id,
-        'fulfilled' => $fulfilled,
-        'fulfilled_date' => $fulfilled_date,
-        'internal_notes' => $internal_notes,
-      ];
-    }
+			$fulfilled      = ! empty( $row['fulfilled'] );
+			$fulfilled_date = isset( $row['fulfilled_date'] ) ? sanitize_text_field( wp_unslash( $row['fulfilled_date'] ) ) : '';
+			$internal_notes = isset( $row['internal_notes'] ) ? sanitize_textarea_field( wp_unslash( $row['internal_notes'] ) ) : '';
 
-    if (empty($assignments)) {
-      delete_post_meta($post_id, self::META_KEY);
-      return;
-    }
+			$assignments[] = array(
+				'speaker_id'        => $speaker_id,
+				'role'              => $role,
+				'is_primary'        => $is_primary,
+				'compensation_type' => $compensation_type,
+				'fee_amount'        => $fee_amount,
+				'pmpro_level_id'    => $pmpro_level_id,
+				'fulfilled'         => $fulfilled,
+				'fulfilled_date'    => $fulfilled_date,
+				'internal_notes'    => $internal_notes,
+			);
+		}
 
-    update_post_meta($post_id, self::META_KEY, $assignments);
-  }
+		if ( empty( $assignments ) ) {
+			delete_post_meta( $post_id, self::META_KEY );
+			return;
+		}
+
+		update_post_meta( $post_id, self::META_KEY, $assignments );
+	}
 }
