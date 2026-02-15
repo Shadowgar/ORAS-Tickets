@@ -128,6 +128,19 @@ Centralized capacity intelligence panel.
 
 ---
 
+## Phase 6 (Implemented to date — Attendees Management)
+
+The following operational attendees features are implemented as admin-only work (2026-02-15):
+
+* **6.2 Attendees Dashboard MVP** — event selector, deduplicated attendees list (RSVP + ticket sources), filters, and CSV export.
+* **6.3 Attendee Operations MVP** — row actions (View User, View Order, Email), ticket status filter, and guests-only filtering.
+* **6.4 Attendee Messaging MVP** — compose/send flow with BCC chunking, email normalization/validation, and accurate recipient/chunk response reporting.
+* **6.5 Attendee Notes MVP** — inline note editing, `_oras_attendee_notes_v1` storage envelope, notes filtering, and CSV note column.
+
+Verification in this phase used WP-CLI simulations for AJAX handlers and `admin_post` CSV export checks.
+
+---
+
 ## 6.1 Ticket Tier System Enhancements
 
 ### What It Is
