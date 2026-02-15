@@ -125,6 +125,7 @@ final class Bootstrap {
 			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
 			\ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
 			\ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::register();
+			require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php';
 			\ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::register();
 			require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
 			$admin_menu = new \ORAS\Tickets\Admin\Admin_Menu();
