@@ -140,6 +140,12 @@ final class Bootstrap {
 			add_action( 'admin_post_oras_rsvp_export_waitlist', array( $this, 'handle_rsvp_export_waitlist' ) );
 			add_action( 'admin_post_oras_rsvp_promote', array( $this, 'handle_rsvp_promote' ) );
 
+			// Attendees Dashboard handlers
+			add_action( 'wp_ajax_oras_attendees_dashboard_data', array( $this, 'handle_attendees_dashboard_data' ) );
+			add_action( 'wp_ajax_oras_attendees_send_email', array( $this, 'handle_attendees_send_email' ) );
+			add_action( 'wp_ajax_oras_attendees_save_note', array( $this, 'handle_attendees_save_note' ) );
+			add_action( 'admin_post_oras_attendees_export_csv', array( $this, 'handle_attendees_export_csv' ) );
+
 			// do not return; allow further initialization below
 		}
 
@@ -226,6 +232,414 @@ final class Bootstrap {
 				'attendees' => $attendees,
 			)
 		);
+	}
+
+	public function handle_attendees_dashboard_data(): void {
+		check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_send_json_error( 'Invalid event ID' );
+		}
+
+		$source_filter = isset( $_POST['source_filter'] ) ? sanitize_key( $_POST['source_filter'] ) : 'all';
+		$ticket_status = isset( $_POST['ticket_status'] ) ? sanitize_key( $_POST['ticket_status'] ) : 'all';
+		$guests_only = isset( $_POST['guests_only'] ) && $_POST['guests_only'] === '1';
+		$has_note_only = isset( $_POST['has_note_only'] ) && $_POST['has_note_only'] === '1';
+		$search = isset( $_POST['search'] ) ? sanitize_text_field( wp_unslash( $_POST['search'] ) ) : '';
+
+		$attendees = $this->get_filtered_attendees( $event_id, $source_filter, $ticket_status, $guests_only, $search, $has_note_only );
+
+		wp_send_json_success( array( 'attendees' => $attendees ) );
+	}
+
+	public function handle_attendees_send_email(): void {
+		check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_send_json_error( 'Invalid event ID' );
+		}
+
+		$source_filter = isset( $_POST['source_filter'] ) ? sanitize_key( $_POST['source_filter'] ) : 'all';
+		$ticket_status = isset( $_POST['ticket_status'] ) ? sanitize_key( $_POST['ticket_status'] ) : 'all';
+		$guests_only = isset( $_POST['guests_only'] ) && $_POST['guests_only'] === '1';
+		$has_note_only = isset( $_POST['has_note_only'] ) && $_POST['has_note_only'] === '1';
+		$search = isset( $_POST['search'] ) ? sanitize_text_field( wp_unslash( $_POST['search'] ) ) : '';
+
+		$subject = isset( $_POST['subject'] ) ? sanitize_text_field( wp_unslash( $_POST['subject'] ) ) : '';
+		$message = isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '';
+		$bcc = isset( $_POST['bcc'] ) && $_POST['bcc'] === '1';
+		$cc_me = isset( $_POST['cc_me'] ) && $_POST['cc_me'] === '1';
+
+		if ( empty( $subject ) || empty( $message ) ) {
+			wp_send_json_error( 'Subject and message are required' );
+		}
+
+		// Get filtered attendees using the same logic
+		$attendees = $this->get_filtered_attendees( $event_id, $source_filter, $ticket_status, $guests_only, $search, $has_note_only );
+
+		// Build recipients list
+		$recipients = array();
+		foreach ( $attendees as $attendee ) {
+			$email = strtolower( trim( $attendee['email'] ) );
+			if ( is_email( $email ) && ! in_array( $email, $recipients, true ) ) {
+				$recipients[] = $email;
+			}
+		}
+
+		$recipient_count = count( $recipients );
+		if ( $recipient_count === 0 ) {
+			wp_send_json_error( 'No recipients found for current filters' );
+		}
+
+		if ( $recipient_count > 300 ) {
+			wp_send_json_error( 'Too many recipients (max 300)' );
+		}
+
+		// Send emails
+		$admin_email = get_option( 'admin_email' );
+		$chunks = 0;
+
+		if ( $bcc ) {
+			// Send one email with BCC
+			$chunk_size = 50;
+			$email_chunks = array_chunk( $recipients, $chunk_size );
+
+			foreach ( $email_chunks as $chunk ) {
+				$headers = array();
+				foreach ( $chunk as $email ) {
+					$headers[] = 'Bcc: ' . $email;
+				}
+
+				if ( $cc_me ) {
+					$headers[] = 'Cc: ' . $admin_email;
+				}
+
+				$result = wp_mail( $admin_email, $subject, $message, $headers );
+				if ( ! $result ) {
+					wp_send_json_error( 'Failed to send email to some recipients' );
+				}
+				$chunks++;
+			}
+		} else {
+			// Send individual emails
+			$chunk_size = 10; // Smaller chunks for individual emails
+			$email_chunks = array_chunk( $recipients, $chunk_size );
+
+			foreach ( $email_chunks as $chunk ) {
+				foreach ( $chunk as $email ) {
+					$headers = array();
+					if ( $cc_me ) {
+						$headers[] = 'Cc: ' . $admin_email;
+					}
+
+					$result = wp_mail( $email, $subject, $message, $headers );
+					if ( ! $result ) {
+						wp_send_json_error( 'Failed to send email to some recipients' );
+					}
+				}
+				$chunks++;
+			}
+		}
+
+		wp_send_json_success( array( 'recipients' => $recipient_count, 'chunks' => $chunks ) );
+	}
+
+	public function handle_attendees_save_note(): void {
+		check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_send_json_error( 'Invalid event ID' );
+		}
+
+		$attendee_key = isset( $_POST['attendee_key'] ) ? sanitize_key( $_POST['attendee_key'] ) : '';
+		if ( empty( $attendee_key ) ) {
+			wp_send_json_error( 'Invalid attendee key' );
+		}
+
+		$note = isset( $_POST['note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['note'] ) ) : '';
+
+		// Get existing envelope
+		$envelope = get_post_meta( $event_id, '_oras_attendee_notes_v1', true );
+		if ( ! is_array( $envelope ) ) {
+			$envelope = array(
+				'version' => 1,
+				'items'   => array(),
+			);
+		}
+
+		if ( ! isset( $envelope['items'] ) ) {
+			$envelope['items'] = array();
+		}
+
+		if ( empty( $note ) ) {
+			// Remove the note
+			unset( $envelope['items'][ $attendee_key ] );
+		} else {
+			// Save the note
+			$envelope['items'][ $attendee_key ] = array(
+				'note' => $note,
+				'ts'   => time(),
+				'by'   => get_current_user_id(),
+			);
+		}
+
+		// Save the envelope
+		update_post_meta( $event_id, '_oras_attendee_notes_v1', $envelope );
+
+		wp_send_json_success();
+	}
+
+	private function get_filtered_attendees( int $event_id, string $source_filter, string $ticket_status, bool $guests_only, string $search, bool $has_note_only = false ): array {
+		$attendees = array();
+		$rsvp_attendees = array();
+		$ticket_attendees = array();
+
+		// Get notes envelope
+		$notes_envelope = get_post_meta( $event_id, '_oras_attendee_notes_v1', true );
+		$notes = is_array( $notes_envelope ) && isset( $notes_envelope['items'] ) ? $notes_envelope['items'] : array();
+
+		// Get RSVP YES attendees
+		if ( $source_filter === 'all' || $source_filter === 'rsvp' || $source_filter === 'both' ) {
+			$yes_users = get_users(
+				array(
+					'meta_key'     => '_oras_rsvp_event_' . $event_id,
+					'meta_value'   => 'yes',
+					'meta_compare' => '=',
+				)
+			);
+
+			foreach ( $yes_users as $user ) {
+				$name = $user->display_name;
+				$email = $user->user_email;
+
+				if ( $search !== '' && stripos( $name, $search ) === false && stripos( $email, $search ) === false ) {
+					continue;
+				}
+
+				$key = 'user_' . $user->ID;
+				$rsvp_attendees[ $key ] = array(
+					'name'         => $name,
+					'email'        => $email,
+					'source'       => 'RSVP',
+					'user_id'      => (int) $user->ID,
+					'order_id'     => 0,
+					'order_status' => '',
+				);
+			}
+		}
+
+		// Get ticket attendees
+		if ( $source_filter === 'all' || $source_filter === 'tickets' || $source_filter === 'both' ) {
+			$ticket_list = $this->get_ticket_attendees_for_event( $event_id );
+
+			foreach ( $ticket_list as $attendee ) {
+				$name = $attendee['name'];
+				$email = $attendee['email'];
+
+				if ( $search !== '' && stripos( $name, $search ) === false && stripos( $email, $search ) === false ) {
+					continue;
+				}
+
+				// Apply ticket status filter
+				if ( $ticket_status !== 'all' && $attendee['order_status'] !== $ticket_status ) {
+					continue;
+				}
+
+				// Apply guests only filter
+				if ( $guests_only && $attendee['user_id'] > 0 ) {
+					continue;
+				}
+
+				$key = $attendee['user_id'] > 0 ? 'user_' . $attendee['user_id'] : 'guest_' . strtolower( $email ) . '_' . $attendee['order_id'];
+				$ticket_attendees[ $key ] = $attendee;
+			}
+		}
+
+		// Merge and determine source
+		$all_keys = array_unique( array_merge( array_keys( $rsvp_attendees ), array_keys( $ticket_attendees ) ) );
+
+		foreach ( $all_keys as $key ) {
+			$rsvp_data = isset( $rsvp_attendees[ $key ] ) ? $rsvp_attendees[ $key ] : null;
+			$ticket_data = isset( $ticket_attendees[ $key ] ) ? $ticket_attendees[ $key ] : null;
+
+			$attendee = null;
+			$attendee_key = '';
+
+			if ( $rsvp_data && $ticket_data ) {
+				// Both
+				$attendee = array(
+					'name'         => $rsvp_data['name'],
+					'email'        => $rsvp_data['email'],
+					'source'       => 'Both',
+					'user_id'      => $rsvp_data['user_id'],
+					'order_id'     => $ticket_data['order_id'],
+					'order_status' => $ticket_data['order_status'],
+				);
+				$attendee_key = 'u_' . $rsvp_data['user_id'];
+			} elseif ( $rsvp_data ) {
+				$attendee = $rsvp_data;
+				$attendee_key = 'u_' . $rsvp_data['user_id'];
+			} elseif ( $ticket_data ) {
+				$attendee = $ticket_data;
+				$attendee_key = $ticket_data['user_id'] > 0 ? 'u_' . $ticket_data['user_id'] : 'o_' . $ticket_data['order_id'];
+			}
+
+			if ( $attendee ) {
+				// Add attendee_key and note
+				$attendee['attendee_key'] = $attendee_key;
+				$attendee['note'] = isset( $notes[ $attendee_key ] ) ? $notes[ $attendee_key ]['note'] : '';
+
+				// Apply has_note_only filter
+				if ( $has_note_only && empty( $attendee['note'] ) ) {
+					continue;
+				}
+
+				$attendees[] = $attendee;
+			}
+		}
+
+		return $attendees;
+	}
+
+	private function get_ticket_attendees_for_event( int $event_id ): array {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return array();
+		}
+
+		$map = get_post_meta( $event_id, '_oras_tickets_woo_map_v1', true );
+		if ( ! is_array( $map ) || empty( $map ) ) {
+			return array();
+		}
+
+		$product_ids = array();
+		foreach ( $map as $pid ) {
+			$pid = absint( $pid );
+			if ( $pid > 0 ) {
+				$product_ids[] = $pid;
+			}
+		}
+		if ( empty( $product_ids ) ) {
+			return array();
+		}
+
+		$orders = array();
+		foreach ( $product_ids as $pid ) {
+			$ords = wc_get_orders( array(
+				'status'  => array( 'processing', 'completed' ),
+				'product_id' => $pid,
+				'limit'   => -1,
+			) );
+			$orders = array_merge( $orders, $ords );
+		}
+
+		$unique_orders = array();
+		foreach ( $orders as $order ) {
+			$unique_orders[ $order->get_id() ] = $order;
+		}
+
+		$attendees = array();
+		foreach ( $unique_orders as $order ) {
+			$user_id = (int) $order->get_user_id();
+			$order_id = $order->get_id();
+			$name = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+			$email = $order->get_billing_email();
+			$order_status = $order->get_status();
+
+			if ( $user_id > 0 ) {
+				$attendees[] = array(
+					'name'         => $name,
+					'email'        => $email,
+					'source'       => 'Ticket',
+					'user_id'      => $user_id,
+					'order_id'     => $order_id,
+					'order_status' => $order_status,
+				);
+			} else {
+				// Guest
+				$attendees[] = array(
+					'name'         => $name,
+					'email'        => $email,
+					'source'       => 'Ticket (Guest)',
+					'user_id'      => 0,
+					'order_id'     => $order_id,
+					'order_status' => $order_status,
+				);
+			}
+		}
+
+		return $attendees;
+	}
+
+	public function handle_attendees_export_csv(): void {
+		check_admin_referer( 'oras_rsvp_dashboard' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_GET['event_id'] ) ? absint( $_GET['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_die( 'Invalid event ID' );
+		}
+
+		$source_filter = isset( $_GET['source_filter'] ) ? sanitize_key( $_GET['source_filter'] ) : 'all';
+		$ticket_status = isset( $_GET['ticket_status'] ) ? sanitize_key( $_GET['ticket_status'] ) : 'all';
+		$guests_only = isset( $_GET['guests_only'] ) && $_GET['guests_only'] === '1';
+		$has_note_only = isset( $_GET['has_note_only'] ) && $_GET['has_note_only'] === '1';
+		$search = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( $_GET['search'] ) ) : '';
+
+		// Get filtered attendees
+		$attendees = $this->get_filtered_attendees( $event_id, $source_filter, $ticket_status, $guests_only, $search, $has_note_only );
+
+		// Output CSV
+		$event_title = get_the_title( $event_id );
+		$filename = 'attendees-' . sanitize_title( $event_title ) . '-' . date( 'Y-m-d' ) . '.csv';
+
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		$output = fopen( 'php://output', 'w' );
+
+		// CSV headers
+		fputcsv( $output, array( 'Name', 'Email', 'Source', 'User ID', 'Order ID', 'Order Status', 'User Admin URL', 'Order Admin URL', 'Note' ) );
+
+		// CSV data
+		foreach ( $attendees as $attendee ) {
+			$user_admin_url = $attendee['user_id'] > 0 ? admin_url( 'user-edit.php?user_id=' . $attendee['user_id'] ) : '';
+			$order_admin_url = $attendee['order_id'] > 0 ? admin_url( 'post.php?post=' . $attendee['order_id'] . '&action=edit' ) : '';
+
+			fputcsv( $output, array(
+				$attendee['name'],
+				$attendee['email'],
+				$attendee['source'],
+				$attendee['user_id'] ?: '',
+				$attendee['order_id'] ?: '',
+				$attendee['order_status'],
+				$user_admin_url,
+				$order_admin_url,
+				$attendee['note'],
+			) );
+		}
+
+		fclose( $output );
+		exit;
 	}
 
 	public function handle_rsvp_export_yes(): void {
