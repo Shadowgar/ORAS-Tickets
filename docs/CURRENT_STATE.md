@@ -55,6 +55,7 @@ No completed functionality is removed or reset.
 - Phase 4.7: Recurrence guardrail (prevents ORAS ticketing on recurring TEC events).
 - Phase 5.1-B: Frontend RSVP + Waitlist (UI, capacity enforcement, usermeta persistence).
 - Phase 5.1-C: RSVP REST endpoints (Member Hub API consumption).
+- Phase 5.2: RSVP Admin Management Panel (stats, attendees list, CSV export, waitlist promotion).
 
 ---
 

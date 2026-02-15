@@ -1,0 +1,208 @@
+<?php
+
+namespace ORAS\Tickets\Admin\Metaboxes;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+final class Event_RSVP_Attendees_Metabox {
+
+	public static function register(): void {
+		add_action( 'add_meta_boxes', array( self::class, 'add_metabox' ) );
+		add_action( 'admin_post_oras_rsvp_export', array( self::class, 'handle_export' ) );
+		add_action( 'admin_post_oras_rsvp_promote', array( self::class, 'handle_promote' ) );
+	}
+
+	public static function add_metabox(): void {
+		global $post;
+		if ( ! $post || 'tribe_events' !== $post->post_type ) {
+			return;
+		}
+
+		$envelope = get_post_meta( $post->ID, '_oras_rsvp_v1', true );
+		if ( ! is_array( $envelope ) || ! isset( $envelope['enabled'] ) || ! $envelope['enabled'] ) {
+			return;
+		}
+
+		add_meta_box(
+			'oras_event_rsvp_attendees_metabox',
+			__( 'RSVP Attendees', 'oras-tickets' ),
+			array( self::class, 'render' ),
+			'tribe_events',
+			'normal',
+			'default'
+		);
+	}
+
+	public static function render( \WP_Post $post ): void {
+		if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+			return;
+		}
+
+		$event_id = $post->ID;
+		$envelope = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+		$capacity = isset( $envelope['capacity'] ) ? (int) $envelope['capacity'] : 0;
+		$waitlist_enabled = isset( $envelope['waitlist_enabled'] ) ? $envelope['waitlist_enabled'] : false;
+
+		// Get counts
+		$yes_count = self::get_count( $event_id, 'yes' );
+		$waitlist_count = self::get_count( $event_id, 'waitlist' );
+		$is_full = $capacity > 0 && $yes_count >= $capacity;
+
+		// Get attendees
+		$attendees = self::get_attendees( $event_id );
+
+		?>
+		<div id="oras-rsvp-attendees">
+			<h4><?php esc_html_e( 'RSVP Stats', 'oras-tickets' ); ?></h4>
+			<p>
+				<strong><?php esc_html_e( 'Yes Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $yes_count ); ?><br>
+				<strong><?php esc_html_e( 'Waitlist Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $waitlist_count ); ?><br>
+				<strong><?php esc_html_e( 'Capacity:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $capacity ); ?><br>
+				<strong><?php esc_html_e( 'Is Full:', 'oras-tickets' ); ?></strong> <?php echo $is_full ? esc_html__( 'Yes', 'oras-tickets' ) : esc_html__( 'No', 'oras-tickets' ); ?>
+			</p>
+
+			<h4><?php esc_html_e( 'Attendees', 'oras-tickets' ); ?></h4>
+			<table class="widefat fixed striped">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Name', 'oras-tickets' ); ?></th>
+						<th><?php esc_html_e( 'Email', 'oras-tickets' ); ?></th>
+						<th><?php esc_html_e( 'Status', 'oras-tickets' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $attendees ) ) : ?>
+						<tr>
+							<td colspan="3"><?php esc_html_e( 'No attendees yet.', 'oras-tickets' ); ?></td>
+						</tr>
+					<?php else : ?>
+						<?php foreach ( $attendees as $attendee ) : ?>
+							<tr>
+								<td><?php echo esc_html( $attendee['name'] ); ?></td>
+								<td><?php echo esc_html( $attendee['email'] ); ?></td>
+								<td><?php echo esc_html( ucfirst( $attendee['status'] ) ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=oras_rsvp_export&event_id=' . $event_id ), 'oras_rsvp_export' ) ); ?>" class="button">
+					<?php esc_html_e( 'Export YES Attendees to CSV', 'oras-tickets' ); ?>
+				</a>
+				<?php if ( $is_full && $waitlist_count > 0 ) : ?>
+					<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=oras_rsvp_promote&event_id=' . $event_id ), 'oras_rsvp_promote' ) ); ?>" class="button">
+						<?php esc_html_e( 'Promote from Waitlist', 'oras-tickets' ); ?>
+					</a>
+				<?php endif; ?>
+			</p>
+		</div>
+		<?php
+	}
+
+	private static function get_count( int $event_id, string $status ): int {
+		$query = new \WP_User_Query( array(
+			'meta_key'   => '_oras_rsvp_event_' . $event_id,
+			'meta_value' => $status,
+			'count_total' => true,
+			'number'     => 1, // Just count, no need to fetch users
+		) );
+		return $query->get_total();
+	}
+
+	private static function get_attendees( int $event_id ): array {
+		$query = new \WP_User_Query( array(
+			'meta_key' => '_oras_rsvp_event_' . $event_id,
+			'meta_compare' => 'EXISTS',
+		) );
+		$users = $query->get_results();
+
+		$attendees = array();
+		foreach ( $users as $user ) {
+			$status = get_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, true );
+			if ( $status ) {
+				$attendees[] = array(
+					'name'   => $user->display_name,
+					'email'  => $user->user_email,
+					'status' => $status,
+				);
+			}
+		}
+		return $attendees;
+	}
+
+	public static function handle_export(): void {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'oras-tickets' ) );
+		}
+
+		if ( ! wp_verify_nonce( $_GET['_wpnonce'] ?? '', 'oras_rsvp_export' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'oras-tickets' ) );
+		}
+
+		$event_id = (int) ( $_GET['event_id'] ?? 0 );
+		if ( ! $event_id ) {
+			wp_die( esc_html__( 'Invalid event ID.', 'oras-tickets' ) );
+		}
+
+		$query = new \WP_User_Query( array(
+			'meta_key'   => '_oras_rsvp_event_' . $event_id,
+			'meta_value' => 'yes',
+		) );
+		$users = $query->get_results();
+
+		header( 'Content-Type: text/csv' );
+		header( 'Content-Disposition: attachment; filename="rsvp-yes-attendees-event-' . $event_id . '.csv"' );
+
+		$fp = fopen( 'php://output', 'w' );
+		fputcsv( $fp, array( 'Name', 'Email', 'Status' ) );
+		foreach ( $users as $user ) {
+			fputcsv( $fp, array( $user->display_name, $user->user_email, 'yes' ) );
+		}
+		fclose( $fp );
+		exit;
+	}
+
+	public static function handle_promote(): void {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'oras-tickets' ) );
+		}
+
+		if ( ! wp_verify_nonce( $_GET['_wpnonce'] ?? '', 'oras_rsvp_promote' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'oras-tickets' ) );
+		}
+
+		$event_id = (int) ( $_GET['event_id'] ?? 0 );
+		if ( ! $event_id ) {
+			wp_die( esc_html__( 'Invalid event ID.', 'oras-tickets' ) );
+		}
+
+		$envelope = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+		$capacity = isset( $envelope['capacity'] ) ? (int) $envelope['capacity'] : 0;
+		$yes_count = self::get_count( $event_id, 'yes' );
+
+		if ( $yes_count >= $capacity ) {
+			wp_die( esc_html__( 'Event is at capacity.', 'oras-tickets' ) );
+		}
+
+		$query = new \WP_User_Query( array(
+			'meta_key'   => '_oras_rsvp_event_' . $event_id,
+			'meta_value' => 'waitlist',
+			'orderby'    => 'user_registered',
+			'order'      => 'ASC',
+			'number'     => 1,
+		) );
+		$users = $query->get_results();
+
+		if ( ! empty( $users ) ) {
+			$user = $users[0];
+			update_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, 'yes' );
+		}
+
+		wp_redirect( admin_url( 'post.php?post=' . $event_id . '&action=edit' ) );
+		exit;
+	}
+}

@@ -100,4 +100,12 @@ Status: COMPLETE (LOCKED)
 - Implemented in `includes/Api/Rsvp.php` with WP_User_Query for efficient yes_count calculation.
 - Endpoints require authentication and validate event existence.
 
+## 2026-02-15 — RSVP Admin Management Panel (Phase 5.2)
+- Added “RSVP Attendees” metabox in event editor for RSVP-enabled events.
+- Displays RSVP stats: yes_count, waitlist_count, capacity, is_full.
+- Shows list table of attendees: name, email, status.
+- CSV export button for YES attendees (name, email, status columns).
+- “Promote from Waitlist” button: promotes oldest waitlist user to yes if capacity allows.
+- Implemented in `includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` with admin-post handlers.
+
 ```

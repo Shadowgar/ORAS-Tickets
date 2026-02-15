@@ -220,7 +220,7 @@ Completed:
 
 In Progress:
 
-* Phase 5 — RSVP + Waitlist System (frontend RSVP + waitlist implemented; virtual access gating implemented; REST endpoints implemented). See `plugin/includes/Frontend/Event_RSVP.php`, `plugin/includes/Frontend/Virtual_Access.php`, and `plugin/includes/Api/Rsvp.php`.
+* Phase 5 — RSVP + Waitlist System (frontend RSVP + waitlist implemented; virtual access gating implemented; REST endpoints implemented; admin management panel implemented). See `plugin/includes/Frontend/Event_RSVP.php`, `plugin/includes/Frontend/Virtual_Access.php`, `plugin/includes/Api/Rsvp.php`, and `plugin/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`.
 
 ---
 

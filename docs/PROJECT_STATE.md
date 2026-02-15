@@ -88,6 +88,7 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.7 — Recurrence Guardrail (COMPLETE/LOCKED)
 - Phase 5.1-B — Frontend RSVP + Waitlist (COMPLETE/LOCKED)
 - Phase 5.1-C — RSVP REST Endpoints (COMPLETE/LOCKED)
+- Phase 5.2 — RSVP Admin Management Panel (COMPLETE/LOCKED)
 - Phase 4.2 — Speaker Reporting & Automation (PLANNED)
 - Phase 5+ — Future (DEFERRED)
 
@@ -211,6 +212,15 @@ Phase 5+ — Future (explicitly deferred)
 * Admin metabox for RSVP settings
 * REST API endpoints: GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}`
 * Virtual access gating for TEC Virtual Events (`_oras_virtual_access_v1`)
+
+### 5.2 — RSVP Admin Management Panel ✅ IMPLEMENTED
+
+* “RSVP Attendees” metabox in event editor (only for RSVP-enabled events)
+* Displays RSVP stats: yes_count, waitlist_count, capacity, is_full
+* List table of attendees: name, email, status
+* CSV export for YES attendees (name, email, status)
+* “Promote from Waitlist” action (promotes oldest waitlist user if capacity allows)
+* Admin-post handlers with nonce protection
 
 ### 5.2 — RSVP Admin Dashboard
 
