@@ -39,9 +39,13 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - Phase 4.1-B — Public speaker profiles and event display: ✅ Complete
 - Phase 4.5.x — Agenda + current-slot highlight + speaker modal: ✅ Complete
 
+- Phase 6 — Attendees Management (6.2 → 6.5): ✅ Implemented (Attendees Dashboard, Operations, Messaging, Notes)
+
 ## Recent activity
 - 2026-02-15: Phase 5.1 — RSVP frontend + waitlist implemented (basic non-commerce RSVP UI and admin-post handler). See `plugin/includes/Frontend/Event_RSVP.php` for the frontend renderer and handler.
 - 2026-02-15: ORAS-only virtual access gating implemented for TEC Virtual Events (meta `_oras_virtual_access_v1`). See `plugin/includes/Frontend/Virtual_Access.php`.
+
+- 2026-02-15: Phase 6 — Attendees Management added admin attendees dashboard, attendee messaging (BCC chunking, validation), and attendee notes with inline editing; key handlers are in `plugin/includes/Bootstrap.php` and frontend JS is `plugin/assets/admin/dashboard-rsvp.js`.
 
 ## Phase 3.1 — Locked (Frontend & UX)
 The Phase 3.1 frontend behaviors are locked and must not be regressed. Implementations that change the runtime display, purchasability, or cart revalidation behavior described below require an explicit design review and a versioned migration plan.

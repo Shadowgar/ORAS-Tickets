@@ -66,6 +66,8 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 ## Recent updates
 - 2026-02-15: Phase 5.1 (RSVP frontend + waitlist) implemented: `plugin/includes/Frontend/Event_RSVP.php` provides non-commerce RSVP UI and handlers; per-user RSVP state stored in usermeta `_oras_rsvp_event_{EVENT_ID}`. Virtual access gating implemented in `plugin/includes/Frontend/Virtual_Access.php` and persisted in `_oras_virtual_access_v1`. Phase 5.1-C (RSVP REST endpoints) implemented: `plugin/includes/Api/Rsvp.php` provides GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}` for Member Hub consumption.
 
+- 2026-02-15: Phase 6 (Attendees Management) implemented (6.2 → 6.5): attendees dashboard, attendee operations, messaging, and attendee notes. Admin AJAX handlers (`oras_attendees_dashboard_data`, `oras_attendees_send_email`, `oras_attendees_save_note`) and CSV export were added; attendee notes persist in `_oras_attendee_notes_v1` post meta. Verification performed via WP-CLI AJAX simulations and CSV export checks.
+
 ## Full Phase List (Trackable)
 - Phase 0 — Foundations (COMPLETE/LOCKED)
 - Phase 1 — Ticket Core Model (COMPLETE/LOCKED)
@@ -89,6 +91,10 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 5.1-B — Frontend RSVP + Waitlist (COMPLETE/LOCKED)
 - Phase 5.1-C — RSVP REST Endpoints (COMPLETE/LOCKED)
 - Phase 5.2 — RSVP Admin Management Panel (COMPLETE/LOCKED)
+ - Phase 6.2 — Attendees Dashboard (COMPLETE)
+ - Phase 6.3 — Attendee Operations (COMPLETE)
+ - Phase 6.4 — Attendee Messaging (COMPLETE)
+ - Phase 6.5 — Attendee Notes (COMPLETE)
 - Phase 4.2 — Speaker Reporting & Automation (PLANNED)
 - Phase 5+ — Future (DEFERRED)
 
