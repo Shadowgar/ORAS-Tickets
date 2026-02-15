@@ -1,0 +1,13 @@
+parameters:
+  level: 5
+  treatPhpDocTypesAsCertain: false
+  paths:
+    - ../plugin
+  scanFiles:
+    - ../vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+    - ../vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+    - ../dev-tools/pmpro-signatures.php
+  bootstrapFiles:
+    - ../vendor/autoload.php
+    - ../scripts/phpstan-bootstrap.php
+  tmpDir: ../.phpstan-cache

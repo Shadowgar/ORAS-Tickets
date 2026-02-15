@@ -26,7 +26,7 @@
   - capacity = 0 → unlimited (no stock management)
 
 ## Hard rules
-- No code outside plugin/ unless docs/ or tools/
+- No code outside plugin/ unless docs/ or scripts/
 - No modifying wp-env installed plugin code
 - No ET+ provider or Ticket_Object patterns
 - No external services or license checks

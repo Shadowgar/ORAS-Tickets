@@ -55,7 +55,7 @@ def main():
     # prefer composer phpstan if available
     try_run_check('composer phpstan', 'phpstan')
     # try phpcs from vendor
-    try_run_check('./vendor/bin/phpcs --standard=phpcs.xml --report=summary', 'phpcs')
+    try_run_check('./vendor/bin/phpcs --standard=config/phpcs.xml --report=summary', 'phpcs')
 
     lines = []
     lines.append(f"Date: {date}")

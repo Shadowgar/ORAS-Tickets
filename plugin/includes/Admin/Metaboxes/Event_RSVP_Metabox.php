@@ -35,11 +35,12 @@ final class Event_RSVP_Metabox {
 
 		$envelope = get_post_meta( $post->ID, self::META_KEY, true );
 		if ( ! is_array( $envelope ) || ! isset( $envelope['version'] ) || 1 !== (int) $envelope['version'] ) {
+			$settings = \ORAS\Tickets\Admin\Pages\Settings_Page::get_settings();
 			$envelope = array(
 				'version'          => 1,
-				'enabled'          => false,
-				'capacity'         => 0,
-				'waitlist_enabled' => false,
+				'enabled'          => $settings['rsvp']['default_enabled'],
+				'capacity'         => $settings['rsvp']['default_capacity'],
+				'waitlist_enabled' => $settings['rsvp']['default_waitlist_enabled'],
 				'open_at'          => '',
 				'close_at'         => '',
 			);

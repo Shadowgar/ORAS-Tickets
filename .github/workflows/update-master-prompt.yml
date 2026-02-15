@@ -37,11 +37,11 @@ jobs:
       - name: Update MASTER_PROMPT.md
         run: |
           if [ -n "${{ steps.find.outputs.SESSION_FILE }}" ]; then
-            python3 tools/update_master_prompt.py "${{ steps.find.outputs.SESSION_FILE }}"
+            python3 scripts/update_master_prompt.py "${{ steps.find.outputs.SESSION_FILE }}"
             git status --porcelain
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add prompts/MASTER_PROMPT.md prompts/sessions/*.md || true
+            git add docs/prompts/MASTER_PROMPT.md docs/prompts/sessions/*.md || true
             if ! git diff --cached --quiet; then
               git commit -m "chore: auto-update MASTER_PROMPT.md (action)"
               git push

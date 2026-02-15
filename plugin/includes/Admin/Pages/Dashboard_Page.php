@@ -11,13 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Dashboard_Page {
 
-
 	public function render(): void {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			return;
-		}
 
 		$events = $this->get_events_with_tickets();
+		$rsvp_events = $this->get_events_with_rsvp();
 
 		?>
 	<div class="wrap">
@@ -61,6 +58,47 @@ final class Dashboard_Page {
 			<?php endif; ?>
 		</tbody>
 		</table>
+
+		<hr />
+
+		<h2><?php echo esc_html__( 'RSVP Management', 'oras-tickets' ); ?></h2>
+		<p><?php echo esc_html__( 'Select an event to manage RSVPs.', 'oras-tickets' ); ?></p>
+		<select id="oras-rsvp-event-selector">
+			<option value=""><?php echo esc_html__( 'Select Event', 'oras-tickets' ); ?></option>
+			<?php foreach ( $rsvp_events as $event_id ) : ?>
+				<option value="<?php echo esc_attr( (string) $event_id ); ?>"><?php echo esc_html( get_the_title( $event_id ) ); ?></option>
+			<?php endforeach; ?>
+		</select>
+
+		<div id="oras-rsvp-stats" style="display:none;">
+			<h3><?php echo esc_html__( 'RSVP Stats', 'oras-tickets' ); ?></h3>
+			<p><strong><?php echo esc_html__( 'Capacity:', 'oras-tickets' ); ?></strong> <span id="oras-rsvp-capacity"></span></p>
+			<p><strong><?php echo esc_html__( 'Yes Count:', 'oras-tickets' ); ?></strong> <span id="oras-rsvp-yes-count"></span></p>
+			<p><strong><?php echo esc_html__( 'Waitlist Count:', 'oras-tickets' ); ?></strong> <span id="oras-rsvp-waitlist-count"></span></p>
+			<p><strong><?php echo esc_html__( 'Is Full:', 'oras-tickets' ); ?></strong> <span id="oras-rsvp-is-full"></span></p>
+		</div>
+
+		<div id="oras-rsvp-actions" style="display:none;">
+			<h3><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></h3>
+			<button id="oras-rsvp-export-yes" class="button"><?php echo esc_html__( 'Export YES CSV', 'oras-tickets' ); ?></button>
+			<button id="oras-rsvp-export-waitlist" class="button"><?php echo esc_html__( 'Export WAITLIST CSV', 'oras-tickets' ); ?></button>
+			<button id="oras-rsvp-promote" class="button"><?php echo esc_html__( 'Promote from Waitlist', 'oras-tickets' ); ?></button>
+		</div>
+
+		<div id="oras-rsvp-list" style="display:none;">
+			<h3><?php echo esc_html__( 'Attendee List', 'oras-tickets' ); ?></h3>
+			<table class="widefat striped" id="oras-rsvp-attendees-table">
+				<thead>
+					<tr>
+						<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+					</tr>
+				</thead>
+				<tbody id="oras-rsvp-attendees-body">
+				</tbody>
+			</table>
+		</div>
 	</div>
 		<?php
 	}
@@ -77,6 +115,25 @@ final class Dashboard_Page {
 				'posts_per_page' => 100,
 				'no_found_rows'  => true,
 				'meta_key'       => Meta::META_KEY_TICKETS,
+				'meta_compare'   => 'EXISTS',
+			)
+		);
+
+		return is_array( $query ) ? $query : array();
+	}
+
+	/**
+	 * @return int[]
+	 */
+	private function get_events_with_rsvp(): array {
+		$query = get_posts(
+			array(
+				'post_type'      => Meta::EVENT_POST_TYPE,
+				'post_status'    => array( 'publish', 'draft', 'future', 'private' ),
+				'fields'         => 'ids',
+				'posts_per_page' => 100,
+				'no_found_rows'  => true,
+				'meta_key'       => '_oras_rsvp_v1',
 				'meta_compare'   => 'EXISTS',
 			)
 		);

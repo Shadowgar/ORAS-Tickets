@@ -2,10 +2,10 @@
 """Update MASTER_PROMPT.md by merging a session snapshot.
 
 Usage:
-  python tools/update_master_prompt.py prompts/sessions/20260214-1430-waitlist.md
+  python scripts/update_master_prompt.py docs/prompts/sessions/20260214-1430-waitlist.md
 
 Behavior:
-- Finds or creates a "## Recent Sessions" section in prompts/MASTER_PROMPT.md
+- Finds or creates a "## Recent Sessions" section in docs/prompts/MASTER_PROMPT.md
 - Prepends a compact session summary (date, author, goal, top bullets) to that section
 - Keeps only the N most recent sessions (default 6)
 

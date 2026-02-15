@@ -23,7 +23,9 @@ final class Admin_Menu {
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_post_oras_tickets_export_csv', array( $this, 'handle_export_csv' ) );
+		add_action( 'admin_init', array( Settings_Page::class, 'register_settings' ) );
 		( new Speaker_Obligations_Page() )->register();
 		( new Speaker_Reports_Page() )->register();
 	}
@@ -109,5 +111,32 @@ final class Admin_Menu {
 
 	public function handle_export_csv(): void {
 		( new Reports_Page() )->export_csv();
+	}
+
+	public function enqueue_assets( string $hook_suffix ): void {
+		if ( 'toplevel_page_oras-tickets' !== $hook_suffix ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'oras-dashboard-rsvp',
+			ORAS_TICKETS_URL . 'assets/admin/dashboard-rsvp.js',
+			array( 'jquery' ),
+			ORAS_TICKETS_VERSION,
+			true
+		);
+
+		// Add inline script to define the global object
+		wp_add_inline_script(
+			'oras-dashboard-rsvp',
+			'var orasDashboardRsvp = ' . wp_json_encode(
+				array(
+					'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+					'adminPostUrl' => admin_url( 'admin-post.php' ),
+					'nonce'      => wp_create_nonce( 'oras_rsvp_dashboard' ),
+				)
+			) . ';',
+			'before'
+		);
 	}
 }

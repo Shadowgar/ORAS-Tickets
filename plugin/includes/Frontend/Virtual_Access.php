@@ -20,6 +20,8 @@ final class Virtual_Access {
 	public static function register(): void {
 		add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
 		add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/compatibility/event-tickets/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
+		add_filter( 'tribe_template_pre_html:events-pro/admin-views/metabox/container', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
+		add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
 
 		add_action( 'save_post_tribe_events', array( self::class, 'save_post' ), 20, 1 );
 
@@ -31,9 +33,12 @@ final class Virtual_Access {
 	}
 
 	public static function filter_admin_show_to_html( $html, $file, $name, $template ) {
+		error_log( 'ORAS Virtual Access filter called for file: ' . $file . ', name: ' . $name );
+		error_log( 'Original HTML length: ' . strlen( $html ) );
 		unset( $file, $name );
 
 		if ( ! is_object( $template ) || ! method_exists( $template, 'get' ) ) {
+			error_log( 'ORAS Virtual Access: Template object invalid' );
 			return $html;
 		}
 
@@ -51,6 +56,8 @@ final class Virtual_Access {
 		$has_rsvp      = self::event_has_rsvp_enabled( $event_id );
 		$has_tickets   = self::event_has_oras_tickets( $event_id );
 		$available     = self::available_show_to_values( $event_id );
+
+		error_log( 'ORAS Virtual Access: event_id=' . $event_id . ', has_rsvp=' . ($has_rsvp ? 'true' : 'false') . ', has_tickets=' . ($has_tickets ? 'true' : 'false') );
 
 		if ( ! in_array( $show_to, $available, true ) ) {
 			$show_to = self::SHOW_TO_EVERYONE;
@@ -137,7 +144,9 @@ final class Virtual_Access {
 		</tr>
 		<?php
 
-		return (string) ob_get_clean();
+		$generated_html = (string) ob_get_clean();
+		error_log( 'ORAS Virtual Access: Generated HTML length: ' . strlen( $generated_html ) );
+		return $generated_html;
 	}
 
 	public static function save_post( int $post_id ): void {
@@ -390,10 +399,11 @@ final class Virtual_Access {
 		return $values;
 	}
 
-	private static function get_show_to_for_event( int $event_id ): string {
+	public static function get_show_to_for_event( int $event_id ): string {
 		$meta = get_post_meta( $event_id, self::META_KEY, true );
 		if ( ! is_array( $meta ) || empty( $meta['show_to'] ) ) {
-			return self::SHOW_TO_EVERYONE;
+			$settings = \ORAS\Tickets\Admin\Pages\Settings_Page::get_settings();
+			return $settings['virtual_access']['default_show_to'];
 		}
 
 		$show_to = sanitize_key( (string) $meta['show_to'] );

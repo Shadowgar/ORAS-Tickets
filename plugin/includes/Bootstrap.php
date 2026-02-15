@@ -11,6 +11,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Pricing/Price_Resolver.php';
 // Admin metabox for Phase 1.2
 // Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php';
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Event_Addon_Metabox.php';
 // Admin hub (Phase 2.9)
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Speaker_CPT.php';
@@ -123,6 +124,8 @@ final class Bootstrap {
 		// Admin-only (or WP-CLI): register ticket metabox and admin hub.
 		if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 			\ORAS\Tickets\Admin\Tickets_Metabox::instance()->init();
+			$event_addon_metabox = new \ORAS\Tickets\Admin\Event_Addon_Metabox();
+			$event_addon_metabox->register();
 			\ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
 			\ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::register();
 			require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php';
@@ -130,6 +133,13 @@ final class Bootstrap {
 			require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
 			$admin_menu = new \ORAS\Tickets\Admin\Admin_Menu();
 			$admin_menu->register();
+
+			// RSVP Dashboard handlers
+			add_action( 'wp_ajax_oras_rsvp_dashboard_data', array( $this, 'handle_rsvp_dashboard_data' ) );
+			add_action( 'admin_post_oras_rsvp_export_yes', array( $this, 'handle_rsvp_export_yes' ) );
+			add_action( 'admin_post_oras_rsvp_export_waitlist', array( $this, 'handle_rsvp_export_waitlist' ) );
+			add_action( 'admin_post_oras_rsvp_promote', array( $this, 'handle_rsvp_promote' ) );
+
 			// do not return; allow further initialization below
 		}
 
@@ -140,5 +150,193 @@ final class Bootstrap {
 			\ORAS\Tickets\Frontend\Tickets_Display::instance()->init();
 			\ORAS\Tickets\Frontend\Ticket_Print_Controller::instance()->init();
 		}
+	}
+
+	public function handle_rsvp_dashboard_data(): void {
+		check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_send_json_error( 'Invalid event ID' );
+		}
+
+		$rsvp_settings = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+		if ( ! is_array( $rsvp_settings ) ) {
+			wp_send_json_error( 'No RSVP settings found for this event' );
+		}
+
+		$capacity = isset( $rsvp_settings['capacity'] ) ? absint( $rsvp_settings['capacity'] ) : 0;
+
+		// Get users with RSVP status
+		$yes_users = get_users(
+			array(
+				'meta_key'     => '_oras_rsvp_event_' . $event_id,
+				'meta_value'   => 'yes',
+				'meta_compare' => '=',
+			)
+		);
+
+		$waitlist_users = get_users(
+			array(
+				'meta_query' => array(
+					array(
+						'key'     => '_oras_rsvp_event_' . $event_id,
+						'value'   => 'waitlist',
+						'compare' => '=',
+					),
+				),
+				'orderby'    => 'meta_value_num',
+				'meta_key'   => '_oras_rsvp_event_' . $event_id . '_ts',
+				'order'      => 'ASC',
+			)
+		);
+
+		$yes_count = count( $yes_users );
+		$waitlist_count = count( $waitlist_users );
+		$is_full = $yes_count >= $capacity;
+
+		$attendees = array();
+		foreach ( $yes_users as $user ) {
+			$attendees[] = array(
+				'name'   => $user->display_name,
+				'email'  => $user->user_email,
+				'status' => 'Yes',
+			);
+		}
+		foreach ( $waitlist_users as $user ) {
+			$attendees[] = array(
+				'name'   => $user->display_name,
+				'email'  => $user->user_email,
+				'status' => 'Waitlist',
+			);
+		}
+
+		wp_send_json_success(
+			array(
+				'stats'     => array(
+					'capacity'       => $capacity,
+					'yes_count'      => $yes_count,
+					'waitlist_count' => $waitlist_count,
+					'is_full'        => $is_full,
+				),
+				'attendees' => $attendees,
+			)
+		);
+	}
+
+	public function handle_rsvp_export_yes(): void {
+		$this->handle_rsvp_export( 'yes' );
+	}
+
+	public function handle_rsvp_export_waitlist(): void {
+		$this->handle_rsvp_export( 'waitlist' );
+	}
+
+	private function handle_rsvp_export( string $status ): void {
+		check_admin_referer( 'oras_rsvp_dashboard' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_GET['event_id'] ) ? absint( $_GET['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_die( 'Invalid event ID' );
+		}
+
+		$users = get_users(
+			array(
+				'meta_key'     => '_oras_rsvp_event_' . $event_id,
+				'meta_value'   => $status,
+				'meta_compare' => '=',
+			)
+		);
+
+		$filename = 'rsvp-' . $status . '-' . get_the_title( $event_id ) . '-' . date( 'Y-m-d' ) . '.csv';
+
+		header( 'Content-Type: text/csv' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		$output = fopen( 'php://output', 'w' );
+		fputcsv( $output, array( 'Name', 'Email', 'Status' ) );
+
+		foreach ( $users as $user ) {
+			fputcsv( $output, array(
+				$user->display_name,
+				$user->user_email,
+				ucfirst( $status ),
+			) );
+		}
+
+		fclose( $output );
+		exit;
+	}
+
+	public function handle_rsvp_promote(): void {
+		check_admin_referer( 'oras_rsvp_dashboard' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( 'Insufficient permissions' );
+		}
+
+		$event_id = isset( $_GET['event_id'] ) ? absint( $_GET['event_id'] ) : 0;
+		if ( ! $event_id ) {
+			wp_die( 'Invalid event ID' );
+		}
+
+		$rsvp_settings = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+		if ( ! is_array( $rsvp_settings ) ) {
+			wp_die( 'No RSVP settings found for this event' );
+		}
+
+		$capacity = isset( $rsvp_settings['capacity'] ) ? absint( $rsvp_settings['capacity'] ) : 0;
+
+		// Count current yes RSVPs
+		$yes_count = count( get_users(
+			array(
+				'meta_key'     => '_oras_rsvp_event_' . $event_id,
+				'meta_value'   => 'yes',
+				'meta_compare' => '=',
+			)
+		) );
+
+		if ( $yes_count >= $capacity ) {
+			wp_die( 'Event is already at capacity' );
+		}
+
+		// Find the oldest waitlist user
+		$waitlist_users = get_users(
+			array(
+				'meta_query' => array(
+					array(
+						'key'     => '_oras_rsvp_event_' . $event_id,
+						'value'   => 'waitlist',
+						'compare' => '=',
+					),
+				),
+				'orderby'    => 'meta_value_num',
+				'meta_key'   => '_oras_rsvp_event_' . $event_id . '_ts',
+				'order'      => 'ASC',
+				'number'     => 1,
+			)
+		);
+
+		if ( empty( $waitlist_users ) ) {
+			wp_die( 'No users on waitlist' );
+		}
+
+		$user = $waitlist_users[0];
+		update_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, 'yes' );
+
+		// Redirect back to dashboard with success message
+		wp_redirect( admin_url( 'admin.php?page=oras-tickets-dashboard&promoted=1' ) );
+		exit;
 	}
 }

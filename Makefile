@@ -5,13 +5,13 @@
 SESSION ?= 
 
 prompt-assemble:
-	@if [ -z "$(SESSION)" ]; then echo "Specify SESSION=prompts/sessions/your.md"; exit 1; fi
-	python3 tools/assemble_prompt.py --session $(SESSION) > ready_prompt.txt
+	@if [ -z "$(SESSION)" ]; then echo "Specify SESSION=docs/prompts/sessions/your.md"; exit 1; fi
+	python3 scripts/assemble_prompt.py --session $(SESSION) > ready_prompt.txt
 	@echo "ready_prompt.txt created"
 
 update-master:
-	@if [ -z "$(SESSION)" ]; then echo "Specify SESSION=prompts/sessions/your.md"; exit 1; fi
-	python3 tools/update_master_prompt.py $(SESSION)
+	@if [ -z "$(SESSION)" ]; then echo "Specify SESSION=docs/prompts/sessions/your.md"; exit 1; fi
+	python3 scripts/update_master_prompt.py $(SESSION)
 	@echo "MASTER_PROMPT.md updated"
 
 enable-hooks:

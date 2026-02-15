@@ -2,28 +2,28 @@ Auto-updating `MASTER_PROMPT.md` — usage
 
 Goal
 
-Allow quick reproduction of the exact prompt you used with the assistant by keeping `prompts/MASTER_PROMPT.md` up-to-date with short session summaries.
+Allow quick reproduction of the exact prompt you used with the assistant by keeping `docs/prompts/MASTER_PROMPT.md` up-to-date with short session summaries.
 
 Files added
 
-- `tools/update_master_prompt.py` — merge a session file into `prompts/MASTER_PROMPT.md` (adds a compact session snapshot into a `## Recent Sessions` section).
-- `tools/assemble_prompt.py` — assemble a ready-to-send prompt by concatenating `MASTER_PROMPT.md` and a session file.
+- `scripts/update_master_prompt.py` — merge a session file into `docs/prompts/MASTER_PROMPT.md` (adds a compact session snapshot into a `## Recent Sessions` section).
+- `scripts/assemble_prompt.py` — assemble a ready-to-send prompt by concatenating `MASTER_PROMPT.md` and a session file.
 
 Quick workflow
 
-1. Save your change intention into a session file under `prompts/sessions/`, using `prompts/TEMPLATE_change.md` as a base.
+1. Save your change intention into a session file under `docs/prompts/sessions/`, using `docs/prompts/TEMPLATE_change.md` as a base.
 2. Run the update script to add a quick snapshot into the master prompt:
 
 ```bash
-python tools/update_master_prompt.py prompts/sessions/20260214-1430-waitlist.md
+python scripts/update_master_prompt.py docs/prompts/sessions/20260214-1430-waitlist.md
 ```
 
-This prepends a compact session snapshot into `prompts/MASTER_PROMPT.md` under `## Recent Sessions`.
+This prepends a compact session snapshot into `docs/prompts/MASTER_PROMPT.md` under `## Recent Sessions`.
 
 3. Produce a ready-to-send prompt for ChatGPT by assembling master + session:
 
 ```bash
-python tools/assemble_prompt.py --session prompts/sessions/20260214-1430-waitlist.md > ready_prompt.txt
+python scripts/assemble_prompt.py --session docs/prompts/sessions/20260214-1430-waitlist.md > ready_prompt.txt
 ```
 
 4. Copy `ready_prompt.txt` into ChatGPT or your model UI. After the assistant responds, save the assistant reply into the same session file and commit both session + any code changes.
@@ -43,9 +43,9 @@ No `make` installed? Use direct commands
 ```bash
 cd /home/rocco/projects/ORAS-Tickets
 git config core.hooksPath .githooks
-python3 tools/generate_auto_session.py
-python3 tools/update_master_prompt.py latest-auto
-python3 tools/assemble_prompt.py --session prompts/sessions/<your-session>.md > ready_prompt.txt
+python3 scripts/generate_auto_session.py
+python3 scripts/update_master_prompt.py latest-auto
+python3 scripts/assemble_prompt.py --session docs/prompts/sessions/<your-session>.md > ready_prompt.txt
 ```
 
 Notes and best practices

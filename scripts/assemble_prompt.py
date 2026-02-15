@@ -2,7 +2,7 @@
 """Assemble a ready-to-send prompt by combining MASTER_PROMPT.md and a session file.
 
 Usage:
-  python tools/assemble_prompt.py --session prompts/sessions/20260214-1430-waitlist.md > ready_prompt.txt
+  python scripts/assemble_prompt.py --session docs/prompts/sessions/20260214-1430-waitlist.md > ready_prompt.txt
 
 Options:
   --session <path>  Path to a session file (optional). If provided, its contents will be appended under CONTEXT.

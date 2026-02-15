@@ -46,4 +46,4 @@ Notes (recent additions):
 
 ---
 Example usage:
-- Fill the template, save as `prompts/sessions/2026-02-14-add-waitlist.md`, then paste the filled MASTER_PROMPT + session file into ChatGPT.
+- Fill the template, save as `docs/prompts/sessions/2026-02-14-add-waitlist.md`, then paste the filled MASTER_PROMPT + session file into ChatGPT.

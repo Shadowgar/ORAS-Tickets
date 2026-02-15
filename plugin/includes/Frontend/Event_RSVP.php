@@ -189,6 +189,9 @@ final class Event_RSVP {
 
         if ( ! $error ) {
             update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
+            if ( $new_status === 'waitlist' ) {
+                update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts', time() );
+            }
             $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
         } else {
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'capacity' ) ), $redirect );

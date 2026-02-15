@@ -1,0 +1,39 @@
+#oras-events-addon .oras-events-addon__layout {
+	display: flex;
+	gap: 16px;
+}
+
+#oras-events-addon .oras-events-addon__tabs {
+	width: 180px;
+	flex: 0 0 180px;
+	border-right: 1px solid;
+	padding-right: 12px;
+}
+
+#oras-events-addon .oras-events-addon__tab {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 8px 10px;
+	margin: 0 0 6px;
+	border-radius: 4px;
+	text-decoration: none;
+}
+
+#oras-events-addon .oras-events-addon__tab.is-active {
+	text-decoration: underline;
+	font-weight: 600;
+}
+
+#oras-events-addon .oras-events-addon__panels {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+#oras-events-addon .oras-events-addon__panel {
+	padding: 0;
+}
+
+#oras-events-addon .oras-events-addon__panel[hidden] {
+	display: none;
+}

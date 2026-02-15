@@ -3,11 +3,12 @@
 
 Next approved development phases (short-term):
 
-1) Phase 5.3 — Unified ORAS Event Metabox (UI container refactor)
-	- Create `ORAS EVENTS ADDON` master metabox containing vertical tabs: Tickets, Agenda, RSVP, Speakers, Virtual Access.
+1) ~~Phase 5.3 — Unified ORAS Event Metabox (UI container refactor)~~ ✅ **COMPLETED**
+	- Create `ORAS EVENTS ADDON` master metabox containing vertical tabs: Tickets, Agenda, RSVP, Speakers.
+	- Virtual Access remains integrated in The Events Calendar's virtual metabox via filters.
 	- Reuse existing per-feature render + save handlers; no meta schema changes.
 
-2) Phase 5.4 — RSVP Management Dashboard (operational UI)
+2) ~~Phase 5.4 — RSVP Management Dashboard (operational UI)~~ ✅ **COMPLETED**
 	- Move attendee lists, CSV export, and waitlist promotion into the plugin Dashboard with an event selector and AJAX-driven lists.
 	- Keep Event Edit focused on per-event configuration only.
 

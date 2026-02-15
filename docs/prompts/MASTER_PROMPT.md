@@ -434,8 +434,8 @@ Proceed carefully.
   - phpstan: FAIL (exit 1)
   - phpcs: FAIL (exit 2)
 - Key files:
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260215-051140-e4a73f5.md
+  - docs/prompts/MASTER_PROMPT.md
+  - docs/prompts/sessions/auto-20260215-051140-e4a73f5.md
 
 ### Session Snapshot
 - Date: 2026-02-14T11:04:47.985446Z
@@ -450,8 +450,8 @@ Proceed carefully.
   - .wp-env.json
   - .wp-env/php/php.ini
   - plugin/includes/Admin/Tickets_Metabox.php
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-105713-0b5fc35.md
+  - docs/prompts/MASTER_PROMPT.md
+  - docs/prompts/sessions/auto-20260214-105713-0b5fc35.md
 
 ### Session Snapshot
 - Date: 2026-02-14T10:57:13.920595Z
@@ -464,8 +464,8 @@ Proceed carefully.
   - phpcs: FAIL (exit 2)
 - Key files:
   - plugin/templates/single-oras_speaker.php
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-100446-65af058.md
+  - docs/prompts/MASTER_PROMPT.md
+  - docs/prompts/sessions/auto-20260214-100446-65af058.md
 
 ### Session Snapshot
 - Date: 2026-02-14T10:04:46.686905Z
@@ -477,8 +477,8 @@ Proceed carefully.
   - phpstan: FAIL (exit 1)
   - phpcs: FAIL (exit 2)
 - Key files:
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-093648-88d1631.md
+  - docs/prompts/MASTER_PROMPT.md
+  - docs/prompts/sessions/auto-20260214-093648-88d1631.md
 
 ### Session Snapshot
 - Date: 2026-02-14T09:36:48.747270Z
@@ -491,6 +491,6 @@ Proceed carefully.
   - phpcs: FAIL (exit 2)
 - Key files:
   - plugin/includes/Frontend/Event_Agenda_Render.php
-  - prompts/MASTER_PROMPT.md
-  - prompts/sessions/auto-20260214-093129-4501a00.md
+  - docs/prompts/MASTER_PROMPT.md
+  - docs/prompts/sessions/auto-20260214-093129-4501a00.md
 
