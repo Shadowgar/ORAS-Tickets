@@ -213,6 +213,25 @@ Phase 5+ — Future (explicitly deferred)
 * REST API endpoints: GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}`
 * Virtual access gating for TEC Virtual Events (`_oras_virtual_access_v1`)
 
+### 5.3 — Unified ORAS Event Metabox (Phase)
+
+* Create a single master metabox `ORAS EVENTS ADDON` rendered in the event editor
+* Vertical navigation tabs within the metabox: Tickets, Agenda, RSVP, Speakers, Virtual Access
+* Reuse existing per-feature forms and save handlers inside the new UI container
+* No meta schema changes; purely UI container refactor
+
+### 5.4 — RSVP Management Dashboard (Phase)
+
+* Move RSVP attendee list, CSV export, and waitlist promotion out of the event edit screen
+* Add `RSVP Management` section in the plugin Dashboard with event selector and AJAX-driven lists
+* Keeps Event Edit focused on per-event configuration; operational management lives in Dashboard
+
+### 5.5 — Settings Page Expansion (Phase)
+
+* Centralize global defaults and feature toggles on `ORAS-Tickets → Settings`
+* Examples: default RSVP capacity, default waitlist behavior, virtual access defaults, ticket auto-complete toggles
+* All global behavior controls belong on the settings page, not per-event metabox
+
 ### 5.2 — RSVP Admin Management Panel ✅ IMPLEMENTED
 
 * “RSVP Attendees” metabox in event editor (only for RSVP-enabled events)

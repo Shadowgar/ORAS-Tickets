@@ -222,6 +222,10 @@ In Progress:
 
 * Phase 5 — RSVP + Waitlist System (frontend RSVP + waitlist implemented; virtual access gating implemented; REST endpoints implemented; admin management panel implemented). See `plugin/includes/Frontend/Event_RSVP.php`, `plugin/includes/Frontend/Virtual_Access.php`, `plugin/includes/Api/Rsvp.php`, and `plugin/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`.
 
+Architectural correction & next phases:
+
+The event editor UI will be consolidated into a single master metabox (`ORAS EVENTS ADDON`) with vertical tabs for Tickets, Agenda, RSVP, Speakers, and Virtual Access (Phase 5.3). RSVP attendee lists, exports, and waitlist management will move from the event editor to a Dashboard management UI (Phase 5.4). Global defaults and feature toggles will be centralized under `ORAS-Tickets → Settings` (Phase 5.5). These changes are UI/layout focused; no meta schema or DB changes are required.
+
 ---
 
 # NEXT ENGINEERING PRIORITY

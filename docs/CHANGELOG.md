@@ -108,4 +108,9 @@ Status: COMPLETE (LOCKED)
 - “Promote from Waitlist” button: promotes oldest waitlist user to yes if capacity allows.
 - Implemented in `includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` with admin-post handlers.
 
+## Planned — Architectural Restructure (Phase 5.3 - 5.5)
+- Phase 5.3 — Unified ORAS Event Metabox: consolidate Tickets, Agenda, RSVP, Speakers, and Virtual Access into one `ORAS EVENTS ADDON` master metabox rendered as vertical tabs in the event editor. UI container refactor only; reuse existing forms and save handlers.
+- Phase 5.4 — RSVP Management Dashboard: move attendee lists, CSV export, and waitlist promotion into the plugin Dashboard with an event selector and AJAX-driven lists; keep event edit focused on per-event settings.
+- Phase 5.5 — Settings Page Expansion: centralize global defaults and feature toggles under `ORAS-Tickets → Settings` (default RSVP capacity, waitlist defaults, virtual access defaults, ticket auto-complete toggles).
+
 ```

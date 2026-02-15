@@ -57,6 +57,11 @@ No completed functionality is removed or reset.
 - Phase 5.1-C: RSVP REST endpoints (Member Hub API consumption).
 - Phase 5.2: RSVP Admin Management Panel (stats, attendees list, CSV export, waitlist promotion).
 
+Planned next steps (Phase 5.3-5.5):
+ - Phase 5.3: Unified ORAS Event Metabox — create a single `ORAS EVENTS ADDON` master metabox in the event editor that contains vertical tabs for Tickets, Agenda, RSVP, Speakers, and Virtual Access. This is a UI container refactor only (reuse existing forms and save handlers; no meta schema changes).
+ - Phase 5.4: RSVP Management Dashboard — move RSVP attendee lists, CSV export, and waitlist promotion out of the event edit screen and into the plugin Dashboard with an event selector and AJAX-driven lists.
+ - Phase 5.5: Settings Page Expansion — centralize global defaults and feature toggles in `ORAS-Tickets → Settings` (default capacity, waitlist behavior, virtual access defaults, ticket auto-complete toggles).
+
 ---
 
 ## Not Implemented Yet

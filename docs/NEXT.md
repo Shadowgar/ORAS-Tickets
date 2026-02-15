@@ -1,23 +1,24 @@
 
 # NEXT — Single Focus
 
-Next approved development phase: Phase 4.6 — Speaker Resource Uploads + Historical Archive
+Next approved development phases (short-term):
 
-Note: Phase 5 (RSVP + Waitlist) is now active for frontend RSVP and virtual-access gating; future NEXT items should account for Phase 5 admin/dashboard work. Implementations live in `plugin/includes/Frontend/Event_RSVP.php` (RSVP UI + handler) and `plugin/includes/Frontend/Virtual_Access.php` (virtual access gating).
+1) Phase 5.3 — Unified ORAS Event Metabox (UI container refactor)
+	- Create `ORAS EVENTS ADDON` master metabox containing vertical tabs: Tickets, Agenda, RSVP, Speakers, Virtual Access.
+	- Reuse existing per-feature render + save handlers; no meta schema changes.
 
-Note: Phase 4.2 is deferred (retained below for reference).
+2) Phase 5.4 — RSVP Management Dashboard (operational UI)
+	- Move attendee lists, CSV export, and waitlist promotion into the plugin Dashboard with an event selector and AJAX-driven lists.
+	- Keep Event Edit focused on per-event configuration only.
 
-Status: Ready for implementation planning.
+3) Phase 5.5 — Settings Page Expansion (global defaults)
+	- Consolidate global behavior toggles under `ORAS-Tickets → Settings` (default capacity, waitlist behavior, virtual access defaults, ticket auto-complete).
 
-Concrete next phases:
-1) Phase 4.2-A — Reporting hardening
-	- Per-speaker assignment/fulfillment export views.
-	- Reporting performance pass for larger datasets.
-2) Phase 4.2-B — Automation refinements
-	- Optional internal notification refinements around fulfillment actions.
-	- Audit-friendly activity summaries for speaker obligations.
+Notes:
+- Phase 5 (RSVP + Waitlist) frontend and REST work is implemented; these NEXT items focus on admin UX and settings consolidation.
+- Phase 4.2 remains deferred and will be revisited after the Phase 5 admin refactors.
 
 Verification checklist (current features):
-- `wp post meta get <event_id> _oras_agenda_v1`
-- `wp post meta list <speaker_id> --keys=_oras_speaker_headshot_id`
-- `wp post get <speaker_id> --fields=ID,post_status,post_name`
+ - `wp post meta get <event_id> _oras_agenda_v1`
+ - `wp post meta list <speaker_id> --keys=_oras_speaker_headshot_id`
+ - `wp post get <speaker_id> --fields=ID,post_status,post_name`
