@@ -10,404 +10,158 @@ You must operate carefully, minimally, and phase-by-phase.
 
 ---
 
-# PROJECT IDENTITY
+# ✅ MASTER HANDOFF — ORAS-Tickets (updated)
 
-**Organization:** Oil Region Astronomical Society (ORAS)
-**Plugin:** ORAS-Tickets
-**Namespace:** `ORAS\Tickets`
-**Local Dev:** `npx wp-env`
-**Workflow:** VS Code + GitHub Copilot writes code
-**ChatGPT Role:** Architecture + deterministic phase control
+This is the authoritative handoff prompt for the ORAS-Tickets codebase. Paste this file into a new ChatGPT session together with the repository ZIP so the model can perform audits, create prompts, and propose code changes.
 
-Stack:
-
-* WordPress
-* The Events Calendar (TEC)
-* Event Tickets (free)
-* WooCommerce
-* Stripe
-* Paid Memberships Pro (PMPro)
-
-Separate plugin:
-
-* ORAS Member Hub (frontend-only, consumes ORAS REST / print routes)
+Keep instructions deterministic and phase-driven: small, minimal diffs only; follow the Hard Rules below.
 
 ---
 
-# HARD RULES
+## Project At-a-Glance
 
-1. ORAS-Tickets is an ADD-ON.
-
-   * Never modify TEC core.
-   * Never modify Event Tickets core.
-   * Never modify WooCommerce core.
-   * Never modify PMPro core.
-
-2. No SaaS.
-
-3. No telemetry.
-
-4. No license servers.
-
-5. Deterministic logic only.
-
-6. Minimal diffs only.
-
-7. Backwards-compatible meta envelopes.
-
-8. No structural refactors without explicit approval.
-
-9. One phase at a time.
+- Name: ORAS-Tickets
+- Organization: Oil Region Astronomical Society (ORAS)
+- Primary purpose: Event ticketing + RSVP + speaker and agenda enhancements integrated with The Events Calendar (TEC)
+- Language/stack: PHP (WordPress), JS, CSS; integrates with TEC, Event Tickets, WooCommerce, Stripe, PMPro
+- Local dev: `npx wp-env` (project includes `.wp-env.json`)
+- Primary plugin namespace: `ORAS\\Tickets`
 
 ---
 
-# AUTHORITATIVE DOCUMENTS (READ FIRST)
+## Hard Rules (must follow)
 
-1. `docs/CURRENT_STATE.md`
-2. `docs/COPILOT_CONTEXT.md`
-3. `docs/PROJECT_STATE.md`
-4. `docs/NEXT.md`
-5. `docs/CHANGELOG.md`
-6. `docs/ARCHITECTURE_BOUNDARIES.md`
-
-Docs override assumptions.
+1. ORAS-Tickets is an ADD-ON: do NOT modify TEC, Event Tickets, WooCommerce, or PMPro core files.
+2. No new DB tables unless explicitly approved.
+3. No telemetry, no license servers, no external SaaS required.
+4. Small, deterministic diffs only. Avoid large structural refactors without explicit approval.
+5. Preserve backwards-compatible meta envelopes and existing meta keys.
 
 ---
 
-# CURRENT ARCHITECTURE SUMMARY
+## Key Repo Paths (open these first)
 
-## Tickets
-
-Event meta:
-
-* `_oras_tickets_v1`
-* `_oras_tickets_woo_map_v1`
-
-Product meta:
-
-* `_oras_ticket_event_id`
-* `_oras_ticket_index`
-
-Woo features:
-
-* Hidden products per ticket
-* Capacity consumption
-* Auto-complete ticket-only orders
-* `_oras_autocompleted` marker
+- `plugin/` — primary plugin source
+  - `plugin/includes/Bootstrap.php` — wiring & module registration
+  - `plugin/includes/Frontend/` — frontend controllers (e.g., `Event_RSVP.php`, `Virtual_Access.php`)
+  - `plugin/includes/Api/` — REST endpoints (e.g., `Rsvp.php`)
+  - `plugin/includes/Admin/Metaboxes/` — admin metaboxes (tickets, RSVP, agenda, speakers)
+  - `plugin/assets/` — CSS/JS assets
+- `docs/` — architecture, project state, next steps
+- `docs/prompts/` — prompt templates and session snapshots
+- `scripts/`, `tools/` — developer helper scripts
+- `config/` — phpstan/phpcs configs
 
 ---
 
-## Speakers
+## Important Meta Keys & Conventions
 
-CPT: `oras_speaker`
+- Event ticketing: `_oras_tickets_v1`, `_oras_tickets_woo_map_v1`
+- RSVP: `_oras_rsvp_v1` (envelope), per-user RSVP state stored in usermeta `_oras_rsvp_event_{EVENT_ID}`
+- Virtual access: `_oras_virtual_access_v1`
+- Speakers: `oras_speaker` CPT and `_oras_speakers_v1` envelope
+- Agenda: `_oras_agenda_v1`
 
-Meta keys:
-
-* `_oras_speaker_email`
-* `_oras_speaker_affiliation`
-* `_oras_speaker_website_url`
-* `_oras_speaker_headshot_id`
-* `_oras_speaker_wp_user_id`
-* `_oras_speaker_status`
-* `_oras_speaker_internal_notes`
-* `_oras_speaker_history_v1` (Phase 4.6)
-
-Event envelope:
-
-* `_oras_speakers_v1`
-
-Speaker single template exists.
+All meta is versioned (v1) and saved as arrays/envelopes; avoid changing schemas without coordinated migration.
 
 ---
 
-## Agenda
+## Current Phase / Status (short)
 
-Event meta:
-
-* `_oras_agenda_v1`
-
-Structure:
-
-```
-[
-  'version' => 1,
-  'settings' => [],
-  'days' => [
-     [
-       'day_label',
-       'date',
-       'slots' => [
-           [
-             'start',
-             'end',
-             'title',
-             'desc',
-             'type',
-             'location',
-             'visibility',
-             'speakers' => [],
-             'resources' => []  // Phase 4.6
-           ]
-       ]
-     ]
-  ]
-]
-```
+- Core ticketing and Woo mapping implemented. Ticket print and Woo mapping exist.
+- Speaker CPT and Agenda features implemented.
+- Phase 5 (RSVP + Waitlist + Virtual Access) is active: frontend RSVP, REST endpoints, virtual access gating, admin helpers exist; work remains on master metabox and dashboard UX.
 
 ---
 
-## Frontend Controllers
+## Quick Local Setup & Verification
 
-* Ticket print route
-* Agenda renderer
-* Tickets display injection
-* Member Hub REST bridge
-
----
-
-# CRITICAL POLICY — RECURRENCE GUARDRAIL
-
-TEC does not fully support ticketing on recurring events.
-
-Therefore ORAS must implement a deterministic guardrail:
-
-Recommended policy:
-
-* If ORAS tickets exist → recurrence must be disabled.
-* If recurrence is enabled → ORAS ticketing must be disabled.
-
-This prevents undefined behavior and reporting corruption.
-
----
-
-# STRATEGIC DIRECTION
-
-ORAS-Tickets is not trying to replace TEC.
-
-TEC handles:
-
-* Views
-* Recurrence
-* Core event rendering
-
-ORAS-Tickets owns:
-
-* Ticket commerce logic
-* Capacity lifecycle
-* RSVP and waitlist logic
-* QR check-in
-* Speaker institutional memory
-* Treasurer reporting
-* Access gating (Zoom, resources)
-* Member Hub API layer
-
----
-
-# CURRENT PHASE STATUS
-
-Completed:
-
-* Ticket system
-* Woo mapping
-* Auto-complete ticket-only orders
-* Speaker CPT
-* Agenda system
-* Speaker modal + rendering
-* Ticket print system
-* Speaker history index (Phase 4.6.1)
-* Speaker resource archive (Phase 4.6.2)
-* Recurrence guardrail (Phase 4.7)
-
-In Progress:
-
-* Phase 5 — RSVP + Waitlist System (frontend RSVP + waitlist implemented; virtual access gating implemented; REST endpoints implemented; admin management panel implemented). See `plugin/includes/Frontend/Event_RSVP.php`, `plugin/includes/Frontend/Virtual_Access.php`, `plugin/includes/Api/Rsvp.php`, and `plugin/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`.
-
-Architectural correction & next phases:
-
-The event editor UI will be consolidated into a single master metabox (`ORAS EVENTS ADDON`) with vertical tabs for Tickets, Agenda, RSVP, Speakers, and Virtual Access (Phase 5.3). RSVP attendee lists, exports, and waitlist management will move from the event editor to a Dashboard management UI (Phase 5.4). Global defaults and feature toggles will be centralized under `ORAS-Tickets → Settings` (Phase 5.5). These changes are UI/layout focused; no meta schema or DB changes are required.
-
----
-
-# NEXT ENGINEERING PRIORITY
-
-1. Phase 4.7 (Recurrence Guardrail) is complete.
-2. Begin Phase 5 — RSVP + Waitlist System.
-
----
-
-# UPCOMING PHASES (HIGH LEVEL)
-
-## Phase 5 — Registration & Capacity Intelligence
-
-* RSVP mode (non-commerce registration)
-* Waitlist system with priority promotion
-* Capacity tracking and management
-* Email confirmations and verification flows
-* Admin dashboard with real-time metrics
-* CSV/Excel export capabilities
-* PMPro member restrictions
-
-## Phase 6 — Advanced Ticketing Intelligence
-
-* Structured ticket tier system (early bird/member/public)
-* Date-based automatic pricing windows
-* QR code generation and validation
-* Check-in system with attendance tracking
-* Reservation window logic with temporary holds
-* Per-user purchase limits and enforcement
-
-## Phase 7 — Speaker & Content Intelligence
-
-* Speaker resource archive (slides/handouts/links)
-* Speaker performance analytics and metrics
-* Frontend speaker submission system
-* Review queue and approval workflow
-* Institutional memory preservation
-* Speaker contribution scoring
-
-## Phase 8 — Virtual & Hybrid Event System
-
-* Zoom gated access based on tickets/RSVP
-* Virtual-only ticket types
-* Hybrid capacity modeling
-* Virtual attendance tracking
-* Recording access controls
-* Post-event content distribution
-
-## Phase 9 — User Dashboard (Member Hub Expansion)
-
-* My Tickets and RSVP management
-* My Speaker History archive
-* Downloadable tickets and invoices
-* Printable badges and materials
-* Check-in status display
-* Personalized event recommendations
-
-## Phase 10 — Financial & Reporting Intelligence
-
-* Advanced revenue analytics suite
-* Automated PDF invoice generation
-* Refund intelligence and tracking
-* Treasurer-grade financial reporting
-* Comprehensive export capabilities
-* Tax calculation and compliance
-
-## Phase 11 — Discovery & UX Features
-
-* Event discovery and recommendation engine
-* Advanced search and filtering
-* Mobile optimization and accessibility
-* User experience enhancements
-
-## Phase 12 — Automation & Notifications
-
-* Event communication automation (reminders)
-* Post-event follow-up system
-* Feedback form integration
-* Engagement tracking and analytics
-
----
-
-# REQUIRED FIRST ACTION IN NEW CHAT
-
-1. Audit the entire uploaded ORAS-Tickets repository.
-2. Confirm:
-
-   * Bootstrap wiring
-   * Agenda save handler
-   * Speaker CPT
-   * Woo auto-complete module
-   * Ticket print controller
-3. Confirm docs match implementation.
-4. Identify drift.
-5. Then proceed to the current approved phase only.
-
----
-
-# OUTPUT FORMAT REQUIRED
-
-For every change:
-
-* Files to modify
-* Exact Copilot prompt
-* Sanitization logic
-* WP-CLI verification commands
-* Minimal diffs only
-* No speculative refactors
-
----
-
-This is production software.
-
----
-
-## HANDOFF PROMPT (Give this to ChatGPT with repository ZIP attached)
-
-When you receive the ORAS-Tickets repository as a zip file, use the following instructions verbatim. Do not assume external context beyond the repository and the attachments.
-
-1) Immediate audit (files to open first)
- - `plugin/includes/Bootstrap.php` — confirm registration of modules and where to hook Phase work (search for `register_phase1`).
- - `plugin/includes/Frontend/Event_RSVP.php` — frontend RSVP rendering and admin-post handler.
- - `plugin/includes/Frontend/Virtual_Access.php` — virtual event access gating logic.
- - `plugin/includes/Api/Rsvp.php` — REST endpoints for Member Hub (GET `/oras/v1/rsvp/my`, `/oras/v1/rsvp/event/{id}`).
- - `plugin/includes/Admin/Metaboxes/Event_RSVP_Metabox.php` — RSVP settings metabox.
- - `plugin/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` — RSVP attendees list, CSV export, promote action.
- - `plugin/assets/css/tickets-frontend.css` — frontend styles for RSVP block.
- - Docs: `docs/CURRENT_STATE.md`, `docs/PROJECT_STATE.md`, `docs/CHANGELOG.md`, `docs/NEXT.md` — read for phase status and planned work.
-
-2) Hard rules (must follow exactly)
- - No new database tables.
- - No structural refactors without explicit approval.
- - Minimal diffs only; prefer small, targeted changes.
- - Do NOT modify The Events Calendar (TEC) core, Event Tickets, WooCommerce, or PMPro core files.
- - Follow existing meta envelope and usermeta patterns (`_oras_rsvp_v1`, `_oras_rsvp_event_{EVENT_ID}`).
-
-3) Testing / smoke-check commands (use inside `oras-wp-env`)
- - Start environment:
+1. Start local WP environment:
 ```bash
 npx wp-env start
 ```
- - Verify RSVP REST routes (if WP bootstrap memory is low, include PHP memory flag):
+
+2. Run static checks locally (if you have composer/vendor installed):
 ```bash
-cd oras-wp-env
-npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval ' $r = rest_get_server()->get_routes(); echo isset($r["/oras/v1/rsvp/my"]) ? "my:ok\n":"my:missing\n"; echo isset($r["/oras/v1/rsvp/event/(?P<id>\\d+)"]) ? "event:ok\n":"event:missing\n"; '
-```
- - Exercise endpoints as an authenticated user (user id 1):
-```bash
-npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval 'wp_set_current_user(1); $req=new WP_REST_Request("GET","/oras/v1/rsvp/my"); $res=rest_do_request($req); echo $res->get_status(); echo "\n"; echo wp_json_encode($res->get_data());'
-```
- - Verify metabox registration (manual WP eval):
-```bash
-npx wp-env run cli wp eval 'global $wp_meta_boxes; add_action("add_meta_boxes", function(){ global $post; $post=get_post(10000001); do_action("add_meta_boxes");}); do_action("add_meta_boxes"); var_export(isset($wp_meta_boxes["tribe_events"]["normal"]["default"]["oras_event_rsvp_attendees_metabox"]));'
+composer phpcs
+composer phpstan
 ```
 
-4) Expected behaviors to confirm during audit
- - Frontend RSVP renders on single `tribe_events` when `_oras_rsvp_v1.enabled` is true.
- - RSVP user state stored in usermeta key `_oras_rsvp_event_{EVENT_ID}` with values `yes|no|waitlist`.
- - REST endpoints return deterministic JSON and require authentication.
- - Admin metabox `RSVP Attendees` shows counts and lists and exposes CSV export and promote actions.
+3. Common WP-CLI checks (inside repo root with `wp-env` running):
+```bash
+# List event meta for event 60
+npx wp-env run cli wp --skip-plugins --skip-themes post meta list 60
 
-5) Next recommended engineering task (start here)
- - Phase 5.3 — Implement `Event_Addon_Metabox.php` (master metabox):
-   - Create `plugin/includes/Admin/Metaboxes/Event_Addon_Metabox.php` which renders a single master metabox titled `ORAS EVENTS ADDON`.
-   - Left column: vertical nav (Tickets, Agenda, RSVP, Speakers). Right column: content panels.
-   - Reuse existing rendering methods from `Tickets_Metabox`, `Event_Agenda_Metabox`, `Event_RSVP_Metabox` inside the respective panels.
-   - Do NOT change underlying meta keys or save handlers — call existing save handlers as-is.
-   - Minimal CSS additions allowed in `plugin/assets/css/tickets-frontend.css` or an admin CSS file; no frameworks.
+# Check ORAS meta for an event
+npx wp-env run cli wp --skip-plugins --skip-themes post meta get 60 _oras_rsvp_v1
+npx wp-env run cli wp --skip-plugins --skip-themes post meta get 60 _oras_tickets_v1
 
-6) Acceptance criteria for Phase 5.3
- - Single master metabox appears on the event edit screen and contains tabs.
- - Existing per-feature forms render unchanged inside their tab panels.
- - Saving the event preserves existing meta shapes and behavior.
- - No new DB tables and no core/plugin edits outside the plugin.
+# Verify REST routes exist
+npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval ' $r = rest_get_server()->get_routes(); echo isset($r["/oras/v1/rsvp/my"]) ? "my:ok\n":"my:missing\n"; echo isset($r["/oras/v1/rsvp/event/(?P<id>\\d+)"]) ? "event:ok\n":"event:missing\n";'
+```
 
-7) Developer guidelines for implementation
- - Always run `php -l` on modified PHP files before committing.
- - Run `npx wp-env run cli wp eval` checks above to validate runtime routes and metabox registration.
- - Keep commits small and descriptive; include which phase and short description.
+---
 
-8) Files to update when implementing Phase 5.3 (minimal diffs)
- - `plugin/includes/Admin/Metaboxes/Event_Addon_Metabox.php` (new)
+## Audit Checklist (what to confirm during an initial audit)
+
+1. Bootstrap wiring: confirm `Bootstrap::register()` and that modules are registered in `plugin/includes/Bootstrap.php`.
+2. Frontend RSVP (`plugin/includes/Frontend/Event_RSVP.php`): renders on single event when `_oras_rsvp_v1.enabled` is true and posts data to handlers.
+3. Virtual access (`plugin/includes/Frontend/Virtual_Access.php`): ensures TEC virtual metabox can be augmented and saves `_oras_virtual_access_v1`.
+4. REST endpoints: `plugin/includes/Api/Rsvp.php` provides `/oras/v1/rsvp/*` routes and returns proper JSON with authentication.
+5. Admin metaboxes: RSVP attendees, tickets, agenda, speakers render and their save handlers work.
+6. Scripts and CI: `config/phpstan.neon`, `config/phpcs.xml` in repo root; `composer` scripts should run without path errors.
+
+---
+
+## Typical Commands You May Need
+
+- Start dev environment: `npx wp-env start`
+- Run WP-CLI inside container: `npx wp-env run cli wp ...`
+- Run PHP evals: `npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval '...'
+- Run static checks: `composer phpstan` and `composer phpcs`
+
+---
+
+## Known Operational Notes
+
+- The repository previously had a GitHub Actions workflow that auto-updated `docs/prompts/MASTER_PROMPT.md` from auto-generated session files; this workflow has been removed (no bot commits should occur anymore).
+- Developer helper scripts live in `scripts/` and `tools/`. They are manual and should not be executed automatically by CI.
+
+---
+
+## First Tasks for a New Chat (what to ask the model to do first)
+
+1. Run a deterministic audit following the Audit Checklist above. Report files changed, missing behaviors, and a short remediation plan.
+2. Confirm Phase 5 wiring and list gaps required to complete Phase 5.3 (master metabox) and Phase 5.4 (dashboard).
+3. Provide exact, minimal diffs to implement Phase 5.3 (one PR) — include file list, code snippets, and WP-CLI verification steps.
+
+When you request code changes, require that each proposed patch:
+- includes a one-line commit message
+- includes WP-CLI verification commands
+- is as small and targeted as possible
+
+---
+
+## Example Starter Prompt (paste into new chat along with the repo zip)
+
+You are a senior WordPress plugin engineer. I will upload the ORAS-Tickets repository as a zip. First, perform a deterministic audit of the repository. Use the Audit Checklist in the MASTER_PROMPT to guide the audit. Produce:
+
+1. A short summary of the repo (3-6 bullets).
+2. A list of 3 high-priority issues to fix now (safety, broken hooks, missing wiring).
+3. One minimal PR implementing the highest-priority fix with a diff, commit message, and WP-CLI verification steps.
+
+Do not proceed beyond those steps until I confirm.
+
+---
+
+## Contact / Context
+
+This repository is actively developed. Keep changes minimal, discuss large refactors first, and strictly follow the Hard Rules.
+
+---
+
+End of MASTER_PROMPT
+
  - `plugin/includes/Bootstrap.php` (require and register the new metabox; unregister old metaboxes only after new one is live)
  - `plugin/assets/css/tickets-frontend.css` (minor admin tab styling only)
 
