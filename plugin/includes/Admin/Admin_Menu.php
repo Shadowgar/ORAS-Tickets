@@ -131,9 +131,10 @@ final class Admin_Menu {
 			'oras-dashboard-rsvp',
 			'var orasDashboardRsvp = ' . wp_json_encode(
 				array(
-					'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
-					'adminPostUrl' => admin_url( 'admin-post.php' ),
-					'nonce'      => wp_create_nonce( 'oras_rsvp_dashboard' ),
+					'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+					'adminPostUrl'  => admin_url( 'admin-post.php' ),
+					'adminBaseUrl'  => admin_url( '/' ),
+					'nonce'         => wp_create_nonce( 'oras_rsvp_dashboard' ),
 				)
 			) . ';',
 			'before'

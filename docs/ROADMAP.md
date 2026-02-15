@@ -157,27 +157,10 @@ Machine-readable ticket validation system.
 
 * Generates QR code per ticket.
 * Links to verification endpoint.
-* Allows check-in scan.
-* Prevents duplicate check-ins.
 
 ### Why It Matters
 
 AstroBlast scale events require efficient door management.
-
----
-
-## 6.3 Check-In System
-
-### What It Is
-
-Mobile-friendly check-in interface.
-
-### What It Does
-
-* QR scan or manual search.
-* Mark attendee as checked in.
-* Timestamp log.
-* Export check-in list.
 
 ---
 
@@ -303,7 +286,7 @@ Controlled display of Zoom link based on purchase or RSVP.
 ### Architecture Fit
 
 * Implement as a display-layer injection only — do not attempt to create/manage Zoom meetings from ORAS (leave meeting creation to other tooling).
-* Validate access by checking order ownership or RSVP records server-side before revealing links.
+* Validate access by confirming order ownership or RSVP records server-side before revealing links.
 
 
 ## 8.2 Auto Zoom Meeting Sync
@@ -349,7 +332,6 @@ Frontend user ticket center.
 * List purchased tickets.
 * Download/print.
 * See event status.
-* Check-in history.
 
 ---
 
@@ -527,7 +509,7 @@ Automated engagement.
 
 # Strategic Positioning (With TEC Pro in Mind)
 
-ORAS-Tickets should not try to become a calendar plugin. TEC Pro handles views, recurrence, and rendering. ORAS-Tickets must own commerce intelligence, capacity lifecycle, waitlist logic, speaker institutional memory, check-in tooling, treasurer reporting, and access gating rules. Build on top of TEC Pro and avoid duplicating Pro functionality.
+ORAS-Tickets should not try to become a calendar plugin. TEC Pro handles views, recurrence, and rendering. ORAS-Tickets must own commerce intelligence, capacity lifecycle, waitlist logic, speaker institutional memory, treasurer reporting, and access gating rules. Build on top of TEC Pro and avoid duplicating Pro functionality.
 
 
 Instead of copying MEC entirely, ORAS can win by:
