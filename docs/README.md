@@ -67,6 +67,9 @@ Before writing or changing code, read these files in this order:
 - **Phase 4.6.2:** Speaker resource archive complete / closed
 - **Phase 4.7:** Recurrence guardrail complete / closed
 
+### Phase 6 — Attendees Management (implemented)
+- Phase 6.2 → 6.5: Attendees Dashboard, Attendee Operations, Messaging, and Notes were implemented (admin-only features). See `docs/CURRENT_STATE.md` for detailed notes and verification steps.
+
 > The definitive, locked phase plan is maintained in `docs/CURRENT_STATE.md`.
 
 ### What’s next

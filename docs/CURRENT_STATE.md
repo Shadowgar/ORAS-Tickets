@@ -32,6 +32,14 @@ No completed functionality is removed or reset.
 - Virtual access gating: ORAS-only "Show to" options for TEC Virtual Events persisted in `_oras_virtual_access_v1` and enforced server-side when rendering virtual join links (code: `plugin/includes/Frontend/Virtual_Access.php`).
 - RSVP REST endpoints: Added GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}` for Member Hub consumption (code: `plugin/includes/Api/Rsvp.php`).
 
+### Phase 6 (Attendees Management) — Recent work (2026-02-15)
+- Phase 6.2: Attendees Dashboard MVP — Admin Dashboard with event selector, attendees list with deduplication across RSVP and ticket sources, AJAX loading, filters, and CSV export (code: `plugin/includes/Admin/Pages/Dashboard_Page.php`, `plugin/includes/Bootstrap.php`, `plugin/assets/admin/dashboard-rsvp.js`).
+- Phase 6.3: Attendee Operations MVP — Row actions (View User / View Order / Mailto), advanced filters (ticket status, guests-only), and improved CSV export plus minor URL bugfixes.
+- Phase 6.4: Attendee Messaging MVP — Admin compose panel, BCC-based bulk sending with chunking, per-chunk failure handling, and CC-to-admin option; handler `oras_attendees_send_email` now validates and normalizes recipient emails and returns accurate recipient/chunk counts (code: `plugin/includes/Bootstrap.php`, `plugin/assets/admin/dashboard-rsvp.js`).
+- Phase 6.5: Attendee Notes MVP — Inline note editor in attendees table, storage in post meta envelope `_oras_attendee_notes_v1`, filtering by notes, and CSV column for notes (code: `plugin/includes/Bootstrap.php`, `plugin/assets/admin/dashboard-rsvp.js`).
+
+All Phase 6 changes were implemented with minimal diffs, no new DB tables, and focused on admin-only workflows. Verification was performed via WP-CLI simulations for AJAX handlers and CSV export.
+
 
 ## Locked & Completed Phases
 - Phase 0: Foundations (repo structure, bootstrapping, tooling, namespaces).
