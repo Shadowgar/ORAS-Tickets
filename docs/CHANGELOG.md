@@ -1,6 +1,13 @@
 ```markdown
 # CHANGELOG (Append-Only)
 
+## 2026-02-15 — Phase 6: Attendees Management (6.2 → 6.5)
+- Phase 6.2: Attendees Dashboard MVP — admin dashboard with event selector, deduplicated attendees list (RSVP + tickets), AJAX loading, filters, and CSV export.
+- Phase 6.3: Attendee Operations MVP — row actions (View User, View Order, Mailto), ticket-status & guests-only filters, and CSV improvements.
+- Phase 6.4: Attendee Messaging MVP — admin compose panel with BCC chunking (50/recipient chunk), CC-to-admin option, recipient normalization/validation, and accurate recipient/chunk reporting in handler responses.
+- Phase 6.5: Attendee Notes MVP — inline note editor, notes stored in post meta envelope `_oras_attendee_notes_v1`, filtering by notes, and CSV note column.
+- All Phase 6 work implemented admin-side only, with no new DB tables; verification performed via WP-CLI simulations and manual checks.
+
 ## 2026-02-12 — Agenda + Speaker Modal (Completed)
 - Delivered multi-day agenda management via event meta `_oras_agenda_v1` with settings/day/slot envelope.
 - Added admin agenda metabox with nested repeaters (days -> slots -> speakers) and native date/time pickers.
