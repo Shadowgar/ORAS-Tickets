@@ -339,6 +339,87 @@ For every change:
 
 This is production software.
 
+---
+
+## HANDOFF PROMPT (Give this to ChatGPT with repository ZIP attached)
+
+When you receive the ORAS-Tickets repository as a zip file, use the following instructions verbatim. Do not assume external context beyond the repository and the attachments.
+
+1) Immediate audit (files to open first)
+ - `plugin/includes/Bootstrap.php` — confirm registration of modules and where to hook Phase work (search for `register_phase1`).
+ - `plugin/includes/Frontend/Event_RSVP.php` — frontend RSVP rendering and admin-post handler.
+ - `plugin/includes/Frontend/Virtual_Access.php` — virtual event access gating logic.
+ - `plugin/includes/Api/Rsvp.php` — REST endpoints for Member Hub (GET `/oras/v1/rsvp/my`, `/oras/v1/rsvp/event/{id}`).
+ - `plugin/includes/Admin/Metaboxes/Event_RSVP_Metabox.php` — RSVP settings metabox.
+ - `plugin/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` — RSVP attendees list, CSV export, promote action.
+ - `plugin/assets/css/tickets-frontend.css` — frontend styles for RSVP block.
+ - Docs: `docs/CURRENT_STATE.md`, `docs/PROJECT_STATE.md`, `docs/CHANGELOG.md`, `docs/NEXT.md` — read for phase status and planned work.
+
+2) Hard rules (must follow exactly)
+ - No new database tables.
+ - No structural refactors without explicit approval.
+ - Minimal diffs only; prefer small, targeted changes.
+ - Do NOT modify The Events Calendar (TEC) core, Event Tickets, WooCommerce, or PMPro core files.
+ - Follow existing meta envelope and usermeta patterns (`_oras_rsvp_v1`, `_oras_rsvp_event_{EVENT_ID}`).
+
+3) Testing / smoke-check commands (use inside `oras-wp-env`)
+ - Start environment:
+```bash
+npx wp-env start
+```
+ - Verify RSVP REST routes (if WP bootstrap memory is low, include PHP memory flag):
+```bash
+cd oras-wp-env
+npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval ' $r = rest_get_server()->get_routes(); echo isset($r["/oras/v1/rsvp/my"]) ? "my:ok\n":"my:missing\n"; echo isset($r["/oras/v1/rsvp/event/(?P<id>\\d+)"]) ? "event:ok\n":"event:missing\n"; '
+```
+ - Exercise endpoints as an authenticated user (user id 1):
+```bash
+npx wp-env run cli php -d memory_limit=512M /usr/local/bin/wp eval 'wp_set_current_user(1); $req=new WP_REST_Request("GET","/oras/v1/rsvp/my"); $res=rest_do_request($req); echo $res->get_status(); echo "\n"; echo wp_json_encode($res->get_data());'
+```
+ - Verify metabox registration (manual WP eval):
+```bash
+npx wp-env run cli wp eval 'global $wp_meta_boxes; add_action("add_meta_boxes", function(){ global $post; $post=get_post(10000001); do_action("add_meta_boxes");}); do_action("add_meta_boxes"); var_export(isset($wp_meta_boxes["tribe_events"]["normal"]["default"]["oras_event_rsvp_attendees_metabox"]));'
+```
+
+4) Expected behaviors to confirm during audit
+ - Frontend RSVP renders on single `tribe_events` when `_oras_rsvp_v1.enabled` is true.
+ - RSVP user state stored in usermeta key `_oras_rsvp_event_{EVENT_ID}` with values `yes|no|waitlist`.
+ - REST endpoints return deterministic JSON and require authentication.
+ - Admin metabox `RSVP Attendees` shows counts and lists and exposes CSV export and promote actions.
+
+5) Next recommended engineering task (start here)
+ - Phase 5.3 — Implement `Event_Addon_Metabox.php` (master metabox):
+   - Create `plugin/includes/Admin/Metaboxes/Event_Addon_Metabox.php` which renders a single master metabox titled `ORAS EVENTS ADDON`.
+   - Left column: vertical nav (Tickets, Agenda, RSVP, Speakers). Right column: content panels.
+   - Reuse existing rendering methods from `Tickets_Metabox`, `Event_Agenda_Metabox`, `Event_RSVP_Metabox` inside the respective panels.
+   - Do NOT change underlying meta keys or save handlers — call existing save handlers as-is.
+   - Minimal CSS additions allowed in `plugin/assets/css/tickets-frontend.css` or an admin CSS file; no frameworks.
+
+6) Acceptance criteria for Phase 5.3
+ - Single master metabox appears on the event edit screen and contains tabs.
+ - Existing per-feature forms render unchanged inside their tab panels.
+ - Saving the event preserves existing meta shapes and behavior.
+ - No new DB tables and no core/plugin edits outside the plugin.
+
+7) Developer guidelines for implementation
+ - Always run `php -l` on modified PHP files before committing.
+ - Run `npx wp-env run cli wp eval` checks above to validate runtime routes and metabox registration.
+ - Keep commits small and descriptive; include which phase and short description.
+
+8) Files to update when implementing Phase 5.3 (minimal diffs)
+ - `plugin/includes/Admin/Metaboxes/Event_Addon_Metabox.php` (new)
+ - `plugin/includes/Bootstrap.php` (require and register the new metabox; unregister old metaboxes only after new one is live)
+ - `plugin/assets/css/tickets-frontend.css` (minor admin tab styling only)
+
+9) If you run into memory/boot issues during WP-CLI checks
+ - Increase PHP memory for the WP-CLI command with `php -d memory_limit=512M /usr/local/bin/wp ...` as shown above.
+
+10) What to hand back in a PR or commit
+ - Small focused commits implementing the UI container and wiring; include `php -l` validation output, and a short testing checklist in the PR description with the commands used.
+
+Use this handoff text exactly when you upload the repo to the next assistant. The assistant should not guess repository layout beyond these paths — open and read the files above first.
+
+
 Proceed carefully.
 
 ## Recent Sessions
