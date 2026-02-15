@@ -26,11 +26,12 @@ No completed functionality is removed or reset.
 - System is operational end-to-end.
 - Treasurer reporting is complete and reliable.
 - Printable tickets are complete and internal (secure direct URLs with ownership validation).
-- No attendance tracking or QR scanning exists.
-- Agenda (event schedule) is implemented for TEC single events via event meta `_oras_agenda_v1`.
-- Speaker management and speaker public profiles are implemented.
+ 
+## Recent Additions (2026-02-15)
+- RSVP + Waitlist frontend: non-commerce RSVP UI now renders on single events when `_oras_rsvp_v1.enabled` is true; per-user state stored in usermeta `_oras_rsvp_event_{EVENT_ID}` with values `yes|no|waitlist` (code: `plugin/includes/Frontend/Event_RSVP.php`).
+- Virtual access gating: ORAS-only "Show to" options for TEC Virtual Events persisted in `_oras_virtual_access_v1` and enforced server-side when rendering virtual join links (code: `plugin/includes/Frontend/Virtual_Access.php`).
+- RSVP REST endpoints: Added GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}` for Member Hub consumption (code: `plugin/includes/Api/Rsvp.php`).
 
----
 
 ## Locked & Completed Phases
 - Phase 0: Foundations (repo structure, bootstrapping, tooling, namespaces).
@@ -52,6 +53,8 @@ No completed functionality is removed or reset.
 - Phase 4.6.1: Speaker historical index (_oras_speaker_history_v1 envelope).
 - Phase 4.6.2: Speaker resource archive (slot-level resources, speaker page rendering).
 - Phase 4.7: Recurrence guardrail (prevents ORAS ticketing on recurring TEC events).
+- Phase 5.1-B: Frontend RSVP + Waitlist (UI, capacity enforcement, usermeta persistence).
+- Phase 5.1-C: RSVP REST endpoints (Member Hub API consumption).
 
 ---
 

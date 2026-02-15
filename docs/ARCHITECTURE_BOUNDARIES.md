@@ -35,3 +35,7 @@
 - ET provider registration
 - ET v2 template/view integration
 - Attendees, check-in, exports
+
+## Recent additions (2026-02-15)
+- RSVP + waitlist frontend for non-commerce registration implemented in `plugin/includes/Frontend/Event_RSVP.php`.
+- ORAS-only virtual access gating implemented in `plugin/includes/Frontend/Virtual_Access.php` and persisted in `_oras_virtual_access_v1`.

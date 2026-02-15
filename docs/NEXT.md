@@ -1,6 +1,9 @@
+
 # NEXT — Single Focus
 
 Next approved development phase: Phase 4.6 — Speaker Resource Uploads + Historical Archive
+
+Note: Phase 5 (RSVP + Waitlist) is now active for frontend RSVP and virtual-access gating; future NEXT items should account for Phase 5 admin/dashboard work. Implementations live in `plugin/includes/Frontend/Event_RSVP.php` (RSVP UI + handler) and `plugin/includes/Frontend/Virtual_Access.php` (virtual access gating).
 
 Note: Phase 4.2 is deferred (retained below for reference).
 

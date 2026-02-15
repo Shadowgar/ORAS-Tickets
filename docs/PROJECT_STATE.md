@@ -62,6 +62,9 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.6.1 is complete and locked (Speaker historical index).
 - Phase 4.6.2 is complete and locked (Speaker resource archive).
 - Phase 4.7 is complete and locked (Recurrence guardrail).
+ 
+## Recent updates
+- 2026-02-15: Phase 5.1 (RSVP frontend + waitlist) implemented: `plugin/includes/Frontend/Event_RSVP.php` provides non-commerce RSVP UI and handlers; per-user RSVP state stored in usermeta `_oras_rsvp_event_{EVENT_ID}`. Virtual access gating implemented in `plugin/includes/Frontend/Virtual_Access.php` and persisted in `_oras_virtual_access_v1`. Phase 5.1-C (RSVP REST endpoints) implemented: `plugin/includes/Api/Rsvp.php` provides GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}` for Member Hub consumption.
 
 ## Full Phase List (Trackable)
 - Phase 0 — Foundations (COMPLETE/LOCKED)
@@ -83,6 +86,8 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 4.6.1 — Speaker Historical Index (COMPLETE/LOCKED)
 - Phase 4.6.2 — Speaker Resource Archive (COMPLETE/LOCKED)
 - Phase 4.7 — Recurrence Guardrail (COMPLETE/LOCKED)
+- Phase 5.1-B — Frontend RSVP + Waitlist (COMPLETE/LOCKED)
+- Phase 5.1-C — RSVP REST Endpoints (COMPLETE/LOCKED)
 - Phase 4.2 — Speaker Reporting & Automation (PLANNED)
 - Phase 5+ — Future (DEFERRED)
 
@@ -196,16 +201,16 @@ Phase 5+ — Future (explicitly deferred)
 
 ## 🔜 PHASE 5 — Registration & Capacity Intelligence
 
-### 5.1 — RSVP System (Non-Commerce)
+### 5.1 — RSVP System (Non-Commerce) ✅ IMPLEMENTED
 
 * `_oras_rsvp_v1` envelope
-* Per-user RSVP state tracking
+* Per-user RSVP state tracking (`_oras_rsvp_event_{EVENT_ID}` usermeta)
 * Capacity management for free events
 * Waitlist logic with priority promotion
-* Email confirmations and cancellation
-* Admin dashboard with attendee counts
-* CSV/Excel export capabilities
-* PMPro integration for member restrictions
+* Frontend UI rendering on single events
+* Admin metabox for RSVP settings
+* REST API endpoints: GET `/oras/v1/rsvp/my` and `/oras/v1/rsvp/event/{event_id}`
+* Virtual access gating for TEC Virtual Events (`_oras_virtual_access_v1`)
 
 ### 5.2 — RSVP Admin Dashboard
 

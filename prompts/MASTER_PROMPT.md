@@ -215,10 +215,12 @@ Completed:
 * Speaker modal + rendering
 * Ticket print system
 * Speaker history index (Phase 4.6.1)
+* Speaker resource archive (Phase 4.6.2)
+* Recurrence guardrail (Phase 4.7)
 
 In Progress:
 
-* Phase 4.6.2 — Speaker Resource Uploads + Historical Archive
+* Phase 5 — RSVP + Waitlist System (frontend RSVP + waitlist implemented; virtual access gating implemented; REST endpoints implemented). See `plugin/includes/Frontend/Event_RSVP.php`, `plugin/includes/Frontend/Virtual_Access.php`, and `plugin/includes/Api/Rsvp.php`.
 
 ---
 
@@ -230,12 +232,6 @@ In Progress:
 ---
 
 # UPCOMING PHASES (HIGH LEVEL)
-
-## Phase 4.7 — Recurrence Guardrail ✅ (Completed)
-
-* Detect TEC recurrence patterns
-* Prevent ORAS ticketing on recurring events
-* Admin notices with edit links
 
 ## Phase 5 — Registration & Capacity Intelligence
 
@@ -344,14 +340,17 @@ Proceed carefully.
 ## Recent Sessions
 
 ### Session Snapshot
-- Date: 2026-02-15T05:11:40.453267Z
-- Author: Shadowgar <6254276+Shadowgar@users.noreply.github.com>
-- Commit: e4a73f5
-- Commit message: Merge pull request #3 from Shadowgar/alert-autofix-1
-- Goal: Merge pull request #3 from Shadowgar/alert-autofix-1
+- Date: 2026-02-15T06:29:39.033280Z
+- Author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+- Commit: 2fbd2a0
+- Commit message: chore: auto-update MASTER_PROMPT.md (action)
+- Goal: chore: auto-update MASTER_PROMPT.md (action)
 - Checks:
-  - phpstan: FAIL (exit 127)
-  - phpcs: FAIL (exit 127)
+  - phpstan: FAIL (exit 1)
+  - phpcs: FAIL (exit 2)
+- Key files:
+  - prompts/MASTER_PROMPT.md
+  - prompts/sessions/auto-20260215-051140-e4a73f5.md
 
 ### Session Snapshot
 - Date: 2026-02-14T11:04:47.985446Z

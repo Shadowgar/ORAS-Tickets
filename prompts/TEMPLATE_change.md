@@ -41,6 +41,9 @@ Follow-ups (what to do after merge):
 - Run full static analysis in CI
 - Tag release
 
+Notes (recent additions):
+- For RSVP frontend changes use `admin-post.php?action=oras_rsvp_update` and per-event nonce `oras_rsvp_{EVENT_ID}`.
+
 ---
 Example usage:
 - Fill the template, save as `prompts/sessions/2026-02-14-add-waitlist.md`, then paste the filled MASTER_PROMPT + session file into ChatGPT.

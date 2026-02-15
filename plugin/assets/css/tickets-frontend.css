@@ -141,3 +141,29 @@
 	min-width: 520px;
 	}
 }
+
+/* RSVP block separation */
+.oras-rsvp-block {
+	border: 1px solid #e1e4e8;
+	background: #ffffff;
+	padding: 1em;
+	margin: 1.25em 0;
+	border-radius: 6px;
+}
+.oras-rsvp-notice {
+	margin-bottom: 0.75em;
+	padding: 0.6em 0.75em;
+	border-radius: 4px;
+}
+.oras-rsvp-notice-success {
+	background: #e6f4ea;
+	color: #114b2b;
+}
+.oras-rsvp-notice-error {
+	background: #fdecea;
+	color: #7a1d1d;
+}
+.oras-rsvp-status-yes {
+	font-size: 1.05em;
+	color: #0b5132;
+}

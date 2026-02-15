@@ -135,3 +135,6 @@ Preferred safe points:
 - Filter: Tribe template resolution (to override v2 tickets view file)
 - Avoid broad logging/hook dumping.
 
+## Recent additions (2026-02-15)
+- ORAS added non-commerce RSVP + waitlist rendering and admin-post handlers (`plugin/includes/Frontend/Event_RSVP.php`) and ORAS-only virtual access gating (`plugin/includes/Frontend/Virtual_Access.php`). These are implemented as frontend filters and template pre-html hooks rather than ET core view edits.
+

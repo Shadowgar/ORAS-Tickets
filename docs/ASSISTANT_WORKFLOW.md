@@ -39,6 +39,9 @@ Tips
 - Use session files as the single source of truth for what was asked.
 - Commit session files before you call the assistant so the instruction history exists in the repo.
 
+## Recent additions (2026-02-15)
+- Frontend RSVP + waitlist feature was added; when creating session files for RSVP changes include `plugin/includes/Frontend/Event_RSVP.php` and mention `admin-post.php?action=oras_rsvp_update` so the assistant knows the handler location.
+
 If you want, I can now:
 - Add `tools/assemble_prompt.py` to render prompts automatically.
 - Create a simple Issue template that includes a `Prompt for assistant` section.

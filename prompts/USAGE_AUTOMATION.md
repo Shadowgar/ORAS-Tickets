@@ -28,6 +28,16 @@ python tools/assemble_prompt.py --session prompts/sessions/20260214-1430-waitlis
 
 4. Copy `ready_prompt.txt` into ChatGPT or your model UI. After the assistant responds, save the assistant reply into the same session file and commit both session + any code changes.
 
+Notes: recent additions (RSVP & Virtual Access)
+- RSVP frontend posts to `admin-post.php?action=oras_rsvp_update` and uses a per-event nonce `oras_rsvp_{EVENT_ID}`; verify via WP-CLI:
+
+```bash
+wp post meta get <event_id> _oras_rsvp_v1
+wp user meta get <user_id> _oras_rsvp_event_<event_id>
+```
+
+- RSVP REST endpoints: GET `/oras/v1/rsvp/my` returns user's RSVPs; GET `/oras/v1/rsvp/event/{event_id}` returns event stats; implemented in `plugin/includes/Api/Rsvp.php`.
+
 No `make` installed? Use direct commands
 
 ```bash

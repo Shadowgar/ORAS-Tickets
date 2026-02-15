@@ -151,3 +151,6 @@ Acceptance criteria:
    - automatic tickets display via ET/TEC views
    - checkout
 
+## Recent additions (2026-02-15)
+- ORAS implemented a lightweight RSVP + waitlist frontend (non-commerce) and ORAS-only virtual access gating; these live in `plugin/includes/Frontend/Event_RSVP.php` and `plugin/includes/Frontend/Virtual_Access.php` respectively and are not ET core edits.
+

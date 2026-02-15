@@ -138,6 +138,8 @@ Capabilities:
 - Waitlist signup when sold out / sales ended (depending config)
 - Admin waitlist management page(s)
 
+Note: ORAS implements a lightweight RSVP + waitlist frontend for non-commerce registration and a separate ORAS-only virtual access gating for TEC Virtual Events; see plugin/includes/Frontend/Event_RSVP.php and plugin/includes/Frontend/Virtual_Access.php.
+
 ---
 
 ## 9) Ticket Presets

@@ -1,3 +1,4 @@
+```markdown
 # CHANGELOG (Append-Only)
 
 ## 2026-02-12 — Agenda + Speaker Modal (Completed)
@@ -84,3 +85,19 @@ Status: COMPLETE (LOCKED)
 - Hooks into `woocommerce_order_status_processing`.
 - Uses meta marker `_oras_autocompleted` to avoid duplicate processing.
 - Mixed merch orders remain in `processing` (no auto-complete).
+
+## 2026-02-15 — Virtual Events access controls (ORAS-only)
+- Added admin "Show to" options for virtual events: `Everyone`, `Logged in`, `People who RSVP’d`, `People who purchased tickets`, and `People with free tickets`.
+- Persisted selection in `_oras_virtual_access_v1` as a versioned envelope (`version` => 1, `show_to` => value).
+- Admin options are surfaced conditionally when RSVP is enabled or ORAS ticket mappings exist for the event.
+- Frontend enforcement implemented server-side: join links/details are hidden when access is denied; denial message filter: `oras_tickets_virtual_access_denied_message`.
+- Added helper `ORAS\\Tickets\\Frontend\\Virtual_Access::current_user_can_access_virtual_link()` for programmatic checks.
+
+## 2026-02-15 — RSVP REST Endpoints (Phase 5.1-C)
+- Added REST API endpoints for Member Hub RSVP data consumption.
+- GET `/oras/v1/rsvp/my`: Returns authenticated user's RSVP status for all events (scans usermeta `_oras_rsvp_event_{EVENT_ID}`).
+- GET `/oras/v1/rsvp/event/{event_id}`: Returns RSVP stats for a specific event (yes_count, capacity, waitlist_enabled).
+- Implemented in `includes/Api/Rsvp.php` with WP_User_Query for efficient yes_count calculation.
+- Endpoints require authentication and validate event existence.
+
+```
