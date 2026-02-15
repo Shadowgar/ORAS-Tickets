@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 # post-commit intentionally no-op.
-# We now update and stage MASTER_PROMPT.md in pre-commit
-# so a single VS Code commit includes everything.
+# MASTER_PROMPT.md and session files are updated manually.
 exit 0
