@@ -2,6 +2,118 @@ jQuery( document ).ready( function( $ ) {
 	'use strict';
 
 	var adminBase = orasDashboardRsvp.adminBaseUrl || ( window.ajaxurl ? window.ajaxurl.replace("admin-ajax.php","") : "/wp-admin/" );
+	var ALLOWED_ADMIN_POST_ACTIONS = {
+		oras_rsvp_export_yes: true,
+		oras_rsvp_export_waitlist: true,
+		oras_rsvp_promote: true,
+		oras_attendees_export_csv: true
+	};
+	var ALLOWED_SOURCE_FILTERS = {
+		all: true,
+		tickets: true,
+		rsvp: true,
+		both: true
+	};
+	var ALLOWED_TICKET_STATUSES = {
+		all: true,
+		completed: true,
+		processing: true,
+		'on-hold': true,
+		refunded: true,
+		cancelled: true,
+		failed: true
+	};
+
+	function sanitizeEventId( value ) {
+		var parsed = parseInt( value, 10 );
+		if ( isNaN( parsed ) || parsed <= 0 ) {
+			return '';
+		}
+		return String( parsed );
+	}
+
+	function sanitizeEnum( value, allowedValues, fallback ) {
+		var normalized = String( value || '' );
+		return Object.prototype.hasOwnProperty.call( allowedValues, normalized ) ? normalized : fallback;
+	}
+
+	function sanitizeSearchTerm( value ) {
+		var normalized = String( value || '' ).trim().replace( /[\u0000-\u001F\u007F]/g, '' );
+		if ( normalized.length > 200 ) {
+			normalized = normalized.slice( 0, 200 );
+		}
+		return normalized;
+	}
+
+	function getTrustedAdminPostUrl() {
+		var fallback = new URL( adminBase + 'admin-post.php', document.baseURI );
+		fallback.search = '';
+		fallback.hash = '';
+		var rawUrl = typeof orasDashboardRsvp.adminPostUrl === 'string' ? orasDashboardRsvp.adminPostUrl : '';
+		if ( rawUrl === '' ) {
+			return fallback.toString();
+		}
+		try {
+			var candidate = new URL( rawUrl, document.baseURI );
+			if ( candidate.origin !== fallback.origin ) {
+				return fallback.toString();
+			}
+			if ( candidate.pathname !== fallback.pathname ) {
+				return fallback.toString();
+			}
+			if ( candidate.username || candidate.password ) {
+				return fallback.toString();
+			}
+			candidate.search = '';
+			candidate.hash = '';
+			return candidate.toString();
+		} catch ( err ) {
+			return fallback.toString();
+		}
+	}
+
+	function submitAdminPostGet( action, params ) {
+		if ( ! Object.prototype.hasOwnProperty.call( ALLOWED_ADMIN_POST_ACTIONS, action ) ) {
+			return;
+		}
+
+		var nonce = String( orasDashboardRsvp.nonce || '' );
+		if ( nonce === '' ) {
+			return;
+		}
+
+		var payload = {};
+		var input = params || {};
+		var keys = Object.keys( input );
+		for ( var i = 0; i < keys.length; i++ ) {
+			payload[ keys[i] ] = input[ keys[i] ];
+		}
+		payload.action = action;
+		payload._wpnonce = nonce;
+
+		var form = document.createElement( 'form' );
+		form.method = 'GET';
+		form.action = getTrustedAdminPostUrl();
+		form.style.display = 'none';
+
+		var payloadKeys = Object.keys( payload );
+		for ( var j = 0; j < payloadKeys.length; j++ ) {
+			var key = payloadKeys[j];
+			if ( payload[key] === null || typeof payload[key] === 'undefined' ) {
+				continue;
+			}
+
+			var hidden = document.createElement( 'input' );
+			hidden.type = 'hidden';
+			hidden.name = key;
+			hidden.value = String( payload[key] );
+			form.appendChild( hidden );
+		}
+
+		document.body.appendChild( form );
+		form.submit();
+		document.body.removeChild( form );
+	}
 
 	var $selector = $( '#oras-rsvp-event-selector' );
 	var $stats = $( '#oras-rsvp-stats' );
@@ -42,27 +154,42 @@ jQuery( document ).ready( function( $ ) {
 	} );
 
 	$( '#oras-rsvp-export-yes' ).on( 'click', function() {
-		var eventId = $selector.val();
+		var eventId = sanitizeEventId( $selector.val() );
 		if ( ! eventId ) {
 			return;
 		}
-		window.location.href = orasDashboardRsvp.adminPostUrl + '?action=oras_rsvp_export_yes&event_id=' + eventId + '&_wpnonce=' + orasDashboardRsvp.nonce;
+		submitAdminPostGet(
+			'oras_rsvp_export_yes',
+			{
+				event_id: eventId
+			}
+		);
 	} );
 
 	$( '#oras-rsvp-export-waitlist' ).on( 'click', function() {
-		var eventId = $selector.val();
+		var eventId = sanitizeEventId( $selector.val() );
 		if ( ! eventId ) {
 			return;
 		}
-		window.location.href = orasDashboardRsvp.adminPostUrl + '?action=oras_rsvp_export_waitlist&event_id=' + eventId + '&_wpnonce=' + orasDashboardRsvp.nonce;
+		submitAdminPostGet(
+			'oras_rsvp_export_waitlist',
+			{
+				event_id: eventId
+			}
+		);
 	} );
 
 	$( '#oras-rsvp-promote' ).on( 'click', function() {
-		var eventId = $selector.val();
+		var eventId = sanitizeEventId( $selector.val() );
 		if ( ! eventId ) {
 			return;
 		}
-		window.location.href = orasDashboardRsvp.adminPostUrl + '?action=oras_rsvp_promote&event_id=' + eventId + '&_wpnonce=' + orasDashboardRsvp.nonce;
+		submitAdminPostGet(
+			'oras_rsvp_promote',
+			{
+				event_id: eventId
+			}
+		);
 	} );
 
 	function loadRsvpData( eventId ) {
@@ -164,17 +291,26 @@ jQuery( document ).ready( function( $ ) {
 	} );
 
 	$attendeesExportCsv.on( 'click', function() {
-		var eventId = $attendeesEventSelector.val();
+		var eventId = sanitizeEventId( $attendeesEventSelector.val() );
 		if ( ! eventId ) {
 			return;
 		}
-		var sourceFilter = $attendeesSourceFilter.val();
-		var ticketStatus = $attendeesTicketStatusFilter.val();
+		var sourceFilter = sanitizeEnum( $attendeesSourceFilter.val(), ALLOWED_SOURCE_FILTERS, 'all' );
+		var ticketStatus = sanitizeEnum( $attendeesTicketStatusFilter.val(), ALLOWED_TICKET_STATUSES, 'all' );
 		var guestsOnly = $attendeesGuestsOnly.is( ':checked' ) ? '1' : '0';
 		var hasNoteOnly = $attendeesHasNoteOnly.is( ':checked' ) ? '1' : '0';
-		var search = $attendeesSearch.val().trim();
-		var url = orasDashboardRsvp.adminPostUrl + '?action=oras_attendees_export_csv&event_id=' + eventId + '&source_filter=' + sourceFilter + '&ticket_status=' + ticketStatus + '&guests_only=' + guestsOnly + '&has_note_only=' + hasNoteOnly + '&search=' + encodeURIComponent( search ) + '&_wpnonce=' + orasDashboardRsvp.nonce;
-		window.location.href = url;
+		var search = sanitizeSearchTerm( $attendeesSearch.val() );
+		submitAdminPostGet(
+			'oras_attendees_export_csv',
+			{
+				event_id: eventId,
+				source_filter: sourceFilter,
+				ticket_status: ticketStatus,
+				guests_only: guestsOnly,
+				has_note_only: hasNoteOnly,
+				search: search
+			}
+		);
 	} );
 
 	$attendeesSendEmail.on( 'click', function() {

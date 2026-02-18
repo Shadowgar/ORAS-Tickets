@@ -13,11 +13,11 @@ if (! defined('ORAS_TICKETS_VERSION')) {
 }
 
 if (! defined('ORAS_TICKETS_FILE')) {
-  define('ORAS_TICKETS_FILE', __DIR__ . '/../plugin/oras-tickets.php');
+  define('ORAS_TICKETS_FILE', __DIR__ . '/../oras-tickets/oras-tickets.php');
 }
 
 if (! defined('ORAS_TICKETS_DIR')) {
-  define('ORAS_TICKETS_DIR', __DIR__ . '/../plugin/');
+  define('ORAS_TICKETS_DIR', __DIR__ . '/../oras-tickets/');
 }
 
 if (! defined('ORAS_TICKETS_URL')) {

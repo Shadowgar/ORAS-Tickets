@@ -1,4 +1,7 @@
 {
+  "plugins": [
+    "./oras-tickets"
+  ],
   "config": {
     "php": ".wp-env/php/php.ini"
   }

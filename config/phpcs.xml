@@ -2,7 +2,7 @@
 <ruleset name="ORAS Tickets">
   <description>PHPCS rules for ORAS Tickets.</description>
 
-  <file>plugin</file>
+  <file>oras-tickets</file>
 
   <exclude-pattern>*/vendor/*</exclude-pattern>
   <exclude-pattern>*/node_modules/*</exclude-pattern>
