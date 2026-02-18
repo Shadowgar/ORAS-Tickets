@@ -36,6 +36,29 @@
 		}
 	}
 
+	function replacePhaseTokens(fragment, phaseIndex){
+		var walker = document.createTreeWalker( fragment, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null );
+		var node   = walker.currentNode;
+		while ( node ) {
+			if ( node.nodeType === Node.ELEMENT_NODE ) {
+				var attrs = node.attributes;
+				if ( attrs ) {
+					for ( var i = 0; i < attrs.length; i++ ) {
+						var attr = attrs[i];
+						if ( attr && attr.value && attr.value.indexOf( '__PHASE__' ) !== -1 ) {
+							node.setAttribute( attr.name, attr.value.replace( /__PHASE__/g, phaseIndex ) );
+						}
+					}
+				}
+			} else if ( node.nodeType === Node.TEXT_NODE ) {
+				if ( node.nodeValue && node.nodeValue.indexOf( '__PHASE__' ) !== -1 ) {
+					node.nodeValue = node.nodeValue.replace( /__PHASE__/g, phaseIndex );
+				}
+			}
+			node = walker.nextNode();
+		}
+	}
+
 	function activateTicket(idx){
 		var rows      = document.querySelectorAll( '#oras-tickets-table .oras-ticket-row' );
 		var activeRow = null;
@@ -415,6 +438,9 @@
 						if ( ! template ) {
 							return;
 						}
+						if ( ! template.content ) {
+							return;
+						}
 						var list = ticketRow.querySelector( '.oras-phase-list' );
 						if ( ! list ) {
 							return;
@@ -430,14 +456,12 @@
 						}
 						var next = max + 1;
 
-						var content    = template.innerHTML || '';
-						var html       = content.replace( /__PHASE__/g, next );
-						var temp       = document.createElement( 'div' );
-						temp.innerHTML = html;
-						if ( temp.firstElementChild ) {
-							var newPhase = temp.firstElementChild;
+						var phaseFragment = template.content.cloneNode( true );
+						replacePhaseTokens( phaseFragment, next );
+						var newPhase = phaseFragment.firstElementChild;
+						if ( newPhase ) {
 							newPhase.classList.add( 'is-collapsed' );
-							list.appendChild( newPhase );
+							list.appendChild( phaseFragment );
 							syncPhaseToggle( newPhase );
 
 							var keyInput = newPhase.querySelector( 'input[name*="[key]"]' );

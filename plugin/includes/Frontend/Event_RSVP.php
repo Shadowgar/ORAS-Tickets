@@ -61,7 +61,14 @@ final class Event_RSVP {
         if ( ! is_user_logged_in() ) {
             $login = wp_login_url( get_permalink( $event_id ) );
             printf( '<p>%s <a href="%s">%s</a></p>', esc_html__( 'Please log in to RSVP for this event.', 'oras-tickets' ), esc_url( $login ), esc_html__( 'Log in', 'oras-tickets' ) );
-            echo $flash;
+            echo wp_kses(
+                $flash,
+                array(
+                    'div' => array(
+                        'class' => true,
+                    ),
+                )
+            );
             echo '</div>';
             return $content . ob_get_clean();
         }
