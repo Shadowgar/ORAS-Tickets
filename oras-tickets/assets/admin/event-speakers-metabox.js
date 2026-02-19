@@ -52,7 +52,7 @@
 
   addButton.addEventListener('click', () => {
     const nextIndex = Number(rowsWrapper.dataset.nextIndex || 0);
-    const html = template.innerHTML.replace(/__INDEX__/g, String(nextIndex));
+    const html = template.innerHTML.replaceAll('__INDEX__', String(nextIndex));
 
     const wrapper = document.createElement('div');
     wrapper.innerHTML = html.trim();

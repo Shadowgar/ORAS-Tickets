@@ -16,7 +16,7 @@ use ORAS\Tickets\Admin\Speaker_CPT;
 use ORAS\Tickets\Bootstrap;
 
 if (! defined('ABSPATH')) {
-	exit;
+    exit;
 }
 
 define('ORAS_TICKETS_VERSION', '0.2.0');
@@ -27,24 +27,24 @@ define('ORAS_TICKETS_URL', plugin_dir_url(__FILE__));
 // Toggle debug logging by setting in wp-config.php.
 // Example in wp-config.php.
 if (! defined('ORAS_TICKETS_DEBUG')) {
-	define('ORAS_TICKETS_DEBUG', false);
+    define('ORAS_TICKETS_DEBUG', false);
 }
 
-require_once ORAS_TICKETS_DIR . 'includes/Support/Logger.php';
-require_once ORAS_TICKETS_DIR . 'includes/Bootstrap.php';
+require_once ORAS_TICKETS_DIR . 'includes/Support/Logger.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Bootstrap.php'; // NOSONAR legacy include
 
 add_action(
-	'plugins_loaded',
-	static function () {
-		$speaker_cpt = new Speaker_CPT();
-		$speaker_cpt->register();
+    'plugins_loaded',
+    static function () {
+        $speaker_cpt = new Speaker_CPT();
+        $speaker_cpt->register();
 
-		if (is_admin()) {
-			$event_speakers = new Event_Speakers_Metabox();
-			$event_speakers->register();
-		}
+        if (is_admin()) {
+            $event_speakers = new Event_Speakers_Metabox();
+            $event_speakers->register();
+        }
 
-		Bootstrap::instance()->init();
-	},
-	20
+        Bootstrap::instance()->init();
+    },
+    20
 );

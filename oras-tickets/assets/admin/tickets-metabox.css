@@ -8,6 +8,8 @@
 	flex: 0 0 220px;
 	min-width: 220px;
 	box-sizing: border-box;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
 }
 
 #oras_tickets_metabox .oras-ticket-panels,
@@ -146,11 +148,6 @@
 #oras_tickets_metabox .oras-phase-header {
 	font-weight: 600;
 	margin-bottom: 8px;
-}
-
-#oras_tickets_metabox .oras-tickets-tabs {
-	background: #f6f7f7;
-	border: 1px solid #dcdcde;
 }
 
 #oras_tickets_metabox #oras-ticket-tabs {

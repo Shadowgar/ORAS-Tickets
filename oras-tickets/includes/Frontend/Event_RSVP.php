@@ -3,10 +3,10 @@
 namespace ORAS\Tickets\Frontend;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+    exit;
 }
 
-final class Event_RSVP {
+final class Event_RSVP { // NOSONAR legacy WP class naming
 
     private const META_KEY = '_oras_rsvp_v1';
     private const USERMETA_PREFIX = '_oras_rsvp_event_';

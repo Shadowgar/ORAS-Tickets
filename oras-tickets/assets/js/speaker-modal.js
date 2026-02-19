@@ -1,88 +1,86 @@
 (function () {
-	var dataNode = document.getElementById( 'oras-speaker-data' );
-	var modal    = document.getElementById( 'oras-speaker-modal' );
+	const dataNode = document.getElementById( 'oras-speaker-data' );
+	const modal = document.getElementById( 'oras-speaker-modal' );
 
-	if ( ! dataNode || ! modal) {
+	if ( ! dataNode || ! modal ) {
 		return;
 	}
 
-	var payload = [];
+	let payload = [];
 	try {
 		payload = JSON.parse( dataNode.textContent || '[]' );
 	} catch (error) {
+		globalThis.console?.warn?.( 'Unable to parse speaker payload', error );
 		payload = [];
 	}
 
-	if ( ! Array.isArray( payload ) || payload.length === 0) {
+	if ( ! Array.isArray( payload ) || payload.length === 0 ) {
 		return;
 	}
 
-	var byId = {};
+	const byId = {};
 	payload.forEach(
 		function (speaker) {
-			if (speaker && typeof speaker.id !== 'undefined') {
+			if ( speaker && speaker.id !== undefined ) {
 				byId[String( speaker.id )] = speaker;
 			}
 		}
 	);
 
-	var closeButton     = modal.querySelector( '.oras-modal__close' );
-	var headshot        = modal.querySelector( '.oras-modal__headshot' );
-	var nameNode        = modal.querySelector( '.oras-modal__name' );
-	var affiliationNode = modal.querySelector( '.oras-modal__affiliation' );
-	var bioNode         = modal.querySelector( '.oras-modal__bio' );
-	var websiteLink     = modal.querySelector( '.oras-modal__website' );
-	var profileLink     = modal.querySelector( '.oras-modal__profile' );
-	var lastTrigger     = null;
+	const closeButton = modal.querySelector( '.oras-modal__close' );
+	const headshot = modal.querySelector( '.oras-modal__headshot' );
+	const nameNode = modal.querySelector( '.oras-modal__name' );
+	const affiliationNode = modal.querySelector( '.oras-modal__affiliation' );
+	const bioNode = modal.querySelector( '.oras-modal__bio' );
+	const websiteLink = modal.querySelector( '.oras-modal__website' );
+	const profileLink = modal.querySelector( '.oras-modal__profile' );
+	let lastTrigger = null;
 
-	if ( ! closeButton || ! headshot || ! nameNode || ! affiliationNode || ! bioNode || ! websiteLink || ! profileLink) {
+	if ( ! closeButton || ! headshot || ! nameNode || ! affiliationNode || ! bioNode || ! websiteLink || ! profileLink ) {
 		return;
 	}
 
 	function openModal(speaker, triggerButton) {
-		if ( ! speaker) {
+		if ( ! speaker ) {
 			return;
 		}
 
 		lastTrigger = triggerButton || null;
+		nameNode.textContent = speaker.name || '';
 
-		var name             = speaker.name || '';
-		nameNode.textContent = name;
-
-		var affiliation = typeof speaker.affiliation === 'string' ? speaker.affiliation.trim() : '';
-		if (affiliation && affiliation.toLowerCase() !== 'n/a') {
+		const affiliation = typeof speaker.affiliation === 'string' ? speaker.affiliation.trim() : '';
+		if ( affiliation && affiliation.toLowerCase() !== 'n/a' ) {
 			affiliationNode.textContent = affiliation;
-			affiliationNode.hidden      = false;
+			affiliationNode.hidden = false;
 		} else {
 			affiliationNode.textContent = '';
-			affiliationNode.hidden      = true;
+			affiliationNode.hidden = true;
 		}
 
 		bioNode.textContent = speaker.bio_short || '';
 
-		var headshotUrl = typeof speaker.headshot_url === 'string' ? speaker.headshot_url.trim() : '';
-
-		if (headshotUrl !== '') {
-			headshot.src    = headshotUrl;
-			headshot.alt    = speaker.name || '';
-			headshot.hidden = false;
-			modal.classList.remove( 'oras-modal--no-headshot' );
-		} else {
-			headshot.src    = '';
+		const headshotUrl = typeof speaker.headshot_url === 'string' ? speaker.headshot_url.trim() : '';
+		if ( headshotUrl === '' ) {
+			headshot.src = '';
 			headshot.hidden = true;
 			modal.classList.add( 'oras-modal--no-headshot' );
+		} else {
+			headshot.src = headshotUrl;
+			headshot.alt = speaker.name || '';
+			headshot.hidden = false;
+			modal.classList.remove( 'oras-modal--no-headshot' );
 		}
 
-		if (speaker.website_url) {
-			websiteLink.href   = speaker.website_url;
+		if ( speaker.website_url ) {
+			websiteLink.href = speaker.website_url;
 			websiteLink.hidden = false;
 		} else {
 			websiteLink.removeAttribute( 'href' );
 			websiteLink.hidden = true;
 		}
 
-		if (speaker.permalink) {
-			profileLink.href   = speaker.permalink;
+		if ( speaker.permalink ) {
+			profileLink.href = speaker.permalink;
 			profileLink.hidden = false;
 		} else {
 			profileLink.removeAttribute( 'href' );
@@ -94,14 +92,14 @@
 	}
 
 	function closeModal() {
-		if (modal.hidden) {
+		if ( modal.hidden ) {
 			return;
 		}
 
 		modal.hidden = true;
 		modal.classList.remove( 'oras-modal--no-headshot' );
 
-		if (lastTrigger && typeof lastTrigger.focus === 'function') {
+		if ( typeof lastTrigger?.focus === 'function' ) {
 			lastTrigger.focus();
 		}
 	}
@@ -111,9 +109,9 @@
 			button.addEventListener(
 				'click',
 				function (event) {
-					var speakerId = button.getAttribute( 'data-speaker-id' ) || '';
-					var speaker   = byId[speakerId];
-					if ( ! speaker) {
+					const speakerId = button.dataset.speakerId || '';
+					const speaker = byId[speakerId];
+					if ( ! speaker ) {
 						return;
 					}
 
@@ -127,7 +125,7 @@
 	modal.addEventListener(
 		'click',
 		function (event) {
-			if (event.target && event.target.closest( '[data-close]' )) {
+			if ( event.target?.closest( '[data-close]' ) ) {
 				event.preventDefault();
 				closeModal();
 			}
@@ -137,7 +135,7 @@
 	document.addEventListener(
 		'keydown',
 		function (event) {
-			if (event.key === 'Escape' && ! modal.hidden) {
+			if ( event.key === 'Escape' && ! modal.hidden ) {
 				closeModal();
 			}
 		}

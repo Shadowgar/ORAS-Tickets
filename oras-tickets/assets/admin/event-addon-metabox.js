@@ -6,20 +6,20 @@
 		var panels = container.querySelectorAll('.oras-events-addon__panel');
 
 		tabs.forEach(function (tab) {
-			var isActive = tab.getAttribute('data-tab') === tabName;
+			var isActive = tab.dataset.tab === tabName;
 			tab.classList.toggle('is-active', isActive);
 			tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
 		});
 
 		panels.forEach(function (panel) {
-			var isActive = panel.getAttribute('data-panel') === tabName;
+			var isActive = panel.dataset.panel === tabName;
 			panel.classList.toggle('is-active', isActive);
 			panel.hidden = !isActive;
 		});
 
-		var postId = container.getAttribute('data-post-id');
+		var postId = container.dataset.postId;
 		if (postId) {
-			window.localStorage.setItem('orasEventsAddonTab:' + postId, tabName);
+			globalThis.localStorage.setItem('orasEventsAddonTab:' + postId, tabName);
 		}
 	}
 
@@ -30,9 +30,9 @@
 		}
 
 		var defaultTab = 'tickets';
-		var postId = container.getAttribute('data-post-id');
+		var postId = container.dataset.postId;
 		if (postId) {
-			var storedTab = window.localStorage.getItem('orasEventsAddonTab:' + postId);
+			var storedTab = globalThis.localStorage.getItem('orasEventsAddonTab:' + postId);
 			if (storedTab && container.querySelector('.oras-events-addon__tab[data-tab="' + storedTab + '"]')) {
 				defaultTab = storedTab;
 			}
@@ -40,12 +40,12 @@
 
 		container.addEventListener('click', function (event) {
 			var tab = event.target.closest('.oras-events-addon__tab');
-			if (!tab) {
-				return;
-			}
-			event.preventDefault();
-			activateTab(container, tab.getAttribute('data-tab'));
-		});
+				if (!tab) {
+					return;
+				}
+				event.preventDefault();
+				activateTab(container, tab.dataset.tab);
+			});
 
 		activateTab(container, defaultTab);
 	});

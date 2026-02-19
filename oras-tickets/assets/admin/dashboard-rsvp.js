@@ -1,7 +1,7 @@
 jQuery( document ).ready( function( $ ) {
 	'use strict';
 
-	var adminBase = orasDashboardRsvp.adminBaseUrl || ( window.ajaxurl ? window.ajaxurl.replace("admin-ajax.php","") : "/wp-admin/" );
+	var adminBase = orasDashboardRsvp.adminBaseUrl || ( globalThis.ajaxurl ? globalThis.ajaxurl.replace("admin-ajax.php","") : "/wp-admin/" );
 	var ALLOWED_ADMIN_POST_ACTIONS = {
 		oras_rsvp_export_yes: true,
 		oras_rsvp_export_waitlist: true,
@@ -25,8 +25,8 @@ jQuery( document ).ready( function( $ ) {
 	};
 
 	function sanitizeEventId( value ) {
-		var parsed = parseInt( value, 10 );
-		if ( isNaN( parsed ) || parsed <= 0 ) {
+		var parsed = Number.parseInt( value, 10 );
+		if ( Number.isNaN( parsed ) || parsed <= 0 ) {
 			return '';
 		}
 		return String( parsed );
@@ -34,11 +34,11 @@ jQuery( document ).ready( function( $ ) {
 
 	function sanitizeEnum( value, allowedValues, fallback ) {
 		var normalized = String( value || '' );
-		return Object.prototype.hasOwnProperty.call( allowedValues, normalized ) ? normalized : fallback;
+		return Object.hasOwn( allowedValues, normalized ) ? normalized : fallback;
 	}
 
 	function sanitizeSearchTerm( value ) {
-		var normalized = String( value || '' ).trim().replace( /[\u0000-\u001F\u007F]/g, '' );
+		var normalized = String( value || '' ).trim().replaceAll( /[\u0000-\u001F\u007F]/g, '' );
 		if ( normalized.length > 200 ) {
 			normalized = normalized.slice( 0, 200 );
 		}
@@ -53,10 +53,10 @@ jQuery( document ).ready( function( $ ) {
 		if ( rawUrl === '' ) {
 			return fallback.toString();
 		}
-		try {
-			var candidate = new URL( rawUrl, document.baseURI );
-			if ( candidate.origin !== fallback.origin ) {
-				return fallback.toString();
+			try {
+				var candidate = new URL( rawUrl, document.baseURI );
+				if ( candidate.origin !== fallback.origin ) {
+					return fallback.toString();
 			}
 			if ( candidate.pathname !== fallback.pathname ) {
 				return fallback.toString();
@@ -64,16 +64,17 @@ jQuery( document ).ready( function( $ ) {
 			if ( candidate.username || candidate.password ) {
 				return fallback.toString();
 			}
-			candidate.search = '';
-			candidate.hash = '';
-			return candidate.toString();
-		} catch ( err ) {
-			return fallback.toString();
+				candidate.search = '';
+				candidate.hash = '';
+				return candidate.toString();
+			} catch ( err ) {
+				globalThis.console?.warn?.( 'Invalid adminPostUrl, using fallback', err );
+				return fallback.toString();
+			}
 		}
-	}
 
 	function submitAdminPostGet( action, params ) {
-		if ( ! Object.prototype.hasOwnProperty.call( ALLOWED_ADMIN_POST_ACTIONS, action ) ) {
+		if ( ! Object.hasOwn( ALLOWED_ADMIN_POST_ACTIONS, action ) ) {
 			return;
 		}
 
@@ -85,8 +86,8 @@ jQuery( document ).ready( function( $ ) {
 		var payload = {};
 		var input = params || {};
 		var keys = Object.keys( input );
-		for ( var i = 0; i < keys.length; i++ ) {
-			payload[ keys[i] ] = input[ keys[i] ];
+		for ( var key of keys ) {
+			payload[ key ] = input[ key ];
 		}
 		payload.action = action;
 		payload._wpnonce = nonce;
@@ -97,9 +98,8 @@ jQuery( document ).ready( function( $ ) {
 		form.style.display = 'none';
 
 		var payloadKeys = Object.keys( payload );
-		for ( var j = 0; j < payloadKeys.length; j++ ) {
-			var key = payloadKeys[j];
-			if ( payload[key] === null || typeof payload[key] === 'undefined' ) {
+		for ( var key of payloadKeys ) {
+			if ( payload[key] === null || payload[key] === undefined ) {
 				continue;
 			}
 
@@ -112,7 +112,7 @@ jQuery( document ).ready( function( $ ) {
 
 		document.body.appendChild( form );
 		form.submit();
-		document.body.removeChild( form );
+		form.remove();
 	}
 
 	var $selector = $( '#oras-rsvp-event-selector' );
@@ -421,13 +421,13 @@ jQuery( document ).ready( function( $ ) {
 		$.each( attendees, function( index, attendee ) {
 			var actions = [];
 
-			if ( attendee.user_id > 0 ) {
-				actions.push( '<a href="' + adminBase + 'user-edit.php?user_id=' + parseInt(attendee.user_id,10) + '" target="_blank">View User</a>' );
-			}
+				if ( attendee.user_id > 0 ) {
+					actions.push( '<a href="' + adminBase + 'user-edit.php?user_id=' + Number.parseInt( attendee.user_id, 10 ) + '" target="_blank">View User</a>' );
+				}
 
-			if ( attendee.order_id > 0 ) {
-				actions.push( '<a href="' + adminBase + 'post.php?post=' + parseInt(attendee.order_id,10) + '&action=edit" target="_blank">View Order</a>' );
-			}
+				if ( attendee.order_id > 0 ) {
+					actions.push( '<a href="' + adminBase + 'post.php?post=' + Number.parseInt( attendee.order_id, 10 ) + '&action=edit" target="_blank">View Order</a>' );
+				}
 
 			actions.push( '<a href="#" class="oras-edit-note" data-key="' + attendee.attendee_key + '">Edit Note</a>' );
 
