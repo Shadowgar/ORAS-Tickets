@@ -161,7 +161,7 @@ final class Bootstrap {
     public function handle_rsvp_dashboard_data(): void {
         check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_view_attendees' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -237,7 +237,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     public function handle_attendees_dashboard_data(): void {
         check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_view_attendees' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -260,7 +260,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     public function handle_attendees_send_email(): void {
         check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_send_notifications' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -357,7 +357,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     public function handle_attendees_save_note(): void {
         check_ajax_referer( 'oras_rsvp_dashboard', 'nonce' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_manage_attendees' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -588,7 +588,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     public function handle_attendees_export_csv(): void {
         check_admin_referer( 'oras_rsvp_dashboard' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_export_reports' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -653,7 +653,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     private function handle_rsvp_export( string $status ): void {
         check_admin_referer( 'oras_rsvp_dashboard' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_export_reports' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 
@@ -696,7 +696,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
     public function handle_rsvp_promote(): void {
         check_admin_referer( 'oras_rsvp_dashboard' );
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'oras_tickets_manage_rsvps' ) ) {
             wp_die( 'Insufficient permissions' );
         }
 

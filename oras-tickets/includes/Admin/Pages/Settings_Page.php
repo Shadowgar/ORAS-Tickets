@@ -11,8 +11,8 @@ final class Settings_Page { // NOSONAR legacy WP class naming
     private const OPTION_KEY = 'oras_tickets_settings_v1';
 
     public function render(): void {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return;
+        if ( ! current_user_can( 'oras_tickets_manage_settings' ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         ?>

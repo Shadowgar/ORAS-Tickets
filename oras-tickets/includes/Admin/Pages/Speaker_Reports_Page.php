@@ -21,8 +21,8 @@ final class Speaker_Reports_Page { // NOSONAR legacy WP class naming
     }
 
     public function render(): void {
-if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return;
+if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         $filters = $this->get_filters( $_GET );
@@ -124,8 +124,8 @@ if ( ! current_user_can( 'manage_woocommerce' ) ) {
     }
 
     public function handle_export_csv(): void {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ) );
+        if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         if ( ! isset( $_POST[ self::NONCE_NAME ] ) ) {

@@ -32,6 +32,7 @@ if (! defined('ORAS_TICKETS_DEBUG')) {
 
 require_once ORAS_TICKETS_DIR . 'includes/Support/Logger.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Bootstrap.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Capabilities.php'; // load capabilities helper
 
 add_action(
     'plugins_loaded',
@@ -48,3 +49,7 @@ add_action(
     },
     20
 );
+
+register_activation_hook( ORAS_TICKETS_FILE, static function () : void {
+    \ORAS\Tickets\Capabilities::add_caps();
+} );

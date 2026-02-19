@@ -19,8 +19,8 @@ final class Reports_Page { // NOSONAR legacy WP class naming
     private const NONCE_ACTION = 'oras_tickets_reports';
 
     public function render(): void {
-if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return;
+if ( ! current_user_can( 'oras_tickets_view_reports' ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         $events                   = $this->get_events_with_tickets();
@@ -761,12 +761,12 @@ return 1;
     }
 
     public function export_csv(): void {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return;
+        if ( ! current_user_can( 'oras_tickets_export_reports' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         if ( ! isset( $_POST['oras_tickets_reports_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['oras_tickets_reports_nonce'] ), self::NONCE_ACTION ) ) {
-            return;
+            wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
         }
 
         $statuses   = isset( $_POST['oras_tickets_statuses'] ) && is_array( $_POST['oras_tickets_statuses'] )

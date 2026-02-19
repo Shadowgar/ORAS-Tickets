@@ -31,7 +31,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
     }
 
     public function register_menu(): void {
-        $capability = 'manage_woocommerce';
+        $capability = 'oras_tickets_manage_events';
 
         add_menu_page(
             __( 'ORAS Tickets', 'oras-tickets' ),
@@ -47,7 +47,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
             'oras-tickets',
             __( 'Dashboard', 'oras-tickets' ),
             __( 'Dashboard', 'oras-tickets' ),
-            $capability,
+            'oras_tickets_manage_events',
             'oras-tickets',
             array( $this, 'render_dashboard' )
         );
@@ -56,7 +56,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
             'oras-tickets',
             __( 'Reports', 'oras-tickets' ),
             __( 'Reports', 'oras-tickets' ),
-            $capability,
+            'oras_tickets_view_reports',
             'oras-tickets-reports',
             array( $this, 'render_reports' )
         );
@@ -65,7 +65,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
             'oras-tickets',
             __( 'Speaker Obligations', 'oras-tickets' ),
             __( 'Speaker Obligations', 'oras-tickets' ),
-            $capability,
+            'oras_tickets_manage_speakers',
             'oras-tickets-speaker-obligations',
             array( $this, 'render_speaker_obligations' )
         );
@@ -74,7 +74,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
             'oras-tickets',
             __( 'Speaker Reports', 'oras-tickets' ),
             __( 'Speaker Reports', 'oras-tickets' ),
-            $capability,
+            'oras_tickets_manage_speakers',
             'oras-tickets-speaker-reports',
             array( $this, 'render_speaker_reports' )
         );
@@ -83,7 +83,7 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
             'oras-tickets',
             __( 'Settings', 'oras-tickets' ),
             __( 'Settings', 'oras-tickets' ),
-            $capability,
+            'oras_tickets_manage_settings',
             'oras-tickets-settings',
             array( $this, 'render_settings' )
         );
@@ -110,6 +110,14 @@ final class Admin_Menu { // NOSONAR legacy WP class naming
     }
 
     public function handle_export_csv(): void {
+        if ( ! current_user_can( 'oras_tickets_export_reports' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+        }
+
+        if ( ! isset( $_POST['oras_tickets_reports_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['oras_tickets_reports_nonce'] ), 'oras_tickets_reports' ) ) {
+            wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+        }
+
         ( new Reports_Page() )->export_csv();
     }
 

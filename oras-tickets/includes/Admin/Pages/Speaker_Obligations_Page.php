@@ -29,8 +29,8 @@ final class Speaker_Obligations_Page // NOSONAR legacy WP class naming
 
     public function render(): void
 {
-        if (! current_user_can('manage_woocommerce')) {
-            return;
+        if (! current_user_can('oras_tickets_manage_speakers')) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'oras-tickets' ), '', array( 'response' => 403 ) );
         }
 
         $filters = $this->get_filters($_GET);
@@ -314,7 +314,7 @@ final class Speaker_Obligations_Page // NOSONAR legacy WP class naming
 
     public function handle_fulfill_membership(): void
     {
-        if (! current_user_can('manage_woocommerce')) {
+        if (! current_user_can('oras_tickets_manage_speakers')) {
             $this->redirect_with_notice(self::NOTICE_ERROR);
         }
 
