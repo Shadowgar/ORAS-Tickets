@@ -1,21 +1,36 @@
 # Security Policy
 
+Last updated: 2026-02-25
+
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| --- | --- |
+| `main` (current internal deployment line) | Yes |
+| older snapshots/branches | No |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+This is an internal ORAS project.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+1. Report vulnerabilities privately to the ORAS maintainers through internal channels.
+2. Include:
+- affected component/file
+- reproduction steps
+- impact assessment
+- proposed mitigation if available
+3. Do not open public issues with exploit details.
+
+## Security Requirements for Code Changes
+
+- Enforce capability checks for admin actions.
+- Verify nonces for privileged form/AJAX/admin-post flows.
+- Sanitize input and escape output for all user-derived content.
+- Keep deterministic data models and avoid hidden side effects.
+- Run `composer phpcs` and `composer phpstan` before merge.
+
+## Disclosure and Fix Handling
+
+- Target initial triage within 2 business days.
+- Prioritize fixes by impact (RCE/data leak > privilege escalation > XSS/CSRF > integrity bugs).
+- Backport only when an older internal deployment line is still active.

@@ -36,7 +36,12 @@
             }
             fd.append('oras_ajax', '1');
 
-            fetch(form.action, {
+            var postUrl = form.getAttribute('action') || '';
+            if (!postUrl) {
+                postUrl = window.location.href;
+            }
+
+            fetch(postUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: fd,

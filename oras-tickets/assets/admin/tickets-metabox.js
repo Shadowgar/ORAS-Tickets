@@ -1,559 +1,621 @@
 (function () {
 	'use strict';
 
-	function nextIndex(){
-		var inputs = document.querySelectorAll( 'input[name="oras_tickets_index[]"]' );
-		var max    = -1;
-		for ( var input of inputs ) {
-			var v = Number.parseInt( input.value, 10 );
-			if ( ! Number.isNaN( v ) && v > max ) {
-				max = v;
-			}
-		}
-		return max + 1;
+	function toArray(nodeList) {
+		return Array.prototype.slice.call(nodeList || []);
 	}
 
-	function replaceTokenInFragment(fragment, token, value){
-		var walker = document.createTreeWalker( fragment, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null );
-		var node   = walker.currentNode;
-		while ( node ) {
-			if ( node.nodeType === Node.ELEMENT_NODE ) {
-				for ( var attr of Array.from( node.attributes || [] ) ) {
-					if ( attr.value?.includes( token ) ) {
-						node.setAttribute( attr.name, attr.value.replaceAll( token, value ) );
-					}
-				}
-			} else if ( node.nodeType === Node.TEXT_NODE && node.nodeValue?.includes( token ) ) {
-				node.nodeValue = node.nodeValue.replaceAll( token, value );
-			}
-			node = walker.nextNode();
-		}
-	}
-
-	function replaceIndexTokens(fragment, idx){
-		replaceTokenInFragment( fragment, '__INDEX__', String( idx ) );
-	}
-
-	function replacePhaseTokens(fragment, phaseIndex){
-		replaceTokenInFragment( fragment, '__PHASE__', String( phaseIndex ) );
-	}
-
-	function setTicketRowState(row, isActive){
-		var rowPanel = row.querySelector( '.oras-ticket-panel' );
-		row.style.display = isActive ? 'block' : 'none';
-		if ( rowPanel ) {
-			rowPanel.style.display = isActive ? 'block' : 'none';
-			rowPanel.classList.toggle( 'is-active', isActive );
-			rowPanel.classList.toggle( 'is-hidden', ! isActive );
-		}
-	}
-
-	function activateTicket(idx){
-		var rows      = document.querySelectorAll( '#oras-tickets-table .oras-ticket-row' );
-		var activeRow = null;
-		for ( var row of rows ) {
-			var isActive = String( row.dataset.index ) === String( idx );
-			setTicketRowState( row, isActive );
-			if ( isActive ) {
-				activeRow = row;
-			}
-		}
-
-		if ( activeRow ) {
-			var panel = activeRow.querySelector( '.oras-ticket-panel' );
-			if ( panel ) {
-				panel.style.display = 'block';
-				panel.classList.toggle( 'is-active', true );
-				panel.classList.toggle( 'is-hidden', false );
-			}
-
-			var panelWrap = activeRow.querySelector( '.panel-wrap' );
-			if ( panelWrap && ! panelWrap.querySelector( '.wc-tabs li.active' ) ) {
-				initInnerTabs( panelWrap );
-			}
-		}
-
-		var tabs = document.querySelectorAll( '#oras-ticket-tabs .oras-ticket-tab' );
-		for ( var tab of tabs ) {
-			var isActiveTab = String( tab.dataset.index ) === String( idx );
-			tab.classList.toggle( 'button-primary', isActiveTab );
-			tab.classList.toggle( 'is-active', isActiveTab );
-		}
-	}
-
-	function initInnerTabs(panelWrap){
-		if ( ! panelWrap ) {
-			return;
-		}
-		var tabs = panelWrap.querySelectorAll( '.wc-tabs li' );
-		for ( var tab of tabs ) {
-			tab.classList.remove( 'active' );
-		}
-		var firstTab = panelWrap.querySelector( '.wc-tabs li' );
-		if ( firstTab ) {
-			firstTab.classList.add( 'active' );
-		}
-		var panels = panelWrap.querySelectorAll( '.panel' );
-		for ( var panel of panels ) {
-			panel.style.display = 'none';
-		}
-		if ( firstTab ) {
-			var link = firstTab.querySelector( 'a' );
-			if ( link ) {
-				var targetId = link.getAttribute( 'href' );
-				if ( targetId ) {
-					var targetPanel = panelWrap.querySelector( targetId );
-					if ( targetPanel ) {
-						targetPanel.style.display = 'block';
-					}
-				}
-			}
-		}
-	}
-
-	function syncPhaseToggle(phaseItem){
-		if ( ! phaseItem ) {
-			return;
-		}
-		var toggle = phaseItem.querySelector( '.oras-phase-toggle' );
-		if ( ! toggle ) {
-			return;
-		}
-		if ( phaseItem.classList.contains( 'is-collapsed' ) ) {
-			toggle.textContent = 'Advanced';
-		} else {
-			toggle.textContent = 'Hide advanced';
-		}
-	}
-
-	function initPhaseToggles(scope){
-		var root  = scope || document;
-		var items = root.querySelectorAll( '.oras-phase-item' );
-		for ( var item of items ) {
-			syncPhaseToggle( item );
-		}
-	}
-
-	function parseLocalDateTime(value){
-		if ( ! value ) {
+	function parseLocalDateTime(value) {
+		if (!value) {
 			return null;
 		}
-		var dt = new Date( value );
-		if ( Number.isNaN( dt.getTime() ) ) {
+		var dt = new Date(value);
+		if (Number.isNaN(dt.getTime())) {
 			return null;
 		}
 		return dt.getTime();
 	}
 
-	function getSaleStatus(startValue, endValue){
-		var startTs = parseLocalDateTime( startValue );
-		var endTs   = parseLocalDateTime( endValue );
-		if ( startTs === null && endTs === null ) {
+	function saleStatus(startValue, endValue) {
+		var startTs = parseLocalDateTime(startValue);
+		var endTs = parseLocalDateTime(endValue);
+		if (startTs === null && endTs === null) {
 			return 'Always';
 		}
 		var now = Date.now();
-		if ( startTs !== null && now < startTs ) {
+		if (startTs !== null && now < startTs) {
 			return 'Scheduled';
 		}
-		if ( endTs !== null && now > endTs ) {
+		if (endTs !== null && now > endTs) {
 			return 'Ended';
 		}
 		return 'On sale';
 	}
 
-	function ensureTabSpans(tab){
-		var title = tab.querySelector( '.oras-ticket-tab-title' );
-		var meta  = tab.querySelector( '.oras-ticket-tab-meta' );
-		if ( title && meta ) {
-			return { title: title, meta: meta };
+	function saleWindow(startValue, endValue) {
+		if (!startValue && !endValue) {
+			return 'Always';
 		}
-		tab.innerHTML   = '';
-		title           = document.createElement( 'span' );
-		title.className = 'oras-ticket-tab-title';
-		meta            = document.createElement( 'span' );
-		meta.className  = 'oras-ticket-tab-meta';
-		tab.appendChild( title );
-		tab.appendChild( meta );
-		return { title: title, meta: meta };
+		if (startValue && endValue) {
+			return startValue.replace('T', ' ') + ' → ' + endValue.replace('T', ' ');
+		}
+		if (startValue) {
+			return 'Starts ' + startValue.replace('T', ' ');
+		}
+		return 'Ends ' + endValue.replace('T', ' ');
 	}
 
-	function updateTicketTab(panel){
-		if ( ! panel ) {
-			return;
-		}
-		var idx = panel.dataset.index;
-		if ( idx === undefined ) {
-			return;
-		}
-		var tab = document.querySelector( '#oras-ticket-tabs .oras-ticket-tab[data-index="' + idx + '"]' );
-		if ( ! tab ) {
-			return;
-		}
-
-		var nameInput  = panel.querySelector( 'input[name="oras_tickets_tickets[' + idx + '][name]"]' );
-		var priceInput = panel.querySelector( 'input[name="oras_tickets_tickets[' + idx + '][price]"]' );
-		var startInput = panel.querySelector( 'input[name="oras_tickets_tickets[' + idx + '][sale_start]"]' );
-		var endInput   = panel.querySelector( 'input[name="oras_tickets_tickets[' + idx + '][sale_end]"]' );
-
-		var titleText  = nameInput && nameInput.value ? nameInput.value : 'Ticket #' + idx;
-		var priceValue = priceInput && priceInput.value ? priceInput.value : '0.00';
-		var status     = getSaleStatus( startInput ? startInput.value : '', endInput ? endInput.value : '' );
-
-		var spans               = ensureTabSpans( tab );
-		spans.title.textContent = titleText;
-		spans.meta.textContent  = '$' + priceValue + ' • ' + status;
+	function ticketRows(root) {
+		return toArray(root.querySelectorAll('#oras-tickets-table .oras-ticket-row'));
 	}
 
-	function hasPhaseInputData(phaseItem){
-		if ( ! phaseItem ) {
-			return false;
-		}
-		var inputs = phaseItem.querySelectorAll( 'input[type="text"]' );
-		for ( var input of inputs ) {
-			if ( (input.value || '').trim() !== '' ) {
-				return true;
+	function nextIndex(root) {
+		var inputs = root.querySelectorAll('input[name="oras_tickets_index[]"]');
+		var max = -1;
+		toArray(inputs).forEach(function (input) {
+			var value = Number.parseInt(input.value, 10);
+			if (!Number.isNaN(value) && value > max) {
+				max = value;
 			}
-		}
-		return false;
-	}
-
-	function humanizeKey(value){
-		var text = (value || '').replaceAll( /[_-]+/g, ' ' ).trim();
-		if ( text === '' ) {
-			return '';
-		}
-		return text.replaceAll(
-			/\w\S*/g,
-			function (word) {
-				return word.charAt( 0 ).toUpperCase() + word.slice( 1 ).toLowerCase();
-			}
-		);
-	}
-
-	function handlePhaseToggleClick(event, target){
-		if ( ! target?.classList?.contains( 'oras-phase-toggle' ) ) {
-			return false;
-		}
-
-		function handleCardToggleClick(target){
-			if ( ! target?.classList?.contains( 'oras-card-toggle' ) ) {
-				return false;
-			}
-			var idx = target.dataset.index;
-			if ( idx === undefined ) {
-				return true;
-			}
-			activateTicket( idx );
-			return true;
-		}
-		event.preventDefault();
-		var phaseItem = target.closest( '.oras-phase-item' );
-		if ( phaseItem ) {
-			phaseItem.classList.toggle( 'is-collapsed' );
-			syncPhaseToggle( phaseItem );
-		}
-		return true;
-	}
-
-	function handleInnerTabClick(event, target){
-		if ( target?.tagName?.toLowerCase() !== 'a' || ! target.closest( '.oras-ticket-data' ) || ! target.closest( '.wc-tabs' ) ) {
-			return false;
-		}
-
-		event.preventDefault();
-		var panelWrap = target.closest( '.panel-wrap' );
-		if ( ! panelWrap ) {
-			return true;
-		}
-
-		var tabs = panelWrap.querySelectorAll( '.wc-tabs li' );
-		for ( var tab of tabs ) {
-			tab.classList.remove( 'active' );
-		}
-
-		target.closest( 'li' )?.classList.add( 'active' );
-
-		var panels = panelWrap.querySelectorAll( '.panel' );
-		for ( var panel of panels ) {
-			panel.style.display = 'none';
-		}
-
-		var targetId = target.getAttribute( 'href' );
-		if ( targetId ) {
-			panelWrap.querySelector( targetId )?.style.setProperty( 'display', 'block' );
-		}
-		return true;
-	}
-
-	function handleRemoveTicketClick(target){
-		if ( ! target?.classList?.contains( 'oras-remove-ticket' ) ) {
-			return false;
-		}
-
-		var idx = target.closest( '.oras-ticket-panel' )?.dataset.index;
-		if ( ! idx ) {
-			return true;
-		}
-
-		document.querySelector( '#oras-tickets-table .oras-ticket-row[data-index="' + idx + '"]' )?.remove();
-
-		var tab = document.querySelector( '#oras-ticket-tabs .oras-ticket-tab[data-index="' + idx + '"]' );
-		tab?.closest( 'li' )?.remove();
-		if ( tab && ! tab.closest( 'li' ) ) {
-			tab.remove();
-		}
-
-		document.querySelector( 'input[name="oras_tickets_index[]"][value="' + idx + '"]' )?.remove();
-
-		var emptyState = document.getElementById( 'oras-tickets-empty' );
-		var table      = document.getElementById( 'oras-tickets-table' );
-		var remaining  = document.querySelectorAll( '#oras-tickets-table .oras-ticket-row' );
-		if ( remaining.length > 0 ) {
-			if ( table ) {
-				table.style.display = 'block';
-			}
-			if ( emptyState ) {
-				emptyState.style.display = 'none';
-			}
-			var firstIdx = remaining[0]?.dataset.index;
-			if ( firstIdx !== undefined ) {
-				activateTicket( firstIdx );
-			}
-		} else {
-			if ( table ) {
-				table.style.display = 'none';
-			}
-			if ( emptyState ) {
-				emptyState.style.display = 'block';
-			}
-		}
-
-		return true;
-	}
-
-	function handlePhaseRemoveClick(target){
-		if ( ! target?.classList?.contains( 'oras-phase-remove' ) ) {
-			return false;
-		}
-
-		var phaseRow = target.closest( '.oras-phase-item' );
-		if ( ! phaseRow ) {
-			return true;
-		}
-		if ( hasPhaseInputData( phaseRow ) && ! globalThis.confirm( 'Remove this pricing phase?' ) ) {
-			return true;
-		}
-		phaseRow.remove();
-		return true;
-	}
-
-	function nextPhaseIndex(list){
-		var max  = -1;
-		var rows = list.querySelectorAll( '[data-phase-index]' );
-		for ( var row of rows ) {
-			var v = Number.parseInt( row.dataset.phaseIndex || '', 10 );
-			if ( ! Number.isNaN( v ) && v > max ) {
-				max = v;
-			}
-		}
+		});
 		return max + 1;
 	}
 
-	function focusPhaseInput(newPhase){
-		var keyInput = newPhase.querySelector( 'input[name*="[key]"]' );
-		if ( keyInput ) {
-			keyInput.focus();
-			return;
+	function replaceTokenInFragment(fragment, token, value) {
+		var walker = document.createTreeWalker(fragment, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null);
+		var node = walker.currentNode;
+		while (node) {
+			if (node.nodeType === Node.ELEMENT_NODE) {
+				toArray(node.attributes || []).forEach(function (attr) {
+					if (attr.value && attr.value.indexOf(token) !== -1) {
+						node.setAttribute(attr.name, attr.value.replaceAll(token, value));
+					}
+				});
+			}
+			if (node.nodeType === Node.TEXT_NODE && node.nodeValue && node.nodeValue.indexOf(token) !== -1) {
+				node.nodeValue = node.nodeValue.replaceAll(token, value);
+			}
+			node = walker.nextNode();
 		}
-		newPhase.querySelector( 'input[name*="[label]"]' )?.focus();
 	}
 
-	function handlePhaseAddClick(target){
-		if ( ! target?.classList?.contains( 'oras-phase-add' ) ) {
+	function getRowIndex(row) {
+		return String(row.getAttribute('data-index') || '');
+	}
+
+	function getInput(row, field) {
+		var idx = getRowIndex(row);
+		if (!idx) {
+			return null;
+		}
+		return row.querySelector('[name="oras_tickets_tickets[' + idx + '][' + field + ']"]');
+	}
+
+	function currentName(row) {
+		var idx = getRowIndex(row);
+		var nameInput = getInput(row, 'name');
+		var value = nameInput ? nameInput.value.trim() : '';
+		return value !== '' ? value : 'Ticket #' + idx;
+	}
+
+	function normalizePrice(value) {
+		var parsed = Number.parseFloat(String(value || '').replace(',', '.'));
+		if (Number.isNaN(parsed) || parsed < 0) {
+			return 0;
+		}
+		return parsed;
+	}
+
+	function hasMeaningfulContent(row) {
+		var idx = getRowIndex(row);
+		if (!idx) {
 			return false;
 		}
 
-		var ticketRow = target.closest( 'tr.oras-ticket-row' );
-		var template  = ticketRow?.querySelector( 'template.oras-phase-template' );
-		var list      = ticketRow?.querySelector( '.oras-phase-list' );
-		if ( ! ticketRow || ! template?.content || ! list ) {
+		var description = getInput(row, 'description');
+		var name = getInput(row, 'name');
+		var price = getInput(row, 'price');
+		var capacity = getInput(row, 'capacity');
+		var start = getInput(row, 'sale_start');
+		var end = getInput(row, 'sale_end');
+		var hide = row.querySelector('[name="oras_tickets_tickets[' + idx + '][hide_sold_out]"]');
+
+		if (name && name.value.trim() !== '') {
+			return true;
+		}
+		if (description && description.value.trim() !== '') {
+			return true;
+		}
+		if (price && normalizePrice(price.value) > 0) {
+			return true;
+		}
+		if (capacity && Number.parseInt(capacity.value || '0', 10) > 0) {
+			return true;
+		}
+		if (start && start.value) {
+			return true;
+		}
+		if (end && end.value) {
+			return true;
+		}
+		if (hide && hide.checked) {
 			return true;
 		}
 
-		var phaseFragment = template.content.cloneNode( true );
-		replacePhaseTokens( phaseFragment, nextPhaseIndex( list ) );
-
-		var newPhase = phaseFragment.firstElementChild;
-		if ( newPhase ) {
-			newPhase.classList.add( 'is-collapsed' );
-			list.appendChild( phaseFragment );
-			syncPhaseToggle( newPhase );
-			focusPhaseInput( newPhase );
-		}
-		return true;
+		return false;
 	}
 
-	function handleMetaboxClick(event){
-		var target = event.target;
-		if ( ! target ) {
+	function clearFieldError(input) {
+		if (!input) {
 			return;
 		}
-		if ( handlePhaseToggleClick( event, target ) ) {
+		var wrapper = input.closest('.oras-field-block') || input.parentElement;
+		if (!wrapper) {
 			return;
 		}
-		if ( handleCardToggleClick( target ) ) {
-			return;
+		var error = wrapper.querySelector('.oras-field-error[data-for="' + input.name + '"]');
+		if (error) {
+			error.remove();
 		}
-		if ( handleInnerTabClick( event, target ) ) {
-			return;
-		}
-		if ( handleRemoveTicketClick( target ) ) {
-			return;
-		}
-		if ( handlePhaseRemoveClick( target ) ) {
-			return;
-		}
-		handlePhaseAddClick( target );
+		input.removeAttribute('aria-invalid');
 	}
 
-	function isTicketTabField(name){
-		return (
-			name.includes( '[name]' ) ||
-			name.includes( '[price]' ) ||
-			name.includes( '[sale_start]' ) ||
-			name.includes( '[sale_end]' )
-		);
+	function setFieldError(input, message) {
+		if (!input) {
+			return;
+		}
+		var wrapper = input.closest('.oras-field-block') || input.parentElement;
+		if (!wrapper) {
+			return;
+		}
+		var selector = '.oras-field-error[data-for="' + input.name + '"]';
+		var error = wrapper.querySelector(selector);
+		if (!error) {
+			error = document.createElement('p');
+			error.className = 'oras-field-error';
+			error.setAttribute('data-for', input.name);
+			wrapper.appendChild(error);
+		}
+		error.textContent = message;
+		input.setAttribute('aria-invalid', 'true');
+	}
+
+	function validateRow(row) {
+		var issues = [];
+		var hasContent = hasMeaningfulContent(row);
+		var nameInput = getInput(row, 'name');
+		var priceInput = getInput(row, 'price');
+		var capacityInput = getInput(row, 'capacity');
+		var startInput = getInput(row, 'sale_start');
+		var endInput = getInput(row, 'sale_end');
+
+		[nameInput, priceInput, capacityInput, startInput, endInput].forEach(clearFieldError);
+
+		if (hasContent && nameInput && nameInput.value.trim() === '') {
+			setFieldError(nameInput, 'Ticket name is required.');
+			issues.push('Ticket name is required.');
+		}
+
+		if (priceInput) {
+			var rawPrice = Number.parseFloat(String(priceInput.value || '').replace(',', '.'));
+			if (String(priceInput.value || '').trim() !== '' && Number.isNaN(rawPrice)) {
+				setFieldError(priceInput, 'Price must be numeric.');
+				issues.push('Price must be numeric.');
+			}
+			if (!Number.isNaN(rawPrice) && rawPrice < 0) {
+				setFieldError(priceInput, 'Price cannot be negative.');
+				issues.push('Price cannot be negative.');
+			}
+		}
+
+		if (capacityInput && capacityInput.value !== '' && Number.parseInt(capacityInput.value, 10) < 0) {
+			setFieldError(capacityInput, 'Inventory cannot be negative.');
+			issues.push('Inventory cannot be negative.');
+		}
+
+		var startTs = startInput ? parseLocalDateTime(startInput.value) : null;
+		var endTs = endInput ? parseLocalDateTime(endInput.value) : null;
+		if (startInput && startInput.value && startTs === null) {
+			setFieldError(startInput, 'Invalid start date/time.');
+			issues.push('Invalid start date/time.');
+		}
+		if (endInput && endInput.value && endTs === null) {
+			setFieldError(endInput, 'Invalid end date/time.');
+			issues.push('Invalid end date/time.');
+		}
+		if (startTs !== null && endTs !== null && endTs < startTs) {
+			setFieldError(endInput, 'Sale end must be later than sale start.');
+			issues.push('Sale end must be later than sale start.');
+		}
+
+		return issues;
+	}
+
+	function setValidationNotice(root) {
+		var notice = root.querySelector('#oras-ticket-validation');
+		if (!notice) {
+			return;
+		}
+
+		var messages = [];
+		ticketRows(root).forEach(function (row) {
+			messages = messages.concat(validateRow(row));
+		});
+
+		var messageTarget = notice.querySelector('p');
+		if (!messageTarget) {
+			return;
+		}
+
+		if (messages.length === 0) {
+			notice.hidden = true;
+			messageTarget.textContent = '';
+			return;
+		}
+
+		notice.hidden = false;
+		messageTarget.textContent = messages.length === 1 ? messages[0] : messages.length + ' fields need attention before saving.';
+	}
+
+	function setRowExpanded(row, expand) {
+		var panel = row.querySelector('.oras-ticket-panel');
+		var body = row.querySelector('.oras-card__body');
+		var toggle = row.querySelector('.oras-card-toggle');
+		if (!panel || !body || !toggle) {
+			return;
+		}
+
+		panel.classList.remove('is-hidden');
+		panel.classList.add('is-active');
+		body.hidden = !expand;
+		toggle.setAttribute('aria-expanded', expand ? 'true' : 'false');
+		toggle.textContent = expand ? 'Close' : 'Edit';
+	}
+
+	function syncPhaseToggle(phaseItem) {
+		if (!phaseItem) {
+			return;
+		}
+		var toggle = phaseItem.querySelector('.oras-phase-toggle');
+		if (!toggle) {
+			return;
+		}
+		toggle.textContent = phaseItem.classList.contains('is-collapsed') ? 'Advanced' : 'Hide advanced';
+	}
+
+	function initPhaseToggles(root) {
+		toArray(root.querySelectorAll('.oras-phase-item')).forEach(syncPhaseToggle);
+	}
+
+	function updateCardHeader(row) {
+		var nameEl = row.querySelector('.oras-card__name');
+		var metaEl = row.querySelector('.oras-card__meta');
+		if (!nameEl || !metaEl) {
+			return;
+		}
+
+		var name = currentName(row);
+		var priceInput = getInput(row, 'price');
+		var startInput = getInput(row, 'sale_start');
+		var endInput = getInput(row, 'sale_end');
+		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var status = saleStatus(startInput ? startInput.value : '', endInput ? endInput.value : '');
+
+		nameEl.textContent = name;
+		metaEl.textContent = '$' + price + ' · ' + status;
+	}
+
+	function summaryDataForRow(row) {
+		var idx = getRowIndex(row);
+		var name = currentName(row);
+		var priceInput = getInput(row, 'price');
+		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var capacityInput = getInput(row, 'capacity');
+		var capacityNum = capacityInput ? Number.parseInt(capacityInput.value || '0', 10) : 0;
+		var inventory = capacityNum > 0 ? String(capacityNum) : 'Unlimited';
+		var startInput = getInput(row, 'sale_start');
+		var endInput = getInput(row, 'sale_end');
+		var startValue = startInput ? startInput.value : '';
+		var endValue = endInput ? endInput.value : '';
+
+		return {
+			index: idx,
+			name: name,
+			price: '$' + price,
+			inventory: inventory,
+			saleWindow: saleWindow(startValue, endValue),
+			status: saleStatus(startValue, endValue),
+		};
+	}
+
+	function escapeHtml(value) {
+		return String(value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/\"/g, '&quot;')
+			.replace(/'/g, '&#039;');
+	}
+
+	function syncSummary(root) {
+		var summaryBody = root.querySelector('#oras-tickets-summary tbody');
+		if (!summaryBody) {
+			return;
+		}
+
+		var rows = ticketRows(root);
+		summaryBody.innerHTML = '';
+		if (rows.length === 0) {
+			var emptyRow = document.createElement('tr');
+			emptyRow.className = 'oras-ticket-summary-empty';
+			emptyRow.innerHTML = '<td colspan="6">No tickets yet.</td>';
+			summaryBody.appendChild(emptyRow);
+			return;
+		}
+
+		rows.forEach(function (row) {
+			var data = summaryDataForRow(row);
+			var summaryRow = document.createElement('tr');
+			summaryRow.setAttribute('data-ticket-index', data.index);
+			summaryRow.innerHTML = '' +
+				'<td>' + escapeHtml(data.name) + '</td>' +
+				'<td>' + escapeHtml(data.price) + '</td>' +
+				'<td>' + escapeHtml(data.inventory) + '</td>' +
+				'<td>' + escapeHtml(data.saleWindow) + '</td>' +
+				'<td>' + escapeHtml(data.status) + '</td>' +
+				'<td class="oras-ticket-summary-actions">' +
+				'<button type="button" class="button button-small oras-ticket-summary-edit" data-index="' + escapeHtml(data.index) + '">Edit</button> ' +
+				'<button type="button" class="button button-small oras-ticket-summary-remove" data-index="' + escapeHtml(data.index) + '">Remove</button>' +
+				'</td>';
+			summaryBody.appendChild(summaryRow);
+		});
+	}
+
+	function focusTicketName(row) {
+		var nameInput = getInput(row, 'name');
+		if (nameInput) {
+			nameInput.focus();
+		}
+	}
+
+	function addTicket(root) {
+		var template = root.querySelector('#oras-ticket-template');
+		var tbody = root.querySelector('#oras-tickets-table tbody');
+		if (!template || !template.content || !tbody) {
+			return;
+		}
+
+		var idx = nextIndex(root);
+		var fragment = template.content.cloneNode(true);
+		replaceTokenInFragment(fragment, '__INDEX__', String(idx));
+		var row = fragment.querySelector('.oras-ticket-row');
+		if (!row) {
+			return;
+		}
+
+		tbody.appendChild(row);
+		initializeRow(row, true);
+		syncSummary(root);
+		setValidationNotice(root);
+		focusTicketName(row);
+		updateEmptyState(root);
+	}
+
+	function updateEmptyState(root) {
+		var emptyState = root.querySelector('#oras-tickets-empty');
+		var table = root.querySelector('#oras-tickets-table');
+		var rows = ticketRows(root);
+		if (emptyState) {
+			emptyState.classList.toggle('is-hidden', rows.length > 0);
+		}
+		if (table) {
+			table.style.display = rows.length > 0 ? 'table' : 'none';
+		}
+	}
+
+	function removeTicket(root, index) {
+		var row = root.querySelector('#oras-tickets-table .oras-ticket-row[data-index="' + index + '"]');
+		if (row) {
+			row.remove();
+		}
+
+		syncSummary(root);
+		setValidationNotice(root);
+		updateEmptyState(root);
+	}
+
+	function nextPhaseIndex(list) {
+		var max = -1;
+		toArray(list.querySelectorAll('[data-phase-index]')).forEach(function (row) {
+			var value = Number.parseInt(row.getAttribute('data-phase-index') || '', 10);
+			if (!Number.isNaN(value) && value > max) {
+				max = value;
+			}
+		});
+		return max + 1;
+	}
+
+	function addPhase(button) {
+		var ticketRow = button.closest('tr.oras-ticket-row');
+		if (!ticketRow) {
+			return;
+		}
+		var list = ticketRow.querySelector('.oras-phase-list');
+		var template = ticketRow.querySelector('template.oras-phase-template');
+		if (!list || !template || !template.content) {
+			return;
+		}
+
+		var fragment = template.content.cloneNode(true);
+		replaceTokenInFragment(fragment, '__PHASE__', String(nextPhaseIndex(list)));
+		list.appendChild(fragment);
+		initPhaseToggles(ticketRow);
+	}
+
+	function hasPhaseInputData(phaseItem) {
+		return toArray(phaseItem.querySelectorAll('input[type="text"]')).some(function (input) {
+			return (input.value || '').trim() !== '';
+		});
+	}
+
+	function humanizeKey(value) {
+		var text = String(value || '').replaceAll(/[_-]+/g, ' ').trim();
+		if (text === '') {
+			return '';
+		}
+		return text.replace(/\w\S*/g, function (word) {
+			return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+		});
+	}
+
+	function initializeRow(row, expand) {
+		if (!row) {
+			return;
+		}
+		setRowExpanded(row, !!expand);
+		updateCardHeader(row);
+		initPhaseToggles(row);
 	}
 
 	function init() {
-		var addBtn = document.getElementById( 'oras-add-ticket' );
-		if ( addBtn ) {
-			addBtn.addEventListener(
-				'click',
-				function () {
-					var tpl = document.getElementById( 'oras-ticket-template' );
-					if ( ! tpl ) {
-						return;
-					}
-					var idx   = nextIndex();
-					var tbody = document.querySelector( '#oras-tickets-table tbody' );
-					if ( ! tbody ) {
-						return;
-					}
-					var fragment = tpl.content.cloneNode( true );
-					replaceIndexTokens( fragment, idx );
-					var row = fragment.querySelector( 'tr.oras-ticket-row' );
-					if ( ! row ) {
-						return;
-					}
-					tbody.appendChild( row );
-
-					var tabList = document.getElementById( 'oras-ticket-tabs' );
-						if ( tabList ) {
-							var li        = document.createElement( 'li' );
-							var btn       = document.createElement( 'button' );
-							btn.type      = 'button';
-							btn.className = 'oras-ticket-tab';
-							btn.dataset.index = String( idx );
-							btn.style.width         = '100%';
-							btn.style.textAlign     = 'left';
-							var spans               = ensureTabSpans( btn );
-							spans.title.textContent = 'Ticket #' + idx;
-						spans.meta.textContent  = '$0.00 • Always';
-						li.appendChild( btn );
-						tabList.appendChild( li );
-					}
-
-					var panelWrap = row.querySelector( '.panel-wrap' );
-					initInnerTabs( panelWrap );
-					activateTicket( String( idx ) );
-					initPhaseToggles( row );
-				}
-			);
+		var root = document.getElementById('oras-tickets-metabox');
+		if (!root) {
+			return;
 		}
 
-		var metabox = document.getElementById( 'oras-tickets-metabox' );
-		if ( metabox ) {
-			var tabsList = document.getElementById( 'oras-ticket-tabs' );
-				if ( tabsList ) {
-					tabsList.addEventListener(
-						'click',
-						function (e) {
-							var btn = e.target?.closest( '.oras-ticket-tab' );
-							if ( ! btn ) {
-								return;
-							}
-							var idx = btn.dataset.index;
-							if ( idx === undefined ) {
-								return;
-							}
-							activateTicket( idx );
-						}
-					);
+		ticketRows(root).forEach(function (row, index) {
+			initializeRow(row, index === 0);
+		});
+
+		syncSummary(root);
+		setValidationNotice(root);
+		updateEmptyState(root);
+
+		root.addEventListener('click', function (event) {
+			var addButton = event.target.closest('#oras-add-ticket, .oras-add-ticket-trigger');
+			if (addButton) {
+				event.preventDefault();
+				addTicket(root);
+				return;
+			}
+
+			var toggleButton = event.target.closest('.oras-card-toggle');
+			if (toggleButton) {
+				event.preventDefault();
+				var row = toggleButton.closest('tr.oras-ticket-row');
+				if (!row) {
+					return;
 				}
+				var expanded = toggleButton.getAttribute('aria-expanded') === 'true';
+				setRowExpanded(row, !expanded);
+				return;
+			}
 
-				metabox.addEventListener(
-					'click',
-					handleMetaboxClick
-				);
-
-				metabox.addEventListener(
-					'focusout',
-					function (e) {
-						var t = e.target;
-						if ( ! t?.name?.includes( '[price_phases]' ) ) {
-							return;
-						}
-						if ( ! t.name.endsWith( '[key]' ) ) {
-							return;
-						}
-						var phaseItem = t.closest( '.oras-phase-item' );
-						if ( ! phaseItem ) {
-						return;
-					}
-					var labelInput = phaseItem.querySelector( 'input[name*="[label]"]' );
-					if ( labelInput && (labelInput.value || '').trim() === '' ) {
-						var suggestion = humanizeKey( t.value || '' );
-						if ( suggestion !== '' ) {
-							labelInput.value = suggestion;
-						}
-					}
+			var editSummaryButton = event.target.closest('.oras-ticket-summary-edit');
+			if (editSummaryButton) {
+				event.preventDefault();
+				var index = editSummaryButton.getAttribute('data-index');
+				var targetRow = root.querySelector('#oras-tickets-table .oras-ticket-row[data-index="' + index + '"]');
+				if (!targetRow) {
+					return;
 				}
-			);
+				setRowExpanded(targetRow, true);
+				focusTicketName(targetRow);
+				targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				return;
+			}
 
-				var updateHandler = function (e) {
-					var t = e.target;
-					if ( ! t?.name?.startsWith( 'oras_tickets_tickets[' ) ) {
-						return;
-					}
-					if ( ! isTicketTabField( t.name ) ) {
-						return;
-					}
-					var panel = t.closest( '.oras-ticket-panel' );
-					if ( panel ) {
-						updateTicketTab( panel );
+			var removeButton = event.target.closest('.oras-remove-ticket, .oras-ticket-summary-remove');
+			if (removeButton) {
+				event.preventDefault();
+				var row = removeButton.closest('tr.oras-ticket-row');
+				var index = row ? getRowIndex(row) : removeButton.getAttribute('data-index');
+				if (index) {
+					removeTicket(root, index);
 				}
-			};
+				return;
+			}
 
-			metabox.addEventListener( 'input', updateHandler );
-			metabox.addEventListener( 'change', updateHandler );
-			initPhaseToggles( metabox );
-				if ( tabsList ) {
-					var firstTab = tabsList.querySelector( '.oras-ticket-tab' );
-					if ( firstTab ) {
-						var firstIdx = firstTab.dataset.index;
-						if ( firstIdx !== undefined ) {
-							activateTicket( firstIdx );
-							var firstPanel = document.querySelector( '#oras-tickets-table .oras-ticket-panel[data-index="' + firstIdx + '"]' );
-							updateTicketTab( firstPanel );
-						}
+			var phaseToggle = event.target.closest('.oras-phase-toggle');
+			if (phaseToggle) {
+				event.preventDefault();
+				var phaseItem = phaseToggle.closest('.oras-phase-item');
+				if (!phaseItem) {
+					return;
+				}
+				phaseItem.classList.toggle('is-collapsed');
+				syncPhaseToggle(phaseItem);
+				return;
+			}
+
+			var phaseAddButton = event.target.closest('.oras-phase-add');
+			if (phaseAddButton) {
+				event.preventDefault();
+				addPhase(phaseAddButton);
+				return;
+			}
+
+			var phaseRemoveButton = event.target.closest('.oras-phase-remove');
+			if (phaseRemoveButton) {
+				event.preventDefault();
+				var phase = phaseRemoveButton.closest('.oras-phase-item');
+				if (!phase) {
+					return;
+				}
+				if (hasPhaseInputData(phase) && !window.confirm('Remove this pricing phase?')) {
+					return;
+				}
+				phase.remove();
+			}
+		});
+
+		var syncFromInput = function (event) {
+			var target = event.target;
+			if (!target || typeof target.name !== 'string') {
+				return;
+			}
+			if (target.name.indexOf('oras_tickets_tickets[') !== 0) {
+				return;
+			}
+
+			var row = target.closest('tr.oras-ticket-row');
+			if (!row) {
+				return;
+			}
+
+			updateCardHeader(row);
+			syncSummary(root);
+			setValidationNotice(root);
+		};
+
+		root.addEventListener('input', syncFromInput);
+		root.addEventListener('change', syncFromInput);
+
+		root.addEventListener('focusout', function (event) {
+			var target = event.target;
+			if (!target || typeof target.name !== 'string') {
+				return;
+			}
+			if (target.name.indexOf('[price_phases]') === -1 || target.name.indexOf('[key]') === -1) {
+				return;
+			}
+
+			var phaseItem = target.closest('.oras-phase-item');
+			if (!phaseItem) {
+				return;
+			}
+			var labelInput = phaseItem.querySelector('input[name*="[label]"]');
+			if (labelInput && (labelInput.value || '').trim() === '') {
+				var label = humanizeKey(target.value || '');
+				if (label !== '') {
+					labelInput.value = label;
 				}
 			}
-		}
+		});
 	}
 
-	if ( document.readyState === 'loading' ) {
-		document.addEventListener( 'DOMContentLoaded', init );
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', init);
 	} else {
 		init();
 	}

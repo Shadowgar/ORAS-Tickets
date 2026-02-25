@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Waitlist_Store;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -106,7 +108,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         echo '<form method="post" action="' . esc_url( $action_url ) . '">';
         printf( '<input type="hidden" name="action" value="%s"/>', esc_attr( self::ACTION ) );
-        printf( '<input type="hidden" name="event_id" value="%d"/>', esc_attr( $event_id ) );
+        printf( '<input type="hidden" name="event_id" value="%s"/>', esc_attr( (string) $event_id ) );
         printf( '<input type="hidden" name="oras_rsvp_nonce" value="%s"/>', esc_attr( $nonce ) );
 
         // Buttons
@@ -132,20 +134,6 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     }
 
     public static function handle_post(): void {
-        // DEBUG: log incoming RSVP requests when WP_DEBUG is enabled
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            $dbg_uid = get_current_user_id();
-            $dbg_params = array();
-            foreach ( array( 'event_id', 'intent', 'oras_rsvp_nonce' ) as $k ) {
-                if ( isset( $_POST[ $k ] ) && is_scalar( $_POST[ $k ] ) ) {
-                    $dbg_params[ $k ] = sanitize_text_field( wp_unslash( $_POST[ $k ] ) );
-                } else {
-                    $dbg_params[ $k ] = null;
-                }
-            }
-            error_log( 'ORAS RSVP DEBUG: incoming handle_post user_id=' . intval( $dbg_uid ) . ' params=' . wp_json_encode( $dbg_params ) );
-        }
-
         if ( ! is_user_logged_in() ) {
             if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
                 wp_send_json_error( array( 'message' => esc_html__( 'Please log in to RSVP.', 'oras-tickets' ) ) );
@@ -158,21 +146,9 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
         $nonce = isset( $_POST['oras_rsvp_nonce'] ) && is_scalar( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
         $raw_intent = isset( $_POST['intent'] ) && is_scalar( $_POST['intent'] ) ? sanitize_text_field( wp_unslash( $_POST['intent'] ) ) : '';
+        $redirect = get_permalink( $event_id ) ?: home_url();
 
-        // Strictly parse intent values
-        $intent = '';
-        if ( in_array( $raw_intent, array( 'yes', '1', '1', 'true' ), true ) || $raw_intent === '1' ) {
-            $intent = 'yes';
-        } elseif ( in_array( $raw_intent, array( 'no', '0', 'false', '' ), true ) ) {
-            // treat empty as 'no' only if explicitly sent as such; keep strict
-            if ( $raw_intent === 'no' || $raw_intent === '0' || $raw_intent === 'false' ) {
-                $intent = 'no';
-            }
-        }
-
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( 'ORAS RSVP DEBUG: resolved intent=' . ( $intent === '' ? '<invalid>' : $intent ) );
-        }
+        $intent = self::normalize_intent( $raw_intent );
 
         // If intent couldn't be resolved to yes/no/waitlist, return a specific error
         if ( '' === $intent ) {
@@ -185,8 +161,6 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             exit;
         }
 
-        $redirect = get_permalink( $event_id ) ?: home_url();
-
         if ( $event_id <= 0 || ! wp_verify_nonce( $nonce, 'oras_rsvp_' . $event_id ) ) {
             if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
                 wp_send_json_error( array( 'message' => esc_html__( 'Security check failed.', 'oras-tickets' ) ) );
@@ -195,10 +169,6 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid' ) ), $redirect );
             wp_safe_redirect( $redirect );
             exit;
-        }
-
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( 'ORAS RSVP DEBUG: nonce verified for event_id=' . intval( $event_id ) );
         }
 
         $post = get_post( $event_id );
@@ -212,10 +182,6 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             exit;
         }
 
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( 'ORAS RSVP DEBUG: validated post event_id=' . intval( $event_id ) . ' post_type=' . esc_html( $post->post_type ) );
-        }
-
         $user_id = get_current_user_id();
         $meta = get_post_meta( $event_id, self::META_KEY, true );
         if ( ! is_array( $meta ) ) {
@@ -227,6 +193,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         $current = self::get_user_status( $event_id, $user_id );
         $yes_count = self::yes_count( $event_id );
+        $waitlist_lifecycle = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
+        $was_waitlisted = ( 'waitlist' === $current || 'waiting' === $waitlist_lifecycle );
 
         $new_status = $current;
         $error = false;
@@ -272,46 +240,43 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         if ( ! $error ) {
             // Handle revoke (remove RSVP) deterministically when intent is 'no'.
             if ( 'no' === $intent ) {
-                $existing = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
-                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                    error_log( 'ORAS RSVP DEBUG: existing usermeta=' . wp_json_encode( $existing ) );
+                if ( $was_waitlisted ) {
+                    Waitlist_Store::mark_left( $event_id, $user_id, 'frontend-no', $user_id );
                 }
+
+                $existing = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
                 if ( empty( $existing ) ) {
                     // Idempotent: already removed
                     if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                            error_log( 'ORAS RSVP DEBUG: RSVP already removed for user=' . intval( $user_id ) . ' event=' . intval( $event_id ) );
-                        }
                         wp_send_json_success( array( 'message' => esc_html__( 'RSVP already removed.', 'oras-tickets' ), 'status' => 'none' ) );
                     }
                     $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
                 } else {
                     // Remove user meta entries that represent RSVP
-                    $del1 = delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
-                    $del2 = delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
-                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                        error_log( 'ORAS RSVP DEBUG: delete_user_meta results: rm_meta=' . var_export( $del1, true ) . ' rm_ts=' . var_export( $del2, true ) );
-                    }
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
 
                     // If request was made via AJAX, return JSON response indicating removal.
                     if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                            error_log( 'ORAS RSVP DEBUG: RSVP removed for user=' . intval( $user_id ) . ' event=' . intval( $event_id ) );
-                        }
                         wp_send_json_success( array( 'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ), 'status' => 'none' ) );
                     }
                     $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
                 }
             } else {
                 // Normal update path: set the user meta value for yes/waitlist
-                $res = update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
-                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                    error_log( 'ORAS RSVP DEBUG: update_user_meta result=' . wp_json_encode( $res ) );
-                }
+                update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
+
                 if ( $new_status === 'waitlist' ) {
-                    $res2 = update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts', time() );
-                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                        error_log( 'ORAS RSVP DEBUG: update_user_meta ts result=' . wp_json_encode( $res2 ) );
+                    $joined_ts = time();
+                    update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts', $joined_ts );
+                    Waitlist_Store::mark_waiting( $event_id, $user_id, 'frontend-rsvp', $user_id, $joined_ts );
+                } else {
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
+
+                    if ( 'yes' === $new_status && $was_waitlisted ) {
+                        Waitlist_Store::mark_promoted( $event_id, $user_id, 'frontend-rsvp', $user_id );
+                    } elseif ( 'no' === $new_status && $was_waitlisted ) {
+                        Waitlist_Store::mark_left( $event_id, $user_id, 'frontend-rsvp', $user_id );
                     }
                 }
 
@@ -335,6 +300,24 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         exit;
     }
 
+    private static function normalize_intent( string $raw_intent ): string {
+        $intent = strtolower( trim( $raw_intent ) );
+
+        if ( in_array( $intent, array( 'yes', '1', 'true' ), true ) ) {
+            return 'yes';
+        }
+
+        if ( in_array( $intent, array( 'no', '0', 'false' ), true ) ) {
+            return 'no';
+        }
+
+        if ( in_array( $intent, array( 'waitlist', 'leave_waitlist' ), true ) ) {
+            return $intent;
+        }
+
+        return '';
+    }
+
     public static function get_user_status( int $event_id, int $user_id ): string {
         if ( $user_id <= 0 ) {
             return '';
@@ -343,6 +326,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $val = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
         if ( in_array( $val, array( 'yes', 'no', 'waitlist' ), true ) ) {
             return (string) $val;
+        }
+
+        $waitlist_state = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
+        if ( 'waiting' === $waitlist_state ) {
+            return 'waitlist';
         }
 
         return '';

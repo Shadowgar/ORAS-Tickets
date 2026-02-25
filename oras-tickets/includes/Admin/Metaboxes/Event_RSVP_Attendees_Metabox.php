@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Admin\Metaboxes;
 
+use ORAS\Tickets\Waitlist_Store;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -11,7 +13,7 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
     public static function register(): void {
         add_action( 'add_meta_boxes', array( self::class, 'add_metabox' ) );
         add_action( 'admin_post_oras_rsvp_export', array( self::class, 'handle_export' ) );
-        add_action( 'admin_post_oras_rsvp_promote', array( self::class, 'handle_promote' ) );
+        add_action( 'admin_post_oras_rsvp_metabox_promote', array( self::class, 'handle_promote' ) );
     }
 
     public static function add_metabox(): void {
@@ -57,9 +59,9 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         <div id="oras-rsvp-attendees">
             <h4><?php esc_html_e( 'RSVP Stats', 'oras-tickets' ); ?></h4>
             <p>
-                <strong><?php esc_html_e( 'Yes Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $yes_count ); ?><br>
-                <strong><?php esc_html_e( 'Waitlist Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $waitlist_count ); ?><br>
-                <strong><?php esc_html_e( 'Capacity:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $capacity ); ?><br>
+                <strong><?php esc_html_e( 'Yes Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $yes_count ); ?><br>
+                <strong><?php esc_html_e( 'Waitlist Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $waitlist_count ); ?><br>
+                <strong><?php esc_html_e( 'Capacity:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $capacity ); ?><br>
                 <strong><?php esc_html_e( 'Is Full:', 'oras-tickets' ); ?></strong> <?php echo $is_full ? esc_html__( 'Yes', 'oras-tickets' ) : esc_html__( 'No', 'oras-tickets' ); ?>
             </p>
 
@@ -94,7 +96,7 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
                     <?php esc_html_e( 'Export YES Attendees to CSV', 'oras-tickets' ); ?>
                 </a>
                 <?php if ( $is_full && $waitlist_count > 0 ) : ?>
-                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=oras_rsvp_promote&event_id=' . $event_id ), 'oras_rsvp_promote' ) ); ?>" class="button">
+                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=oras_rsvp_metabox_promote&event_id=' . $event_id ), 'oras_rsvp_promote' ) ); ?>" class="button">
                         <?php esc_html_e( 'Promote from Waitlist', 'oras-tickets' ); ?>
                     </a>
                 <?php endif; ?>
@@ -104,6 +106,10 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
     }
 
     private static function get_count( int $event_id, string $status ): int {
+        if ( 'waitlist' === $status ) {
+            return Waitlist_Store::count_waiting( $event_id );
+        }
+
         $query = new \WP_User_Query( array(
             'meta_key'   => '_oras_rsvp_event_' . $event_id,
             'meta_value' => $status,
@@ -121,16 +127,33 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         $users = $query->get_results();
 
         $attendees = array();
+        $positions = array();
         foreach ( $users as $user ) {
             $status = get_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, true );
-            if ( $status ) {
+            if ( in_array( $status, array( 'yes', 'no' ), true ) ) {
+                $positions[ $user->ID ] = count( $attendees );
                 $attendees[] = array(
                     'name'   => $user->display_name,
                     'email'  => $user->user_email,
-                    'status' => $status,
+                    'status' => (string) $status,
                 );
             }
         }
+
+        $waitlist_users = Waitlist_Store::get_waiting_users( $event_id );
+        foreach ( $waitlist_users as $user ) {
+            if ( isset( $positions[ $user->ID ] ) ) {
+                $attendees[ $positions[ $user->ID ] ]['status'] = 'waitlist';
+                continue;
+            }
+
+            $attendees[] = array(
+                'name'   => $user->display_name,
+                'email'  => $user->user_email,
+                'status' => 'waitlist',
+            );
+        }
+
         return $attendees;
     }
 
@@ -184,25 +207,17 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         $capacity = isset( $envelope['capacity'] ) ? (int) $envelope['capacity'] : 0;
         $yes_count = self::get_count( $event_id, 'yes' );
 
-        if ( $yes_count >= $capacity ) {
+        if ( $capacity > 0 && $yes_count >= $capacity ) {
             wp_die( esc_html__( 'Event is at capacity.', 'oras-tickets' ) );
         }
 
-        $query = new \WP_User_Query( array(
-            'meta_key'   => '_oras_rsvp_event_' . $event_id,
-            'meta_value' => 'waitlist',
-            'orderby'    => 'user_registered',
-            'order'      => 'ASC',
-            'number'     => 1,
-        ) );
-        $users = $query->get_results();
-
-        if ( ! empty( $users ) ) {
-            $user = $users[0];
-            update_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, 'yes' );
+        $promoted_user_id = Waitlist_Store::promote_next_waiting( $event_id, get_current_user_id(), 'metabox' );
+        if ( $promoted_user_id > 0 ) {
+            update_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
+            delete_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id . '_ts' );
         }
 
-        wp_redirect( admin_url( 'post.php?post=' . $event_id . '&action=edit' ) );
+        wp_safe_redirect( admin_url( 'post.php?post=' . $event_id . '&action=edit' ) );
         exit;
     }
 }

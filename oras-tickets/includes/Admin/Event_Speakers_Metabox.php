@@ -96,7 +96,10 @@ final class Event_Speakers_Metabox { // NOSONAR legacy WP class naming
         ?>
     <div id="oras-event-speakers-metabox">
         <div class="oras-event-speakers-toolbar">
-        <button type="button" class="button" id="oras-add-speaker-row"><?php echo esc_html__( 'Add Speaker', 'oras-tickets' ); ?></button>
+        <button type="button" class="button button-secondary" id="oras-add-speaker-row">
+            <span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
+            <span><?php echo esc_html__( 'Add Speaker', 'oras-tickets' ); ?></span>
+        </button>
         </div>
         <div class="oras-event-speakers-rows" data-next-index="<?php echo esc_attr( (string) $next_index ); ?>">
         <?php foreach ( $assignments as $index => $assignment ) : ?>
@@ -132,6 +135,21 @@ final class Event_Speakers_Metabox { // NOSONAR legacy WP class naming
         }
 
         $index_attr = is_int( $index ) ? (string) $index : (string) $index;
+        $index_slug = preg_replace( '/[^A-Za-z0-9_-]/', '-', $index_attr );
+        if ( '' === $index_slug ) {
+            $index_slug = 'row';
+        }
+
+        $speaker_field_id        = 'oras-speaker-' . $index_slug . '-speaker';
+        $role_field_id           = 'oras-speaker-' . $index_slug . '-role';
+        $primary_field_id        = 'oras-speaker-' . $index_slug . '-primary';
+        $compensation_field_id   = 'oras-speaker-' . $index_slug . '-compensation';
+        $fee_field_id            = 'oras-speaker-' . $index_slug . '-fee';
+        $pmpro_field_id          = 'oras-speaker-' . $index_slug . '-pmpro';
+        $fulfilled_field_id      = 'oras-speaker-' . $index_slug . '-fulfilled';
+        $fulfilled_date_field_id = 'oras-speaker-' . $index_slug . '-fulfilled-date';
+        $notes_field_id          = 'oras-speaker-' . $index_slug . '-notes';
+        $body_id                 = 'oras-speaker-' . $index_slug . '-body';
 
         ob_start();
         ?>
@@ -147,86 +165,90 @@ final class Event_Speakers_Metabox { // NOSONAR legacy WP class naming
         ?>
         <div class="oras-card__header">
             <div class="oras-card__title">
-                <span class="oras-card__name"><?php echo esc_html( $speaker_name ?: 'Speaker' ); ?></span>
-                <span class="oras-card__meta"><?php echo esc_html( $role ); ?></span>
+                <span class="oras-card__name"><?php echo esc_html( $speaker_name ?: __( 'Speaker', 'oras-tickets' ) ); ?></span>
+                <span class="oras-card__meta oras-speaker-role"><?php echo esc_html( $role !== '' ? $role : __( 'Role not set', 'oras-tickets' ) ); ?></span>
+                <span class="oras-speaker-badges">
+                    <?php if ( $is_primary ) : ?>
+                        <span class="oras-speaker-badge is-primary"><?php echo esc_html__( 'Primary', 'oras-tickets' ); ?></span>
+                    <?php endif; ?>
+                    <span class="oras-speaker-badge <?php echo $fulfilled ? 'is-fulfilled' : ''; ?>"><?php echo esc_html( $fulfilled ? __( 'Fulfilled', 'oras-tickets' ) : __( 'Pending', 'oras-tickets' ) ); ?></span>
+                </span>
             </div>
             <div class="oras-card__actions">
-                <button type="button" class="button oras-card-toggle" data-index="<?php echo esc_attr( $index_attr ); ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                <button type="button" class="button oras-card-toggle" data-index="<?php echo esc_attr( $index_attr ); ?>" aria-expanded="false" aria-controls="<?php echo esc_attr( $body_id ); ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
                 <button type="button" class="button oras-remove-speaker-row"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
             </div>
         </div>
-        <div class="oras-card__body">
-        <div class="oras-event-speaker-grid">
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Speaker', 'oras-tickets' ); ?></span>
-            <select name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][speaker_id]">
-            <option value="0"><?php echo esc_html__( 'Select speaker', 'oras-tickets' ); ?></option>
-            <?php foreach ( $speakers as $speaker ) : ?>
-                <?php
-                if ( ! $speaker instanceof \WP_Post ) {
-                    continue;
-                }
-                $speaker_value = (int) $speaker->ID;
-                ?>
-                <option value="<?php echo esc_attr( (string) $speaker_value ); ?>" <?php selected( $speaker_id, $speaker_value ); ?>>
-                <?php echo esc_html( $speaker->post_title ); ?>
-                </option>
-            <?php endforeach; ?>
-            </select>
-        </div>
+        <div id="<?php echo esc_attr( $body_id ); ?>" class="oras-card__body" hidden>
+            <div class="oras-event-speaker-grid">
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $speaker_field_id ); ?>"><?php echo esc_html__( 'Speaker', 'oras-tickets' ); ?></label>
+                    <select id="<?php echo esc_attr( $speaker_field_id ); ?>" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][speaker_id]">
+                        <option value="0"><?php echo esc_html__( 'Select speaker', 'oras-tickets' ); ?></option>
+                        <?php foreach ( $speakers as $speaker ) : ?>
+                            <?php
+                            if ( ! $speaker instanceof \WP_Post ) {
+                                continue;
+                            }
+                            $speaker_value = (int) $speaker->ID;
+                            ?>
+                            <option value="<?php echo esc_attr( (string) $speaker_value ); ?>" <?php selected( $speaker_id, $speaker_value ); ?>>
+                                <?php echo esc_html( $speaker->post_title ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
 
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Role', 'oras-tickets' ); ?></span>
-            <input type="text" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][role]" value="<?php echo esc_attr( $role ); ?>" />
-        </div>
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $role_field_id ); ?>"><?php echo esc_html__( 'Role', 'oras-tickets' ); ?></label>
+                    <input id="<?php echo esc_attr( $role_field_id ); ?>" type="text" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][role]" value="<?php echo esc_attr( $role ); ?>" />
+                </div>
 
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Primary', 'oras-tickets' ); ?></span>
-            <label>
-            <input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][is_primary]" value="1" <?php checked( $is_primary ); ?> />
-                <?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
-            </label>
-        </div>
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $primary_field_id ); ?>"><?php echo esc_html__( 'Primary', 'oras-tickets' ); ?></label>
+                    <label>
+                        <input id="<?php echo esc_attr( $primary_field_id ); ?>" type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][is_primary]" value="1" <?php checked( $is_primary ); ?> />
+                        <?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
+                    </label>
+                </div>
 
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Compensation', 'oras-tickets' ); ?></span>
-            <select class="oras-event-speaker-compensation" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][compensation_type]">
-            <option value="none" <?php selected( $compensation_type, self::COMPENSATION_NONE ); ?>><?php echo esc_html__( 'None', 'oras-tickets' ); ?></option>
-            <option value="fee" <?php selected( $compensation_type, self::COMPENSATION_FEE ); ?>><?php echo esc_html__( 'Fee', 'oras-tickets' ); ?></option>
-            <option value="membership" <?php selected( $compensation_type, self::COMPENSATION_MEMBERSHIP ); ?>><?php echo esc_html__( 'Membership', 'oras-tickets' ); ?></option>
-            </select>
-        </div>
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $compensation_field_id ); ?>"><?php echo esc_html__( 'Compensation', 'oras-tickets' ); ?></label>
+                    <select id="<?php echo esc_attr( $compensation_field_id ); ?>" class="oras-event-speaker-compensation" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][compensation_type]">
+                        <option value="none" <?php selected( $compensation_type, self::COMPENSATION_NONE ); ?>><?php echo esc_html__( 'None', 'oras-tickets' ); ?></option>
+                        <option value="fee" <?php selected( $compensation_type, self::COMPENSATION_FEE ); ?>><?php echo esc_html__( 'Fee', 'oras-tickets' ); ?></option>
+                        <option value="membership" <?php selected( $compensation_type, self::COMPENSATION_MEMBERSHIP ); ?>><?php echo esc_html__( 'Membership', 'oras-tickets' ); ?></option>
+                    </select>
+                </div>
 
-        <div class="oras-event-speaker-field" data-compensation="fee">
-            <span class="oras-field-label"><?php echo esc_html__( 'Fee Amount', 'oras-tickets' ); ?></span>
-            <input type="number" step="0.01" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fee_amount]" value="<?php echo esc_attr( (string) $fee_amount ); ?>" />
-        </div>
+                <div class="oras-event-speaker-field" data-compensation="fee">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $fee_field_id ); ?>"><?php echo esc_html__( 'Fee Amount', 'oras-tickets' ); ?></label>
+                    <input id="<?php echo esc_attr( $fee_field_id ); ?>" type="number" step="0.01" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fee_amount]" value="<?php echo esc_attr( (string) $fee_amount ); ?>" />
+                </div>
 
-        <div class="oras-event-speaker-field" data-compensation="membership">
-            <span class="oras-field-label"><?php echo esc_html__( 'PMPro Level ID', 'oras-tickets' ); ?></span>
-            <input type="number" step="1" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][pmpro_level_id]" value="<?php echo esc_attr( (string) $pmpro_level_id ); ?>" />
-        </div>
+                <div class="oras-event-speaker-field" data-compensation="membership">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $pmpro_field_id ); ?>"><?php echo esc_html__( 'PMPro Level ID', 'oras-tickets' ); ?></label>
+                    <input id="<?php echo esc_attr( $pmpro_field_id ); ?>" type="number" step="1" min="0" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][pmpro_level_id]" value="<?php echo esc_attr( (string) $pmpro_level_id ); ?>" />
+                </div>
 
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Fulfilled', 'oras-tickets' ); ?></span>
-            <label>
-            <input type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled]" value="1" <?php checked( $fulfilled ); ?> />
-                <?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
-            </label>
-        </div>
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $fulfilled_field_id ); ?>"><?php echo esc_html__( 'Fulfilled', 'oras-tickets' ); ?></label>
+                    <label>
+                        <input id="<?php echo esc_attr( $fulfilled_field_id ); ?>" type="checkbox" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled]" value="1" <?php checked( $fulfilled ); ?> />
+                        <?php echo esc_html__( 'Yes', 'oras-tickets' ); ?>
+                    </label>
+                </div>
 
-        <div class="oras-event-speaker-field">
-            <span class="oras-field-label"><?php echo esc_html__( 'Fulfilled Date', 'oras-tickets' ); ?></span>
-            <input type="date" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled_date]" value="<?php echo esc_attr( $fulfilled_date ); ?>" />
-        </div>
+                <div class="oras-event-speaker-field">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $fulfilled_date_field_id ); ?>"><?php echo esc_html__( 'Fulfilled Date', 'oras-tickets' ); ?></label>
+                    <input id="<?php echo esc_attr( $fulfilled_date_field_id ); ?>" type="date" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][fulfilled_date]" value="<?php echo esc_attr( $fulfilled_date ); ?>" />
+                </div>
 
-        <div class="oras-event-speaker-field oras-event-speaker-notes">
-            <span class="oras-field-label"><?php echo esc_html__( 'Internal Notes', 'oras-tickets' ); ?></span>
-            <textarea name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][internal_notes]" rows="3"><?php echo esc_textarea( $internal_notes ); ?></textarea>
-        </div>
-        </div>
-        <div class="oras-event-speaker-actions">
-        </div>
+                <div class="oras-event-speaker-field oras-event-speaker-notes">
+                    <label class="oras-field-label" for="<?php echo esc_attr( $notes_field_id ); ?>"><?php echo esc_html__( 'Internal Notes', 'oras-tickets' ); ?></label>
+                    <textarea id="<?php echo esc_attr( $notes_field_id ); ?>" name="oras_speakers_assignments[<?php echo esc_attr( $index_attr ); ?>][internal_notes]" rows="3"><?php echo esc_textarea( $internal_notes ); ?></textarea>
+                </div>
+            </div>
         </div>
     </div>
         <?php

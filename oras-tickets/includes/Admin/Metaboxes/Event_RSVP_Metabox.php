@@ -46,50 +46,59 @@ final class Event_RSVP_Metabox { // NOSONAR legacy WP class naming
             );
         }
 
+        $open_at  = isset( $envelope['open_at'] ) ? (string) $envelope['open_at'] : '';
+        $close_at = isset( $envelope['close_at'] ) ? (string) $envelope['close_at'] : '';
+
+        $open_at_display  = $open_at !== '' ? str_replace( ' ', 'T', $open_at ) : '';
+        $close_at_display = $close_at !== '' ? str_replace( ' ', 'T', $close_at ) : '';
+
         wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
         ?>
-        <table class="form-table">
-            <tr>
-                <th scope="row">
-                    <label for="oras_rsvp_enabled"><?php echo esc_html__( 'Enable RSVP', 'oras-tickets' ); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="oras_rsvp_enabled" name="oras_rsvp[enabled]" value="1" <?php checked( $envelope['enabled'] ); ?> />
-                </td>
-            </tr>
-            <tr>
-                <th scope="row">
-                    <label for="oras_rsvp_capacity"><?php echo esc_html__( 'Capacity', 'oras-tickets' ); ?></label>
-                </th>
-                <td>
-                    <input type="number" id="oras_rsvp_capacity" name="oras_rsvp[capacity]" value="<?php echo esc_attr( $envelope['capacity'] ); ?>" min="0" />
-                </td>
-            </tr>
-            <tr>
-                <th scope="row">
-                    <label for="oras_rsvp_waitlist_enabled"><?php echo esc_html__( 'Enable Waitlist', 'oras-tickets' ); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="oras_rsvp_waitlist_enabled" name="oras_rsvp[waitlist_enabled]" value="1" <?php checked( $envelope['waitlist_enabled'] ); ?> />
-                </td>
-            </tr>
-            <tr>
-                <th scope="row">
-                    <label for="oras_rsvp_open_at"><?php echo esc_html__( 'Open At', 'oras-tickets' ); ?></label>
-                </th>
-                <td>
-                    <input type="text" id="oras_rsvp_open_at" name="oras_rsvp[open_at]" value="<?php echo esc_attr( $envelope['open_at'] ); ?>" />
-                </td>
-            </tr>
-            <tr>
-                <th scope="row">
-                    <label for="oras_rsvp_close_at"><?php echo esc_html__( 'Close At', 'oras-tickets' ); ?></label>
-                </th>
-                <td>
-                    <input type="text" id="oras_rsvp_close_at" name="oras_rsvp[close_at]" value="<?php echo esc_attr( $envelope['close_at'] ); ?>" />
-                </td>
-            </tr>
-        </table>
+        <div id="oras-rsvp-metabox">
+            <fieldset>
+                <legend><?php echo esc_html__( 'RSVP Settings', 'oras-tickets' ); ?></legend>
+
+                <div class="oras-rsvp-grid">
+                    <div class="oras-rsvp-field oras-rsvp-field--full">
+                        <label for="oras_rsvp_enabled">
+                            <input type="checkbox" id="oras_rsvp_enabled" name="oras_rsvp[enabled]" value="1" <?php checked( $envelope['enabled'] ); ?> />
+                            <?php echo esc_html__( 'Enable RSVP', 'oras-tickets' ); ?>
+                        </label>
+                        <p class="description"><?php echo esc_html__( 'Allow members to register without purchasing a ticket.', 'oras-tickets' ); ?></p>
+                    </div>
+
+                    <div class="oras-rsvp-field oras-rsvp-field--capacity">
+                        <label for="oras_rsvp_capacity"><?php echo esc_html__( 'Capacity', 'oras-tickets' ); ?></label>
+                        <input type="number" id="oras_rsvp_capacity" name="oras_rsvp[capacity]" value="<?php echo esc_attr( (string) $envelope['capacity'] ); ?>" min="0" />
+                        <p class="description"><?php echo esc_html__( 'Maximum RSVPs. Use 0 for unlimited.', 'oras-tickets' ); ?></p>
+                    </div>
+
+                    <div class="oras-rsvp-field">
+                        <label for="oras_rsvp_waitlist_enabled">
+                            <input type="checkbox" id="oras_rsvp_waitlist_enabled" name="oras_rsvp[waitlist_enabled]" value="1" <?php checked( $envelope['waitlist_enabled'] ); ?> />
+                            <?php echo esc_html__( 'Enable Waitlist', 'oras-tickets' ); ?>
+                        </label>
+                        <p class="description"><?php echo esc_html__( 'Allow people to join a waitlist after RSVP capacity is reached.', 'oras-tickets' ); ?></p>
+                    </div>
+
+                    <div class="oras-rsvp-field oras-rsvp-field--full">
+                        <label><?php echo esc_html__( 'RSVP Window', 'oras-tickets' ); ?></label>
+                        <div class="oras-rsvp-datetime-grid">
+                            <div class="oras-rsvp-field">
+                                <label for="oras_rsvp_open_at"><?php echo esc_html__( 'Open At', 'oras-tickets' ); ?></label>
+                                <input type="datetime-local" id="oras_rsvp_open_at" name="oras_rsvp[open_at]" value="<?php echo esc_attr( $open_at_display ); ?>" />
+                                <p class="description"><?php echo esc_html__( 'Optional date/time when RSVP opens.', 'oras-tickets' ); ?></p>
+                            </div>
+                            <div class="oras-rsvp-field">
+                                <label for="oras_rsvp_close_at"><?php echo esc_html__( 'Close At', 'oras-tickets' ); ?></label>
+                                <input type="datetime-local" id="oras_rsvp_close_at" name="oras_rsvp[close_at]" value="<?php echo esc_attr( $close_at_display ); ?>" />
+                                <p class="description"><?php echo esc_html__( 'Optional date/time when RSVP closes.', 'oras-tickets' ); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
         <?php
     }
 
@@ -117,13 +126,25 @@ if ( ! isset( $_POST[ self::NONCE_NAME ] ) ) {
 
         $input = isset( $_POST['oras_rsvp'] ) && is_array( $_POST['oras_rsvp'] ) ? $_POST['oras_rsvp'] : array();
 
+        $open_at = sanitize_text_field( $input['open_at'] ?? '' );
+        if ( '' !== $open_at ) {
+            $open_at = str_replace( 'T', ' ', $open_at );
+            $open_at = trim( $open_at );
+        }
+
+        $close_at = sanitize_text_field( $input['close_at'] ?? '' );
+        if ( '' !== $close_at ) {
+            $close_at = str_replace( 'T', ' ', $close_at );
+            $close_at = trim( $close_at );
+        }
+
         $envelope = array(
             'version'          => 1,
             'enabled'          => ! empty( $input['enabled'] ),
             'capacity'         => absint( $input['capacity'] ?? 0 ),
             'waitlist_enabled' => ! empty( $input['waitlist_enabled'] ),
-            'open_at'          => sanitize_text_field( $input['open_at'] ?? '' ),
-            'close_at'         => sanitize_text_field( $input['close_at'] ?? '' ),
+            'open_at'          => $open_at,
+            'close_at'         => $close_at,
         );
 
         update_post_meta( $post_id, self::META_KEY, $envelope );

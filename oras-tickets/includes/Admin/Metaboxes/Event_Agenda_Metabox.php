@@ -99,6 +99,10 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 </label>
             </p>
 
+            <p class="oras-agenda-days-toolbar">
+                <button type="button" class="button button-secondary oras-agenda-add-day"><?php echo esc_html__('Add Day', 'oras-tickets'); ?></button>
+            </p>
+
             <div id="oras-agenda-days">
                 <?php foreach ($days as $day_index => $day) : ?>
                     <?php
@@ -111,18 +115,19 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     $slots     = isset($day['slots']) && is_array($day['slots']) ? $day['slots'] : array();
                     ?>
                     <div class="oras-agenda-day" data-day-index="<?php echo esc_attr((string) $day_index); ?>">
-                        <?php $slot_count = is_array( $slots ) ? count( $slots ) : 0; ?>
+                        <?php $slot_count = count( $slots ); ?>
                         <div class="oras-card__header">
                             <div class="oras-card__title">
                                 <span class="oras-card__name"><?php echo esc_html( $day_label ?: sprintf( 'Day %d', $day_index + 1 ) ); ?></span>
                                 <span class="oras-card__meta"><?php echo esc_html( $date ); ?> · <?php echo esc_html( $slot_count . ' items' ); ?></span>
                             </div>
                             <div class="oras-card__actions">
+                                <button type="button" class="button button-small oras-agenda-day-toggle" aria-expanded="true"><?php echo esc_html__('Collapse', 'oras-tickets'); ?></button>
                                 <button type="button" class="button oras-agenda-add-slot" data-day-index="<?php echo esc_attr((string) $day_index); ?>"><?php echo esc_html__('Add Item', 'oras-tickets'); ?></button>
                                 <button type="button" class="button oras-agenda-remove-day"><?php echo esc_html__('Remove Day', 'oras-tickets'); ?></button>
                             </div>
                         </div>
-                        <div class="oras-card__body" style="margin:12px 0;padding:12px;border:1px solid #ddd;">
+                        <div class="oras-card__body">
                         <p>
                             <span class="oras-field-label"><strong><?php echo esc_html__('Day label', 'oras-tickets'); ?></strong></span><br />
                             <input type="text" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][day_label]" value="<?php echo esc_attr($day_label); ?>" />
@@ -278,7 +283,10 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                 <?php endforeach; ?>
                                             </select>
                                         </td>
-                                        <td><button type="button" class="button oras-agenda-remove-slot"><?php echo esc_html__('Remove', 'oras-tickets'); ?></button></td>
+                                        <td>
+                                            <button type="button" class="button button-small oras-agenda-toggle-slot" aria-expanded="false"><?php echo esc_html__('Edit', 'oras-tickets'); ?></button>
+                                            <button type="button" class="button oras-agenda-remove-slot"><?php echo esc_html__('Remove', 'oras-tickets'); ?></button>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -292,16 +300,16 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 <?php endforeach; ?>
             </div>
 
-            <p>
-                <button type="button" class="button" id="oras-agenda-add-day"><?php echo esc_html__('Add Day', 'oras-tickets'); ?></button>
+            <p class="oras-agenda-days-toolbar">
+                <button type="button" class="button button-secondary oras-agenda-add-day" id="oras-agenda-add-day"><?php echo esc_html__('Add Day', 'oras-tickets'); ?></button>
             </p>
         </div>
 
         <script>
             (function() {
                 var daysContainer = document.getElementById('oras-agenda-days');
-                var addDayButton = document.getElementById('oras-agenda-add-day');
-                if (!daysContainer || !addDayButton) {
+                var addDayButtons = document.querySelectorAll('.oras-agenda-add-day');
+                if (!daysContainer || !addDayButtons.length) {
                     return;
                 }
 
@@ -339,7 +347,10 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         '<td><select class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][type]">' + options(types) + '</select></td>' +
                         '<td><input type="text" class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][location]" value="" /></td>' +
                         '<td><select class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][visibility]">' + options(visibilities) + '</select></td>' +
-                        '<td><button type="button" class="button oras-agenda-remove-slot"><?php echo esc_js(__('Remove', 'oras-tickets')); ?></button></td>' +
+                        '<td>' +
+                        '<button type="button" class="button button-small oras-agenda-toggle-slot" aria-expanded="false"><?php echo esc_js(__('Edit', 'oras-tickets')); ?></button> ' +
+                        '<button type="button" class="button oras-agenda-remove-slot"><?php echo esc_js(__('Remove', 'oras-tickets')); ?></button>' +
+                        '</td>' +
                         '</tr>';
                 }
 
@@ -384,7 +395,19 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
 
                 function dayHtml(dayIndex) {
                     return '' +
-                        '<div class="oras-agenda-day" data-day-index="' + dayIndex + '" style="margin:16px 0;padding:12px;border:1px solid #ddd;">' +
+                        '<div class="oras-agenda-day" data-day-index="' + dayIndex + '">' +
+                        '<div class="oras-card__header">' +
+                        '<div class="oras-card__title">' +
+                        '<span class="oras-card__name">' + '<?php echo esc_js(__('Day', 'oras-tickets')); ?>' + ' ' + (dayIndex + 1) + '</span>' +
+                        '<span class="oras-card__meta"><?php echo esc_js(__('No date', 'oras-tickets')); ?> · 0 <?php echo esc_js(__('items', 'oras-tickets')); ?></span>' +
+                        '</div>' +
+                        '<div class="oras-card__actions">' +
+                        '<button type="button" class="button button-small oras-agenda-day-toggle" aria-expanded="true"><?php echo esc_js(__('Collapse', 'oras-tickets')); ?></button> ' +
+                        '<button type="button" class="button oras-agenda-add-slot"><?php echo esc_js(__('Add Item', 'oras-tickets')); ?></button> ' +
+                        '<button type="button" class="button oras-agenda-remove-day"><?php echo esc_js(__('Remove Day', 'oras-tickets')); ?></button>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="oras-card__body">' +
                         '<p><span class="oras-field-label"><strong><?php echo esc_js(__('Day label', 'oras-tickets')); ?></strong></span><br />' +
                         '<input type="text" class="widefat" name="oras_agenda[days][' + dayIndex + '][day_label]" value="" /></p>' +
                         '<p><span class="oras-field-label"><strong><?php echo esc_js(__('Date', 'oras-tickets')); ?></strong></span><br />' +
@@ -402,10 +425,8 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         '</tr></thead>' +
                         '<tbody class="oras-agenda-slots-body"></tbody>' +
                         '</table>' +
-                        '<p>' +
-                        '<button type="button" class="button oras-agenda-add-slot"><?php echo esc_js(__('Add Slot', 'oras-tickets')); ?></button> ' +
-                        '<button type="button" class="button oras-agenda-remove-day"><?php echo esc_js(__('Remove Day', 'oras-tickets')); ?></button>' +
-                        '</p>' +
+                        '<p><button type="button" class="button oras-agenda-add-slot"><?php echo esc_js(__('Add Slot', 'oras-tickets')); ?></button></p>' +
+                        '</div>' +
                         '</div>';
                 }
 
@@ -457,10 +478,12 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     return max + 1;
                 }
 
-                addDayButton.addEventListener('click', function() {
-                    var dayIndex = nextDayIndex();
-                    daysContainer.insertAdjacentHTML('beforeend', dayHtml(dayIndex));
-                });
+                for (var b = 0; b < addDayButtons.length; b++) {
+                    addDayButtons[b].addEventListener('click', function() {
+                        var dayIndex = nextDayIndex();
+                        daysContainer.insertAdjacentHTML('beforeend', dayHtml(dayIndex));
+                    });
+                }
 
                 daysContainer.addEventListener('click', function(event) {
                     var target = event.target;
@@ -1011,7 +1034,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
             return strcmp($b['event_start_date'] ?? '', $a['event_start_date'] ?? '');
         });
 
-        $history['events'] = array_values($events);
+        $history['events'] = $events;
         update_post_meta($speaker_id, '_oras_speaker_history_v1', $history);
     }
 

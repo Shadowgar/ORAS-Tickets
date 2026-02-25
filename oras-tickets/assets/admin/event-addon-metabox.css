@@ -1,167 +1,366 @@
-/* Layout */
-#oras-events-addon .oras-events-addon__layout {
+#oras-events-addon {
+	--oras-space-1: 8px;
+	--oras-space-2: 12px;
+	--oras-space-3: 16px;
+	--oras-space-4: 24px;
+	--oras-border: #dcdcde;
+	--oras-border-soft: #e8e8ea;
+	--oras-text-muted: #50575e;
+	--oras-bg-soft: #f6f7f7;
+	margin-top: 4px;
+}
+
+#oras-events-addon,
+#oras-events-addon * {
+	box-sizing: border-box;
+}
+
+#oras-events-addon .oras-events-addon__header {
 	display: flex;
-	gap: 18px;
+	justify-content: space-between;
 	align-items: flex-start;
-}
-
-#oras-events-addon .oras-events-addon__tabs {
-	width: 220px;
-	flex: 0 0 220px;
-	border-right: 1px solid #e6e6e6;
-	padding-right: 16px;
-}
-
-/* Tab buttons */
-#oras-events-addon .oras-events-addon__tab {
-	display: block;
-	width: 100%;
-	text-align: left;
-	padding: 10px 12px;
-	margin: 0 0 8px;
+	gap: var(--oras-space-3);
+	margin-bottom: var(--oras-space-3);
+	padding: var(--oras-space-2) var(--oras-space-3);
+	border: 1px solid var(--oras-border-soft);
 	border-radius: 6px;
-	text-decoration: none;
-	color: #0073aa;
-	background: transparent;
-	border: 1px solid transparent;
+	background: linear-gradient(180deg, #fff, #fcfcfc);
 }
 
-#oras-events-addon .oras-events-addon__tab:hover {
-	background: #f7f7f7;
+#oras-events-addon .oras-events-addon__header-main {
+	min-width: 0;
 }
 
-#oras-events-addon .oras-events-addon__tab.is-active {
-	background: #ffffff;
-	border-color: #dcdcdc;
-	box-shadow: 0 1px 0 rgba(0,0,0,0.03) inset;
+#oras-events-addon .oras-events-addon__title {
+	margin: 0 0 4px;
+	font-size: 17px;
+	line-height: 1.3;
+}
+
+#oras-events-addon .oras-events-addon__header .description {
+	margin: 0;
+	color: var(--oras-text-muted);
+}
+
+#oras-events-addon .oras-events-addon__badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--oras-space-1);
+}
+
+#oras-events-addon .oras-events-addon__badge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	padding: 0 10px;
+	border: 1px solid #ccd0d4;
+	border-radius: 999px;
+	background: #fff;
+	font-size: 12px;
 	font-weight: 600;
-	color: #111;
-}
-/* Scoped to ORAS events addon */
-#oras-events-addon.oras-events-addon {
-    font-family: inherit;
+	line-height: 1;
+	white-space: nowrap;
 }
 
-/* Header */
-.oras-events-addon__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 12px;
+#oras-events-addon .oras-events-addon__badge.is-success {
+	color: #196331;
+	border-color: #8bcfa4;
+	background: #f1faf4;
 }
 
-.oras-events-addon__title h3 {
-    margin: 0 0 4px 0;
-    font-size: 16px;
+#oras-events-addon .oras-events-addon__badge.is-muted {
+	color: #646970;
+	border-color: #dcdcde;
+	background: #f8f9f9;
 }
 
-.oras-events-addon__title .description {
-    margin: 0;
-    color: #666;
+#oras-events-addon .oras-events-addon__tabs.nav-tab-wrapper {
+	border-bottom: 1px solid #c3c4c7;
+	margin: 0 0 var(--oras-space-3);
+	padding: 0;
 }
 
-/* Tabs - WP style */
-.oras-events-addon__tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
+#oras-events-addon .oras-events-addon__tab.nav-tab {
+	cursor: pointer;
+	margin-left: 0;
 }
 
-.oras-events-addon__tabs .oras-events-addon__tab {
-    padding: 6px 10px;
+#oras-events-addon .oras-events-addon__tab.is-active,
+#oras-events-addon .oras-events-addon__tab[aria-selected="true"] {
+	background: #fff;
+	border-bottom-color: #fff;
+	font-weight: 600;
 }
 
-.oras-events-addon__tab.is-active,
-.oras-events-addon__tab[aria-selected="true"] {
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    color: #111;
-    box-shadow: none;
+#oras-events-addon .oras-events-addon__panel[hidden] {
+	display: none;
 }
 
-.oras-events-addon__panels {
-    display: block;
+#oras-events-addon .oras-events-addon__panel-inner {
+	padding: 0;
 }
 
-.oras-events-addon__panel {
-    margin-bottom: 12px;
+#oras-events-addon .oras-card__header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--oras-space-2);
+	padding: 10px 12px;
+	border: 1px solid var(--oras-border);
+	border-radius: 6px 6px 0 0;
+	background: #fff;
 }
 
-/* Card wrapper that uses WP admin .postbox/.inside visual language */
-.oras-events-addon__card.postbox {
-    border-radius: 4px;
-    box-shadow: none;
-    border: 1px solid #e5e5e5;
+#oras-events-addon .oras-card__title {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
-.oras-events-addon__card .inside {
-    padding: 12px 16px;
+#oras-events-addon .oras-card__name {
+	font-weight: 600;
+	line-height: 1.3;
 }
 
-/* Compact table spacing inside cards */
-.oras-events-addon__card table.form-table {
-    margin: 0;
+#oras-events-addon .oras-card__meta {
+	color: var(--oras-text-muted);
+	font-size: 12px;
+	line-height: 1.3;
 }
 
-/* Ticket summary lightweight table */
-.oras-events-addon__tickets-summary {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 12px;
-}
-.oras-events-addon__tickets-summary th,
-.oras-events-addon__tickets-summary td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #f1f1f1;
-    vertical-align: middle;
-    text-align: left;
-}
-.oras-events-addon__tickets-summary th {
-    color: #666;
-    font-weight: 600;
-    font-size: 13px;
+#oras-events-addon .oras-card__actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--oras-space-1);
 }
 
-/* Cards for items when available (non-invasive) */
-.oras-card {
-    border: 1px solid #eee;
-    border-radius: 4px;
-    padding: 10px;
-    margin-bottom: 10px;
-    background: #fff;
-}
-.oras-card__header {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-}
-.oras-card__title {
-    font-weight: 600;
+#oras-events-addon .oras-card__body {
+	border: 1px solid var(--oras-border);
+	border-top: 0;
+	border-radius: 0 0 6px 6px;
+	background: #fff;
+	padding: var(--oras-space-3);
 }
 
-/* Agenda day card overrides */
-.oras-agenda-day { margin-bottom: 12px; }
-.oras-agenda-day .oras-card__header { padding: 10px 12px; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff; }
-.oras-agenda-day .oras-card__body { padding: 12px; border: 1px solid #e6e6e6; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
-
-/* Speaker rows as cards */
-.oras-event-speaker-row { margin-bottom: 10px; }
-.oras-event-speaker-row .oras-card__header { padding: 8px 10px; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff; }
-.oras-event-speaker-row .oras-card__body { padding: 10px; border: 1px solid #e6e6e6; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
-
-/* Buttons */
-.oras-events-addon .button + .button {
-    margin-left: 6px;
+#oras-events-addon .oras-card__body[hidden] {
+	display: none;
 }
 
-/* Responsive */
-@media (max-width: 720px) {
-    .oras-events-addon__header { flex-direction: column; }
-    .oras-events-addon__tabs { gap: 6px; }
+#oras-events-addon #oras-agenda-metabox {
+	margin: 0;
 }
 
-/* Ensure styles are scoped and do not leak */
-#oras-events-addon.oras-events-addon * { box-sizing: border-box; }
+#oras-events-addon #oras-agenda-metabox > p {
+	margin: 0 0 var(--oras-space-2);
+}
+
+#oras-events-addon #oras-agenda-metabox .oras-agenda-days-toolbar {
+	margin: 0;
+}
+
+#oras-events-addon #oras-agenda-days {
+	display: flex;
+	flex-direction: column;
+	gap: var(--oras-space-3);
+	margin-top: var(--oras-space-3);
+}
+
+#oras-events-addon .oras-agenda-day {
+	margin: 0;
+}
+
+#oras-events-addon .oras-agenda-day .oras-card__body {
+	margin: 0;
+}
+
+#oras-events-addon .oras-agenda-slots-table {
+	margin-top: var(--oras-space-2);
+}
+
+#oras-events-addon .oras-agenda-slots-table th,
+#oras-events-addon .oras-agenda-slots-table td {
+	vertical-align: top;
+}
+
+#oras-events-addon .oras-agenda-slots-table .oras-agenda-slot-details {
+	min-width: 320px;
+}
+
+#oras-events-addon .oras-agenda-speaker-row,
+#oras-events-addon .oras-agenda-resource-row {
+	padding: var(--oras-space-2);
+	border: 1px solid var(--oras-border-soft);
+	border-radius: 4px;
+	background: #fff;
+}
+
+#oras-events-addon .oras-agenda-resource-row p,
+#oras-events-addon .oras-agenda-speaker-row p {
+	margin: 0 0 var(--oras-space-1);
+}
+
+#oras-events-addon #oras-rsvp-metabox {
+	padding: var(--oras-space-2) 0;
+}
+
+#oras-events-addon #oras-rsvp-metabox fieldset {
+	margin: 0;
+	padding: var(--oras-space-3);
+	border: 1px solid var(--oras-border);
+	border-radius: 6px;
+	background: #fff;
+}
+
+#oras-events-addon #oras-rsvp-metabox legend {
+	font-weight: 600;
+	padding: 0 6px;
+}
+
+#oras-events-addon .oras-rsvp-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--oras-space-3);
+}
+
+#oras-events-addon .oras-rsvp-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+#oras-events-addon .oras-rsvp-field label {
+	font-weight: 600;
+}
+
+#oras-events-addon .oras-rsvp-field .description {
+	margin: 0;
+	font-size: 12px;
+	color: var(--oras-text-muted);
+}
+
+#oras-events-addon .oras-rsvp-field--full {
+	grid-column: 1 / -1;
+}
+
+#oras-events-addon .oras-rsvp-datetime-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--oras-space-2);
+}
+
+#oras-events-addon .oras-rsvp-is-disabled .oras-rsvp-field--capacity {
+	opacity: 0.6;
+}
+
+#oras-events-addon #oras-event-speakers-metabox {
+	margin: 0;
+}
+
+#oras-events-addon .oras-event-speakers-toolbar {
+	margin-bottom: var(--oras-space-2);
+}
+
+#oras-events-addon #oras-event-speakers-metabox #oras-add-speaker-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+#oras-events-addon #oras-event-speakers-metabox #oras-add-speaker-row .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+#oras-events-addon .oras-event-speakers-rows {
+	display: flex;
+	flex-direction: column;
+	gap: var(--oras-space-2);
+}
+
+#oras-events-addon .oras-speaker-badges {
+	display: inline-flex;
+	gap: 6px;
+	margin-top: 4px;
+	flex-wrap: wrap;
+}
+
+#oras-events-addon .oras-speaker-badge {
+	padding: 1px 8px;
+	border: 1px solid #ccd0d4;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	color: #1d2327;
+	background: #f6f7f7;
+}
+
+#oras-events-addon .oras-speaker-badge.is-primary {
+	background: #eef6ff;
+	border-color: #72aee6;
+}
+
+#oras-events-addon .oras-speaker-badge.is-fulfilled {
+	background: #f1faf4;
+	border-color: #8bcfa4;
+	color: #196331;
+}
+
+#oras-events-addon .oras-event-speaker-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--oras-space-2);
+}
+
+#oras-events-addon .oras-event-speaker-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+#oras-events-addon .oras-event-speaker-field label,
+#oras-events-addon .oras-event-speaker-field .oras-field-label {
+	font-weight: 600;
+}
+
+#oras-events-addon .oras-event-speaker-notes {
+	grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+	#oras-events-addon .oras-events-addon__header {
+		flex-direction: column;
+	}
+
+	#oras-events-addon .oras-events-addon__badges {
+		justify-content: flex-start;
+	}
+
+	#oras-events-addon .oras-rsvp-grid,
+	#oras-events-addon .oras-event-speaker-grid {
+		grid-template-columns: 1fr;
+	}
+
+	#oras-events-addon .oras-rsvp-datetime-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 782px) {
+	#oras-events-addon .oras-events-addon__tab.nav-tab {
+		padding: 8px 10px;
+	}
+
+	#oras-events-addon .oras-card__header {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	#oras-events-addon .oras-card__actions {
+		width: 100%;
+	}
+}

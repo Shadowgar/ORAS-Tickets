@@ -1,120 +1,346 @@
 (function () {
 	'use strict';
 
-	function getTabs(container) {
-		return Array.prototype.slice.call(container.querySelectorAll('.oras-events-addon__tab'));
+	function toArray(nodeList) {
+		return Array.prototype.slice.call(nodeList || []);
 	}
 
-	function activateTab(container, tabName) {
-		var tabs = getTabs(container);
-		var panels = container.querySelectorAll('.oras-events-addon__panel');
+	function tabButtons(container) {
+		return toArray(container.querySelectorAll('.oras-events-addon__tab[role="tab"]'));
+	}
+
+	function activateTab(container, tabName, shouldFocus) {
+		var tabs = tabButtons(container);
+		var panels = toArray(container.querySelectorAll('.oras-events-addon__panel[data-panel]'));
 
 		tabs.forEach(function (tab) {
-			var isActive = tab.dataset.tab === tabName;
-			tab.classList.toggle('is-active', isActive);
-			tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+			var active = tab.dataset.tab === tabName;
+			tab.classList.toggle('is-active', active);
+			tab.setAttribute('aria-selected', active ? 'true' : 'false');
+			tab.setAttribute('tabindex', active ? '0' : '-1');
+			if (active && shouldFocus) {
+				tab.focus();
+			}
 		});
 
 		panels.forEach(function (panel) {
-			var isActive = panel.dataset.panel === tabName;
-			panel.classList.toggle('is-active', isActive);
-			panel.hidden = !isActive;
+			var active = panel.dataset.panel === tabName;
+			panel.classList.toggle('is-active', active);
+			panel.hidden = !active;
 		});
 
 		var postId = container.dataset.postId;
 		if (postId) {
 			try {
-				globalThis.localStorage.setItem('orasEventsAddonTab:' + postId, tabName);
+				window.localStorage.setItem('orasEventsAddonTab:' + postId, tabName);
 			} catch (e) {
-				// ignore storage errors
+				// ignore
 			}
 		}
 	}
 
-	function setupAccordion(root) {
-		// make any element with .oras-card collapsible if it has .oras-card__header
-		var cards = root.querySelectorAll('.oras-card');
-		cards.forEach(function (card) {
-			var header = card.querySelector('.oras-card__header');
-			var body = Array.prototype.slice.call(card.children).filter(function (c) { return c !== header; });
-			if (!header || body.length === 0) return;
+	function setupTabs(container) {
+		container.addEventListener('click', function (event) {
+			var tab = event.target.closest('.oras-events-addon__tab[role="tab"]');
+			if (!tab || !container.contains(tab)) {
+				return;
+			}
 
-			header.setAttribute('tabindex', '0');
-			header.setAttribute('role', 'button');
-			header.setAttribute('aria-expanded', 'true');
-			header.style.cursor = 'pointer';
-
-			header.addEventListener('click', function () {
-				var expanded = header.getAttribute('aria-expanded') === 'true';
-				header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-				body.forEach(function (el) { el.hidden = expanded; });
-			});
-			header.addEventListener('keydown', function (e) {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					header.click();
-				}
-			});
+			event.preventDefault();
+			activateTab(container, tab.dataset.tab, false);
 		});
+
+		container.addEventListener('keydown', function (event) {
+			var tab = event.target.closest('.oras-events-addon__tab[role="tab"]');
+			if (!tab || !container.contains(tab)) {
+				return;
+			}
+
+			var tabs = tabButtons(container);
+			var current = tabs.indexOf(tab);
+			if (current < 0) {
+				return;
+			}
+
+			if (event.key === 'ArrowRight') {
+				event.preventDefault();
+				tabs[(current + 1) % tabs.length].focus();
+				return;
+			}
+
+			if (event.key === 'ArrowLeft') {
+				event.preventDefault();
+				tabs[(current - 1 + tabs.length) % tabs.length].focus();
+				return;
+			}
+
+			if (event.key === 'Home') {
+				event.preventDefault();
+				tabs[0].focus();
+				return;
+			}
+
+			if (event.key === 'End') {
+				event.preventDefault();
+				tabs[tabs.length - 1].focus();
+				return;
+			}
+
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				activateTab(container, tab.dataset.tab, true);
+			}
+		});
+	}
+
+	function updateDaySummary(day) {
+		var titleEl = day.querySelector('.oras-card__name');
+		var metaEl = day.querySelector('.oras-card__meta');
+		if (!titleEl || !metaEl) {
+			return;
+		}
+
+		var dayLabelInput = day.querySelector('input[name*="[day_label]"]');
+		var dateInput = day.querySelector('input[name*="[date]"]');
+		var slots = day.querySelectorAll('tr.oras-agenda-slot-row');
+		var fallbackIndex = Number.parseInt(day.getAttribute('data-day-index') || '0', 10) + 1;
+
+		var label = dayLabelInput && dayLabelInput.value.trim() !== '' ? dayLabelInput.value.trim() : 'Day ' + fallbackIndex;
+		var date = dateInput && dateInput.value ? dateInput.value : 'No date';
+		var count = slots.length;
+		var suffix = count === 1 ? 'item' : 'items';
+
+		var nextTitle = label;
+		var nextMeta = date + ' · ' + count + ' ' + suffix;
+		if (titleEl.textContent !== nextTitle) {
+			titleEl.textContent = nextTitle;
+		}
+		if (metaEl.textContent !== nextMeta) {
+			metaEl.textContent = nextMeta;
+		}
+	}
+
+	function setSlotExpanded(slotRow, expand) {
+		var detailsCell = slotRow.querySelector('.oras-agenda-slot-details');
+		var toggle = slotRow.querySelector('.oras-agenda-toggle-slot');
+		if (!detailsCell || !toggle) {
+			return;
+		}
+
+		detailsCell.hidden = !expand;
+		toggle.setAttribute('aria-expanded', expand ? 'true' : 'false');
+		toggle.textContent = expand ? 'Hide' : 'Edit';
+	}
+
+	function enhanceSlotRow(slotRow) {
+		if (!slotRow || slotRow.getAttribute('data-oras-slot-enhanced') === '1') {
+			return;
+		}
+
+		var detailsCell = slotRow.querySelector('td:nth-child(4)');
+		var actionsCell = slotRow.querySelector('td:last-child');
+		if (!detailsCell || !actionsCell) {
+			return;
+		}
+
+		detailsCell.classList.add('oras-agenda-slot-details');
+		var slotIndex = slotRow.getAttribute('data-slot-index') || String(Math.floor(Math.random() * 100000));
+		var panelId = slotRow.id || ('oras-agenda-slot-details-' + slotIndex + '-' + Math.floor(Math.random() * 10000));
+		detailsCell.id = panelId;
+
+		var toggle = actionsCell.querySelector('.oras-agenda-toggle-slot');
+		if (!toggle) {
+			toggle = document.createElement('button');
+			toggle.type = 'button';
+			toggle.className = 'button button-small oras-agenda-toggle-slot';
+			actionsCell.insertBefore(toggle, actionsCell.firstChild);
+		}
+
+		toggle.setAttribute('aria-controls', panelId);
+		slotRow.setAttribute('data-oras-slot-enhanced', '1');
+		setSlotExpanded(slotRow, false);
+	}
+
+	function setDayExpanded(day, expand) {
+		var body = day.querySelector('.oras-card__body');
+		var toggle = day.querySelector('.oras-agenda-day-toggle');
+		if (!body || !toggle) {
+			return;
+		}
+
+		body.hidden = !expand;
+		toggle.setAttribute('aria-expanded', expand ? 'true' : 'false');
+		toggle.textContent = expand ? 'Collapse' : 'Expand';
+	}
+
+	function enhanceAgendaDay(day) {
+		if (!day) {
+			return;
+		}
+
+		var header = day.querySelector('.oras-card__header');
+		var body = day.querySelector('.oras-card__body');
+		if (!header || !body) {
+			return;
+		}
+
+		var dayIndex = day.getAttribute('data-day-index') || String(Math.floor(Math.random() * 10000));
+		if (!body.id) {
+			body.id = 'oras-agenda-day-body-' + dayIndex + '-' + Math.floor(Math.random() * 10000);
+		}
+
+		var actions = header.querySelector('.oras-card__actions');
+		if (actions && !actions.querySelector('.oras-agenda-day-toggle')) {
+			var toggle = document.createElement('button');
+			toggle.type = 'button';
+			toggle.className = 'button button-small oras-agenda-day-toggle';
+			toggle.setAttribute('aria-controls', body.id);
+			actions.insertBefore(toggle, actions.firstChild);
+		}
+
+		var dayToggle = day.querySelector('.oras-agenda-day-toggle');
+		if (dayToggle) {
+			dayToggle.setAttribute('aria-controls', body.id);
+		}
+
+		toArray(day.querySelectorAll('tr.oras-agenda-slot-row')).forEach(enhanceSlotRow);
+		updateDaySummary(day);
+
+		if (!day.hasAttribute('data-oras-day-initialized')) {
+			day.setAttribute('data-oras-day-initialized', '1');
+			setDayExpanded(day, true);
+		}
+	}
+
+	function enhanceAgenda(container) {
+		var agenda = container.querySelector('#oras-agenda-metabox');
+		if (!agenda) {
+			return;
+		}
+
+		var daysWrap = agenda.querySelector('#oras-agenda-days');
+		if (!daysWrap) {
+			return;
+		}
+
+		var refresh = function () {
+			toArray(daysWrap.querySelectorAll('.oras-agenda-day')).forEach(enhanceAgendaDay);
+		};
+		var refreshQueued = false;
+		var scheduleRefresh = function () {
+			if (refreshQueued) {
+				return;
+			}
+			refreshQueued = true;
+			window.requestAnimationFrame(function () {
+				refreshQueued = false;
+				refresh();
+			});
+		};
+
+		agenda.addEventListener('click', function (event) {
+			var dayToggle = event.target.closest('.oras-agenda-day-toggle');
+			if (dayToggle) {
+				event.preventDefault();
+				var day = dayToggle.closest('.oras-agenda-day');
+				if (!day) {
+					return;
+				}
+				var expanded = dayToggle.getAttribute('aria-expanded') === 'true';
+				setDayExpanded(day, !expanded);
+				return;
+			}
+
+			var slotToggle = event.target.closest('.oras-agenda-toggle-slot');
+			if (slotToggle) {
+				event.preventDefault();
+				var row = slotToggle.closest('tr.oras-agenda-slot-row');
+				if (!row) {
+					return;
+				}
+				var expanded = slotToggle.getAttribute('aria-expanded') === 'true';
+				setSlotExpanded(row, !expanded);
+				return;
+			}
+
+			if (
+				event.target.closest('.oras-agenda-add-slot') ||
+				event.target.closest('.oras-agenda-add-speaker') ||
+				event.target.closest('.oras-agenda-add-resource') ||
+				event.target.closest('.oras-agenda-remove-slot') ||
+				event.target.closest('.oras-agenda-remove-speaker') ||
+				event.target.closest('.oras-agenda-remove-resource') ||
+				event.target.closest('.oras-agenda-remove-day') ||
+				event.target.closest('#oras-agenda-add-day') ||
+				event.target.closest('.oras-agenda-add-day')
+			) {
+				scheduleRefresh();
+			}
+		});
+
+		agenda.addEventListener('input', function (event) {
+			var target = event.target;
+			if (!target || typeof target.name !== 'string') {
+				return;
+			}
+
+			if (target.name.indexOf('[day_label]') !== -1 || target.name.indexOf('[date]') !== -1) {
+				var day = target.closest('.oras-agenda-day');
+				if (day) {
+					updateDaySummary(day);
+				}
+			}
+		});
+
+		refresh();
+	}
+
+	function enhanceRsvp(container) {
+		var rsvp = container.querySelector('#oras-rsvp-metabox');
+		if (!rsvp) {
+			return;
+		}
+
+		var enabled = rsvp.querySelector('#oras_rsvp_enabled');
+		var capacity = rsvp.querySelector('#oras_rsvp_capacity');
+		if (!enabled || !capacity) {
+			return;
+		}
+
+		var sync = function () {
+			var active = !!enabled.checked;
+			capacity.disabled = !active;
+			capacity.setAttribute('aria-disabled', active ? 'false' : 'true');
+			rsvp.classList.toggle('oras-rsvp-is-disabled', !active);
+		};
+
+		enabled.addEventListener('change', sync);
+		sync();
 	}
 
 	document.addEventListener('DOMContentLoaded', function () {
 		var container = document.getElementById('oras-events-addon');
-		if (!container) return;
+		if (!container) {
+			return;
+		}
+
+		setupTabs(container);
 
 		var defaultTab = 'tickets';
 		var postId = container.dataset.postId;
 		if (postId) {
 			try {
-				var storedTab = globalThis.localStorage.getItem('orasEventsAddonTab:' + postId);
-				if (storedTab && container.querySelector('.oras-events-addon__tab[data-tab="' + storedTab + '"]')) {
-					defaultTab = storedTab;
+				var stored = window.localStorage.getItem('orasEventsAddonTab:' + postId);
+				if (stored && container.querySelector('.oras-events-addon__tab[data-tab="' + stored + '"]')) {
+					defaultTab = stored;
 				}
 			} catch (e) {
-				// ignore storage read errors
+				// ignore
 			}
 		}
 
-		// click handler for tabs
-		container.addEventListener('click', function (event) {
-			var tab = event.target.closest('.oras-events-addon__tab');
-			if (!tab) return;
-			event.preventDefault();
-			activateTab(container, tab.dataset.tab);
-			// setup accordions for newly shown panel
-			var panel = container.querySelector('.oras-events-addon__panel[data-panel="' + tab.dataset.tab + '"]');
-			if (panel) setupAccordion(panel);
-		});
-
-		// keyboard navigation for tabs: ArrowLeft/ArrowRight/Home/End
-		getTabs(container).forEach(function (tab, idx, tabs) {
-			tab.addEventListener('keydown', function (e) {
-				var tabsList = getTabs(container);
-				var index = tabsList.indexOf(e.currentTarget);
-				if (e.key === 'ArrowRight') {
-					e.preventDefault();
-					var next = tabsList[(index + 1) % tabsList.length];
-					next.focus();
-				} else if (e.key === 'ArrowLeft') {
-					e.preventDefault();
-					var prev = tabsList[(index - 1 + tabsList.length) % tabsList.length];
-					prev.focus();
-				} else if (e.key === 'Home') {
-					e.preventDefault();
-					tabsList[0].focus();
-				} else if (e.key === 'End') {
-					e.preventDefault();
-					tabsList[tabsList.length - 1].focus();
-				} else if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					activateTab(container, e.currentTarget.dataset.tab);
-				}
-			});
-		});
-
-		// initial activation and accordion setup for default panel
-		activateTab(container, defaultTab);
-		var initialPanel = container.querySelector('.oras-events-addon__panel[data-panel="' + defaultTab + '"]');
-		if (initialPanel) setupAccordion(initialPanel);
+		activateTab(container, defaultTab, false);
+		enhanceAgenda(container);
+		enhanceRsvp(container);
 	});
 })();

@@ -5,6 +5,7 @@ namespace ORAS\Tickets\Admin;
 use ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox;
 use ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox;
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Ticket_Collection;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -45,6 +46,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
         }
 
         $screen = get_current_screen();
+
         // Some environments (or editor integrations) can yield an empty screen->post_type
         // during the `admin_enqueue_scripts` hook. Try multiple fallbacks to determine
         // whether we're on the event editor before deciding not to enqueue assets.
@@ -52,18 +54,18 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
         if ( $screen && ! empty( $screen->post_type ) ) {
             $post_type = $screen->post_type;
         }
-        // Query string may provide post_type (e.g., edit.php?post_type=tribe_events)
+
         if ( empty( $post_type ) && ! empty( $_GET['post_type'] ) ) {
             $post_type = sanitize_key( wp_unslash( $_GET['post_type'] ) );
         }
-        // If we have a post ID in the query, derive its type
+
         if ( empty( $post_type ) && ! empty( $_GET['post'] ) ) {
             $maybe_id = absint( wp_unslash( $_GET['post'] ) );
             if ( $maybe_id ) {
                 $post_type = get_post_type( $maybe_id );
             }
         }
-        // Final fallback
+
         if ( empty( $post_type ) ) {
             $post_type = get_post_type();
         }
@@ -72,7 +74,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
             return;
         }
 
-        $is_editor = ( 'post' === $screen->base ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
+        $is_editor = ( $screen && 'post' === $screen->base ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
         if ( ! $is_editor ) {
             return;
         }
@@ -92,9 +94,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
             true
         );
 
-        // Also ensure per-feature admin assets are available when the unified metabox
-        // is rendered. This guarantees ticket and speaker styles/scripts apply even
-        // in contexts where their own enqueue detection may not run.
+        // Ensure per-feature assets are present when rendered inside the unified metabox.
         if ( ! wp_style_is( 'oras-tickets-metabox', 'enqueued' ) ) {
             wp_enqueue_style(
                 'oras-tickets-metabox',
@@ -103,6 +103,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 ORAS_TICKETS_VERSION
             );
         }
+
         if ( ! wp_script_is( 'oras-tickets-metabox', 'enqueued' ) ) {
             wp_enqueue_script(
                 'oras-tickets-metabox',
@@ -128,108 +129,69 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
         if ( ! current_user_can( 'edit_post', $post->ID ) ) {
             return;
         }
+
+        $ticket_envelope = Ticket_Collection::load_envelope_for_event( $post->ID );
+        $ticket_rows     = isset( $ticket_envelope['tickets'] ) && is_array( $ticket_envelope['tickets'] ) ? $ticket_envelope['tickets'] : array();
+        $ticket_count    = count( $ticket_rows );
+
+        $agenda_envelope = get_post_meta( $post->ID, '_oras_agenda_v1', true );
+        $agenda_days     = is_array( $agenda_envelope ) && isset( $agenda_envelope['days'] ) && is_array( $agenda_envelope['days'] ) ? $agenda_envelope['days'] : array();
+        $agenda_count    = count( $agenda_days );
+
+        $rsvp_envelope = get_post_meta( $post->ID, '_oras_rsvp_v1', true );
+        $rsvp_enabled  = is_array( $rsvp_envelope ) && ! empty( $rsvp_envelope['enabled'] );
+
+        $speaker_envelope = get_post_meta( $post->ID, '_oras_speakers_v1', true );
+        $speaker_count    = is_array( $speaker_envelope ) ? count( $speaker_envelope ) : 0;
         ?>
         <div id="oras-events-addon" class="oras-events-addon" data-post-id="<?php echo esc_attr( (string) $post->ID ); ?>">
-            <style>
-                /* Inline fallback to ensure styles are visible even if enqueued asset is blocked */
-                #oras-events-addon.oras-events-addon .oras-events-addon__header { border-left: 4px solid #0073aa; padding-left: 12px; }
-            </style>
-            <div class="oras-events-addon__header">
-                <div class="oras-events-addon__title">
-                    <h3 class="oras-events-addon__h"><?php echo esc_html__( 'ORAS Events Addon', 'oras-tickets' ); ?></h3>
-                    <p class="description"><?php echo esc_html__( 'Manage tickets, agenda, RSVP and speakers from a single, compact interface.', 'oras-tickets' ); ?></p>
+            <header class="oras-events-addon__header">
+                <div class="oras-events-addon__header-main">
+                    <h2 class="oras-events-addon__title"><?php echo esc_html__( 'ORAS Events Addon', 'oras-tickets' ); ?></h2>
+                    <p class="description"><?php echo esc_html__( 'Manage tickets, agenda, RSVP, and speakers from one admin panel.', 'oras-tickets' ); ?></p>
                 </div>
-                <div class="oras-events-addon__status">
-                    <!-- placeholder for status badges -->
+
+                <div class="oras-events-addon__badges" aria-label="<?php echo esc_attr__( 'Event addon status', 'oras-tickets' ); ?>">
+                    <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Tickets', 'oras-tickets' ), $ticket_count ) ); ?></span>
+                    <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Days', 'oras-tickets' ), $agenda_count ) ); ?></span>
+                    <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Speakers', 'oras-tickets' ), $speaker_count ) ); ?></span>
+                    <span class="oras-events-addon__badge <?php echo $rsvp_enabled ? 'is-success' : 'is-muted'; ?>">
+                        <?php echo esc_html( $rsvp_enabled ? __( 'RSVP Enabled', 'oras-tickets' ) : __( 'RSVP Disabled', 'oras-tickets' ) ); ?>
+                    </span>
                 </div>
-            </div>
+            </header>
 
-            <style>
-                /* Critical inline styles (scoped) to ensure redesigned layout shows even if
-                   enqueued assets fail to load in some editor contexts. Kept minimal and
-                   scoped to #oras-events-addon so it does not leak. */
-                #oras-events-addon.oras-events-addon { font-family: inherit; }
-                #oras-events-addon .oras-events-addon__tabs { display:flex; gap:8px; margin-bottom:12px; }
-                #oras-events-addon .oras-events-addon__tab { padding:6px 10px; }
-
-                /* CSS-only tabs using radios: hide the radios and style labels as tabs */
-                #oras-events-addon input.oras-tab-radio { position:absolute; left:-9999px; }
-                #oras-events-addon .oras-tab-label { cursor:pointer; display:inline-block; padding:6px 10px; border:1px solid transparent; border-radius:4px; background:transparent; margin-right:6px; }
-                #oras-events-addon input.oras-tab-radio:checked + .oras-tab-label { background:#f7f7f7; border-color:#e1e1e1; }
-
-                /* Map radios to panels: hide all panels by default, show when corresponding radio is checked */
-                #oras-events-addon .oras-events-addon__panel { display:none; }
-                #oras-events-addon input#oras-tab-tickets:checked ~ .oras-events-addon__panels #oras-panel-tickets,
-                #oras-events-addon input#oras-tab-agenda:checked ~ .oras-events-addon__panels #oras-panel-agenda,
-                #oras-events-addon input#oras-tab-rsvp:checked ~ .oras-events-addon__panels #oras-panel-rsvp,
-                #oras-events-addon input#oras-tab-speakers:checked ~ .oras-events-addon__panels #oras-panel-speakers { display:block; }
-
-                /* Hide legacy left rail inside the embedded ticket metabox and make panels full width */
-                #oras-events-addon #oras-tickets-metabox .oras-tickets-tabs { display: none !important; }
-                #oras-events-addon #oras-tickets-metabox .oras-ticket-panels { width: 100% !important; }
-                #oras-events-addon #oras-tickets-metabox .oras-ticket-row.oras-ticket-row-card { margin-bottom: 12px !important; }
-
-                /* Card header/body visuals */
-                #oras-events-addon .oras-card__header{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid #e6e6e6; border-radius:4px 4px 0 0; background:#fff; }
-                #oras-events-addon .oras-card__body{ border:1px solid #e6e6e6; border-top:0; padding:12px; border-radius:0 0 4px 4px; background:#fff; }
-                #oras-events-addon .oras-card__title{ display:flex; flex-direction:column; }
-                #oras-events-addon .oras-card__name{ font-weight:700; }
-                #oras-events-addon .oras-card__meta{ font-size:12px; color:#666; }
-
-                /* Ensure ticket panels are visible by default so users see fields without JS */
-                #oras-events-addon .oras-ticket-panel { display:block !important; }
-
-                /* Simple responsive tweaks */
-                @media (max-width:720px){ #oras-events-addon .oras-events-addon__tabs{flex-wrap:wrap;} }
-            </style>
-
-            <!-- Tab switching uses CSS-only radios to avoid relying on inline scripts which may be escaped by WP -->
-
-            <!-- Radios are placed as siblings of the panels so CSS sibling selectors can show/hide panels reliably -->
-            <input type="radio" id="oras-tab-tickets" name="oras_events_tab" class="oras-tab-radio" checked>
-            <input type="radio" id="oras-tab-agenda" name="oras_events_tab" class="oras-tab-radio">
-            <input type="radio" id="oras-tab-rsvp" name="oras_events_tab" class="oras-tab-radio">
-            <input type="radio" id="oras-tab-speakers" name="oras_events_tab" class="oras-tab-radio">
-
-            <div class="oras-events-addon__tabs" role="tablist" aria-orientation="horizontal">
-                <label for="oras-tab-tickets" class="oras-tab-label"><?php echo esc_html__( 'Tickets', 'oras-tickets' ); ?></label>
-                <label for="oras-tab-agenda" class="oras-tab-label"><?php echo esc_html__( 'Agenda', 'oras-tickets' ); ?></label>
-                <label for="oras-tab-rsvp" class="oras-tab-label"><?php echo esc_html__( 'RSVP', 'oras-tickets' ); ?></label>
-                <label for="oras-tab-speakers" class="oras-tab-label"><?php echo esc_html__( 'Speakers', 'oras-tickets' ); ?></label>
+            <div class="oras-events-addon__tabs nav-tab-wrapper" role="tablist" aria-label="<?php echo esc_attr__( 'ORAS events sections', 'oras-tickets' ); ?>">
+                <button type="button" id="oras-events-tab-tickets" class="nav-tab oras-events-addon__tab is-active" data-tab="tickets" role="tab" aria-controls="oras-events-panel-tickets" aria-selected="true" tabindex="0"><?php echo esc_html__( 'Tickets', 'oras-tickets' ); ?></button>
+                <button type="button" id="oras-events-tab-agenda" class="nav-tab oras-events-addon__tab" data-tab="agenda" role="tab" aria-controls="oras-events-panel-agenda" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'Agenda', 'oras-tickets' ); ?></button>
+                <button type="button" id="oras-events-tab-rsvp" class="nav-tab oras-events-addon__tab" data-tab="rsvp" role="tab" aria-controls="oras-events-panel-rsvp" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'RSVP', 'oras-tickets' ); ?></button>
+                <button type="button" id="oras-events-tab-speakers" class="nav-tab oras-events-addon__tab" data-tab="speakers" role="tab" aria-controls="oras-events-panel-speakers" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'Speakers', 'oras-tickets' ); ?></button>
             </div>
 
             <div class="oras-events-addon__panels">
-                <div id="oras-panel-tickets" class="oras-events-addon__panel is-active" data-panel="tickets" role="tabpanel">
-                    <div class="postbox oras-events-addon__card">
-                        <div class="inside">
-                            <?php Tickets_Metabox::instance()->render_metabox( $post ); ?>
-                        </div>
+                <section id="oras-events-panel-tickets" class="oras-events-addon__panel is-active" data-panel="tickets" role="tabpanel" aria-labelledby="oras-events-tab-tickets">
+                    <div class="oras-events-addon__panel-inner">
+                        <?php Tickets_Metabox::instance()->render_metabox( $post ); ?>
                     </div>
-                </div>
+                </section>
 
-                <div id="oras-panel-agenda" class="oras-events-addon__panel" data-panel="agenda" role="tabpanel" hidden>
-                    <div class="postbox oras-events-addon__card">
-                        <div class="inside">
-                            <?php Event_Agenda_Metabox::render( $post ); ?>
-                        </div>
+                <section id="oras-events-panel-agenda" class="oras-events-addon__panel" data-panel="agenda" role="tabpanel" aria-labelledby="oras-events-tab-agenda" hidden>
+                    <div class="oras-events-addon__panel-inner">
+                        <?php Event_Agenda_Metabox::render( $post ); ?>
                     </div>
-                </div>
+                </section>
 
-                <div id="oras-panel-rsvp" class="oras-events-addon__panel" data-panel="rsvp" role="tabpanel" hidden>
-                    <div class="postbox oras-events-addon__card">
-                        <div class="inside">
-                            <?php Event_RSVP_Metabox::render( $post ); ?>
-                        </div>
+                <section id="oras-events-panel-rsvp" class="oras-events-addon__panel" data-panel="rsvp" role="tabpanel" aria-labelledby="oras-events-tab-rsvp" hidden>
+                    <div class="oras-events-addon__panel-inner">
+                        <?php Event_RSVP_Metabox::render( $post ); ?>
                     </div>
-                </div>
+                </section>
 
-                <div id="oras-panel-speakers" class="oras-events-addon__panel" data-panel="speakers" role="tabpanel" hidden>
-                    <div class="postbox oras-events-addon__card">
-                        <div class="inside">
-                            <?php ( new Event_Speakers_Metabox() )->render_metabox( $post ); ?>
-                        </div>
+                <section id="oras-events-panel-speakers" class="oras-events-addon__panel" data-panel="speakers" role="tabpanel" aria-labelledby="oras-events-tab-speakers" hidden>
+                    <div class="oras-events-addon__panel-inner">
+                        <?php ( new Event_Speakers_Metabox() )->render_metabox( $post ); ?>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
         <?php

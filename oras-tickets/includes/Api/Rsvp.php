@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Api;
 
+use ORAS\Tickets\Frontend\Event_RSVP;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -113,8 +115,8 @@ final class Rsvp {
         $yes_count = self::yes_count( $event_id );
         $is_full   = ( $capacity > 0 && $yes_count >= $capacity );
 
-        $current_user_status = get_user_meta( $user_id, '_oras_rsvp_event_' . $event_id, true );
-        if ( ! in_array( $current_user_status, array( 'yes', 'no', 'waitlist' ), true ) ) {
+        $current_user_status = Event_RSVP::get_user_status( $event_id, $user_id );
+        if ( '' === $current_user_status ) {
             $current_user_status = null;
         }
 

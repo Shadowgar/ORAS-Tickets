@@ -1,98 +1,150 @@
-(() => {
-  const container = document.getElementById('oras-event-speakers-metabox');
-  if (!container) {
-    return;
-  }
+(function () {
+	'use strict';
 
-  const rowsWrapper = container.querySelector('.oras-event-speakers-rows');
-  const addButton = container.querySelector('#oras-add-speaker-row');
-  const template = container.querySelector('#oras-speaker-row-template');
+	var container = document.getElementById('oras-event-speakers-metabox');
+	if (!container) {
+		return;
+	}
 
-  if (!rowsWrapper || !addButton || !template) {
-    return;
-  }
+	var rowsWrapper = container.querySelector('.oras-event-speakers-rows');
+	var addButton = container.querySelector('#oras-add-speaker-row');
+	var template = container.querySelector('#oras-speaker-row-template');
+	if (!rowsWrapper || !addButton || !template) {
+		return;
+	}
 
-  const updateRowVisibility = (row) => {
-    const compensationSelect = row.querySelector('.oras-event-speaker-compensation');
-    if (!compensationSelect) {
-      return;
-    }
+	function updateCompensationVisibility(row) {
+		var compensation = row.querySelector('.oras-event-speaker-compensation');
+		if (!compensation) {
+			return;
+		}
 
-    const compensation = compensationSelect.value;
-    const feeField = row.querySelector('[data-compensation="fee"]');
-    const membershipField = row.querySelector('[data-compensation="membership"]');
+		var feeField = row.querySelector('[data-compensation="fee"]');
+		var membershipField = row.querySelector('[data-compensation="membership"]');
+		if (feeField) {
+			feeField.style.display = compensation.value === 'fee' ? '' : 'none';
+		}
+		if (membershipField) {
+			membershipField.style.display = compensation.value === 'membership' ? '' : 'none';
+		}
+	}
 
-    if (feeField) {
-      feeField.style.display = compensation === 'fee' ? '' : 'none';
-    }
+	function selectedSpeakerName(row) {
+		var select = row.querySelector('select[name*="[speaker_id]"]');
+		if (!select) {
+			return 'Speaker';
+		}
+		var option = select.options[select.selectedIndex];
+		if (!option || option.value === '0') {
+			return 'Speaker';
+		}
+		return option.textContent.trim() || 'Speaker';
+	}
 
-    if (membershipField) {
-      membershipField.style.display = compensation === 'membership' ? '' : 'none';
-    }
-  };
+	function updateHeaderBadges(row) {
+		var badges = row.querySelector('.oras-speaker-badges');
+		if (!badges) {
+			return;
+		}
 
-  const wireRow = (row) => {
-    const removeButton = row.querySelector('.oras-remove-speaker-row');
-    if (removeButton) {
-      removeButton.addEventListener('click', () => {
-        row.remove();
-      });
-    }
+		badges.innerHTML = '';
 
-    const compensationSelect = row.querySelector('.oras-event-speaker-compensation');
-    if (compensationSelect) {
-      compensationSelect.addEventListener('change', () => updateRowVisibility(row));
-    }
+		var primary = row.querySelector('input[name*="[is_primary]"]');
+		if (primary && primary.checked) {
+			var primaryBadge = document.createElement('span');
+			primaryBadge.className = 'oras-speaker-badge is-primary';
+			primaryBadge.textContent = 'Primary';
+			badges.appendChild(primaryBadge);
+		}
 
-    updateRowVisibility(row);
-  };
+		var fulfilled = row.querySelector('input[name*="[fulfilled]"]');
+		var statusBadge = document.createElement('span');
+		statusBadge.className = 'oras-speaker-badge' + (fulfilled && fulfilled.checked ? ' is-fulfilled' : '');
+		statusBadge.textContent = fulfilled && fulfilled.checked ? 'Fulfilled' : 'Pending';
+		badges.appendChild(statusBadge);
+	}
 
-  const existingRows = rowsWrapper.querySelectorAll('.oras-event-speaker-row');
-  existingRows.forEach((row) => wireRow(row));
+	function updateHeader(row) {
+		var nameEl = row.querySelector('.oras-card__name');
+		var roleEl = row.querySelector('.oras-speaker-role');
+		var roleInput = row.querySelector('input[name*="[role]"]');
 
-  // Start with bodies collapsed for compact view
-  existingRows.forEach((row) => {
-    const body = row.querySelector('.oras-card__body');
-    if (body) {
-      body.hidden = true;
-    }
-  });
+		if (nameEl) {
+			nameEl.textContent = selectedSpeakerName(row);
+		}
+		if (roleEl) {
+			var roleValue = roleInput ? roleInput.value.trim() : '';
+			roleEl.textContent = roleValue !== '' ? roleValue : 'Role not set';
+		}
 
-  // Card toggle handler (expand/collapse details)
-  rowsWrapper.addEventListener('click', (e) => {
-    const btn = e.target.closest('.oras-card-toggle');
-    if (!btn) return;
-    const idx = btn.dataset.index;
-    const row = rowsWrapper.querySelector('.oras-event-speaker-row[data-index="' + idx + '"]');
-    if (!row) return;
-    const body = row.querySelector('.oras-card__body');
-    if (!body) return;
-    const expanded = body.hasAttribute('data-expanded');
-    if (expanded) {
-      body.removeAttribute('data-expanded');
-      body.hidden = true;
-      btn.setAttribute('aria-expanded', 'false');
-    } else {
-      body.setAttribute('data-expanded', '1');
-      body.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    }
-  });
+		updateHeaderBadges(row);
+	}
 
-  addButton.addEventListener('click', () => {
-    const nextIndex = Number(rowsWrapper.dataset.nextIndex || 0);
-    const html = template.innerHTML.replaceAll('__INDEX__', String(nextIndex));
+	function setExpanded(row, expanded) {
+		var body = row.querySelector('.oras-card__body');
+		var toggle = row.querySelector('.oras-card-toggle');
+		if (!body || !toggle) {
+			return;
+		}
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = html.trim();
+		body.hidden = !expanded;
+		toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+		toggle.textContent = expanded ? 'Close' : 'Edit';
+	}
 
-    const newRow = wrapper.firstElementChild;
-    if (!newRow) {
-      return;
-    }
+	function wireRow(row, startCollapsed) {
+		if (!row || row.getAttribute('data-oras-speaker-wired') === '1') {
+			return;
+		}
 
-    rowsWrapper.appendChild(newRow);
-    rowsWrapper.dataset.nextIndex = String(nextIndex + 1);
-    wireRow(newRow);
-  });
+		row.setAttribute('data-oras-speaker-wired', '1');
+
+		var removeButton = row.querySelector('.oras-remove-speaker-row');
+		if (removeButton) {
+			removeButton.addEventListener('click', function () {
+				row.remove();
+			});
+		}
+
+		var toggleButton = row.querySelector('.oras-card-toggle');
+		if (toggleButton) {
+			toggleButton.addEventListener('click', function () {
+				var expanded = toggleButton.getAttribute('aria-expanded') === 'true';
+				setExpanded(row, !expanded);
+			});
+		}
+
+		row.addEventListener('input', function () {
+			updateHeader(row);
+		});
+		row.addEventListener('change', function () {
+			updateCompensationVisibility(row);
+			updateHeader(row);
+		});
+
+		updateCompensationVisibility(row);
+		updateHeader(row);
+		setExpanded(row, !startCollapsed ? true : false);
+	}
+
+	function addRow() {
+		var nextIndex = Number(rowsWrapper.dataset.nextIndex || 0);
+		var html = template.innerHTML.replaceAll('__INDEX__', String(nextIndex));
+		var wrapper = document.createElement('div');
+		wrapper.innerHTML = html.trim();
+		var row = wrapper.firstElementChild;
+		if (!row) {
+			return;
+		}
+
+		rowsWrapper.appendChild(row);
+		rowsWrapper.dataset.nextIndex = String(nextIndex + 1);
+		wireRow(row, false);
+	}
+
+	Array.prototype.slice.call(rowsWrapper.querySelectorAll('.oras-event-speaker-row')).forEach(function (row) {
+		wireRow(row, true);
+	});
+
+	addButton.addEventListener('click', addRow);
 })();

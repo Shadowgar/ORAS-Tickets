@@ -1,29 +1,34 @@
+# NEXT — Immediate Work Queue
 
-# NEXT — Single Focus
+Last updated: 2026-02-25
 
-Next approved development phases (short-term):
+## Current Sprint Goal
+Close Phase 5 hardening gates so Phase 6 work can begin safely.
 
-1) ~~Phase 5.3 — Unified ORAS Event Metabox (UI container refactor)~~ ✅ **COMPLETED**
-	- Create `ORAS EVENTS ADDON` master metabox containing vertical tabs: Tickets, Agenda, RSVP, Speakers.
-	- Virtual Access remains integrated in The Events Calendar's virtual metabox via filters.
-	- Reuse existing per-feature render + save handlers; no meta schema changes.
+## Ordered Tasks
+1. Phase 5.2 Waitlist Architecture Finalization
+- Completed: first-class waitlist table, lifecycle states, audit fields, and deterministic promotion integration.
+- Remaining: admin queue operations beyond single promote and a readable audit/history surface.
 
-2) ~~Phase 5.4 — RSVP Management Dashboard (operational UI)~~ ✅ **COMPLETED**
-	- Move attendee lists, CSV export, and waitlist promotion into the plugin Dashboard with an event selector and AJAX-driven lists.
-	- Keep Event Edit focused on per-event configuration only.
+2. Phase 5 Verification Suite
+- Add WP-CLI integration checks for:
+  - RSVP yes/no/waitlist transitions
+  - waitlist promotion
+  - RSVP exports
+  - attendees CSV export
+  - attendees note save + messaging endpoint contract
 
-3) Phase 5.5 — Settings Page Expansion (global defaults)
-	- Consolidate global behavior toggles under `ORAS-Tickets → Settings` (default capacity, waitlist behavior, virtual access defaults, ticket auto-complete).
+3. CI Enforcement
+- Add/update GitHub workflow to run:
+  - `php -l`
+  - `composer phpcs`
+  - `composer phpstan`
+  - WP-CLI integration checks
 
-4) Phase 6 — Attendees Management (operational)
-	- Phase 6.2 → 6.5 implemented: attendees dashboard, attendee operations, messaging, and notes (admin-only).
-	- Verification: use `admin_post` CSV export and AJAX handlers for `oras_attendees_dashboard_data`, `oras_attendees_send_email`, and `oras_attendees_save_note` (WP-CLI simulations were used during development).
+4. Phase 4 Visual Polish Pass
+- Remove temporary inline styling where practical.
+- Replace temporary agenda dark-mode overrides with production-ready tokens.
+- Validate desktop + mobile UI quality for agenda and speaker surfaces.
 
-Notes:
-- Phase 5 (RSVP + Waitlist) frontend and REST work is implemented; these NEXT items focus on admin UX and settings consolidation.
-- Phase 4.2 remains deferred and will be revisited after the Phase 5 admin refactors.
-
-Verification checklist (current features):
- - `wp post meta get <event_id> _oras_agenda_v1`
- - `wp post meta list <speaker_id> --keys=_oras_speaker_headshot_id`
- - `wp post get <speaker_id> --fields=ID,post_status,post_name`
+## Out of Scope Until Above Is Done
+- New Phase 6+ feature implementation (QR/check-in, reservation windows, advanced automation).

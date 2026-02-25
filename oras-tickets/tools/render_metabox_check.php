@@ -25,8 +25,8 @@ $m->render_metabox( $post );
 $html = ob_get_clean();
 
 $res = [
-    'has_notice' => ( strpos( $html, 'ORAS metabox redesign active' ) !== false ),
-    'has_inline_style' => ( strpos( $html, '#oras-events-addon .oras-events-addon__tabs' ) !== false ),
+    'has_tablist' => ( strpos( $html, 'role="tablist"' ) !== false ),
+    'has_tab_buttons' => ( strpos( $html, 'oras-events-addon__tab' ) !== false ),
     'has_header' => ( strpos( $html, 'oras-events-addon__header' ) !== false ),
     'snippet_len' => strlen( $html ),
 ];

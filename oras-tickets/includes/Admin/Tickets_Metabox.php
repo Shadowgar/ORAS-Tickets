@@ -88,9 +88,20 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
 
         ?>
         <div id="oras-tickets-metabox">
+            <div class="oras-ticket-toolbar">
+                <button type="button" id="oras-add-ticket" class="button button-secondary oras-add-ticket-button">
+                    <span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
+                    <span><?php echo esc_html__( 'Add Ticket', 'oras-tickets' ); ?></span>
+                </button>
+            </div>
+
+            <div class="notice notice-error inline oras-ticket-validation" id="oras-ticket-validation" hidden>
+                <p></p>
+            </div>
+
             <div class="oras-tickets-layout oras-tickets-layout-flex">
                 <div class="oras-tickets-tabs oras-tickets-rail">
-                    <div class="oras-tickets-rail-title">Tickets</div>
+                    <div class="oras-tickets-rail-title"><?php echo esc_html__( 'Tickets', 'oras-tickets' ); ?></div>
                     <ul id="oras-ticket-tabs" class="oras-ticket-tabs-list">
                         <?php
                         foreach ( $tickets as $index => $data ) :
@@ -133,10 +144,10 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                         <?php endforeach; ?>
                     </ul>
                     <div id="oras-tickets-empty" class="oras-tickets-empty <?php echo empty( $tickets ) ? '' : 'is-hidden'; ?>">
-                        <p class="oras-tickets-empty-text">No tickets yet.</p>
+                        <p class="oras-tickets-empty-text"><?php echo esc_html__( 'No tickets yet.', 'oras-tickets' ); ?></p>
                     </div>
                     <p class="oras-add-ticket-row">
-                        <button type="button" id="oras-add-ticket" class="button">Add Ticket</button>
+                        <button type="button" class="button oras-add-ticket-trigger"><?php echo esc_html__( 'Add Ticket', 'oras-tickets' ); ?></button>
                     </p>
                 </div>
 
@@ -193,11 +204,11 @@ if ( $start_dt instanceof \DateTimeInterface ) {
 
                                             <div class="oras-card__header">
                                                 <div class="oras-card__title">
-                                                    <span class="oras-card__name"><?php echo esc_html( $name ); ?></span>
+                                                    <span class="oras-card__name"><?php echo esc_html( $name !== '' ? $name : sprintf( __( 'Ticket #%d', 'oras-tickets' ), (int) $idx ) ); ?></span>
                                                     <span class="oras-card__meta"><?php echo esc_html( '$' . $price . ' · ' . $sale_status ); ?></span>
                                                 </div>
                                                 <div class="oras-card__actions">
-                                                    <button type="button" class="button oras-card-toggle" data-index="<?php echo $idx; ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                                                    <button type="button" class="button oras-card-toggle" data-index="<?php echo $idx; ?>" aria-expanded="<?php echo $is_first_panel ? 'true' : 'false'; ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
                                                     <button type="button" class="oras-remove-ticket button" title="<?php echo esc_attr__( 'Remove ticket', 'oras-tickets' ); ?>"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
                                                 </div>
                                             </div>
@@ -360,68 +371,93 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                 </div>
             </div>
 
-            <hr />
-
-            <h4>Ticket Sales Summary</h4>
-            <table class="widefat striped" id="oras-tickets-summary">
-                <thead>
-                    <tr>
-                        <th>Index</th>
-                        <th>Name</th>
-                        <th>Price</th>
-                        <th>Remaining</th>
-                        <th>Sold</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ( empty( $tickets ) ) : ?>
+            <div class="oras-ticket-summary-wrap">
+                <h4><?php echo esc_html__( 'Tickets', 'oras-tickets' ); ?></h4>
+                <table class="widefat striped oras-tickets-summary" id="oras-tickets-summary">
+                    <thead>
                         <tr>
-                            <td colspan="6">No tickets yet.</td>
+                            <th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Price', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Inventory', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Sale Window', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
                         </tr>
-                    <?php else : ?>
-                        <?php
-                        foreach ( $tickets as $index => $data ) :
-                            $name              = isset( $data['name'] ) ? (string) $data['name'] : '';
-                            $price             = isset( $data['price'] ) ? (string) $data['price'] : '0.00';
-                            $remaining_data    = $this->get_remaining_for_ticket( $post->ID, (string) $index );
-                            $remaining_display = $remaining_data['display'];
-                            $remaining_value   = $remaining_data['remaining'];
-                            $is_unlimited      = $remaining_data['is_unlimited'];
-                            $initial_capacity  = isset( $data['initial_capacity'] ) ? absint( $data['initial_capacity'] ) : null;
-
-                            if ( $is_unlimited ) {
-                                $status = 'Unlimited';
-                            } elseif ( (int) $remaining_value > 0 ) {
-                                $status = 'Available';
-                            } else {
-                                $status = 'Sold out';
-                            }
-
-                            if ( ! $is_unlimited && null !== $initial_capacity && $initial_capacity > 0 && null !== $remaining_value ) {
-                                $sold = max( 0, $initial_capacity - (int) $remaining_value );
-                            } else {
-                                $sold = '—';
-                            }
-                            ?>
-                            <tr>
-                                <td><?php echo esc_html( (string) $index ); ?></td>
-                                <td><?php echo esc_html( $name ); ?></td>
-                                <td><?php echo esc_html( $price ); ?></td>
-                                <td><?php echo esc_html( (string) $remaining_display ); ?></td>
-                                <td><?php echo esc_html( (string) $sold ); ?></td>
-                                <td><?php echo esc_html( $status ); ?></td>
+                    </thead>
+                    <tbody>
+                        <?php if ( empty( $tickets ) ) : ?>
+                            <tr class="oras-ticket-summary-empty">
+                                <td colspan="6"><?php echo esc_html__( 'No tickets yet.', 'oras-tickets' ); ?></td>
                             </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                        <?php else : ?>
+                            <?php
+                            foreach ( $tickets as $index => $data ) :
+                                $name = isset( $data['name'] ) ? (string) $data['name'] : '';
+                                if ( '' === $name ) {
+                                    $name = sprintf( __( 'Ticket #%d', 'oras-tickets' ), (int) $index );
+                                }
+
+                                $price      = isset( $data['price'] ) ? (string) $data['price'] : '0.00';
+                                $capacity   = isset( $data['capacity'] ) ? absint( $data['capacity'] ) : 0;
+                                $inventory  = $capacity > 0 ? (string) $capacity : __( 'Unlimited', 'oras-tickets' );
+                                $sale_start = isset( $data['sale_start'] ) ? (string) $data['sale_start'] : '';
+                                $sale_end   = isset( $data['sale_end'] ) ? (string) $data['sale_end'] : '';
+
+                                if ( '' === $sale_start && '' === $sale_end ) {
+                                    $sale_window = __( 'Always', 'oras-tickets' );
+                                } elseif ( '' !== $sale_start && '' !== $sale_end ) {
+                                    /* translators: 1: sale start datetime, 2: sale end datetime */
+                                    $sale_window = sprintf( __( '%1$s to %2$s', 'oras-tickets' ), $sale_start, $sale_end );
+                                } elseif ( '' !== $sale_start ) {
+                                    /* translators: %s: sale start datetime */
+                                    $sale_window = sprintf( __( 'Starts %s', 'oras-tickets' ), $sale_start );
+                                } else {
+                                    /* translators: %s: sale end datetime */
+                                    $sale_window = sprintf( __( 'Ends %s', 'oras-tickets' ), $sale_end );
+                                }
+
+                                $remaining_data = $this->get_remaining_for_ticket( $post->ID, (string) $index );
+                                if ( $remaining_data['is_unlimited'] ) {
+                                    $status = __( 'Unlimited', 'oras-tickets' );
+                                } elseif ( null !== $remaining_data['remaining'] && (int) $remaining_data['remaining'] > 0 ) {
+                                    $status = __( 'Available', 'oras-tickets' );
+                                } else {
+                                    $status = __( 'Sold out', 'oras-tickets' );
+                                }
+                                ?>
+                                <tr data-ticket-index="<?php echo esc_attr( (string) $index ); ?>">
+                                    <td><?php echo esc_html( $name ); ?></td>
+                                    <td><?php echo esc_html( '$' . $price ); ?></td>
+                                    <td><?php echo esc_html( $inventory ); ?></td>
+                                    <td><?php echo esc_html( $sale_window ); ?></td>
+                                    <td><?php echo esc_html( $status ); ?></td>
+                                    <td class="oras-ticket-summary-actions">
+                                        <button type="button" class="button button-small oras-ticket-summary-edit" data-index="<?php echo esc_attr( (string) $index ); ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                                        <button type="button" class="button button-small oras-ticket-summary-remove" data-index="<?php echo esc_attr( (string) $index ); ?>"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
 
             <!-- Template row (uses <template> so it won't be submitted) -->
             <template id="oras-ticket-template">
                 <tr class="oras-ticket-row oras-ticket-row-card" data-index="__INDEX__">
                     <td class="oras-ticket-cell">
                         <div class="oras-ticket-panel is-hidden" data-index="__INDEX__">
+                            <div class="oras-card__header">
+                                <div class="oras-card__title">
+                                    <span class="oras-card__name"><?php echo esc_html__( 'New Ticket', 'oras-tickets' ); ?></span>
+                                    <span class="oras-card__meta">$0.00 · <?php echo esc_html__( 'Always', 'oras-tickets' ); ?></span>
+                                </div>
+                                <div class="oras-card__actions">
+                                    <button type="button" class="button oras-card-toggle" data-index="__INDEX__" aria-expanded="true"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                                    <button type="button" class="oras-remove-ticket button" title="<?php echo esc_attr__( 'Remove ticket', 'oras-tickets' ); ?>"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+                                </div>
+                            </div>
+                            <div class="oras-card__body">
                             <div class="panel-wrap oras-ticket-data">
                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                     <li class="general_tab"><a href="#oras_ticket___INDEX___general">General</a></li>
@@ -513,8 +549,8 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 </div>
                             </div>
                             <div class="oras-ticket-actions">
-                                <button type="button" class="oras-remove-ticket button">Remove</button>
                                 <input type="hidden" name="oras_tickets_index[]" value="__INDEX__" />
+                            </div>
                             </div>
                         </div>
                     </td>

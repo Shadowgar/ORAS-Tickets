@@ -21,7 +21,6 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
         add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/compatibility/event-tickets/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
         add_filter( 'tribe_template_pre_html:events-pro/admin-views/metabox/container', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
-        add_filter( 'tribe_template_pre_html:events-pro/admin-views/virtual-metabox/container/show-to', array( self::class, 'filter_admin_show_to_html' ), 20, 4 );
 
         add_action( 'save_post_tribe_events', array( self::class, 'save_post' ), 20, 1 );
 
@@ -33,12 +32,9 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
     }
 
     public static function filter_admin_show_to_html( $html, $file, $name, $template ) {
-        error_log( 'ORAS Virtual Access filter called for file: ' . $file . ', name: ' . $name );
-        error_log( 'Original HTML length: ' . strlen( $html ) );
         unset( $file, $name );
 
         if ( ! is_object( $template ) || ! method_exists( $template, 'get' ) ) {
-            error_log( 'ORAS Virtual Access: Template object invalid' );
             return $html;
         }
 
@@ -56,8 +52,6 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         $has_rsvp      = self::event_has_rsvp_enabled( $event_id );
         $has_tickets   = self::event_has_oras_tickets( $event_id );
         $available     = self::available_show_to_values( $event_id );
-
-        error_log( 'ORAS Virtual Access: event_id=' . $event_id . ', has_rsvp=' . ($has_rsvp ? 'true' : 'false') . ', has_tickets=' . ($has_tickets ? 'true' : 'false') );
 
         if ( ! in_array( $show_to, $available, true ) ) {
             $show_to = self::SHOW_TO_EVERYONE;
@@ -144,9 +138,7 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         </tr>
         <?php
 
-        $generated_html = (string) ob_get_clean();
-        error_log( 'ORAS Virtual Access: Generated HTML length: ' . strlen( $generated_html ) );
-        return $generated_html;
+        return (string) ob_get_clean();
     }
 
     

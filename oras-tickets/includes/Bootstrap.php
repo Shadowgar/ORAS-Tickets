@@ -26,9 +26,10 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php'; // NOS
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_Agenda_Render.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php'; // NOSONAR legacy include
-    require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
-    require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
-    require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
+require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php'; // NOSONAR legacy include
@@ -50,6 +51,7 @@ final class Bootstrap {
 
     public function init(): void {
         Logger::instance()->log( 'Bootstrap init start' );
+        \ORAS\Tickets\Waitlist_Store::maybe_upgrade();
 
 // Hard deps: TEC (tribe_events) and WooCommerce.
         $has_tec = post_type_exists( 'tribe_events' ) || class_exists( 'Tribe__Events__Main' );
@@ -173,7 +175,7 @@ final class Bootstrap {
 
         $rsvp_settings = get_post_meta( $event_id, '_oras_rsvp_v1', true );
         if ( ! is_array( $rsvp_settings ) ) {
-wp_send_json_error( 'No RSVP settings found for this event' );
+            wp_send_json_error( 'No RSVP settings found for this event' );
         }
 
         $capacity = isset( $rsvp_settings['capacity'] ) ? absint( $rsvp_settings['capacity'] ) : 0;
@@ -187,24 +189,11 @@ wp_send_json_error( 'No RSVP settings found for this event' );
             )
         );
 
-        $waitlist_users = get_users(
-            array(
-                'meta_query' => array(
-                    array(
-                        'key'     => '_oras_rsvp_event_' . $event_id,
-                        'value'   => 'waitlist',
-                        'compare' => '=',
-                    ),
-                ),
-                'orderby'    => 'meta_value_num',
-                'meta_key'   => '_oras_rsvp_event_' . $event_id . '_ts',
-                'order'      => 'ASC',
-            )
-        );
+        $waitlist_users = \ORAS\Tickets\Waitlist_Store::get_waiting_users( $event_id );
 
         $yes_count = count( $yes_users );
         $waitlist_count = count( $waitlist_users );
-        $is_full = $yes_count >= $capacity;
+        $is_full = $capacity > 0 && $yes_count >= $capacity;
 
         $attendees = array();
         foreach ( $yes_users as $user ) {
@@ -409,6 +398,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
         $attendees = array();
         $rsvp_attendees = array();
         $ticket_attendees = array();
+        $matched_rsvp_user_ids = array();
 
         // Get notes envelope
         $notes_envelope = get_post_meta( $event_id, '_oras_attendee_notes_v1', true );
@@ -432,8 +422,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
                     continue;
                 }
 
-                $key = 'user_' . $user->ID;
-                $rsvp_attendees[ $key ] = array(
+                $rsvp_attendees[ (int) $user->ID ] = array(
                     'name'         => $name,
                     'email'        => $email,
                     'source'       => 'RSVP',
@@ -466,51 +455,52 @@ wp_send_json_error( 'No RSVP settings found for this event' );
                     continue;
                 }
 
-                $key = $attendee['user_id'] > 0 ? 'user_' . $attendee['user_id'] : 'guest_' . strtolower( $email ) . '_' . $attendee['order_id'];
-                $ticket_attendees[ $key ] = $attendee;
+                $ticket_attendees[] = $attendee;
             }
         }
 
-        // Merge and determine source
-        $all_keys = array_unique( array_merge( array_keys( $rsvp_attendees ), array_keys( $ticket_attendees ) ) );
+        // Ticket rows are authoritative for commerce visibility; merge RSVP marker by user when present.
+        foreach ( $ticket_attendees as $ticket_data ) {
+            $attendee = $ticket_data;
+            $user_id = (int) ( $ticket_data['user_id'] ?? 0 );
+            $attendee_key = $user_id > 0
+                ? 'u_' . $user_id
+                : 'o_' . (int) ( $ticket_data['order_id'] ?? 0 );
 
-        foreach ( $all_keys as $key ) {
-            $rsvp_data = isset( $rsvp_attendees[ $key ] ) ? $rsvp_attendees[ $key ] : null;
-            $ticket_data = isset( $ticket_attendees[ $key ] ) ? $ticket_attendees[ $key ] : null;
-
-            $attendee = null;
-            $attendee_key = '';
-
-            if ( $rsvp_data && $ticket_data ) {
-                // Both
-                $attendee = array(
-                    'name'         => $rsvp_data['name'],
-                    'email'        => $rsvp_data['email'],
-                    'source'       => 'Both',
-                    'user_id'      => $rsvp_data['user_id'],
-                    'order_id'     => $ticket_data['order_id'],
-                    'order_status' => $ticket_data['order_status'],
-                );
-                $attendee_key = 'u_' . $rsvp_data['user_id'];
-            } elseif ( $rsvp_data ) {
-                $attendee = $rsvp_data;
-                $attendee_key = 'u_' . $rsvp_data['user_id'];
-            } elseif ( $ticket_data ) {
-                $attendee = $ticket_data;
-                $attendee_key = $ticket_data['user_id'] > 0 ? 'u_' . $ticket_data['user_id'] : 'o_' . $ticket_data['order_id'];
+            if ( $user_id > 0 && isset( $rsvp_attendees[ $user_id ] ) ) {
+                $rsvp_data = $rsvp_attendees[ $user_id ];
+                $attendee['source'] = 'Both';
+                $attendee['name'] = $rsvp_data['name'];
+                $attendee['email'] = $rsvp_data['email'];
+                $matched_rsvp_user_ids[ $user_id ] = true;
             }
 
-            if ( $attendee ) {
-                // Add attendee_key and note
-                $attendee['attendee_key'] = $attendee_key;
-                $attendee['note'] = isset( $notes[ $attendee_key ] ) ? $notes[ $attendee_key ]['note'] : '';
+            $attendee['attendee_key'] = $attendee_key;
+            $attendee['note'] = isset( $notes[ $attendee_key ] ) ? $notes[ $attendee_key ]['note'] : '';
 
-                // Apply has_note_only filter
-                if ( $has_note_only && empty( $attendee['note'] ) ) {
+            if ( $has_note_only && empty( $attendee['note'] ) ) {
+                continue;
+            }
+
+            $attendees[] = $attendee;
+        }
+
+        // Append RSVP-only users not represented in ticket rows.
+        if ( $source_filter === 'all' || $source_filter === 'rsvp' || $source_filter === 'both' ) {
+            foreach ( $rsvp_attendees as $user_id => $rsvp_data ) {
+                if ( isset( $matched_rsvp_user_ids[ (int) $user_id ] ) ) {
                     continue;
                 }
 
-                $attendees[] = $attendee;
+                $attendee_key = 'u_' . $rsvp_data['user_id'];
+                $rsvp_data['attendee_key'] = $attendee_key;
+                $rsvp_data['note'] = isset( $notes[ $attendee_key ] ) ? $notes[ $attendee_key ]['note'] : '';
+
+                if ( $has_note_only && empty( $rsvp_data['note'] ) ) {
+                    continue;
+                }
+
+                $attendees[] = $rsvp_data;
             }
         }
 
@@ -537,6 +527,7 @@ wp_send_json_error( 'No RSVP settings found for this event' );
         if ( empty( $product_ids ) ) {
             return array();
         }
+        $product_lookup = array_fill_keys( $product_ids, true );
 
         $orders = array();
         foreach ( $product_ids as $pid ) {
@@ -560,26 +551,51 @@ wp_send_json_error( 'No RSVP settings found for this event' );
             $name = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
             $email = $order->get_billing_email();
             $order_status = $order->get_status();
+            $ticket_count = 0;
 
-            if ( $user_id > 0 ) {
-                $attendees[] = array(
-                    'name'         => $name,
-                    'email'        => $email,
-                    'source'       => 'Ticket',
-                    'user_id'      => $user_id,
-                    'order_id'     => $order_id,
-                    'order_status' => $order_status,
-                );
-            } else {
-                // Guest
-                $attendees[] = array(
-                    'name'         => $name,
-                    'email'        => $email,
-                    'source'       => 'Ticket (Guest)',
-                    'user_id'      => 0,
-                    'order_id'     => $order_id,
-                    'order_status' => $order_status,
-                );
+            foreach ( $order->get_items() as $item ) {
+                if ( ! is_object( $item ) || ! method_exists( $item, 'get_product_id' ) ) {
+                    continue;
+                }
+
+                $product_id = (int) $item->get_product_id();
+                if ( $product_id <= 0 || ! isset( $product_lookup[ $product_id ] ) ) {
+                    continue;
+                }
+
+                $qty = method_exists( $item, 'get_quantity' ) ? (int) $item->get_quantity() : 1;
+                $ticket_count += max( 1, $qty );
+            }
+
+            if ( $ticket_count <= 0 ) {
+                continue;
+            }
+
+            for ( $idx = 1; $idx <= $ticket_count; $idx++ ) {
+                if ( $user_id > 0 ) {
+                    $attendees[] = array(
+                        'name'         => $name,
+                        'email'        => $email,
+                        'source'       => 'Ticket',
+                        'user_id'      => $user_id,
+                        'order_id'     => $order_id,
+                        'order_status' => $order_status,
+                        'ticket_index' => $idx,
+                        'ticket_total' => $ticket_count,
+                    );
+                } else {
+                    // Guest
+                    $attendees[] = array(
+                        'name'         => $name,
+                        'email'        => $email,
+                        'source'       => 'Ticket (Guest)',
+                        'user_id'      => 0,
+                        'order_id'     => $order_id,
+                        'order_status' => $order_status,
+                        'ticket_index' => $idx,
+                        'ticket_total' => $ticket_count,
+                    );
+                }
             }
         }
 
@@ -663,13 +679,17 @@ wp_send_json_error( 'No RSVP settings found for this event' );
             wp_die( 'Invalid event ID' );
         }
 
-        $users = get_users(
-            array(
-                'meta_key'     => '_oras_rsvp_event_' . $event_id,
-                'meta_value'   => $status,
-                'meta_compare' => '=',
-            )
-        );
+        if ( 'waitlist' === $status ) {
+            $users = \ORAS\Tickets\Waitlist_Store::get_waiting_users( $event_id );
+        } else {
+            $users = get_users(
+                array(
+                    'meta_key'     => '_oras_rsvp_event_' . $event_id,
+                    'meta_value'   => $status,
+                    'meta_compare' => '=',
+                )
+            );
+        }
 
         $filename = 'rsvp-' . $status . '-' . get_the_title( $event_id ) . '-' . date( 'Y-m-d' ) . '.csv';
 
@@ -722,36 +742,25 @@ wp_send_json_error( 'No RSVP settings found for this event' );
             )
         ) );
 
-        if ( $yes_count >= $capacity ) {
+        if ( $capacity > 0 && $yes_count >= $capacity ) {
             wp_die( 'Event is already at capacity' );
         }
 
-        // Find the oldest waitlist user
-        $waitlist_users = get_users(
-            array(
-                'meta_query' => array(
-                    array(
-                        'key'     => '_oras_rsvp_event_' . $event_id,
-                        'value'   => 'waitlist',
-                        'compare' => '=',
-                    ),
-                ),
-                'orderby'    => 'meta_value_num',
-                'meta_key'   => '_oras_rsvp_event_' . $event_id . '_ts',
-                'order'      => 'ASC',
-                'number'     => 1,
-            )
+        $promoted_user_id = \ORAS\Tickets\Waitlist_Store::promote_next_waiting(
+            $event_id,
+            get_current_user_id(),
+            'dashboard'
         );
 
-        if ( empty( $waitlist_users ) ) {
+        if ( $promoted_user_id <= 0 ) {
             wp_die( 'No users on waitlist' );
         }
 
-        $user = $waitlist_users[0];
-        update_user_meta( $user->ID, '_oras_rsvp_event_' . $event_id, 'yes' );
+        update_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
+        delete_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id . '_ts' );
 
         // Redirect back to dashboard with success message
-        wp_redirect( admin_url( 'admin.php?page=oras-tickets-dashboard&promoted=1' ) );
+        wp_safe_redirect( admin_url( 'admin.php?page=oras-tickets&tab=rsvp&promoted=1' ) );
         exit;
     }
 }

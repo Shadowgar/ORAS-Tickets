@@ -45,6 +45,20 @@ jQuery( document ).ready( function( $ ) {
 		return normalized;
 	}
 
+	function escapeHtml( value ) {
+		return String( value ?? '' )
+			.replaceAll( '&', '&amp;' )
+			.replaceAll( '<', '&lt;' )
+			.replaceAll( '>', '&gt;' )
+			.replaceAll( '"', '&quot;' )
+			.replaceAll( "'", '&#39;' );
+	}
+
+	function normalizeInt( value ) {
+		var parsed = Number.parseInt( value, 10 );
+		return Number.isNaN( parsed ) ? 0 : parsed;
+	}
+
 	function getTrustedAdminPostUrl() {
 		var fallback = new URL( adminBase + 'admin-post.php', document.baseURI );
 		fallback.search = '';
@@ -233,10 +247,13 @@ jQuery( document ).ready( function( $ ) {
 		}
 
 		$.each( attendees, function( index, attendee ) {
+			var name = escapeHtml( attendee.name );
+			var email = escapeHtml( attendee.email );
+			var status = escapeHtml( attendee.status );
 			var row = '<tr>' +
-				'<td>' + attendee.name + '</td>' +
-				'<td>' + attendee.email + '</td>' +
-				'<td>' + attendee.status + '</td>' +
+				'<td>' + name + '</td>' +
+				'<td>' + email + '</td>' +
+				'<td>' + status + '</td>' +
 				'</tr>';
 			$attendeesBody.append( row );
 		} );
@@ -420,32 +437,46 @@ jQuery( document ).ready( function( $ ) {
 
 		$.each( attendees, function( index, attendee ) {
 			var actions = [];
+			var userId = normalizeInt( attendee.user_id );
+			var orderId = normalizeInt( attendee.order_id );
+			var attendeeKey = escapeHtml( attendee.attendee_key );
+			var emailValue = String( attendee.email ?? '' ).trim();
+			var emailHref = 'mailto:' + encodeURIComponent( emailValue );
+			var name = escapeHtml( attendee.name );
+			var email = escapeHtml( emailValue );
+			var source = escapeHtml( attendee.source );
+			var orderStatus = escapeHtml( attendee.order_status );
+			var userIdLabel = userId > 0 ? String( userId ) : '';
+			var orderIdLabel = orderId > 0 ? String( orderId ) : '';
+			var noteRaw = String( attendee.note ?? '' );
 
-				if ( attendee.user_id > 0 ) {
-					actions.push( '<a href="' + adminBase + 'user-edit.php?user_id=' + Number.parseInt( attendee.user_id, 10 ) + '" target="_blank">View User</a>' );
-				}
+			if ( userId > 0 ) {
+				actions.push( '<a href="' + adminBase + 'user-edit.php?user_id=' + userId + '" target="_blank">View User</a>' );
+			}
 
-				if ( attendee.order_id > 0 ) {
-					actions.push( '<a href="' + adminBase + 'post.php?post=' + Number.parseInt( attendee.order_id, 10 ) + '&action=edit" target="_blank">View Order</a>' );
-				}
+			if ( orderId > 0 ) {
+				actions.push( '<a href="' + adminBase + 'post.php?post=' + orderId + '&action=edit" target="_blank">View Order</a>' );
+			}
 
-			actions.push( '<a href="#" class="oras-edit-note" data-key="' + attendee.attendee_key + '">Edit Note</a>' );
+			actions.push( '<a href="#" class="oras-edit-note" data-key="' + attendeeKey + '">Edit Note</a>' );
 
-			actions.push( '<a href="mailto:' + attendee.email + '">Email</a>' );
+			actions.push( '<a href="' + emailHref + '">Email</a>' );
 
-			var notePreview = attendee.note || '';
+			var notePreview = noteRaw;
 			if ( notePreview.length > 60 ) {
 				notePreview = notePreview.substring( 0, 60 ) + '...';
 			}
+			var notePreviewEscaped = escapeHtml( notePreview );
+			var noteEscaped = escapeHtml( noteRaw );
 
 			var row = '<tr>' +
-				'<td>' + attendee.name + '</td>' +
-				'<td>' + attendee.email + '</td>' +
-				'<td>' + attendee.source + '</td>' +
-				'<td>' + ( attendee.user_id || '' ) + '</td>' +
-				'<td>' + ( attendee.order_id || '' ) + '</td>' +
-				'<td>' + attendee.order_status + '</td>' +
-				'<td><span class="oras-note-preview">' + notePreview + '</span><div class="oras-note-editor" style="display:none; margin-top:5px;"><textarea class="oras-note-text" rows="3" style="width:100%;">' + ( attendee.note || '' ) + '</textarea><p><button type="button" class="button button-small oras-note-save" data-key="' + attendee.attendee_key + '">Save</button> <button type="button" class="button button-small oras-note-cancel">Cancel</button></p></div></td>' +
+				'<td>' + name + '</td>' +
+				'<td>' + email + '</td>' +
+				'<td>' + source + '</td>' +
+				'<td>' + escapeHtml( userIdLabel ) + '</td>' +
+				'<td>' + escapeHtml( orderIdLabel ) + '</td>' +
+				'<td>' + orderStatus + '</td>' +
+				'<td><span class="oras-note-preview">' + notePreviewEscaped + '</span><div class="oras-note-editor" style="display:none; margin-top:5px;"><textarea class="oras-note-text" rows="3" style="width:100%;">' + noteEscaped + '</textarea><p><button type="button" class="button button-small oras-note-save" data-key="' + attendeeKey + '">Save</button> <button type="button" class="button button-small oras-note-cancel">Cancel</button></p></div></td>' +
 				'<td>' + actions.join( ' | ' ) + '</td>' +
 				'</tr>';
 			$attendeesBodyTable.append( row );
