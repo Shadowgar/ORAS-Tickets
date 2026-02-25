@@ -172,7 +172,7 @@ CSV export
 XLSX export
 PMPro enforcement
 Selective asset loading
-Status: Not Built
+Status: Built (hardening + operator polish ongoing)
 Priority: High
 
 5.3 Capacity Dashboard
@@ -181,7 +181,7 @@ RSVP count vs paid count
 Capacity percentage
 Sellout visibility
 Future predictive analytics
-Status: Not Built
+Status: Partial (core RSVP/capacity surface live; predictive layer pending)
 
 7. PHASE 6 – Advanced Ticketing Intelligence
 
@@ -291,6 +291,25 @@ Download PDF
 Tax breakdown
 Status: Not Built
 
+9.5 Board Member Dashboard (New Feature)
+Purpose:
+One-stop board operations view in the same visual language as Members Hub.
+Features:
+Executive KPI cards (membership, ticketing, finance, operations)
+Membership intelligence from PMPro (active paid members, growth, expirations/churn)
+Ticketing intelligence (tickets sold, RSVP/waitlist totals, sellout pressure)
+Financial rollups (ticket revenue, membership revenue, combined totals, refund impact)
+Top event performance blocks (attendance + gross/net snapshots)
+Board alerts (capacity risk, waitlist pressure, failed payment anomalies)
+Exportable board packet (CSV/PDF-ready data slices)
+UX Direction:
+Reuse Members Hub information hierarchy, card density, and responsive layout patterns.
+Governance:
+Capability-gated board-only visibility and export permissions.
+Status: Not Built
+Dependencies:
+Phase 3 reporting baseline, Phase 5 attendee integrity, Phase 10 advanced reporting APIs
+
 11. PHASE 10 – Financial Intelligence
 
 10.1 Advanced Reporting Suite
@@ -316,6 +335,14 @@ Features:
 Refund reason tracking
 Refund rate per event
 Impact analysis
+Status: Not Built
+
+10.4 Board Analytics Data Layer
+Features:
+Unified KPI query layer for board dashboard metrics
+Deterministic date-window snapshots (7/30/90 day board views)
+Cached aggregate views for fast board rendering
+Cross-source normalization for Woo + PMPro + RSVP/attendees
 Status: Not Built
 
 12. PHASE 11 – Discovery & UX Enhancements
@@ -383,8 +410,9 @@ ORAS-specific workflows
 6. QR + Check-in system
 7. Tier pricing automation
 8. Advanced reporting expansion
-9. Virtual gating
-10. Member dashboard expansion
+9. Board member dashboard (executive one-stop shop)
+10. Virtual gating
+11. Member dashboard expansion
 
 16. COMPLETION ESTIMATE
 Core infrastructure: ~60%

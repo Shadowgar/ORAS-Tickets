@@ -59,6 +59,15 @@ jQuery( document ).ready( function( $ ) {
 		return Number.isNaN( parsed ) ? 0 : parsed;
 	}
 
+	function formatDateLabel( value ) {
+		var normalized = String( value || '' ).trim();
+		if ( normalized === '' ) {
+			return '';
+		}
+
+		return normalized + ' UTC';
+	}
+
 	function getTrustedAdminPostUrl() {
 		var fallback = new URL( adminBase + 'admin-post.php', document.baseURI );
 		fallback.search = '';
@@ -138,6 +147,13 @@ jQuery( document ).ready( function( $ ) {
 	var $waitlistCount = $( '#oras-rsvp-waitlist-count' );
 	var $isFull = $( '#oras-rsvp-is-full' );
 	var $attendeesBody = $( '#oras-rsvp-attendees-body' );
+	var $waitlistOps = $( '#oras-waitlist-ops' );
+	var $waitlistQueueBody = $( '#oras-waitlist-queue-body' );
+	var $waitlistHistoryBody = $( '#oras-waitlist-history-body' );
+	var $waitlistBulkCount = $( '#oras-waitlist-bulk-count' );
+	var $waitlistBulkPromote = $( '#oras-waitlist-bulk-promote' );
+	var $waitlistRefresh = $( '#oras-waitlist-refresh' );
+	var $waitlistOperationMessage = $( '#oras-waitlist-operation-message' );
 	var $attendeesEventSelector = $( '#oras-attendees-event-selector' );
 	var $attendeesFilters = $( '#oras-attendees-filters' );
 	var $attendeesTableContainer = $( '#oras-attendees-table-container' );
@@ -161,6 +177,7 @@ jQuery( document ).ready( function( $ ) {
 			$stats.hide();
 			$actions.hide();
 			$list.hide();
+			$waitlistOps.hide();
 			return;
 		}
 
@@ -215,22 +232,238 @@ jQuery( document ).ready( function( $ ) {
 				event_id: eventId,
 				nonce: orasDashboardRsvp.nonce
 			},
-			success: function( response ) {
-				if ( response.success ) {
-					updateStats( response.data.stats );
-					updateAttendees( response.data.attendees );
-					$stats.show();
-					$actions.show();
-					$list.show();
-				} else {
-					alert( 'Error loading RSVP data: ' + response.data );
-				}
-			},
+				success: function( response ) {
+					if ( response.success ) {
+						updateStats( response.data.stats );
+						updateAttendees( response.data.attendees );
+						$stats.show();
+						$actions.show();
+						$list.show();
+						$waitlistOps.show();
+						loadWaitlistQueueData( eventId, true );
+					} else {
+						alert( 'Error loading RSVP data: ' + response.data );
+					}
+				},
 			error: function( xhr, status, error ) {
 				alert( 'AJAX error occurred while loading RSVP data.' );
 			}
 		} );
 	}
+
+	function setWaitlistMessage( message, isError ) {
+		$waitlistOperationMessage.text( String( message || '' ) );
+		$waitlistOperationMessage.css( 'color', isError ? '#b32d2e' : '#2271b1' );
+	}
+
+	function loadWaitlistQueueData( eventId, quiet ) {
+		var cleanEventId = sanitizeEventId( eventId );
+		if ( ! cleanEventId ) {
+			return;
+		}
+
+		$.ajax( {
+			url: orasDashboardRsvp.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'oras_waitlist_queue_data',
+				event_id: cleanEventId,
+				nonce: orasDashboardRsvp.nonce
+			},
+			success: function( response ) {
+				if ( ! response.success ) {
+					setWaitlistMessage( 'Unable to load waitlist queue data.', true );
+					return;
+				}
+
+				populateWaitlistQueueTable( Array.isArray( response.data.queue ) ? response.data.queue : [] );
+				populateWaitlistHistoryTable( Array.isArray( response.data.history ) ? response.data.history : [] );
+				if ( ! quiet ) {
+					setWaitlistMessage( 'Queue refreshed.', false );
+				}
+			},
+			error: function() {
+				setWaitlistMessage( 'Network error while loading queue data.', true );
+			}
+		} );
+	}
+
+	function populateWaitlistQueueTable( queueRows ) {
+		$waitlistQueueBody.empty();
+
+		if ( queueRows.length === 0 ) {
+			$waitlistQueueBody.append( '<tr><td colspan="6">No users currently waiting.</td></tr>' );
+			return;
+		}
+
+		$.each( queueRows, function( index, row ) {
+			var userId = normalizeInt( row.user_id );
+			var position = normalizeInt( row.position ) > 0 ? normalizeInt( row.position ) : ( index + 1 );
+			var name = escapeHtml( row.name );
+			var email = escapeHtml( row.email );
+			var joinedAt = escapeHtml( formatDateLabel( row.joined_at ) );
+			var source = escapeHtml( row.source );
+			var actionButtons = '<button type="button" class="button button-small oras-waitlist-promote-user" data-user-id="' + userId + '">Promote</button> ' +
+				'<button type="button" class="button button-small oras-waitlist-remove-user" data-user-id="' + userId + '">Remove</button>';
+
+			var html = '<tr>' +
+				'<td>' + escapeHtml( String( position ) ) + '</td>' +
+				'<td>' + name + '</td>' +
+				'<td>' + email + '</td>' +
+				'<td>' + joinedAt + '</td>' +
+				'<td>' + source + '</td>' +
+				'<td>' + actionButtons + '</td>' +
+				'</tr>';
+
+			$waitlistQueueBody.append( html );
+		} );
+	}
+
+	function populateWaitlistHistoryTable( historyRows ) {
+		$waitlistHistoryBody.empty();
+
+		if ( historyRows.length === 0 ) {
+			$waitlistHistoryBody.append( '<tr><td colspan="6">No waitlist history entries found.</td></tr>' );
+			return;
+		}
+
+		$.each( historyRows, function( index, row ) {
+			var name = escapeHtml( row.name );
+			var status = escapeHtml( row.status );
+			var lastAction = escapeHtml( row.last_action );
+			var source = escapeHtml( row.source );
+			var actorName = escapeHtml( row.actor_name || '' );
+			var updatedAt = escapeHtml( formatDateLabel( row.updated_at ) );
+			var html = '<tr>' +
+				'<td>' + name + '</td>' +
+				'<td>' + status + '</td>' +
+				'<td>' + lastAction + '</td>' +
+				'<td>' + source + '</td>' +
+				'<td>' + actorName + '</td>' +
+				'<td>' + updatedAt + '</td>' +
+				'</tr>';
+
+			$waitlistHistoryBody.append( html );
+		} );
+	}
+
+	$waitlistRefresh.on( 'click', function() {
+		var eventId = sanitizeEventId( $selector.val() );
+		if ( ! eventId ) {
+			return;
+		}
+
+		loadWaitlistQueueData( eventId );
+	} );
+
+	$waitlistBulkPromote.on( 'click', function() {
+		var eventId = sanitizeEventId( $selector.val() );
+		if ( ! eventId ) {
+			return;
+		}
+
+		var count = normalizeInt( $waitlistBulkCount.val() );
+		if ( count <= 0 ) {
+			count = 1;
+		}
+		if ( count > 25 ) {
+			count = 25;
+		}
+
+		$waitlistBulkPromote.prop( 'disabled', true );
+		setWaitlistMessage( 'Promoting from waitlist...', false );
+
+		$.ajax( {
+			url: orasDashboardRsvp.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'oras_waitlist_bulk_promote',
+				event_id: eventId,
+				count: String( count ),
+				nonce: orasDashboardRsvp.nonce
+			},
+			success: function( response ) {
+				$waitlistBulkPromote.prop( 'disabled', false );
+				if ( response.success ) {
+					var promoted = normalizeInt( response.data.promoted_count );
+					setWaitlistMessage( 'Promoted ' + promoted + ' attendee(s).', false );
+					loadRsvpData( eventId );
+				} else {
+					setWaitlistMessage( String( response.data || 'Unable to promote users.' ), true );
+				}
+			},
+			error: function() {
+				$waitlistBulkPromote.prop( 'disabled', false );
+				setWaitlistMessage( 'Network error during bulk promotion.', true );
+			}
+		} );
+	} );
+
+	$( document ).on( 'click', '.oras-waitlist-promote-user', function() {
+		var eventId = sanitizeEventId( $selector.val() );
+		var userId = normalizeInt( $( this ).data( 'user-id' ) );
+		if ( ! eventId || userId <= 0 ) {
+			return;
+		}
+
+		setWaitlistMessage( 'Promoting selected attendee...', false );
+		$.ajax( {
+			url: orasDashboardRsvp.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'oras_waitlist_promote_user',
+				event_id: eventId,
+				user_id: String( userId ),
+				nonce: orasDashboardRsvp.nonce
+			},
+			success: function( response ) {
+				if ( response.success ) {
+					setWaitlistMessage( 'Selected attendee promoted.', false );
+					loadRsvpData( eventId );
+				} else {
+					setWaitlistMessage( String( response.data || 'Unable to promote selected attendee.' ), true );
+				}
+			},
+			error: function() {
+				setWaitlistMessage( 'Network error promoting selected attendee.', true );
+			}
+		} );
+	} );
+
+	$( document ).on( 'click', '.oras-waitlist-remove-user', function() {
+		var eventId = sanitizeEventId( $selector.val() );
+		var userId = normalizeInt( $( this ).data( 'user-id' ) );
+		if ( ! eventId || userId <= 0 ) {
+			return;
+		}
+
+		if ( ! globalThis.confirm( 'Remove this attendee from the waitlist?' ) ) {
+			return;
+		}
+
+		setWaitlistMessage( 'Removing attendee from waitlist...', false );
+		$.ajax( {
+			url: orasDashboardRsvp.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'oras_waitlist_remove_user',
+				event_id: eventId,
+				user_id: String( userId ),
+				nonce: orasDashboardRsvp.nonce
+			},
+			success: function( response ) {
+				if ( response.success ) {
+					setWaitlistMessage( 'Attendee removed from waitlist.', false );
+					loadRsvpData( eventId );
+				} else {
+					setWaitlistMessage( String( response.data || 'Unable to remove attendee.' ), true );
+				}
+			},
+			error: function() {
+				setWaitlistMessage( 'Network error removing attendee.', true );
+			}
+		} );
+	} );
 
 	function updateStats( stats ) {
 		$capacity.text( stats.capacity );

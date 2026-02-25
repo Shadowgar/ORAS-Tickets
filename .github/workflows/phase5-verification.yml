@@ -1,0 +1,50 @@
+name: Phase5 Verification
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHPCS
+        run: composer phpcs
+
+      - name: PHPStan
+        run: composer phpstan
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Start wp-env
+        run: npx --yes @wordpress/env start
+
+      - name: Run Phase 5 integration checks
+        env:
+          ORAS_WP_ENV_DIR: .
+          ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+        run: bash scripts/run-phase5-integration-checks.sh
+
+      - name: Stop wp-env
+        if: always()
+        run: npx --yes @wordpress/env stop

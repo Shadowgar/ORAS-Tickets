@@ -93,6 +93,52 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
                 <button id="oras-rsvp-promote" class="button"><?php echo esc_html__( 'Promote from Waitlist', 'oras-tickets' ); ?></button>
             </div>
 
+            <div id="oras-waitlist-ops" style="display:none; margin-top: 20px;">
+                <h3><?php echo esc_html__( 'Waitlist Queue Operations', 'oras-tickets' ); ?></h3>
+                <p><?php echo esc_html__( 'Use manual and bulk operations to manage the waitlist queue and review lifecycle actions.', 'oras-tickets' ); ?></p>
+                <div style="margin-bottom: 12px;">
+                    <label for="oras-waitlist-bulk-count"><?php echo esc_html__( 'Bulk promote count:', 'oras-tickets' ); ?></label>
+                    <input type="number" id="oras-waitlist-bulk-count" min="1" max="25" value="1" style="width: 80px; margin-left: 8px; margin-right: 8px;" />
+                    <button id="oras-waitlist-bulk-promote" class="button button-primary"><?php echo esc_html__( 'Promote Next', 'oras-tickets' ); ?></button>
+                    <button id="oras-waitlist-refresh" class="button"><?php echo esc_html__( 'Refresh Queue', 'oras-tickets' ); ?></button>
+                    <span id="oras-waitlist-operation-message" style="margin-left: 12px;"></span>
+                </div>
+
+                <div id="oras-waitlist-queue-container">
+                    <h4><?php echo esc_html__( 'Current Queue', 'oras-tickets' ); ?></h4>
+                    <table class="widefat striped" id="oras-waitlist-queue-table">
+                        <thead>
+                            <tr>
+                                <th><?php echo esc_html__( 'Position', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Joined', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="oras-waitlist-queue-body"></tbody>
+                    </table>
+                </div>
+
+                <div id="oras-waitlist-history-container" style="margin-top: 18px;">
+                    <h4><?php echo esc_html__( 'Waitlist History', 'oras-tickets' ); ?></h4>
+                    <table class="widefat striped" id="oras-waitlist-history-table">
+                        <thead>
+                            <tr>
+                                <th><?php echo esc_html__( 'User', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Last Action', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Actor', 'oras-tickets' ); ?></th>
+                                <th><?php echo esc_html__( 'Updated', 'oras-tickets' ); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="oras-waitlist-history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div id="oras-rsvp-list" style="display:none;">
                 <h3><?php echo esc_html__( 'Attendee List', 'oras-tickets' ); ?></h3>
                 <table class="widefat striped" id="oras-rsvp-attendees-table">

@@ -9,6 +9,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Waitlist_Store {
     private const OPTION_SCHEMA_VERSION = 'oras_tickets_waitlist_schema_version';
     private const SCHEMA_VERSION = 1;
+    /**
+     * @var array<int, string>
+     */
+    private const ALLOWED_STATUSES = array( 'waiting', 'promoted', 'left' );
 
     /**
      * @var array<int, bool>
@@ -294,6 +298,120 @@ final class Waitlist_Store {
         }
 
         return $user_id;
+    }
+
+    public static function promote_user( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'admin' ): bool {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return false;
+        }
+
+        $status = self::get_current_waitlist_status( $event_id, $user_id );
+        if ( 'waiting' !== $status ) {
+            return false;
+        }
+
+        return self::mark_promoted( $event_id, $user_id, $source, $actor_user_id );
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public static function bulk_promote_waiting( int $event_id, int $count, int $actor_user_id = 0, string $source = 'admin' ): array {
+        if ( $event_id <= 0 || $count <= 0 ) {
+            return array();
+        }
+
+        $limit = min( 100, max( 1, $count ) );
+        $promoted = array();
+
+        for ( $i = 0; $i < $limit; $i++ ) {
+            $user_id = self::promote_next_waiting( $event_id, $actor_user_id, $source );
+            if ( $user_id <= 0 ) {
+                break;
+            }
+
+            $promoted[] = $user_id;
+        }
+
+        return $promoted;
+    }
+
+    public static function remove_waiting_user( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'admin' ): bool {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return false;
+        }
+
+        $status = self::get_current_waitlist_status( $event_id, $user_id );
+        if ( 'waiting' !== $status ) {
+            return false;
+        }
+
+        return self::mark_left( $event_id, $user_id, $source, $actor_user_id );
+    }
+
+    /**
+     * @param array<int, string> $statuses
+     * @return array<int, object>
+     */
+    public static function get_event_rows( int $event_id, array $statuses = array(), int $limit = 0, string $order = 'joined_asc' ): array {
+        if ( $event_id <= 0 ) {
+            return array();
+        }
+
+        self::maybe_upgrade();
+        self::backfill_event_from_legacy_meta( $event_id );
+
+        global $wpdb;
+        $table = self::table_name();
+
+        $query = "SELECT id,event_id,user_id,status,joined_at,updated_at,promoted_at,removed_at,last_action,source,actor_user_id FROM {$table} WHERE event_id = %d";
+        $args = array( $event_id );
+
+        $normalized_statuses = self::normalize_statuses( $statuses );
+        if ( ! empty( $normalized_statuses ) ) {
+            $placeholders = implode( ',', array_fill( 0, count( $normalized_statuses ), '%s' ) );
+            $query .= " AND status IN ({$placeholders})";
+            $args = array_merge( $args, $normalized_statuses );
+        }
+
+        if ( 'updated_desc' === $order ) {
+            $query .= ' ORDER BY updated_at DESC, id DESC';
+        } else {
+            $query .= ' ORDER BY joined_at ASC, id ASC';
+        }
+
+        if ( $limit > 0 ) {
+            $query .= ' LIMIT ' . absint( $limit );
+        }
+
+        $rows = $wpdb->get_results( $wpdb->prepare( $query, $args ) );
+        return is_array( $rows ) ? $rows : array();
+    }
+
+    /**
+     * @param array<int, string> $statuses
+     * @return array<int, string>
+     */
+    private static function normalize_statuses( array $statuses ): array {
+        if ( empty( $statuses ) ) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ( $statuses as $status ) {
+            if ( ! is_string( $status ) ) {
+                continue;
+            }
+
+            $value = sanitize_key( $status );
+            if ( '' === $value || ! in_array( $value, self::ALLOWED_STATUSES, true ) ) {
+                continue;
+            }
+
+            $normalized[] = $value;
+        }
+
+        return array_values( array_unique( $normalized ) );
     }
 
     private static function backfill_event_from_legacy_meta( int $event_id ): void {

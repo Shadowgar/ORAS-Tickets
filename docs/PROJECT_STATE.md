@@ -34,10 +34,11 @@ Provide deterministic, auditable, ORAS-specific event operations on top of WordP
 If completion percentages differ, `MASTER_EXECUTION_TRACKER.md` wins.
 
 ## Current Project Maturity (Master-plan aligned)
-- Overall completion: **~53%**
+- Overall completion: **~56%**
 - Core ticketing and reporting foundations are production-capable.
 - Phase 5 is partially complete and currently in hardening mode.
 - Phases 6+ are mostly planned and should not advance until Phase 5 completion gates are satisfied.
+- Strategic scope now includes a board-only executive dashboard (Members Hub style) under Phase 9.5/10.4.
 
 ## Current Enforcement Decision
 The project is in **stabilize-and-refine mode**:
@@ -52,7 +53,14 @@ Recently completed hardening in code:
 - Promotion handler conflicts removed.
 - Unlimited-capacity checks corrected.
 - Admin attendee rendering escaped.
+- Frontend RSVP submission target bug fixed (form `action` shadowing issue resolved).
+- Attendee list integrity corrected (ticket attendees no longer collapse by user; quantities now counted).
 - Virtual access duplicate hook/log cleanup.
+- Phase 5 WP-CLI integration check harness added.
+- CI workflow added to run PHPCS, PHPStan, and Phase 5 checks.
+- Waitlist queue operations and audit/history surface added to RSVP dashboard.
+- New waitlist AJAX operation handlers added and covered by integration checks.
+- Attendee dashboard ticket-source coverage expanded to all supported Woo statuses; on-hold/all status regression checks added.
 - Static analysis clean (`phpstan`, `phpcs`).
 
 ## Locked vs Active

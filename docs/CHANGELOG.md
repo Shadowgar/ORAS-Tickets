@@ -1,5 +1,67 @@
 # CHANGELOG (Append-Only)
 
+## 2026-02-25 — Attendee Status Coverage Hardening (Phase 5)
+
+Code:
+- Fixed attendee ticket-order collection to include all dashboard-supported Woo order statuses (`completed`, `processing`, `on-hold`, `pending`, `refunded`, `cancelled`, `failed`) instead of only `processing`/`completed`.
+- Expanded `scripts/phase5-integration-checks.php` with a regression scenario that creates an `on-hold` order and verifies:
+  - `ticket_status=on-hold` includes that attendee.
+  - `ticket_status=all` includes that attendee.
+
+Verification:
+- `bash scripts/run-phase5-integration-checks.sh` (pass, shared env `/home/rocco/projects/oras-wp-env`)
+- `composer phpcs` (pass)
+- `composer phpstan` (pass)
+
+## 2026-02-25 — Phase 5.2 Waitlist Queue Operations + Audit Surface
+
+Code:
+- Added waitlist store query/operation methods for admin queue management (`get_event_rows`, `promote_user`, `bulk_promote_waiting`, `remove_waiting_user`).
+- Added RSVP dashboard waitlist operations UI (bulk promote, manual promote/remove, queue and history tables).
+- Added waitlist AJAX handlers in `Bootstrap`:
+  - `oras_waitlist_queue_data`
+  - `oras_waitlist_bulk_promote`
+  - `oras_waitlist_promote_user`
+  - `oras_waitlist_remove_user`
+- Wired waitlist operations to deterministic lifecycle updates and RSVP usermeta sync.
+- Extended `scripts/phase5-integration-checks.php` to verify the new queue/audit endpoints and operation flows.
+
+Verification:
+- `bash scripts/run-phase5-integration-checks.sh` (pass, shared env `/home/rocco/projects/oras-wp-env`)
+- `composer phpcs` (pass)
+- `composer phpstan` (pass)
+
+## 2026-02-25 — Phase 5 Verification Suite + CI Enforcement
+
+Code:
+- Added `scripts/phase5-integration-checks.php` with deterministic WP-CLI integration checks for RSVP transitions, waitlist lifecycle/promotion, attendee data contracts, note save, and messaging handlers.
+- Added `scripts/run-phase5-integration-checks.sh` to execute the checks against a configured wp-env runtime (`ORAS_WP_ENV_DIR` aware; defaults to `/home/rocco/projects/oras-wp-env` when present).
+- Added first CI workflow `/.github/workflows/phase5-verification.yml` to run PHPCS, PHPStan, and Phase 5 integration checks on push/PR.
+
+Verification:
+- Local run passed in shared env (`/home/rocco/projects/oras-wp-env`) via:
+  - `bash scripts/run-phase5-integration-checks.sh`
+  - `composer phpcs`
+  - `composer phpstan`
+
+## 2026-02-25 — RSVP Frontend Endpoint + Attendee Integrity Fixes
+
+Code:
+- Fixed frontend RSVP submission routing where a hidden `action` field shadowed form `action` URL resolution.
+- Fixed attendee aggregation so paid attendees are not collapsed by user and ticket quantities are counted correctly per event.
+
+Verification:
+- Reproduced undercount before fix and confirmed corrected attendee totals after fix.
+- Static checks pass (`php -l`, `composer phpstan`, `composer phpcs`).
+
+## 2026-02-25 — Board Dashboard Scope Added to Master Plan
+
+Documentation:
+- Added Phase 9.5 Board Member Dashboard scope to `MASTER_DEVELOPMENT_PLAN.md` with KPI domains, governance, and Members Hub style direction.
+- Added Phase 10.4 Board Analytics Data Layer scope to `MASTER_DEVELOPMENT_PLAN.md`.
+- Updated `MASTER_EXECUTION_TRACKER.md` to include phase-by-phase percentage rationale and board-dashboard-aware Phase 9/10 summaries.
+- Updated `ROADMAP.md`, `NEXT.md`, `CURRENT_STATE.md`, and `PROJECT_STATE.md` to reflect approved board dashboard scope and sequencing gates.
+
 ## 2026-02-25 — Phase 5.2 Waitlist Data Model Upgrade
 
 Code:
