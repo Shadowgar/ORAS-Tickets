@@ -43,9 +43,16 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         $user_id = get_current_user_id();
 
+        // Enqueue frontend RSVP script only on pages where RSVP block is rendered.
+        if ( function_exists( 'wp_enqueue_script' ) ) {
+            wp_enqueue_script( 'oras-rsvp-frontend', ORAS_TICKETS_URL . 'assets/js/oras-rsvp-frontend.js', array(), ORAS_TICKETS_VERSION, true );
+        }
+
         ob_start();
 
         echo '<div class="oras-rsvp-block">';
+        // Container for AJAX notices
+        echo '<div class="oras-rsvp-ajax-notice" aria-live="polite"></div>';
 
         // Show status messages from redirect
         $flash = '';
@@ -78,6 +85,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         if ( 'yes' === $status ) {
             echo '<p class="oras-rsvp-status oras-rsvp-status-yes"><strong>' . esc_html__( "You have RSVP'ed to the event. If you wish to revoke the RSVP click \"RSVP No\".", 'oras-tickets' ) . '</strong></p>';
+            echo '<span class="oras-rsvp-badge" style="display:inline-block;margin-left:8px;padding:2px 6px;background:#e6ffed;border:1px solid #bdeccf;border-radius:4px;font-size:90%">' . esc_html__( 'Status: You are RSVPed ✅', 'oras-tickets' ) . '</span>';
         } elseif ( 'waitlist' === $status ) {
             echo '<p class="oras-rsvp-status oras-rsvp-status-waitlist"><strong>' . esc_html__( 'You are on the waitlist for this event.', 'oras-tickets' ) . '</strong></p>';
         } elseif ( 'no' === $status ) {
@@ -124,21 +132,88 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     }
 
     public static function handle_post(): void {
+        // DEBUG: log incoming RSVP requests when WP_DEBUG is enabled
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            $dbg_uid = get_current_user_id();
+            $dbg_params = array();
+            foreach ( array( 'event_id', 'intent', 'oras_rsvp_nonce' ) as $k ) {
+                if ( isset( $_POST[ $k ] ) && is_scalar( $_POST[ $k ] ) ) {
+                    $dbg_params[ $k ] = sanitize_text_field( wp_unslash( $_POST[ $k ] ) );
+                } else {
+                    $dbg_params[ $k ] = null;
+                }
+            }
+            error_log( 'ORAS RSVP DEBUG: incoming handle_post user_id=' . intval( $dbg_uid ) . ' params=' . wp_json_encode( $dbg_params ) );
+        }
+
         if ( ! is_user_logged_in() ) {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => esc_html__( 'Please log in to RSVP.', 'oras-tickets' ) ) );
+            }
+
             wp_safe_redirect( wp_get_referer() ?: home_url() );
             exit;
         }
 
         $event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
-        $nonce = isset( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
-        $intent = isset( $_POST['intent'] ) ? sanitize_key( wp_unslash( $_POST['intent'] ) ) : '';
+        $nonce = isset( $_POST['oras_rsvp_nonce'] ) && is_scalar( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
+        $raw_intent = isset( $_POST['intent'] ) && is_scalar( $_POST['intent'] ) ? sanitize_text_field( wp_unslash( $_POST['intent'] ) ) : '';
+
+        // Strictly parse intent values
+        $intent = '';
+        if ( in_array( $raw_intent, array( 'yes', '1', '1', 'true' ), true ) || $raw_intent === '1' ) {
+            $intent = 'yes';
+        } elseif ( in_array( $raw_intent, array( 'no', '0', 'false', '' ), true ) ) {
+            // treat empty as 'no' only if explicitly sent as such; keep strict
+            if ( $raw_intent === 'no' || $raw_intent === '0' || $raw_intent === 'false' ) {
+                $intent = 'no';
+            }
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( 'ORAS RSVP DEBUG: resolved intent=' . ( $intent === '' ? '<invalid>' : $intent ) );
+        }
+
+        // If intent couldn't be resolved to yes/no/waitlist, return a specific error
+        if ( '' === $intent ) {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => esc_html__( 'Invalid RSVP value.', 'oras-tickets' ) ) );
+            }
+
+            $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid_value' ) ), $redirect );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
 
         $redirect = get_permalink( $event_id ) ?: home_url();
 
         if ( $event_id <= 0 || ! wp_verify_nonce( $nonce, 'oras_rsvp_' . $event_id ) ) {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => esc_html__( 'Security check failed.', 'oras-tickets' ) ) );
+            }
+
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid' ) ), $redirect );
             wp_safe_redirect( $redirect );
             exit;
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( 'ORAS RSVP DEBUG: nonce verified for event_id=' . intval( $event_id ) );
+        }
+
+        $post = get_post( $event_id );
+        if ( ! $post || $post->post_type !== 'tribe_events' ) {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => esc_html__( 'Invalid event.', 'oras-tickets' ) ) );
+            }
+
+            $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid' ) ), $redirect );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( 'ORAS RSVP DEBUG: validated post event_id=' . intval( $event_id ) . ' post_type=' . esc_html( $post->post_type ) );
         }
 
         $user_id = get_current_user_id();
@@ -195,12 +270,64 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         if ( ! $error ) {
-            update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
-            if ( $new_status === 'waitlist' ) {
-                update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts', time() );
+            // Handle revoke (remove RSVP) deterministically when intent is 'no'.
+            if ( 'no' === $intent ) {
+                $existing = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( 'ORAS RSVP DEBUG: existing usermeta=' . wp_json_encode( $existing ) );
+                }
+                if ( empty( $existing ) ) {
+                    // Idempotent: already removed
+                    if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                            error_log( 'ORAS RSVP DEBUG: RSVP already removed for user=' . intval( $user_id ) . ' event=' . intval( $event_id ) );
+                        }
+                        wp_send_json_success( array( 'message' => esc_html__( 'RSVP already removed.', 'oras-tickets' ), 'status' => 'none' ) );
+                    }
+                    $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
+                } else {
+                    // Remove user meta entries that represent RSVP
+                    $del1 = delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
+                    $del2 = delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        error_log( 'ORAS RSVP DEBUG: delete_user_meta results: rm_meta=' . var_export( $del1, true ) . ' rm_ts=' . var_export( $del2, true ) );
+                    }
+
+                    // If request was made via AJAX, return JSON response indicating removal.
+                    if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                            error_log( 'ORAS RSVP DEBUG: RSVP removed for user=' . intval( $user_id ) . ' event=' . intval( $event_id ) );
+                        }
+                        wp_send_json_success( array( 'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ), 'status' => 'none' ) );
+                    }
+                    $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
+                }
+            } else {
+                // Normal update path: set the user meta value for yes/waitlist
+                $res = update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( 'ORAS RSVP DEBUG: update_user_meta result=' . wp_json_encode( $res ) );
+                }
+                if ( $new_status === 'waitlist' ) {
+                    $res2 = update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts', time() );
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        error_log( 'ORAS RSVP DEBUG: update_user_meta ts result=' . wp_json_encode( $res2 ) );
+                    }
+                }
+
+                // If request was made via AJAX, return JSON response for other statuses.
+                if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                    $msg = 'yes' === $new_status ? esc_html__( 'You are RSVPed.', 'oras-tickets' ) : esc_html__( 'Your RSVP was updated.', 'oras-tickets' );
+                    wp_send_json_success( array( 'message' => $msg, 'status' => $new_status ) );
+                }
+
+                $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
             }
-            $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
         } else {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) ) );
+            }
+
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'capacity' ) ), $redirect );
         }
 

@@ -110,7 +110,19 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     $date      = self::sanitize_day_date($date);
                     $slots     = isset($day['slots']) && is_array($day['slots']) ? $day['slots'] : array();
                     ?>
-                    <div class="oras-agenda-day" data-day-index="<?php echo esc_attr((string) $day_index); ?>" style="margin:16px 0;padding:12px;border:1px solid #ddd;">
+                    <div class="oras-agenda-day" data-day-index="<?php echo esc_attr((string) $day_index); ?>">
+                        <?php $slot_count = is_array( $slots ) ? count( $slots ) : 0; ?>
+                        <div class="oras-card__header">
+                            <div class="oras-card__title">
+                                <span class="oras-card__name"><?php echo esc_html( $day_label ?: sprintf( 'Day %d', $day_index + 1 ) ); ?></span>
+                                <span class="oras-card__meta"><?php echo esc_html( $date ); ?> · <?php echo esc_html( $slot_count . ' items' ); ?></span>
+                            </div>
+                            <div class="oras-card__actions">
+                                <button type="button" class="button oras-agenda-add-slot" data-day-index="<?php echo esc_attr((string) $day_index); ?>"><?php echo esc_html__('Add Item', 'oras-tickets'); ?></button>
+                                <button type="button" class="button oras-agenda-remove-day"><?php echo esc_html__('Remove Day', 'oras-tickets'); ?></button>
+                            </div>
+                        </div>
+                        <div class="oras-card__body" style="margin:12px 0;padding:12px;border:1px solid #ddd;">
                         <p>
                             <span class="oras-field-label"><strong><?php echo esc_html__('Day label', 'oras-tickets'); ?></strong></span><br />
                             <input type="text" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][day_label]" value="<?php echo esc_attr($day_label); ?>" />
@@ -274,8 +286,8 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
 
                         <p>
                             <button type="button" class="button oras-agenda-add-slot"><?php echo esc_html__('Add Slot', 'oras-tickets'); ?></button>
-                            <button type="button" class="button oras-agenda-remove-day"><?php echo esc_html__('Remove Day', 'oras-tickets'); ?></button>
                         </p>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>

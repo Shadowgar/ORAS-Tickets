@@ -2,161 +2,183 @@
 
 namespace ORAS\Tickets\Admin\Pages;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (! defined('ABSPATH')) {
     exit;
 }
 
-final class Settings_Page { // NOSONAR legacy WP class naming
+final class Settings_Page
+{ // NOSONAR legacy WP class naming
 
     private const OPTION_KEY = 'oras_tickets_settings_v1';
 
-    public function render(): void {
-        if ( ! current_user_can( 'oras_tickets_manage_settings' ) ) {
-            wp_die( esc_html__( 'You do not have permission to access this page.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+    public function render(): void
+    {
+        if (! current_user_can('oras_tickets_manage_settings')) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'oras-tickets'), '', array('response' => 403));
         }
 
-        ?>
-    <div class="wrap">
-        <h1><?php echo esc_html__( 'ORAS Tickets Settings', 'oras-tickets' ); ?></h1>
+        // Show repair capabilities button to site admins (manage_options) in case caps are missing
+        $repair_notice = '';
+        if (isset($_GET['oras_caps']) && $_GET['oras_caps'] === 'repaired') {
+            $repair_notice = '<div class="updated notice is-dismissible"><p>' . esc_html__('Capabilities were repaired.', 'oras-tickets') . '</p></div>';
+        }
 
-        <form method="post" action="options.php">
-        <?php
-        settings_fields( 'oras_tickets_settings' );
-        do_settings_sections( 'oras_tickets_settings' );
-        submit_button();
-        ?>
-        </form>
-    </div>
-        <?php
+?>
+        <div class="wrap">
+            <h1><?php echo esc_html__('ORAS Tickets Settings', 'oras-tickets'); ?></h1>
+            <?php echo $repair_notice; // phpcs:ignore -- safe HTML output 
+            ?>
+
+            <?php if (current_user_can('manage_options')) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">
+                    <?php wp_nonce_field('oras_repair_caps', 'oras_repair_caps_nonce'); ?>
+                    <input type="hidden" name="action" value="oras_tickets_repair_caps" />
+                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will add permissions to the Administrator role. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
+                </form>
+            <?php endif; ?>
+
+            <form method="post" action="options.php">
+                <?php
+                settings_fields('oras_tickets_settings');
+                do_settings_sections('oras_tickets_settings');
+                submit_button();
+                ?>
+            </form>
+        </div>
+    <?php
     }
 
-    public static function register_settings(): void {
+    public static function register_settings(): void
+    {
         register_setting(
             'oras_tickets_settings',
             self::OPTION_KEY,
             array(
                 'type'              => 'array',
-                'sanitize_callback' => array( self::class, 'sanitize_settings' ),
+                'sanitize_callback' => array(self::class, 'sanitize_settings'),
                 'default'           => self::get_default_settings(),
             )
         );
 
         add_settings_section(
             'oras_rsvp_defaults',
-            __( 'RSVP Defaults', 'oras-tickets' ),
-            array( self::class, 'render_rsvp_section' ),
+            __('RSVP Defaults', 'oras-tickets'),
+            array(self::class, 'render_rsvp_section'),
             'oras_tickets_settings'
         );
 
         add_settings_field(
             'rsvp_default_enabled',
-            __( 'Default Enabled', 'oras-tickets' ),
-            array( self::class, 'render_checkbox_field' ),
+            __('Default Enabled', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
             'oras_tickets_settings',
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_enabled',
-                'label' => __( 'Enable RSVP by default for new events', 'oras-tickets' ),
+                'label' => __('Enable RSVP by default for new events', 'oras-tickets'),
             )
         );
 
         add_settings_field(
             'rsvp_default_capacity',
-            __( 'Default Capacity', 'oras-tickets' ),
-            array( self::class, 'render_number_field' ),
+            __('Default Capacity', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
             'oras_tickets_settings',
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_capacity',
-                'label' => __( 'Default capacity (0 = unlimited)', 'oras-tickets' ),
+                'label' => __('Default capacity (0 = unlimited)', 'oras-tickets'),
                 'min'   => 0,
             )
         );
 
         add_settings_field(
             'rsvp_default_waitlist_enabled',
-            __( 'Default Waitlist Enabled', 'oras-tickets' ),
-            array( self::class, 'render_checkbox_field' ),
+            __('Default Waitlist Enabled', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
             'oras_tickets_settings',
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_waitlist_enabled',
-                'label' => __( 'Enable waitlist by default for new events', 'oras-tickets' ),
+                'label' => __('Enable waitlist by default for new events', 'oras-tickets'),
             )
         );
 
         add_settings_section(
             'oras_virtual_access_defaults',
-            __( 'Virtual Access Defaults', 'oras-tickets' ),
-            array( self::class, 'render_virtual_access_section' ),
+            __('Virtual Access Defaults', 'oras-tickets'),
+            array(self::class, 'render_virtual_access_section'),
             'oras_tickets_settings'
         );
 
         add_settings_field(
             'virtual_access_default_show_to',
-            __( 'Default Show To', 'oras-tickets' ),
-            array( self::class, 'render_select_field' ),
+            __('Default Show To', 'oras-tickets'),
+            array(self::class, 'render_select_field'),
             'oras_tickets_settings',
             'oras_virtual_access_defaults',
             array(
                 'field'   => 'virtual_access.default_show_to',
                 'options' => array(
-                    'everyone'    => __( 'Everyone', 'oras-tickets' ),
-                    'logged_in'   => __( 'Logged In Users', 'oras-tickets' ),
-                    'rsvp'        => __( 'RSVP Attendees', 'oras-tickets' ),
-                    'ticket'      => __( 'Ticket Holders', 'oras-tickets' ),
-                    'free_ticket' => __( 'Free Ticket Holders', 'oras-tickets' ),
+                    'everyone'    => __('Everyone', 'oras-tickets'),
+                    'logged_in'   => __('Logged In Users', 'oras-tickets'),
+                    'rsvp'        => __('RSVP Attendees', 'oras-tickets'),
+                    'ticket'      => __('Ticket Holders', 'oras-tickets'),
+                    'free_ticket' => __('Free Ticket Holders', 'oras-tickets'),
                 ),
             )
         );
 
         add_settings_section(
             'oras_tickets_defaults',
-            __( 'Tickets Defaults', 'oras-tickets' ),
-            array( self::class, 'render_tickets_section' ),
+            __('Tickets Defaults', 'oras-tickets'),
+            array(self::class, 'render_tickets_section'),
             'oras_tickets_settings'
         );
 
         add_settings_field(
             'tickets_auto_complete_ticket_only_orders',
-            __( 'Auto-complete Ticket-only Orders', 'oras-tickets' ),
-            array( self::class, 'render_checkbox_field' ),
+            __('Auto-complete Ticket-only Orders', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
             'oras_tickets_settings',
             'oras_tickets_defaults',
             array(
                 'field' => 'tickets.auto_complete_ticket_only_orders',
-                'label' => __( 'Automatically complete orders containing only tickets (no physical products)', 'oras-tickets' ),
+                'label' => __('Automatically complete orders containing only tickets (no physical products)', 'oras-tickets'),
             )
         );
     }
 
-    public static function sanitize_settings( $input ): array {
+    public static function sanitize_settings($input): array
+    {
         $defaults = self::get_default_settings();
-$sanitized = array(
+        $sanitized = array(
             'version'        => 1,
-'rsvp'           => array(
-                'default_enabled'          => ! empty( $input['rsvp']['default_enabled'] ),
-                'default_capacity'         => absint( $input['rsvp']['default_capacity'] ?? 0 ),
-                'default_waitlist_enabled' => ! empty( $input['rsvp']['default_waitlist_enabled'] ),
+            'rsvp'           => array(
+                'default_enabled'          => ! empty($input['rsvp']['default_enabled']),
+                'default_capacity'         => absint($input['rsvp']['default_capacity'] ?? 0),
+                'default_waitlist_enabled' => ! empty($input['rsvp']['default_waitlist_enabled']),
             ),
             'virtual_access' => array(
-                'default_show_to' => self::sanitize_show_to( $input['virtual_access']['default_show_to'] ?? '' ),
+                'default_show_to' => self::sanitize_show_to($input['virtual_access']['default_show_to'] ?? ''),
             ),
             'tickets'        => array(
-                'auto_complete_ticket_only_orders' => ! empty( $input['tickets']['auto_complete_ticket_only_orders'] ),
+                'auto_complete_ticket_only_orders' => ! empty($input['tickets']['auto_complete_ticket_only_orders']),
             ),
         );
 
         return $sanitized;
     }
 
-    private static function sanitize_show_to( string $value ): string {
-        $allowed = array( 'everyone', 'logged_in', 'rsvp', 'ticket', 'free_ticket' );
-        $sanitized = sanitize_key( $value );
-        return in_array( $sanitized, $allowed, true ) ? $sanitized : 'logged_in';
+    private static function sanitize_show_to(string $value): string
+    {
+        $allowed = array('everyone', 'logged_in', 'rsvp', 'ticket', 'free_ticket');
+        $sanitized = sanitize_key($value);
+        return in_array($sanitized, $allowed, true) ? $sanitized : 'logged_in';
     }
 
-    public static function get_default_settings(): array {
+    public static function get_default_settings(): array
+    {
         return array(
             'version'        => 1,
             'rsvp'           => array(
@@ -173,68 +195,76 @@ $sanitized = array(
         );
     }
 
-    public static function get_settings(): array {
-        return get_option( self::OPTION_KEY, self::get_default_settings() );
+    public static function get_settings(): array
+    {
+        return get_option(self::OPTION_KEY, self::get_default_settings());
     }
 
-    public static function render_rsvp_section(): void {
-        echo '<p>' . esc_html__( 'Configure default RSVP settings for new events.', 'oras-tickets' ) . '</p>';
+    public static function render_rsvp_section(): void
+    {
+        echo '<p>' . esc_html__('Configure default RSVP settings for new events.', 'oras-tickets') . '</p>';
     }
 
-    public static function render_virtual_access_section(): void {
-        echo '<p>' . esc_html__( 'Configure default virtual access settings for new events.', 'oras-tickets' ) . '</p>';
+    public static function render_virtual_access_section(): void
+    {
+        echo '<p>' . esc_html__('Configure default virtual access settings for new events.', 'oras-tickets') . '</p>';
     }
 
-    public static function render_tickets_section(): void {
-        echo '<p>' . esc_html__( 'Configure default ticket settings.', 'oras-tickets' ) . '</p>';
+    public static function render_tickets_section(): void
+    {
+        echo '<p>' . esc_html__('Configure default ticket settings.', 'oras-tickets') . '</p>';
     }
 
-    public static function render_checkbox_field( array $args ): void {
+    public static function render_checkbox_field(array $args): void
+    {
         $settings = self::get_settings();
-        $value = self::get_nested_value( $settings, $args['field'] );
-        $name = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
-        ?>
+        $value = self::get_nested_value($settings, $args['field']);
+        $name = self::OPTION_KEY . '[' . str_replace('.', '][', $args['field']) . ']';
+    ?>
         <label>
-            <input type="checkbox" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( $value ); ?> />
-            <?php echo esc_html( $args['label'] ); ?>
+            <input type="checkbox" name="<?php echo esc_attr($name); ?>" value="1" <?php checked($value); ?> />
+            <?php echo esc_html($args['label']); ?>
         </label>
-        <?php
+    <?php
     }
 
-    public static function render_number_field( array $args ): void {
+    public static function render_number_field(array $args): void
+    {
         $settings = self::get_settings();
-        $value = self::get_nested_value( $settings, $args['field'] );
-        $name = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
+        $value = self::get_nested_value($settings, $args['field']);
+        $name = self::OPTION_KEY . '[' . str_replace('.', '][', $args['field']) . ']';
         $min = $args['min'] ?? 0;
-        ?>
-        <input type="number" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $value ); ?>" min="<?php echo esc_attr( $min ); ?>" />
-        <?php
+    ?>
+        <input type="number" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr($value); ?>" min="<?php echo esc_attr($min); ?>" />
+    <?php
     }
 
-    public static function render_select_field( array $args ): void {
+    public static function render_select_field(array $args): void
+    {
         $settings = self::get_settings();
-        $value = self::get_nested_value( $settings, $args['field'] );
-        $name = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
-        ?>
-        <select name="<?php echo esc_attr( $name ); ?>">
-            <?php foreach ( $args['options'] as $option_value => $option_label ) : ?>
-                <option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $value, $option_value ); ?>>
-                    <?php echo esc_html( $option_label ); ?>
+        $value = self::get_nested_value($settings, $args['field']);
+        $name = self::OPTION_KEY . '[' . str_replace('.', '][', $args['field']) . ']';
+    ?>
+        <select name="<?php echo esc_attr($name); ?>">
+            <?php foreach ($args['options'] as $option_value => $option_label) : ?>
+                <option value="<?php echo esc_attr($option_value); ?>" <?php selected($value, $option_value); ?>>
+                    <?php echo esc_html($option_label); ?>
                 </option>
             <?php endforeach; ?>
         </select>
-        <?php
+<?php
     }
 
-    private static function get_nested_value( array $data, string $path ) {
-        $keys = explode( '.', $path );
+    private static function get_nested_value(array $data, string $path)
+    {
+        $keys = explode('.', $path);
         $value = $data;
 
-        foreach ( $keys as $key ) {
-            if ( ! isset( $value[ $key ] ) ) {
+        foreach ($keys as $key) {
+            if (! isset($value[$key])) {
                 return null;
             }
-            $value = $value[ $key ];
+            $value = $value[$key];
         }
 
         return $value;

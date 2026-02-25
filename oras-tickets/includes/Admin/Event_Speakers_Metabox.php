@@ -136,6 +136,26 @@ final class Event_Speakers_Metabox { // NOSONAR legacy WP class naming
         ob_start();
         ?>
     <div class="oras-event-speaker-row" data-index="<?php echo esc_attr( $index_attr ); ?>">
+        <?php
+        $speaker_name = '';
+        if ( $speaker_id > 0 ) {
+            $spost = get_post( $speaker_id );
+            if ( $spost instanceof \WP_Post ) {
+                $speaker_name = $spost->post_title;
+            }
+        }
+        ?>
+        <div class="oras-card__header">
+            <div class="oras-card__title">
+                <span class="oras-card__name"><?php echo esc_html( $speaker_name ?: 'Speaker' ); ?></span>
+                <span class="oras-card__meta"><?php echo esc_html( $role ); ?></span>
+            </div>
+            <div class="oras-card__actions">
+                <button type="button" class="button oras-card-toggle" data-index="<?php echo esc_attr( $index_attr ); ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                <button type="button" class="button oras-remove-speaker-row"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+            </div>
+        </div>
+        <div class="oras-card__body">
         <div class="oras-event-speaker-grid">
         <div class="oras-event-speaker-field">
             <span class="oras-field-label"><?php echo esc_html__( 'Speaker', 'oras-tickets' ); ?></span>
@@ -206,7 +226,7 @@ final class Event_Speakers_Metabox { // NOSONAR legacy WP class naming
         </div>
         </div>
         <div class="oras-event-speaker-actions">
-        <button type="button" class="button oras-remove-speaker-row"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+        </div>
         </div>
     </div>
         <?php

@@ -163,6 +163,46 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 <tr class="oras-ticket-row oras-ticket-row-card" data-index="<?php echo $idx; ?>">
                                     <td class="oras-ticket-cell">
                                         <div class="oras-ticket-panel <?php echo esc_attr( $panel_class ); ?>" data-index="<?php echo $idx; ?>">
+                                            <?php
+                                            // Compute sale status for header summary
+                                            $now_ts = current_time( 'timestamp' );
+                                            $start_ts = null;
+                                            $end_ts = null;
+                                            if ( $sale_start !== '' ) {
+                                                $start_dt = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_start, wp_timezone() );
+                                                if ( $start_dt instanceof \DateTimeInterface ) {
+                                                    $start_ts = $start_dt->getTimestamp();
+                                                }
+                                            }
+                                            if ( $sale_end !== '' ) {
+                                                $end_dt = \DateTime::createFromFormat( 'Y-m-d H:i', $sale_end, wp_timezone() );
+                                                if ( $end_dt instanceof \DateTimeInterface ) {
+                                                    $end_ts = $end_dt->getTimestamp();
+                                                }
+                                            }
+                                            if ( null === $start_ts && null === $end_ts ) {
+                                                $sale_status = 'Always';
+                                            } elseif ( null !== $start_ts && $now_ts < $start_ts ) {
+                                                $sale_status = 'Scheduled';
+                                            } elseif ( null !== $end_ts && $now_ts > $end_ts ) {
+                                                $sale_status = 'Ended';
+                                            } else {
+                                                $sale_status = 'On sale';
+                                            }
+                                            ?>
+
+                                            <div class="oras-card__header">
+                                                <div class="oras-card__title">
+                                                    <span class="oras-card__name"><?php echo esc_html( $name ); ?></span>
+                                                    <span class="oras-card__meta"><?php echo esc_html( '$' . $price . ' · ' . $sale_status ); ?></span>
+                                                </div>
+                                                <div class="oras-card__actions">
+                                                    <button type="button" class="button oras-card-toggle" data-index="<?php echo $idx; ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
+                                                    <button type="button" class="oras-remove-ticket button" title="<?php echo esc_attr__( 'Remove ticket', 'oras-tickets' ); ?>"><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
+                                                </div>
+                                            </div>
+
+                                            <div class="oras-card__body">
                                             <div class="panel-wrap oras-ticket-data">
                                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                                     <li class="general_tab"><a href="#oras_ticket_<?php echo $idx; ?>_general">General</a></li>
@@ -303,10 +343,11 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                 </div>
                                             </div>
                                             <div class="oras-ticket-actions">
-                                                <button type="button" class="oras-remove-ticket button">Remove</button>
                                                 <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
                                             </div>
                                         </div>
+                                </div>
+                                <!-- /.oras-card__body -->
                                     </td>
                                 </tr>
                                 <?php

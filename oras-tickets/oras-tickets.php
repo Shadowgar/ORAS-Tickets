@@ -50,6 +50,6 @@ add_action(
     20
 );
 
-register_activation_hook( ORAS_TICKETS_FILE, static function () : void {
+register_activation_hook(ORAS_TICKETS_FILE, static function (): void {
     \ORAS\Tickets\Capabilities::add_caps();
-} );
+});

@@ -149,6 +149,8 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         return $generated_html;
     }
 
+    
+
     public static function save_post( int $post_id ): void {
         if ( ! isset( $_POST[ self::NONCE_NAME ] ) ) {
             return;

@@ -112,10 +112,44 @@
 #oras_tickets_metabox .oras-ticket-row.oras-ticket-row-card {
 	display: block;
 	margin: 0 0 12px;
-	border: 1px solid #dcdcde;
-	background: #ffffff;
-	padding: 12px;
+	border: 0;
+	background: transparent;
+	padding: 0;
 }
+
+#oras_tickets_metabox .oras-card__header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid #e6e6e6;
+	border-radius: 4px 4px 0 0;
+	background: #fff;
+}
+
+#oras_tickets_metabox .oras-card__title {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+#oras_tickets_metabox .oras-card__name { font-weight: 700; }
+#oras_tickets_metabox .oras-card__meta { font-size: 12px; color: #666; }
+
+#oras_tickets_metabox .oras-card__actions { display: flex; gap: 8px; }
+
+#oras_tickets_metabox .oras-card__body {
+	border: 1px solid #e6e6e6;
+	border-top: 0;
+	padding: 12px;
+	border-radius: 0 0 4px 4px;
+	background: #fff;
+}
+
+/* Hide left rail and show panels as full width */
+#oras_tickets_metabox .oras-tickets-tabs { display: none; }
+#oras_tickets_metabox .oras-ticket-panels { width: 100%; }
 
 #oras_tickets_metabox .oras-ticket-cell {
 	display: block;

@@ -91,6 +91,43 @@ If any document conflicts with CURRENT_STATE.md, CURRENT_STATE.md wins.
 - Phase 5.1-B — Frontend RSVP + Waitlist (COMPLETE/LOCKED)
 - Phase 5.1-C — RSVP REST Endpoints (COMPLETE/LOCKED)
 - Phase 5.2 — RSVP Admin Management Panel (COMPLETE/LOCKED)
+ 
+## Progress Assessment (2026-02-25)
+
+Summary: the project has a mature, production-capable ticketing core and a largely-complete attendees & RSVP surface. Remaining work focuses on UX consolidation (single ORAS metabox), centralized RSVP management UI, and advanced ticketing intelligence (QR/check-in, reservation windows).
+
+- Overall completion (rough estimate): **72%**
+- Phase-level estimates:
+  - Phases 0–4: **100%** (locked)
+  - Phase 5 (Registration & Capacity): **~60%** — RSVP core and admin metabox pieces implemented; unified metabox (`5.3`) and Dashboard consolidation (`5.4`) still pending.
+  - Phase 6 (Attendees Management): **~85%** — Attendees dashboard, operations, messaging, and notes are implemented; QR/check-in and reservation window components remain.
+  - Phase 7 (Speaker & Content): **~75%** — Speaker CPT, history, resource archive, and basic reporting present; analytics and submission workflows need additional work.
+  - Phases 8–12 (Virtual, User Hub expansion, Advanced Reporting): **<25%** — high-level features still planned or deferred.
+
+Observations & Risks:
+- Core ticketing and attendee features are stable; adding more surface area without consolidation risks inconsistent admin UX and duplicated UI code.
+- Recent fixes added helpful WP_DEBUG logging for RSVP handlers — these should be removed or gated behind feature flags before production to avoid noisy logs.
+- No dedicated integration test suite for admin AJAX/`admin_post` flows was found; adding lightweight WP-CLI-driven tests would reduce regressions.
+
+Recommendations (next sprint):
+1. Prioritize Phase 5.3 — implement the Unified `ORAS EVENTS ADDON` metabox to consolidate per-event UI (tickets, agenda, RSVP, speakers, virtual access). This reduces cognitive load and prevents drift as new features are added.
+2. Harden RSVP handlers: remove/trim debug logs, ensure idempotent revoke logic and clear success/error JSON for AJAX clients (already partially implemented). Add unit/integration tests for `oras_rsvp_update` and REST endpoints.
+3. Implement Phase 5.4 (Dashboard RSVP Management) after the metabox refactor so operational workflows live in a central admin surface.
+4. Add automated checks: WP-CLI smoke tests for key admin pages and AJAX endpoints, plus a small GitHub Actions matrix that runs `php -l` and PHPCS/ PHPStan as sanity checks.
+5. Once 5.3–5.4 are stable, resume Phase 6.2/6.3 expansions (QR/check-in and reservation window) with clear acceptance criteria and performance considerations.
+
+Quick next tasks to stabilize progress:
+- Remove or scope temporary debug logging in RSVP handlers (`Event_RSVP::handle_post`).
+- Imported authoritative master plan: `docs/MASTER_DEVELOPMENT_PLAN.md` — contains the full phase list, Door Prize system, and priority order submitted by the project owner.
+
+Comparison of completion estimates:
+- Code-analysis estimate (maintainer): **~72%** complete (see Progress Assessment above).
+- Project owner master-plan estimates (imported): Core infrastructure **~60%**, Modern calendar parity **~35%**, Advanced intelligence **~15%**.
+
+Recommended reconciliation step: schedule a 2-hour planning session to align definitions of "complete" for each phase so estimates converge and sprint commitments are reliable.
+- Add 3–5 WP-CLI test scripts that simulate RSVP flows and attendees CSV export.
+- Schedule a half-day tech-refinement to finish metabox design and API contract for Dashboard exports.
+
  - Phase 6.2 — Attendees Dashboard (COMPLETE)
  - Phase 6.3 — Attendee Operations (COMPLETE)
  - Phase 6.4 — Attendee Messaging (COMPLETE)

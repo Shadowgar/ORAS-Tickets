@@ -1,39 +1,167 @@
+/* Layout */
 #oras-events-addon .oras-events-addon__layout {
 	display: flex;
-	gap: 16px;
+	gap: 18px;
+	align-items: flex-start;
 }
 
 #oras-events-addon .oras-events-addon__tabs {
-	width: 180px;
-	flex: 0 0 180px;
-	border-right: 1px solid;
-	padding-right: 12px;
+	width: 220px;
+	flex: 0 0 220px;
+	border-right: 1px solid #e6e6e6;
+	padding-right: 16px;
 }
 
+/* Tab buttons */
 #oras-events-addon .oras-events-addon__tab {
 	display: block;
 	width: 100%;
 	text-align: left;
-	padding: 8px 10px;
-	margin: 0 0 6px;
-	border-radius: 4px;
+	padding: 10px 12px;
+	margin: 0 0 8px;
+	border-radius: 6px;
 	text-decoration: none;
+	color: #0073aa;
+	background: transparent;
+	border: 1px solid transparent;
+}
+
+#oras-events-addon .oras-events-addon__tab:hover {
+	background: #f7f7f7;
 }
 
 #oras-events-addon .oras-events-addon__tab.is-active {
-	text-decoration: underline;
+	background: #ffffff;
+	border-color: #dcdcdc;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.03) inset;
 	font-weight: 600;
+	color: #111;
+}
+/* Scoped to ORAS events addon */
+#oras-events-addon.oras-events-addon {
+    font-family: inherit;
 }
 
-#oras-events-addon .oras-events-addon__panels {
-	flex: 1 1 auto;
-	min-width: 0;
+/* Header */
+.oras-events-addon__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 12px;
 }
 
-#oras-events-addon .oras-events-addon__panel {
-	padding: 0;
+.oras-events-addon__title h3 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
 }
 
-#oras-events-addon .oras-events-addon__panel[hidden] {
-	display: none;
+.oras-events-addon__title .description {
+    margin: 0;
+    color: #666;
 }
+
+/* Tabs - WP style */
+.oras-events-addon__tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.oras-events-addon__tabs .oras-events-addon__tab {
+    padding: 6px 10px;
+}
+
+.oras-events-addon__tab.is-active,
+.oras-events-addon__tab[aria-selected="true"] {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    color: #111;
+    box-shadow: none;
+}
+
+.oras-events-addon__panels {
+    display: block;
+}
+
+.oras-events-addon__panel {
+    margin-bottom: 12px;
+}
+
+/* Card wrapper that uses WP admin .postbox/.inside visual language */
+.oras-events-addon__card.postbox {
+    border-radius: 4px;
+    box-shadow: none;
+    border: 1px solid #e5e5e5;
+}
+
+.oras-events-addon__card .inside {
+    padding: 12px 16px;
+}
+
+/* Compact table spacing inside cards */
+.oras-events-addon__card table.form-table {
+    margin: 0;
+}
+
+/* Ticket summary lightweight table */
+.oras-events-addon__tickets-summary {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+}
+.oras-events-addon__tickets-summary th,
+.oras-events-addon__tickets-summary td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f1f1;
+    vertical-align: middle;
+    text-align: left;
+}
+.oras-events-addon__tickets-summary th {
+    color: #666;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* Cards for items when available (non-invasive) */
+.oras-card {
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+.oras-card__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+.oras-card__title {
+    font-weight: 600;
+}
+
+/* Agenda day card overrides */
+.oras-agenda-day { margin-bottom: 12px; }
+.oras-agenda-day .oras-card__header { padding: 10px 12px; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff; }
+.oras-agenda-day .oras-card__body { padding: 12px; border: 1px solid #e6e6e6; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
+
+/* Speaker rows as cards */
+.oras-event-speaker-row { margin-bottom: 10px; }
+.oras-event-speaker-row .oras-card__header { padding: 8px 10px; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff; }
+.oras-event-speaker-row .oras-card__body { padding: 10px; border: 1px solid #e6e6e6; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
+
+/* Buttons */
+.oras-events-addon .button + .button {
+    margin-left: 6px;
+}
+
+/* Responsive */
+@media (max-width: 720px) {
+    .oras-events-addon__header { flex-direction: column; }
+    .oras-events-addon__tabs { gap: 6px; }
+}
+
+/* Ensure styles are scoped and do not leak */
+#oras-events-addon.oras-events-addon * { box-sizing: border-box; }

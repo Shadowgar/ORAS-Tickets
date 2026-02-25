@@ -234,6 +234,18 @@
 		if ( ! target?.classList?.contains( 'oras-phase-toggle' ) ) {
 			return false;
 		}
+
+		function handleCardToggleClick(target){
+			if ( ! target?.classList?.contains( 'oras-card-toggle' ) ) {
+				return false;
+			}
+			var idx = target.dataset.index;
+			if ( idx === undefined ) {
+				return true;
+			}
+			activateTicket( idx );
+			return true;
+		}
 		event.preventDefault();
 		var phaseItem = target.closest( '.oras-phase-item' );
 		if ( phaseItem ) {
@@ -387,6 +399,9 @@
 			return;
 		}
 		if ( handlePhaseToggleClick( event, target ) ) {
+			return;
+		}
+		if ( handleCardToggleClick( target ) ) {
 			return;
 		}
 		if ( handleInnerTabClick( event, target ) ) {
