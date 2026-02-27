@@ -91,15 +91,16 @@ final class Module {
     }
 
     public function handle_oauth_callback(): void {
-        if ( ! current_user_can( 'oras_tickets_manage_settings' ) ) {
-            wp_die( esc_html__( 'You do not have permission to connect QuickBooks.', 'oras-tickets' ), '', array( 'response' => 403 ) );
-        }
-
         $state    = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
         $code     = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
         $realm_id = isset( $_GET['realmId'] ) ? sanitize_text_field( wp_unslash( $_GET['realmId'] ) ) : '';
 
         if ( $state === '' || $code === '' || $realm_id === '' ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => 'QuickBooks OAuth callback is missing required fields.',
+                )
+            );
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth callback is missing required fields.' ),
@@ -110,10 +111,29 @@ final class Module {
         $state_owner = get_transient( 'oras_tickets_qbo_state_' . $state );
         delete_transient( 'oras_tickets_qbo_state_' . $state );
 
-        if ( ! $state_owner || (int) $state_owner !== (int) get_current_user_id() ) {
+        if ( ! $state_owner ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => 'QuickBooks OAuth state validation failed.',
+                )
+            );
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth state validation failed.' ),
+                )
+            );
+        }
+
+        $current_user_id = get_current_user_id();
+        if ( $current_user_id > 0 && (int) $state_owner !== (int) $current_user_id ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => 'QuickBooks OAuth state owner mismatch.',
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth state owner mismatch.' ),
                 )
             );
         }
