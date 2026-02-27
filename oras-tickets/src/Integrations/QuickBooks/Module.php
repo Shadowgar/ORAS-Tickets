@@ -55,6 +55,7 @@ final class Module {
 
     public function handle_oauth_start(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_oauth_start' );
+        $this->capture_posted_client_credentials();
 
         if ( ! $this->oauth_client->has_client_credentials() ) {
             $this->redirect_to_settings(
@@ -256,13 +257,46 @@ final class Module {
     }
 
     /**
+     * Persist credentials posted by the Connect action when the settings form
+     * has not been submitted yet.
+     */
+    private function capture_posted_client_credentials(): void {
+        $posted_client_id = isset( $_POST['oras_qbo_client_id'] )
+            ? sanitize_text_field( (string) wp_unslash( $_POST['oras_qbo_client_id'] ) )
+            : '';
+        $posted_secret = isset( $_POST['oras_qbo_client_secret'] )
+            ? sanitize_text_field( (string) wp_unslash( $_POST['oras_qbo_client_secret'] ) )
+            : '';
+
+        if ( $posted_client_id === '' && $posted_secret === '' ) {
+            return;
+        }
+
+        $updates = array();
+
+        if ( $posted_client_id !== '' ) {
+            $updates['client_id'] = $posted_client_id;
+        }
+
+        if ( $posted_secret !== '' ) {
+            $updates['client_secret'] = $posted_secret;
+        }
+
+        if ( empty( $updates ) ) {
+            return;
+        }
+
+        Settings::update_quickbooks_settings( $updates );
+    }
+
+    /**
      * @param array<string,string> $args
      */
     private function redirect_to_settings( array $args = array() ): void {
         $url = add_query_arg(
             array_merge(
                 array(
-                    'page' => 'oras-tickets-settings',
+                    'page' => 'oras-tickets-quickbooks',
                 ),
                 $args
             ),

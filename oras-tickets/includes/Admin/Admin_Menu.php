@@ -90,6 +90,16 @@ final class Admin_Menu
             array($this, 'render_speaker_reports')
         );
 
+        // QuickBooks
+        add_submenu_page(
+            'oras-tickets',
+            __('QuickBooks', 'oras-tickets'),
+            __('QuickBooks', 'oras-tickets'),
+            'oras_tickets_manage_settings',
+            'oras-tickets-quickbooks',
+            array($this, 'render_quickbooks')
+        );
+
         // Settings
         add_submenu_page(
             'oras-tickets',
@@ -113,7 +123,12 @@ final class Admin_Menu
 
     public function render_settings(): void
     {
-        (new Settings_Page())->render();
+        (new Settings_Page())->render_general();
+    }
+
+    public function render_quickbooks(): void
+    {
+        (new Settings_Page())->render_quickbooks();
     }
 
     public function render_speaker_obligations(): void

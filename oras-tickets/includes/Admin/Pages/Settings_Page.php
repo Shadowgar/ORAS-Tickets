@@ -10,8 +10,15 @@ final class Settings_Page
 { // NOSONAR legacy WP class naming
 
     private const OPTION_KEY = 'oras_tickets_settings_v1';
+    private const PAGE_GENERAL = 'oras_tickets_settings';
+    private const PAGE_QUICKBOOKS = 'oras_tickets_quickbooks';
 
     public function render(): void
+    {
+        $this->render_general();
+    }
+
+    public function render_general(): void
     {
         if (! current_user_can('oras_tickets_manage_settings')) {
             wp_die(esc_html__('You do not have permission to access this page.', 'oras-tickets'), '', array('response' => 403));
@@ -22,6 +29,42 @@ final class Settings_Page
         if (isset($_GET['oras_caps']) && $_GET['oras_caps'] === 'repaired') {
             $repair_notice = '<div class="updated notice is-dismissible"><p>' . esc_html__('Capabilities were repaired.', 'oras-tickets') . '</p></div>';
         }
+
+?>
+        <div class="wrap">
+            <h1><?php echo esc_html__('ORAS Tickets Settings', 'oras-tickets'); ?></h1>
+            <?php echo $repair_notice; // phpcs:ignore -- safe HTML output 
+            ?>
+
+            <?php if (current_user_can('manage_options')) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">
+                    <?php wp_nonce_field('oras_repair_caps', 'oras_repair_caps_nonce'); ?>
+                    <input type="hidden" name="action" value="oras_tickets_repair_caps" />
+                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will add permissions to the Administrator role. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
+                </form>
+            <?php endif; ?>
+
+            <form method="post" action="options.php">
+                <?php
+                settings_fields(self::PAGE_GENERAL);
+                do_settings_sections(self::PAGE_GENERAL);
+                submit_button();
+                ?>
+            </form>
+        </div>
+    <?php
+    }
+
+    public function render_quickbooks(): void
+    {
+        if (! current_user_can('oras_tickets_manage_settings')) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'oras-tickets'), '', array('response' => 403));
+        }
+
+        $settings     = self::get_settings();
+        $qbo_settings = isset( $settings['quickbooks'] ) && is_array( $settings['quickbooks'] )
+            ? $settings['quickbooks']
+            : array();
 
         $qbo_notice = '';
         if ( isset( $_GET['oras_qbo_notice'] ) ) {
@@ -34,28 +77,18 @@ final class Settings_Page
             $error_text = urldecode( (string) wp_unslash( $_GET['oras_qbo_error'] ) );
             $qbo_error  = '<div class="notice notice-error is-dismissible"><p>' . esc_html( sanitize_text_field( $error_text ) ) . '</p></div>';
         }
-
 ?>
         <div class="wrap">
-            <h1><?php echo esc_html__('ORAS Tickets Settings', 'oras-tickets'); ?></h1>
-            <?php echo $repair_notice; // phpcs:ignore -- safe HTML output 
-            ?>
+            <h1><?php echo esc_html__('ORAS Tickets QuickBooks', 'oras-tickets'); ?></h1>
+            <?php $this->render_quickbooks_connection_indicator( $qbo_settings ); ?>
             <?php echo $qbo_notice; // phpcs:ignore -- safe HTML output ?>
             <?php echo $qbo_error; // phpcs:ignore -- safe HTML output ?>
 
-            <?php if (current_user_can('manage_options')) : ?>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">
-                    <?php wp_nonce_field('oras_repair_caps', 'oras_repair_caps_nonce'); ?>
-                    <input type="hidden" name="action" value="oras_tickets_repair_caps" />
-                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will add permissions to the Administrator role. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
-                </form>
-            <?php endif; ?>
-
             <form method="post" action="options.php">
                 <?php
-                settings_fields('oras_tickets_settings');
-                do_settings_sections('oras_tickets_settings');
-                submit_button();
+                settings_fields(self::PAGE_GENERAL);
+                do_settings_sections(self::PAGE_QUICKBOOKS);
+                submit_button(__('Save QuickBooks Settings', 'oras-tickets'));
                 ?>
             </form>
 
@@ -67,7 +100,7 @@ final class Settings_Page
     public static function register_settings(): void
     {
         register_setting(
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             self::OPTION_KEY,
             array(
                 'type'              => 'array',
@@ -80,14 +113,14 @@ final class Settings_Page
             'oras_rsvp_defaults',
             __('RSVP Defaults', 'oras-tickets'),
             array(self::class, 'render_rsvp_section'),
-            'oras_tickets_settings'
+            self::PAGE_GENERAL
         );
 
         add_settings_field(
             'rsvp_default_enabled',
             __('Default Enabled', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_enabled',
@@ -99,7 +132,7 @@ final class Settings_Page
             'rsvp_default_capacity',
             __('Default Capacity', 'oras-tickets'),
             array(self::class, 'render_number_field'),
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_capacity',
@@ -112,7 +145,7 @@ final class Settings_Page
             'rsvp_default_waitlist_enabled',
             __('Default Waitlist Enabled', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             'oras_rsvp_defaults',
             array(
                 'field' => 'rsvp.default_waitlist_enabled',
@@ -124,14 +157,14 @@ final class Settings_Page
             'oras_virtual_access_defaults',
             __('Virtual Access Defaults', 'oras-tickets'),
             array(self::class, 'render_virtual_access_section'),
-            'oras_tickets_settings'
+            self::PAGE_GENERAL
         );
 
         add_settings_field(
             'virtual_access_default_show_to',
             __('Default Show To', 'oras-tickets'),
             array(self::class, 'render_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             'oras_virtual_access_defaults',
             array(
                 'field'   => 'virtual_access.default_show_to',
@@ -149,14 +182,14 @@ final class Settings_Page
             'oras_tickets_defaults',
             __('Tickets Defaults', 'oras-tickets'),
             array(self::class, 'render_tickets_section'),
-            'oras_tickets_settings'
+            self::PAGE_GENERAL
         );
 
         add_settings_field(
             'tickets_auto_complete_ticket_only_orders',
             __('Auto-complete Ticket-only Orders', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
-            'oras_tickets_settings',
+            self::PAGE_GENERAL,
             'oras_tickets_defaults',
             array(
                 'field' => 'tickets.auto_complete_ticket_only_orders',
@@ -168,14 +201,14 @@ final class Settings_Page
             'oras_quickbooks_revenue_split',
             __('QuickBooks Revenue Split Sync', 'oras-tickets'),
             array(self::class, 'render_quickbooks_section'),
-            'oras_tickets_settings'
+            self::PAGE_QUICKBOOKS
         );
 
         add_settings_field(
             'quickbooks_enabled',
             __('Enable Sync', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.enabled',
@@ -187,7 +220,7 @@ final class Settings_Page
             'quickbooks_sandbox',
             __('Sandbox Mode', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.sandbox',
@@ -199,10 +232,11 @@ final class Settings_Page
             'quickbooks_client_id',
             __('Client ID', 'oras-tickets'),
             array(self::class, 'render_text_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.client_id',
+                'input_id'    => 'oras-qbo-client-id',
                 'placeholder' => __('QuickBooks app client ID', 'oras-tickets'),
             )
         );
@@ -211,10 +245,11 @@ final class Settings_Page
             'quickbooks_client_secret',
             __('Client Secret', 'oras-tickets'),
             array(self::class, 'render_password_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.client_secret',
+                'input_id'    => 'oras-qbo-client-secret',
                 'placeholder' => __('QuickBooks app client secret', 'oras-tickets'),
             )
         );
@@ -223,7 +258,7 @@ final class Settings_Page
             'quickbooks_realm_id',
             __('Realm ID', 'oras-tickets'),
             array(self::class, 'render_text_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.realm_id',
@@ -235,7 +270,7 @@ final class Settings_Page
             'quickbooks_clearing_account_id',
             __('Clearing Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.clearing_account_id',
@@ -247,7 +282,7 @@ final class Settings_Page
             'quickbooks_tickets_default_account_id',
             __('Default Ticket Income Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.tickets_default_account_id',
@@ -258,7 +293,7 @@ final class Settings_Page
             'quickbooks_observer_account_id',
             __('Observer Pass Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.observer_account_id',
@@ -269,7 +304,7 @@ final class Settings_Page
             'quickbooks_merchandise_account_id',
             __('Merchandise Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.merchandise_account_id',
@@ -280,7 +315,7 @@ final class Settings_Page
             'quickbooks_unmapped_account_id',
             __('Fallback Unmapped Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field' => 'quickbooks.unmapped_account_id',
@@ -291,7 +326,7 @@ final class Settings_Page
             'quickbooks_observer_category_slugs',
             __('Observer Category Slugs', 'oras-tickets'),
             array(self::class, 'render_text_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.observer_category_slugs',
@@ -303,7 +338,7 @@ final class Settings_Page
             'quickbooks_merch_category_slugs',
             __('Merch Category Slugs', 'oras-tickets'),
             array(self::class, 'render_text_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.merch_category_slugs',
@@ -315,7 +350,7 @@ final class Settings_Page
             'quickbooks_event_account_map',
             __('Per-Event Account Map', 'oras-tickets'),
             array(self::class, 'render_textarea_field'),
-            'oras_tickets_settings',
+            self::PAGE_QUICKBOOKS,
             'oras_quickbooks_revenue_split',
             array(
                 'field'       => 'quickbooks.event_account_map',
@@ -328,10 +363,19 @@ final class Settings_Page
 
     public static function sanitize_settings($input): array
     {
+        $defaults      = self::get_default_settings();
         $current       = self::get_settings();
-        $current_qbo   = isset( $current['quickbooks'] ) && is_array( $current['quickbooks'] ) ? $current['quickbooks'] : array();
-        $defaults_qbo  = self::get_default_settings()['quickbooks'];
-        $input_qbo     = isset( $input['quickbooks'] ) && is_array( $input['quickbooks'] ) ? $input['quickbooks'] : array();
+        $current_qbo   = isset( $current['quickbooks'] ) && is_array( $current['quickbooks'] ) ? $current['quickbooks'] : $defaults['quickbooks'];
+        $defaults_qbo  = $defaults['quickbooks'];
+        $has_rsvp      = isset( $input['rsvp'] ) && is_array( $input['rsvp'] );
+        $has_virtual   = isset( $input['virtual_access'] ) && is_array( $input['virtual_access'] );
+        $has_tickets   = isset( $input['tickets'] ) && is_array( $input['tickets'] );
+        $has_qbo       = isset( $input['quickbooks'] ) && is_array( $input['quickbooks'] );
+        $input_rsvp    = $has_rsvp ? $input['rsvp'] : ( $current['rsvp'] ?? $defaults['rsvp'] );
+        $input_virtual = $has_virtual ? $input['virtual_access'] : ( $current['virtual_access'] ?? $defaults['virtual_access'] );
+        $input_tickets = $has_tickets ? $input['tickets'] : ( $current['tickets'] ?? $defaults['tickets'] );
+        $input_qbo     = $has_qbo ? $input['quickbooks'] : $current_qbo;
+
         $client_secret = isset( $input_qbo['client_secret'] ) ? trim( (string) $input_qbo['client_secret'] ) : '';
         if ( $client_secret === '' ) {
             $client_secret = (string) ( $current_qbo['client_secret'] ?? '' );
@@ -340,19 +384,19 @@ final class Settings_Page
         $sanitized = array(
             'version'        => 1,
             'rsvp'           => array(
-                'default_enabled'          => ! empty($input['rsvp']['default_enabled']),
-                'default_capacity'         => absint($input['rsvp']['default_capacity'] ?? 0),
-                'default_waitlist_enabled' => ! empty($input['rsvp']['default_waitlist_enabled']),
+                'default_enabled'          => ! empty($input_rsvp['default_enabled']),
+                'default_capacity'         => absint($input_rsvp['default_capacity'] ?? 0),
+                'default_waitlist_enabled' => ! empty($input_rsvp['default_waitlist_enabled']),
             ),
             'virtual_access' => array(
-                'default_show_to' => self::sanitize_show_to($input['virtual_access']['default_show_to'] ?? ''),
+                'default_show_to' => self::sanitize_show_to($input_virtual['default_show_to'] ?? ''),
             ),
             'tickets'        => array(
-                'auto_complete_ticket_only_orders' => ! empty($input['tickets']['auto_complete_ticket_only_orders']),
+                'auto_complete_ticket_only_orders' => ! empty($input_tickets['auto_complete_ticket_only_orders']),
             ),
             'quickbooks'     => array(
-                'enabled'                    => ! empty( $input_qbo['enabled'] ),
-                'sandbox'                    => ! empty( $input_qbo['sandbox'] ),
+                'enabled'                    => $has_qbo ? ! empty( $input_qbo['enabled'] ) : ! empty( $current_qbo['enabled'] ),
+                'sandbox'                    => $has_qbo ? ! empty( $input_qbo['sandbox'] ) : ! empty( $current_qbo['sandbox'] ),
                 'client_id'                  => sanitize_text_field( (string) ( $input_qbo['client_id'] ?? '' ) ),
                 'client_secret'              => sanitize_text_field( $client_secret ),
                 'realm_id'                   => sanitize_text_field( (string) ( $input_qbo['realm_id'] ?? '' ) ),
@@ -369,7 +413,7 @@ final class Settings_Page
                 'discount_mode'              => 'proportional',
                 'observer_category_slugs'    => sanitize_text_field( (string) ( $input_qbo['observer_category_slugs'] ?? $defaults_qbo['observer_category_slugs'] ) ),
                 'merch_category_slugs'       => sanitize_text_field( (string) ( $input_qbo['merch_category_slugs'] ?? $defaults_qbo['merch_category_slugs'] ) ),
-                'event_account_map'          => sanitize_textarea_field( (string) ( $input_qbo['event_account_map'] ?? '' ) ),
+                'event_account_map'          => sanitize_textarea_field( (string) ( $input_qbo['event_account_map'] ?? ( $current_qbo['event_account_map'] ?? '' ) ) ),
                 'account_cache'              => self::sanitize_account_cache( $current_qbo['account_cache'] ?? array() ),
                 'last_error'                 => (string) ( $current_qbo['last_error'] ?? '' ),
             ),
@@ -502,10 +546,11 @@ final class Settings_Page
         $settings    = self::get_settings();
         $value       = self::get_nested_value( $settings, $args['field'] );
         $name        = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
+        $input_id    = isset( $args['input_id'] ) ? sanitize_html_class( (string) $args['input_id'] ) : '';
         $placeholder = isset( $args['placeholder'] ) ? (string) $args['placeholder'] : '';
         $help        = isset( $args['help'] ) ? (string) $args['help'] : '';
 ?>
-        <input type="text" class="regular-text" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" />
+        <input type="text" class="regular-text" <?php if ( $input_id !== '' ) : ?>id="<?php echo esc_attr( $input_id ); ?>" <?php endif; ?>name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" />
         <?php if ( $help !== '' ) : ?>
             <p class="description"><?php echo esc_html( $help ); ?></p>
         <?php endif; ?>
@@ -517,9 +562,10 @@ final class Settings_Page
         $settings    = self::get_settings();
         $value       = self::get_nested_value( $settings, $args['field'] );
         $name        = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
+        $input_id    = isset( $args['input_id'] ) ? sanitize_html_class( (string) $args['input_id'] ) : '';
         $placeholder = isset( $args['placeholder'] ) ? (string) $args['placeholder'] : '';
 ?>
-        <input type="password" class="regular-text" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" autocomplete="off" />
+        <input type="password" class="regular-text" <?php if ( $input_id !== '' ) : ?>id="<?php echo esc_attr( $input_id ); ?>" <?php endif; ?>name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" autocomplete="off" />
 <?php
     }
 
@@ -569,9 +615,11 @@ final class Settings_Page
         <p><?php echo esc_html__( 'Use these actions to authorize QuickBooks and verify API connectivity.', 'oras-tickets' ); ?></p>
 
         <div style="display:flex; gap:12px; flex-wrap:wrap; margin:12px 0 24px;">
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <form method="post" id="oras-qbo-connect-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'oras_tickets_qbo_oauth_start' ); ?>
                 <input type="hidden" name="action" value="oras_tickets_qbo_oauth_start" />
+                <input type="hidden" name="oras_qbo_client_id" id="oras-qbo-client-id-hidden" value="" />
+                <input type="hidden" name="oras_qbo_client_secret" id="oras-qbo-client-secret-hidden" value="" />
                 <button type="submit" class="button button-primary"><?php echo esc_html__( 'Connect / Reconnect QuickBooks', 'oras-tickets' ); ?></button>
             </form>
 
@@ -587,7 +635,113 @@ final class Settings_Page
                 <button type="submit" class="button"><?php echo esc_html__( 'Test JournalEntry', 'oras-tickets' ); ?></button>
             </form>
         </div>
+        <script>
+        (function () {
+            var connectForm = document.getElementById('oras-qbo-connect-form');
+            if (!connectForm) {
+                return;
+            }
+
+            connectForm.addEventListener('submit', function () {
+                var clientIdInput = document.getElementById('oras-qbo-client-id');
+                var clientSecretInput = document.getElementById('oras-qbo-client-secret');
+                var clientIdHidden = document.getElementById('oras-qbo-client-id-hidden');
+                var clientSecretHidden = document.getElementById('oras-qbo-client-secret-hidden');
+
+                if (clientIdInput && clientIdHidden) {
+                    clientIdHidden.value = clientIdInput.value || '';
+                }
+
+                if (clientSecretInput && clientSecretHidden) {
+                    clientSecretHidden.value = clientSecretInput.value || '';
+                }
+            });
+        }());
+        </script>
 <?php
+    }
+
+    /**
+     * @param array<string,mixed> $qbo_settings
+     */
+    private function render_quickbooks_connection_indicator( array $qbo_settings ): void
+    {
+        $realm_id         = trim( (string) ( $qbo_settings['realm_id'] ?? '' ) );
+        $refresh_token    = trim( (string) ( $qbo_settings['refresh_token'] ?? '' ) );
+        $connected_at_raw = trim( (string) ( $qbo_settings['connected_at'] ?? '' ) );
+        $token_expires_at = trim( (string) ( $qbo_settings['refresh_token_expires_at'] ?? '' ) );
+        $is_sandbox       = ! empty( $qbo_settings['sandbox'] );
+        $last_error       = trim( (string) ( $qbo_settings['last_error'] ?? '' ) );
+
+        $has_connection_data = $realm_id !== '' && $refresh_token !== '';
+        $refresh_valid       = self::is_future_gmt_timestamp( $token_expires_at );
+
+        $is_connected = $has_connection_data && ( $token_expires_at === '' || $refresh_valid );
+        $status_class = $is_connected ? 'notice-success' : 'notice-warning';
+        $status_label = $is_connected
+            ? __( 'Connected', 'oras-tickets' )
+            : __( 'Not Connected', 'oras-tickets' );
+        $mode_label   = $is_sandbox
+            ? __( 'Sandbox', 'oras-tickets' )
+            : __( 'Production', 'oras-tickets' );
+
+        $detail = $is_connected
+            ? sprintf(
+                /* translators: 1: mode (Sandbox/Production), 2: realm id */
+                __( 'QuickBooks connection is active in %1$s mode. Realm ID: %2$s.', 'oras-tickets' ),
+                $mode_label,
+                $realm_id
+            )
+            : __( 'QuickBooks is not currently connected. Use Connect / Reconnect QuickBooks below.', 'oras-tickets' );
+
+        $connected_at_display = self::format_gmt_datetime_for_display( $connected_at_raw );
+        $expires_display      = self::format_gmt_datetime_for_display( $token_expires_at );
+        if ( ! $is_connected && $token_expires_at !== '' && ! $refresh_valid ) {
+            $detail = __( 'QuickBooks connection expired. Reconnect to continue syncing.', 'oras-tickets' );
+        }
+?>
+        <div class="notice <?php echo esc_attr( $status_class ); ?>" style="margin:12px 0; padding:10px 12px;">
+            <p style="margin:0 0 4px;"><strong><?php echo esc_html__( 'Connection Status:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $status_label ); ?></p>
+            <p style="margin:0;"><?php echo esc_html( $detail ); ?></p>
+            <?php if ( $connected_at_display !== '' ) : ?>
+                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Connected At:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $connected_at_display ); ?></p>
+            <?php endif; ?>
+            <?php if ( $expires_display !== '' ) : ?>
+                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Refresh Token Expires:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $expires_display ); ?></p>
+            <?php endif; ?>
+            <?php if ( $last_error !== '' ) : ?>
+                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Last Error:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $last_error ); ?></p>
+            <?php endif; ?>
+        </div>
+<?php
+    }
+
+    private static function is_future_gmt_timestamp( string $timestamp ): bool
+    {
+        if ( $timestamp === '' ) {
+            return true;
+        }
+
+        $unix = strtotime( $timestamp . ' UTC' );
+        if ( false === $unix ) {
+            return false;
+        }
+
+        return $unix > time();
+    }
+
+    private static function format_gmt_datetime_for_display( string $timestamp ): string
+    {
+        if ( $timestamp === '' ) {
+            return '';
+        }
+
+        $unix = strtotime( $timestamp . ' UTC' );
+        if ( false === $unix ) {
+            return '';
+        }
+
+        return wp_date( 'Y-m-d H:i:s T', $unix );
     }
 
     /**
