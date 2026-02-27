@@ -94,6 +94,42 @@ final class Settings {
     }
 
     /**
+     * Resolve account ID for an event slug.
+     *
+     * Matching order:
+     * 1) Exact slug match.
+     * 2) Series prefix match where configured slug is followed by a hyphen.
+     *    Example: map key "astroblast" matches "astroblast-26".
+     *
+     * @param array<string,string> $event_account_map
+     */
+    public static function resolve_event_account_id( string $event_slug, array $event_account_map ): string {
+        $event_slug = sanitize_title( trim( $event_slug ) );
+        if ( $event_slug === '' ) {
+            return '';
+        }
+
+        if ( isset( $event_account_map[ $event_slug ] ) ) {
+            return (string) $event_account_map[ $event_slug ];
+        }
+
+        foreach ( $event_account_map as $configured_slug => $account_id ) {
+            $configured_slug = sanitize_title( (string) $configured_slug );
+            $account_id      = trim( (string) $account_id );
+            if ( $configured_slug === '' || $account_id === '' ) {
+                continue;
+            }
+
+            $series_prefix = $configured_slug . '-';
+            if ( strpos( $event_slug, $series_prefix ) === 0 ) {
+                return $account_id;
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Parse comma separated category slug list.
      *
      * @return string[]

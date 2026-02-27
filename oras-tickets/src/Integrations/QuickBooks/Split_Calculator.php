@@ -267,8 +267,11 @@ final class Split_Calculator {
         $type = isset( $classification['type'] ) ? (string) $classification['type'] : '';
         if ( $type === 'ticket_event' ) {
             $event_slug = isset( $classification['event_slug'] ) ? (string) $classification['event_slug'] : '';
-            if ( $event_slug !== '' && isset( $event_account_map[ $event_slug ] ) ) {
-                return (string) $event_account_map[ $event_slug ];
+            if ( $event_slug !== '' ) {
+                $event_account_id = Settings::resolve_event_account_id( $event_slug, $event_account_map );
+                if ( $event_account_id !== '' ) {
+                    return $event_account_id;
+                }
             }
 
             return (string) ( $qbo_settings['tickets_default_account_id'] ?? '' );

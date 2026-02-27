@@ -10,6 +10,11 @@ if ( ! class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Split_Calculator' ) 
     return;
 }
 
+if ( ! class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
+    fwrite( STDERR, "ORAS QuickBooks Settings class is not loaded.\n" );
+    return;
+}
+
 /**
  * @param mixed $actual
  * @param mixed $expected
@@ -104,5 +109,25 @@ $rows_discount = array(
 $result_discount = \ORAS\Tickets\Integrations\QuickBooks\Split_Calculator::aggregate_classified_rows( $rows_discount );
 oras_qbo_assert_close( 'discount mode line total sum', $result_discount['line_total_sum'], 50.00 );
 oras_qbo_assert_close( 'discount mode discount total', $result_discount['discount_total'], 10.00 );
+
+$event_account_map = array(
+    'astroblast'     => '1150040000',
+    'spring-stargaze' => '1150040004',
+);
+oras_qbo_assert_equals(
+    'event map exact slug',
+    \ORAS\Tickets\Integrations\QuickBooks\Settings::resolve_event_account_id( 'spring-stargaze', $event_account_map ),
+    '1150040004'
+);
+oras_qbo_assert_equals(
+    'event map series slug fallback',
+    \ORAS\Tickets\Integrations\QuickBooks\Settings::resolve_event_account_id( 'spring-stargaze-26', $event_account_map ),
+    '1150040004'
+);
+oras_qbo_assert_equals(
+    'event map does not match partial prefix without hyphen',
+    \ORAS\Tickets\Integrations\QuickBooks\Settings::resolve_event_account_id( 'spring-stargazer', $event_account_map ),
+    ''
+);
 
 echo "QBO split calculator tests passed.\n";
