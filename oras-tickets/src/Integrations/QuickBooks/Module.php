@@ -65,10 +65,26 @@ final class Module {
             );
         }
 
-        $state = wp_generate_password( 32, false, false );
+        $state = $this->generate_oauth_state();
         set_transient( 'oras_tickets_qbo_state_' . $state, get_current_user_id(), 15 * MINUTE_IN_SECONDS );
 
         $url = $this->oauth_client->get_authorize_url( $state );
+        $missing = $this->get_missing_authorize_params( $url );
+        if ( ! empty( $missing ) ) {
+            $this->logger->error(
+                'QuickBooks OAuth authorize URL missing required parameters',
+                array(
+                    'missing' => $missing,
+                    'url'     => $url,
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth authorization request is invalid. Missing: ' . implode( ', ', $missing ) ),
+                )
+            );
+        }
+
         // OAuth authorization must redirect to Intuit's external domain.
         wp_redirect( $url ); // phpcs:ignore WordPressVIPMinimum.Security.ExitAfterRedirect.NoExit
         exit;
@@ -339,5 +355,36 @@ final class Module {
         }
 
         return $cache;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function get_missing_authorize_params( string $url ): array {
+        $query = wp_parse_url( $url, PHP_URL_QUERY );
+        if ( ! is_string( $query ) || $query === '' ) {
+            return array( 'client_id', 'response_type', 'scope', 'redirect_uri', 'state' );
+        }
+
+        $params = array();
+        parse_str( $query, $params );
+
+        $required = array( 'client_id', 'response_type', 'scope', 'redirect_uri', 'state' );
+        $missing  = array();
+        foreach ( $required as $key ) {
+            if ( empty( $params[ $key ] ) ) {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
+    }
+
+    private function generate_oauth_state(): string {
+        try {
+            return bin2hex( random_bytes( 16 ) );
+        } catch ( \Exception $e ) {
+            return wp_generate_password( 32, false, false );
+        }
     }
 }

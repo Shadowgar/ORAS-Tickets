@@ -24,15 +24,17 @@ final class OAuth_Client {
 
     public function get_authorize_url( string $state ): string {
         $settings = Settings::get_quickbooks_settings();
+        $client_id = trim( (string) ( $settings['client_id'] ?? '' ) );
+        $redirect_uri = Settings::get_redirect_uri();
         $args     = array(
-            'client_id'     => (string) $settings['client_id'],
+            'client_id'     => $client_id,
             'response_type' => 'code',
             'scope'         => 'com.intuit.quickbooks.accounting',
-            'redirect_uri'  => Settings::get_redirect_uri(),
-            'state'         => $state,
+            'redirect_uri'  => $redirect_uri,
+            'state'         => trim( $state ),
         );
 
-        return add_query_arg( $args, self::AUTHORIZE_URL );
+        return self::AUTHORIZE_URL . '?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
     }
 
     /**
