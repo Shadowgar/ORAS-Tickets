@@ -34,14 +34,15 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
             <thead>
                 <tr>
                 <th><?php echo esc_html__( 'Event', 'oras-tickets' ); ?></th>
-                <th><?php echo esc_html__( 'Ticket Count', 'oras-tickets' ); ?></th>
+                <th><?php echo esc_html__( 'Ticket Types', 'oras-tickets' ); ?></th>
+                <th><?php echo esc_html__( 'Tickets Sold', 'oras-tickets' ); ?></th>
                 <th><?php echo esc_html__( 'Any Sold Out', 'oras-tickets' ); ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ( empty( $events ) ) : ?>
                 <tr>
-                    <td colspan="3"><?php echo esc_html__( 'No events found.', 'oras-tickets' ); ?></td>
+                    <td colspan="4"><?php echo esc_html__( 'No events found.', 'oras-tickets' ); ?></td>
                 </tr>
                 <?php else : ?>
                     <?php
@@ -50,7 +51,8 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
                         $edit_link = get_edit_post_link( $event_id );
                         $envelope  = Ticket_Collection::load_envelope_for_event( $event_id );
                         $tickets   = isset( $envelope['tickets'] ) && is_array( $envelope['tickets'] ) ? $envelope['tickets'] : array();
-                        $count     = count( $tickets );
+                        $type_count = count( $tickets );
+                        $sold_count = $this->get_ticket_units_for_event( $event_id );
                         $sold_out  = $this->has_sold_out_limited_ticket( $event_id );
                         ?>
                     <tr>
@@ -61,7 +63,8 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
                             <?php echo esc_html( $title ); ?>
                         <?php endif; ?>
                     </td>
-                    <td><?php echo esc_html( (string) $count ); ?></td>
+                    <td><?php echo esc_html( (string) $type_count ); ?></td>
+                    <td><?php echo esc_html( (string) $sold_count ); ?></td>
                     <td><?php echo esc_html( $sold_out ? __( 'Yes', 'oras-tickets' ) : __( 'No', 'oras-tickets' ) ); ?></td>
                     </tr>
                     <?php endforeach; ?>
@@ -337,5 +340,74 @@ if ( ! $managing_stock ) {
         }
 
         return false;
+    }
+
+    private function get_ticket_units_for_event( int $event_id ): int {
+        if ( ! function_exists( 'wc_get_orders' ) ) {
+            return 0;
+        }
+
+        $map = get_post_meta( $event_id, '_oras_tickets_woo_map_v1', true );
+        if ( ! is_array( $map ) || empty( $map ) ) {
+            return 0;
+        }
+
+        $product_ids = array();
+        foreach ( $map as $product_id ) {
+            $product_id = absint( $product_id );
+            if ( $product_id > 0 ) {
+                $product_ids[] = $product_id;
+            }
+        }
+        if ( empty( $product_ids ) ) {
+            return 0;
+        }
+
+        $product_lookup = array_fill_keys( $product_ids, true );
+        $orders         = array();
+
+        foreach ( $product_ids as $product_id ) {
+            $matched_orders = wc_get_orders(
+                array(
+                    // Keep this aligned with attendees default ticket extraction.
+                    'status'     => array( 'completed', 'processing', 'on-hold', 'pending', 'refunded', 'cancelled', 'failed' ),
+                    'product_id' => $product_id,
+                    'limit'      => -1,
+                )
+            );
+
+            $orders = array_merge( $orders, $matched_orders );
+        }
+
+        $unique_orders = array();
+        foreach ( $orders as $order ) {
+            if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
+                continue;
+            }
+            $unique_orders[ (int) $order->get_id() ] = $order;
+        }
+
+        $ticket_units = 0;
+        foreach ( $unique_orders as $order ) {
+            if ( ! method_exists( $order, 'get_items' ) ) {
+                continue;
+            }
+
+            foreach ( $order->get_items() as $item ) {
+                if ( ! is_object( $item ) || ! method_exists( $item, 'get_product_id' ) ) {
+                    continue;
+                }
+
+                $product_id = (int) $item->get_product_id();
+                if ( $product_id <= 0 || ! isset( $product_lookup[ $product_id ] ) ) {
+                    continue;
+                }
+
+                $quantity = method_exists( $item, 'get_quantity' ) ? (int) $item->get_quantity() : 1;
+                $ticket_units += max( 1, $quantity );
+            }
+        }
+
+        return $ticket_units;
     }
 }

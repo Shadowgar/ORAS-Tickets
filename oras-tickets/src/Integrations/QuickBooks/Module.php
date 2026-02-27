@@ -69,7 +69,8 @@ final class Module {
         set_transient( 'oras_tickets_qbo_state_' . $state, get_current_user_id(), 15 * MINUTE_IN_SECONDS );
 
         $url = $this->oauth_client->get_authorize_url( $state );
-        wp_safe_redirect( $url );
+        // OAuth authorization must redirect to Intuit's external domain.
+        wp_redirect( $url ); // phpcs:ignore WordPressVIPMinimum.Security.ExitAfterRedirect.NoExit
         exit;
     }
 
