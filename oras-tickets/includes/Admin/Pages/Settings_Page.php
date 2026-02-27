@@ -578,7 +578,7 @@ final class Settings_Page
         $placeholder = isset( $args['placeholder'] ) ? (string) $args['placeholder'] : '';
         $help        = isset( $args['help'] ) ? (string) $args['help'] : '';
 ?>
-        <textarea class="large-text code" rows="<?php echo esc_attr( max( 2, $rows ) ); ?>" name="<?php echo esc_attr( $name ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>"><?php echo esc_textarea( (string) $value ); ?></textarea>
+        <textarea class="large-text code" rows="<?php echo esc_attr( (string) max( 2, $rows ) ); ?>" name="<?php echo esc_attr( $name ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>"><?php echo esc_textarea( (string) $value ); ?></textarea>
         <?php if ( $help !== '' ) : ?>
             <p class="description"><?php echo esc_html( $help ); ?></p>
         <?php endif; ?>

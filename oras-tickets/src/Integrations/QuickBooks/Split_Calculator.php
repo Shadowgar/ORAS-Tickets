@@ -39,6 +39,10 @@ final class Split_Calculator {
                 continue;
             }
 
+            if ( ! $item instanceof \WC_Order_Item_Product ) {
+                continue;
+            }
+
             $line_total    = round( (float) $item->get_total(), 2 );
             $line_subtotal = round( (float) $item->get_subtotal(), 2 );
 
@@ -55,7 +59,7 @@ final class Split_Calculator {
                 $warnings[] = sprintf(
                     'Missing account mapping for bucket "%1$s" on order item "%2$s".',
                     $bucket_key,
-                    method_exists( $item, 'get_name' ) ? (string) $item->get_name() : 'unknown'
+                    (string) $item->get_name()
                 );
                 continue;
             }
@@ -224,7 +228,7 @@ final class Split_Calculator {
             $terms = get_the_terms( $product_id, 'product_cat' );
             if ( is_array( $terms ) ) {
                 foreach ( $terms as $term ) {
-                    if ( is_object( $term ) && isset( $term->slug ) ) {
+                    if ( is_object( $term ) ) {
                         $product_slugs[] = sanitize_title( (string) $term->slug );
                     }
                 }

@@ -47,4 +47,4 @@ jobs:
 
       - name: Stop wp-env
         if: always()
-        run: npx --yes @wordpress/env stop
+        run: npx --yes @wordpress/env stop || true

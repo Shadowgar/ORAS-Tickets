@@ -27,3 +27,37 @@ if (! defined('ORAS_TICKETS_URL')) {
 if (! defined('DAY_IN_SECONDS')) {
   define('DAY_IN_SECONDS', 86400);
 }
+
+if (! defined('MINUTE_IN_SECONDS')) {
+  define('MINUTE_IN_SECONDS', 60);
+}
+
+if (! class_exists('WP_CLI_Command')) {
+  abstract class WP_CLI_Command
+  {
+  }
+}
+
+if (! class_exists('WP_CLI')) {
+  final class WP_CLI
+  {
+    public static function error(string $message): void
+    {
+    }
+
+    public static function warning(string $message): void
+    {
+    }
+
+    public static function success(string $message): void
+    {
+    }
+
+    /**
+     * @param mixed $command
+     */
+    public static function add_command(string $name, $command): void
+    {
+    }
+  }
+}
