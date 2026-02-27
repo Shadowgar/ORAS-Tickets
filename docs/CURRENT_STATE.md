@@ -44,6 +44,42 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - It is scoped as a board-only, Members Hub-style executive surface backed by PMPro + ticketing + financial KPIs.
 - Build remains gated behind current Phase 5 closure requirements.
 
+## Phase 5.3 Proposal — QuickBooks Revenue Split Sync (Woo Orders)
+Status: planned and gated behind current Phase 5 closure tasks.
+
+Goals:
+- Create one QuickBooks JournalEntry per paid Woo order (`processing`/`completed`).
+- Split Woo revenue into mapped income accounts by event/category (ticket event, observer pass, merchandise, fallback).
+- Keep Stripe connector enabled while moving Woo revenue from a configurable clearing account into specific income accounts.
+- Guarantee idempotency using order meta keys: `_oras_qbo_je_id`, `_oras_qbo_je_hash`, `_oras_qbo_sync_status`.
+
+Non-goals (initial release):
+- No replacement of Stripe connector.
+- No SalesReceipt/Invoice creation from ORAS-Tickets (JournalEntry-only flow).
+- No automatic refund reversal JournalEntry in first release (documented manual handling path).
+
+Architecture:
+- New module: `oras-tickets/src/Integrations/QuickBooks/`.
+- Components: OAuth client, API wrapper, split calculator, JournalEntry creator, sync orchestrator, retry handler, logger, WP-CLI command.
+- Async execution: Action Scheduler when available, `wp_schedule_single_event` fallback.
+- Admin controls: ORAS Tickets Settings page fields and actions for enable/connect/map/test.
+
+Testing strategy:
+- WP-CLI quick checks:
+  - `wp oras-tickets qbo test-connection`
+  - `wp oras-tickets qbo sync-order <order_id>`
+  - `wp oras-tickets qbo retry-failed`
+- Split calculator unit-style script:
+  - `wp eval-file scripts/qbo-split-calculator-tests.php`
+- Manual scenarios:
+  - ticket-only, merch-only, observer-only, mixed cart, coupon/discount, multi-quantity, and failure/retry path.
+
+Risk analysis:
+- Duplicate accounting risk if clearing account is mapped incorrectly in QBO.
+- Misclassification risk when product categories/meta are inconsistent.
+- OAuth token expiry/rotation risk (mitigated by refresh logic and retry flow).
+- Network/API reliability risk (mitigated by queue + retry + sync status metadata).
+
 ## Required Next Closure Conditions
 - Maintain and extend WP-CLI integration checks as remaining Phase 5 queue/audit features land.
 - Complete Phase 4 visual quality pass.

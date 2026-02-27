@@ -33,6 +33,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR includ
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'src/Integrations/QuickBooks/Module.php'; // NOSONAR legacy include
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -112,6 +113,9 @@ final class Bootstrap {
         $oa->register();
 
         \ORAS\Tickets\Commerce\Woo\Cart_Pricing::register();
+
+        $quickbooks_module = new \ORAS\Tickets\Integrations\QuickBooks\Module();
+        $quickbooks_module->register();
 
         $api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
         $api->register();

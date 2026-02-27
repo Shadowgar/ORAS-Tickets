@@ -20,6 +20,16 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
 - Define Members Hub-aligned UI spec (information hierarchy, card system, responsive behavior).
 - Define capability/permission model for board-only access and exports.
 
+4. Phase 5.3 — QuickBooks Revenue Split Sync (Woo Orders) (Post-Gate)
+- Finalize clearing-account accounting policy with treasurer (to avoid Stripe duplicate revenue presentation).
+- Validate account mappings for:
+  - event ticket income (per-event slug map)
+  - observer pass income
+  - merchandise income
+  - fallback/unmapped income
+- Execute controlled sandbox test run using check gateway orders and WP-CLI sync commands.
+- Prepare refund-handling follow-up scope (reversal JournalEntry policy).
+
 ## Completed This Cycle
 - Fixed attendee dashboard ticket-source coverage across Woo statuses and added regression checks for on-hold/all status visibility.
 - Added Phase 5 WP-CLI integration check harness (`scripts/phase5-integration-checks.php`).

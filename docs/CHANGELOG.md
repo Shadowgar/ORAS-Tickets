@@ -1,5 +1,38 @@
 # CHANGELOG (Append-Only)
 
+## 2026-02-27 — QuickBooks Revenue Split Sync Foundation (Phase 5.3 plan/start)
+
+Code:
+- Added new QuickBooks integration module under `oras-tickets/src/Integrations/QuickBooks/`:
+  - `OAuth_Client` (OAuth2 connect + refresh flow)
+  - `Api_Client` (QBO API wrapper)
+  - `Split_Calculator` (ticket/event/observer/merch split logic)
+  - `Journal_Entry_Creator` (single JournalEntry per Woo order)
+  - `Sync_Orchestrator` (paid-order hooks, idempotency, async queueing, retry)
+  - `Retry_Handler` and `QuickBooks_Logger`
+  - `Cli_Command` (`wp oras-tickets qbo ...`)
+  - `Module` bootstrap/wiring and admin action handlers
+- Wired module registration into plugin bootstrap.
+- Extended ORAS settings page with QuickBooks Revenue Split section:
+  - enable toggle, sandbox toggle
+  - OAuth client credentials and realm
+  - account mapping fields (clearing/default ticket/observer/merch/fallback)
+  - category slug mapping fields and per-event account map
+  - account selector support from cached account list
+  - action buttons: Connect/Reconnect, Test Connection, Test JournalEntry
+- Added split-calculator unit-style script: `scripts/qbo-split-calculator-tests.php`.
+
+Documentation:
+- Added Phase 5.3 QuickBooks Revenue Split proposal/details to:
+  - `docs/CURRENT_STATE.md`
+  - `docs/NEXT.md`
+  - `docs/ROADMAP.md`
+
+Verification:
+- `php -l` against new/changed PHP files.
+- `wp oras-tickets qbo test-connection` (manual runtime command; requires configured credentials).
+- `wp eval-file scripts/qbo-split-calculator-tests.php` (manual runtime command).
+
 ## 2026-02-25 — Attendee Status Coverage Hardening (Phase 5)
 
 Code:

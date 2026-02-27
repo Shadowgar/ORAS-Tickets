@@ -8,8 +8,9 @@ This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execut
 1. Phase 0-3: Core foundation, commerce integrity, reporting, print.
 2. Phase 4: Speaker + agenda intelligence baseline and refinement.
 3. Phase 5: Registration + capacity intelligence (current focus).
-4. Phase 6: Advanced ticketing intelligence.
-5. Phase 7-12: Speaker intelligence expansion, virtual/hybrid depth, member expansion (including board dashboard), financial intelligence, discovery UX, and automation.
+4. Phase 5.3: QuickBooks Revenue Split Sync for Woo orders (journal-entry split layer, post-gate).
+5. Phase 6: Advanced ticketing intelligence.
+6. Phase 7-12: Speaker intelligence expansion, virtual/hybrid depth, member expansion (including board dashboard), financial intelligence, discovery UX, and automation.
 
 ## Current Gate
 The project remains in **stabilize-and-refine mode** before Phase 6+ development (Phase 5 depth largely complete, final polish/soak pending).

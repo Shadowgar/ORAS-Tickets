@@ -1,6 +1,7 @@
 # Dependencies
 /vendor/
 /node_modules/
+/reference/
 
 # Build / artifacts
 plugin.zip
