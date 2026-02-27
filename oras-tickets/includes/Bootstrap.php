@@ -99,6 +99,10 @@ final class Bootstrap {
         $ps = new \ORAS\Tickets\Commerce\Woo\Product_Sync();
         $ps->register();
 
+        require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Stripe_Intent_Description.php'; // NOSONAR legacy include
+        $sid = new \ORAS\Tickets\Commerce\Woo\Stripe_Intent_Description();
+        $sid->register();
+
         require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Capacity_Consumption.php'; // NOSONAR legacy include
         $cc = new \ORAS\Tickets\Commerce\Woo\Capacity_Consumption();
         $cc->register();
