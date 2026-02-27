@@ -222,7 +222,8 @@ final class Module {
 
         $amount  = 0.01;
         $payload = array(
-            'DocNumber'   => 'ORAS-QBO-TEST-' . gmdate( 'YmdHis' ),
+            // QBO DocNumber max length is 21 chars.
+            'DocNumber'   => 'ORASQBO' . gmdate( 'YmdHis' ),
             'TxnDate'     => gmdate( 'Y-m-d' ),
             'PrivateNote' => 'ORAS Tickets QuickBooks test JournalEntry',
             'Line'        => array(
@@ -269,6 +270,12 @@ final class Module {
         if ( isset( $response['JournalEntry']['Id'] ) ) {
             $je_id = (string) $response['JournalEntry']['Id'];
         }
+
+        Settings::update_quickbooks_settings(
+            array(
+                'last_error' => '',
+            )
+        );
 
         $this->redirect_to_settings(
             array(
