@@ -52,7 +52,10 @@ final class Settings {
     }
 
     public static function get_redirect_uri(): string {
-        return admin_url( 'admin-post.php?action=oras_tickets_qbo_oauth_callback' );
+        $default_uri = admin_url( 'admin-post.php?action=oras_tickets_qbo_oauth_callback' );
+        $filtered    = apply_filters( 'oras_tickets_qbo_redirect_uri', $default_uri );
+
+        return is_string( $filtered ) && $filtered !== '' ? $filtered : $default_uri;
     }
 
     /**

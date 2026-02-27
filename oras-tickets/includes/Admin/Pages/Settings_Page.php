@@ -499,6 +499,16 @@ final class Settings_Page
     {
         echo '<p>' . esc_html__( 'Create one QuickBooks JournalEntry per paid Woo order, debiting a clearing account and crediting event/category income accounts.', 'oras-tickets' ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Discount handling:', 'oras-tickets' ) . '</strong> ' . esc_html__( 'Proportional allocation (line net totals) is used by this release.', 'oras-tickets' ) . '</p>';
+
+        $redirect_uri = '';
+        if ( class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
+            $redirect_uri = (string) \ORAS\Tickets\Integrations\QuickBooks\Settings::get_redirect_uri();
+        }
+
+        if ( $redirect_uri !== '' ) {
+            echo '<p><strong>' . esc_html__( 'OAuth Redirect URI:', 'oras-tickets' ) . '</strong><br /><code>' . esc_html( $redirect_uri ) . '</code></p>';
+            echo '<p class="description">' . esc_html__( 'Add this exact URI to your Intuit app Keys tab under Redirect URIs. The value must match exactly (scheme, host, path, query string).', 'oras-tickets' ) . '</p>';
+        }
     }
 
     public static function render_checkbox_field(array $args): void
