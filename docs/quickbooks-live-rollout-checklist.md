@@ -43,6 +43,8 @@ Run a controlled production rollout of ORAS Tickets QuickBooks Revenue Split Syn
 - `wp oras-tickets qbo preview-order <order_id> --format=json`
 9. Run deterministic fault/observability checks in staging/sandbox before production posting:
 - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
+10. Run deterministic OAuth callback guard checks in staging/sandbox:
+- `wp eval-file scripts/qbo-oauth-callback-tests.php`
 
 ## Controlled Live Validation
 1. Enable ORAS QuickBooks sync if currently disabled.

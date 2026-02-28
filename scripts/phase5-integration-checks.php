@@ -15,6 +15,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
 }
 
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	add_filter(
+		'pre_wp_mail',
+		static function ( $short_circuit, $atts ) {
+			return true;
+		},
+		10,
+		2
+	);
+}
+
 if ( ! defined( 'DOING_AJAX' ) ) {
 	define( 'DOING_AJAX', true );
 }

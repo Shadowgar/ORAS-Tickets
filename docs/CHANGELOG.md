@@ -20,6 +20,22 @@ Code:
     - `intuit_tid` capture and propagation.
 - Added reconciliation integration script:
   - `scripts/qbo-reconciliation-tests.php`
+- Added deterministic OAuth callback guard integration script:
+  - `scripts/qbo-oauth-callback-tests.php`
+  - validates callback CSRF/grant guard paths and state-transient cleanup behavior.
+- Added QuickBooks redirect test hooks in module for deterministic callback testing:
+  - action: `oras_tickets_qbo_redirecting`
+  - filter: `oras_tickets_qbo_exit_after_redirect` (default `true`).
+- Added QBO integration runner script:
+  - `scripts/run-qbo-integration-checks.sh`
+  - runs all QBO integration scripts in wp-env.
+- Expanded CI workflow `phase5-verification.yml` to execute QBO integration checks on push/PR.
+- Added email-spam suppression in integration tests:
+  - QBO and Phase 5 `wp eval-file` scripts now short-circuit `pre_wp_mail` under WP-CLI.
+  - prevents local/CI order-status test flows from sending transactional emails.
+- Added branch-protection helper script:
+  - `scripts/configure-branch-protection-required-checks.sh`
+  - applies required status check context (`Phase5 Verification / verify`) via GitHub API.
 
 Documentation:
 - Updated:

@@ -88,6 +88,24 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - Added QuickBooks API error-matrix integration script:
   - `scripts/qbo-api-error-matrix-tests.php`
   - validates validation/syntax API faults, retriable HTTP fault classification (`429`/`5xx`), invalid JSON handling, transport failure metadata, 401 refresh retry path, refresh `invalid_grant` path, and `intuit_tid` propagation.
+- Added QuickBooks OAuth callback guard integration script:
+  - `scripts/qbo-oauth-callback-tests.php`
+  - validates callback guard paths for:
+    - `CSRF Error: missing OAuth state parameter`,
+    - `Auth Error Grant: missing callback grant fields`,
+    - `CSRF Error: state validation failed`,
+    - `CSRF Error: state owner mismatch`,
+    - and verifies transient cleanup for mismatch cases.
+- Added QBO integration runner script for deterministic CI/local verification:
+  - `scripts/run-qbo-integration-checks.sh`
+  - executes all QuickBooks integration scripts against wp-env.
+- Added outbound email suppression for WP-CLI integration scripts:
+  - QBO and Phase 5 `wp eval-file` scripts now short-circuit `pre_wp_mail` during test runs,
+  - prevents transactional email spam during automated/local verification,
+  - does not change production runtime behavior for normal web requests.
+- Added branch-protection automation helper for CI enforcement:
+  - `scripts/configure-branch-protection-required-checks.sh`
+  - targets required status context `Phase5 Verification / verify`.
 
 ## Remaining Gaps Before Phase 6+
 1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
@@ -139,6 +157,8 @@ Testing strategy:
   - `wp eval-file scripts/qbo-reconciliation-tests.php`
 - API error matrix script:
   - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
+- OAuth callback guard script:
+  - `wp eval-file scripts/qbo-oauth-callback-tests.php`
 - Manual scenarios:
   - ticket-only, merch-only, observer-only, printful-only, donation-only, mixed cart, coupon/discount, multi-quantity, and failure/retry path.
 

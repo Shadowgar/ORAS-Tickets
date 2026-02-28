@@ -55,6 +55,8 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
   - `wp oras-tickets qbo reverse-order <order_id> [--force]`
 - Run deterministic API fault matrix evidence script before live go/no-go:
   - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
+- Run deterministic OAuth callback guard evidence script before live go/no-go:
+  - `wp eval-file scripts/qbo-oauth-callback-tests.php`
 - Complete live go-live validation once Intuit production app approval is granted:
   - connect production QuickBooks credentials
   - run one controlled low-value live Woo/Stripe order
@@ -74,6 +76,13 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
 - Added Phase 5 WP-CLI integration check harness (`scripts/phase5-integration-checks.php`).
 - Added runtime wrapper (`scripts/run-phase5-integration-checks.sh`) with `ORAS_WP_ENV_DIR` support.
 - Added CI workflow (`.github/workflows/phase5-verification.yml`) running PHPCS, PHPStan, and Phase 5 integration checks.
+- Expanded CI workflow to also run QBO integration checks via `scripts/run-qbo-integration-checks.sh`:
+  - safeguard checks,
+  - split calculator checks,
+  - safety controls checks,
+  - reconciliation checks,
+  - API error-matrix checks,
+  - OAuth callback/CSRF guard checks.
 - Added waitlist queue operations and audit/history surface in RSVP dashboard (manual/bulk controls).
 - Added new waitlist AJAX operations and expanded integration checks to verify those operations.
 - Added QuickBooks OAuth/status hardening and fixed Test JournalEntry payload length issue.
@@ -94,6 +103,13 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
   - `scripts/qbo-reconciliation-tests.php`
 - Added deterministic QuickBooks API error-matrix test coverage:
   - `scripts/qbo-api-error-matrix-tests.php`
+- Added deterministic QuickBooks OAuth callback guard test coverage:
+  - `scripts/qbo-oauth-callback-tests.php`
+- Added test-run email suppression for local/CI integration scripts:
+  - QBO and Phase 5 scripts disable outbound `wp_mail` under WP-CLI to prevent notification spam.
+- Added GitHub branch-protection helper for required status checks:
+  - `scripts/configure-branch-protection-required-checks.sh`
+  - dry-run by default; `--apply` uses GitHub API with `GITHUB_TOKEN`.
 
 ## Out of Scope Until Above Is Done
 - New Phase 6+ feature implementation (QR/check-in, reservation windows, advanced automation).

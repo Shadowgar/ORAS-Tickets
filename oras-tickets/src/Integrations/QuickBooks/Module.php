@@ -452,8 +452,28 @@ final class Module {
             admin_url( 'admin.php' )
         );
 
+        /**
+         * Allow tests/observers to capture QuickBooks settings redirects.
+         *
+         * @param string               $url  Redirect URL.
+         * @param array<string,string> $args Redirect query args.
+         */
+        do_action( 'oras_tickets_qbo_redirecting', $url, $args );
+
         wp_safe_redirect( $url );
-        exit;
+
+        /**
+         * Filter whether QuickBooks admin redirects should terminate execution.
+         * Default true to preserve production behavior.
+         *
+         * @param bool                 $should_exit Default true.
+         * @param string               $url         Redirect URL.
+         * @param array<string,string> $args        Redirect query args.
+         */
+        $should_exit = (bool) apply_filters( 'oras_tickets_qbo_exit_after_redirect', true, $url, $args );
+        if ( $should_exit ) {
+            exit;
+        }
     }
 
     /**

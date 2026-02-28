@@ -45,6 +45,12 @@ jobs:
           ORAS_WP_ENV_CMD: npx --yes @wordpress/env
         run: bash scripts/run-phase5-integration-checks.sh
 
+      - name: Run QBO integration checks
+        env:
+          ORAS_WP_ENV_DIR: .
+          ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+        run: bash scripts/run-qbo-integration-checks.sh
+
       - name: Stop wp-env
         if: always()
         run: npx --yes @wordpress/env stop || true

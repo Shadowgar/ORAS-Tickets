@@ -63,6 +63,7 @@ Supporting source:
     - authorization-code token exchange `invalid_grant` emits labeled `Auth Error Grant`.
   - CSRF failures:
     - callback state missing/mismatch emits labeled `CSRF Error` and blocks exchange.
+  - Deterministic callback guard verification script covers missing-state/missing-grant/state-failed/state-owner-mismatch branches.
 
 8. API error and troubleshooting observability
 - Requirement: app should handle API fault classes and preserve support trace identifiers.
@@ -100,3 +101,4 @@ These must be managed by deployment/ops:
 - `wp eval-file scripts/qbo-safety-controls-tests.php`
 - `wp eval-file scripts/qbo-reconciliation-tests.php`
 - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
+- `wp eval-file scripts/qbo-oauth-callback-tests.php`

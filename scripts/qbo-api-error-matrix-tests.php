@@ -5,6 +5,17 @@ if ( ! defined( 'ABSPATH' ) ) {
     return;
 }
 
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    add_filter(
+        'pre_wp_mail',
+        static function ( $short_circuit, $atts ) {
+            return true;
+        },
+        10,
+        2
+    );
+}
+
 if ( ! class_exists( '\\ORAS\\Tickets\\Integrations\\QuickBooks\\Api_Client' ) ) {
     throw new RuntimeException( 'QuickBooks Api_Client class is not loaded.' );
 }
