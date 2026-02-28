@@ -36,6 +36,11 @@ echo "Using wp-env command: $WP_ENV_CMD"
 		bash -lc "$WP_ENV_CMD start"
 	fi
 
+	if ! bash -lc "$WP_ENV_CMD run cli wp eval 'exit( class_exists( \"Tribe__Events__Main\" ) ? 0 : 1 );'" >/dev/null 2>&1; then
+		echo "Installing The Events Calendar for ticket integration checks..."
+		bash -lc "$WP_ENV_CMD run cli wp plugin install the-events-calendar --activate"
+	fi
+
 	if ! bash -lc "$WP_ENV_CMD run cli wp plugin is-installed woocommerce >/dev/null 2>&1"; then
 		echo "Installing WooCommerce for ticket integration checks..."
 		bash -lc "$WP_ENV_CMD run cli wp plugin install woocommerce --activate"
