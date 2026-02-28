@@ -130,4 +130,60 @@ oras_qbo_assert_equals(
     ''
 );
 
+$qbo_defaults = \ORAS\Tickets\Integrations\QuickBooks\Settings::get_quickbooks_defaults();
+oras_qbo_assert_equals(
+    'donation slugs default',
+    (string) $qbo_defaults['donation_category_slugs'],
+    'donation,donations,give,giving'
+);
+oras_qbo_assert_equals(
+    'printful slugs default',
+    (string) $qbo_defaults['printful_category_slugs'],
+    'printful,pod'
+);
+
+$split_calculator = new \ORAS\Tickets\Integrations\QuickBooks\Split_Calculator();
+$resolve_method   = new ReflectionMethod( \ORAS\Tickets\Integrations\QuickBooks\Split_Calculator::class, 'resolve_account_id' );
+$resolve_method->setAccessible( true );
+$donation_account = $resolve_method->invoke(
+    $split_calculator,
+    array(
+        'type'       => 'donation',
+        'bucket_key' => 'donation',
+    ),
+    array(),
+    array(
+        'donations_account_id' => '3010',
+    )
+);
+oras_qbo_assert_equals( 'donation account routing', (string) $donation_account, '3010' );
+
+$printful_account = $resolve_method->invoke(
+    $split_calculator,
+    array(
+        'type'       => 'printful',
+        'bucket_key' => 'printful',
+    ),
+    array(),
+    array(
+        'printful_account_id'    => '3042',
+        'merchandise_account_id' => '3040',
+    )
+);
+oras_qbo_assert_equals( 'printful account routing', (string) $printful_account, '3042' );
+
+$printful_fallback_account = $resolve_method->invoke(
+    $split_calculator,
+    array(
+        'type'       => 'printful',
+        'bucket_key' => 'printful',
+    ),
+    array(),
+    array(
+        'printful_account_id'    => '',
+        'merchandise_account_id' => '3040',
+    )
+);
+oras_qbo_assert_equals( 'printful account fallback to merchandise', (string) $printful_fallback_account, '3040' );
+
 echo "QBO split calculator tests passed.\n";

@@ -312,6 +312,29 @@ final class Settings_Page
         );
 
         add_settings_field(
+            'quickbooks_printful_account_id',
+            __('Printful Account', 'oras-tickets'),
+            array(self::class, 'render_account_select_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.printful_account_id',
+                'help'  => __('Optional. If blank, Printful sales fall back to Merchandise Account.', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_donations_account_id',
+            __('Donations Account', 'oras-tickets'),
+            array(self::class, 'render_account_select_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.donations_account_id',
+            )
+        );
+
+        add_settings_field(
             'quickbooks_unmapped_account_id',
             __('Fallback Unmapped Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
@@ -343,6 +366,30 @@ final class Settings_Page
             array(
                 'field'       => 'quickbooks.merch_category_slugs',
                 'placeholder' => 'merch,merchandise,shirt,shirts,apparel',
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_printful_category_slugs',
+            __('Printful Category Slugs', 'oras-tickets'),
+            array(self::class, 'render_text_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field'       => 'quickbooks.printful_category_slugs',
+                'placeholder' => 'printful,pod',
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_donation_category_slugs',
+            __('Donation Category Slugs', 'oras-tickets'),
+            array(self::class, 'render_text_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field'       => 'quickbooks.donation_category_slugs',
+                'placeholder' => 'donation,donations,give,giving',
             )
         );
 
@@ -409,10 +456,14 @@ final class Settings_Page
                 'tickets_default_account_id' => sanitize_text_field( (string) ( $input_qbo['tickets_default_account_id'] ?? '' ) ),
                 'observer_account_id'        => sanitize_text_field( (string) ( $input_qbo['observer_account_id'] ?? '' ) ),
                 'merchandise_account_id'     => sanitize_text_field( (string) ( $input_qbo['merchandise_account_id'] ?? '' ) ),
+                'printful_account_id'        => sanitize_text_field( (string) ( $input_qbo['printful_account_id'] ?? '' ) ),
+                'donations_account_id'       => sanitize_text_field( (string) ( $input_qbo['donations_account_id'] ?? '' ) ),
                 'unmapped_account_id'        => sanitize_text_field( (string) ( $input_qbo['unmapped_account_id'] ?? '' ) ),
                 'discount_mode'              => 'proportional',
                 'observer_category_slugs'    => sanitize_text_field( (string) ( $input_qbo['observer_category_slugs'] ?? $defaults_qbo['observer_category_slugs'] ) ),
                 'merch_category_slugs'       => sanitize_text_field( (string) ( $input_qbo['merch_category_slugs'] ?? $defaults_qbo['merch_category_slugs'] ) ),
+                'printful_category_slugs'    => sanitize_text_field( (string) ( $input_qbo['printful_category_slugs'] ?? $defaults_qbo['printful_category_slugs'] ) ),
+                'donation_category_slugs'    => sanitize_text_field( (string) ( $input_qbo['donation_category_slugs'] ?? $defaults_qbo['donation_category_slugs'] ) ),
                 'event_account_map'          => sanitize_textarea_field( (string) ( $input_qbo['event_account_map'] ?? ( $current_qbo['event_account_map'] ?? '' ) ) ),
                 'account_cache'              => self::sanitize_account_cache( $input_qbo['account_cache'] ?? ( $current_qbo['account_cache'] ?? array() ) ),
                 'last_error'                 => isset( $input_qbo['last_error'] ) ? (string) $input_qbo['last_error'] : (string) ( $current_qbo['last_error'] ?? '' ),
@@ -459,10 +510,14 @@ final class Settings_Page
                 'tickets_default_account_id' => '',
                 'observer_account_id'        => '',
                 'merchandise_account_id'     => '',
+                'printful_account_id'        => '',
+                'donations_account_id'       => '',
                 'unmapped_account_id'        => '',
                 'discount_mode'              => 'proportional',
                 'observer_category_slugs'    => 'observer-pass,observer-passes',
                 'merch_category_slugs'       => 'merch,merchandise,shirt,shirts,apparel',
+                'printful_category_slugs'    => 'printful,pod',
+                'donation_category_slugs'    => 'donation,donations,give,giving',
                 'event_account_map'          => '',
                 'account_cache'              => array(),
                 'last_error'                 => '',

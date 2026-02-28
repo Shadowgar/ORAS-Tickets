@@ -29,6 +29,8 @@ final class Split_Calculator {
         $event_account_map = Settings::parse_event_account_map( (string) ( $qbo_settings['event_account_map'] ?? '' ) );
         $observer_slugs    = Settings::parse_slug_list( (string) ( $qbo_settings['observer_category_slugs'] ?? '' ) );
         $merch_slugs       = Settings::parse_slug_list( (string) ( $qbo_settings['merch_category_slugs'] ?? '' ) );
+        $printful_slugs    = Settings::parse_slug_list( (string) ( $qbo_settings['printful_category_slugs'] ?? '' ) );
+        $donation_slugs    = Settings::parse_slug_list( (string) ( $qbo_settings['donation_category_slugs'] ?? '' ) );
 
         $classified_rows = array();
         $warnings        = array();
@@ -50,7 +52,7 @@ final class Split_Calculator {
                 continue;
             }
 
-            $classification = $this->classify_item( $item, $observer_slugs, $merch_slugs );
+            $classification = $this->classify_item( $item, $observer_slugs, $merch_slugs, $printful_slugs, $donation_slugs );
             $bucket_key     = (string) $classification['bucket_key'];
             $bucket_label   = (string) $classification['bucket_label'];
             $account_id     = $this->resolve_account_id( $classification, $event_account_map, $qbo_settings );
@@ -176,9 +178,11 @@ final class Split_Calculator {
      * @param \WC_Order_Item_Product $item
      * @param string[] $observer_slugs
      * @param string[] $merch_slugs
+     * @param string[] $printful_slugs
+     * @param string[] $donation_slugs
      * @return array<string,string>
      */
-    private function classify_item( $item, array $observer_slugs, array $merch_slugs ): array {
+    private function classify_item( $item, array $observer_slugs, array $merch_slugs, array $printful_slugs, array $donation_slugs ): array {
         $event_id    = (int) $item->get_meta( '_oras_ticket_event_id', true );
         $ticket_name = trim( (string) $item->get_meta( '_oras_ticket_name', true ) );
 
@@ -215,6 +219,22 @@ final class Split_Calculator {
             );
         }
 
+        if ( $bucket_meta === 'donation' || $bucket_meta === 'donations' ) {
+            return array(
+                'type'         => 'donation',
+                'bucket_key'   => 'donation',
+                'bucket_label' => 'Donations Income',
+            );
+        }
+
+        if ( $bucket_meta === 'printful' || $bucket_meta === 'pod' ) {
+            return array(
+                'type'         => 'printful',
+                'bucket_key'   => 'printful',
+                'bucket_label' => 'Printful Merchandise Income',
+            );
+        }
+
         if ( $bucket_meta === 'merchandise' || $bucket_meta === 'merch' ) {
             return array(
                 'type'         => 'merchandise',
@@ -240,6 +260,22 @@ final class Split_Calculator {
                 'type'         => 'observer_pass',
                 'bucket_key'   => 'observer_pass',
                 'bucket_label' => 'Observer Pass Income',
+            );
+        }
+
+        if ( ! empty( array_intersect( $product_slugs, $donation_slugs ) ) ) {
+            return array(
+                'type'         => 'donation',
+                'bucket_key'   => 'donation',
+                'bucket_label' => 'Donations Income',
+            );
+        }
+
+        if ( ! empty( array_intersect( $product_slugs, $printful_slugs ) ) ) {
+            return array(
+                'type'         => 'printful',
+                'bucket_key'   => 'printful',
+                'bucket_label' => 'Printful Merchandise Income',
             );
         }
 
@@ -282,6 +318,19 @@ final class Split_Calculator {
         }
 
         if ( $type === 'merchandise' ) {
+            return (string) ( $qbo_settings['merchandise_account_id'] ?? '' );
+        }
+
+        if ( $type === 'donation' ) {
+            return (string) ( $qbo_settings['donations_account_id'] ?? '' );
+        }
+
+        if ( $type === 'printful' ) {
+            $printful = (string) ( $qbo_settings['printful_account_id'] ?? '' );
+            if ( $printful !== '' ) {
+                return $printful;
+            }
+
             return (string) ( $qbo_settings['merchandise_account_id'] ?? '' );
         }
 
