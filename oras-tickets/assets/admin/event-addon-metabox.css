@@ -192,15 +192,32 @@
 
 #oras-events-addon .oras-agenda-speaker-row,
 #oras-events-addon .oras-agenda-resource-row {
+	margin: 6px 0;
 	padding: var(--oras-space-2);
 	border: 1px solid var(--oras-border-soft);
 	border-radius: 4px;
 	background: #fff;
 }
 
+#oras-events-addon .oras-agenda-group {
+	margin-top: var(--oras-space-1);
+}
+
+#oras-events-addon .oras-agenda-group__rows {
+	margin-top: 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
 #oras-events-addon .oras-agenda-resource-row p,
 #oras-events-addon .oras-agenda-speaker-row p {
 	margin: 0 0 var(--oras-space-1);
+}
+
+#oras-events-addon .oras-agenda-stack-input,
+#oras-events-addon .oras-agenda-stack-action {
+	margin-top: 6px;
 }
 
 #oras-events-addon #oras-rsvp-metabox {

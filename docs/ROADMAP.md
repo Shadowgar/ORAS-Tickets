@@ -1,6 +1,6 @@
 # ORAS-Tickets Roadmap (Execution-Aligned)
 
-Last updated: 2026-02-25
+Last updated: 2026-02-28
 
 This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execution tracker in `docs/MASTER_EXECUTION_TRACKER.md`.
 
@@ -13,7 +13,14 @@ This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execut
 6. Phase 7-12: Speaker intelligence expansion, virtual/hybrid depth, member expansion (including board dashboard), financial intelligence, discovery UX, and automation.
 
 ## Current Gate
-The project remains in **stabilize-and-refine mode** before Phase 6+ development (Phase 5 depth largely complete, final polish/soak pending).
+The project remains in **stabilize-and-refine mode** before Phase 6+ development (Phase 5 depth largely complete, final polish/soak pending). QuickBooks Phase 5.3 implementation is in pre-live validation pending Intuit production app approval.
+
+Compliance note:
+- Phase 5.3 closeout must include documented alignment and evidence for:
+  - PCI Security Standards baseline controls (environment + process level):
+    - https://www.pcisecuritystandards.org/
+  - Intuit OAuth/OpenID discovery requirements:
+    - https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-openid-discovery-doc
 
 ## Closure Criteria for Phase 5
 - Waitlist architecture depth reaches master-plan expectations. (Implemented 2026-02-25)

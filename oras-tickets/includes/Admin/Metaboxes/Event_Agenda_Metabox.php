@@ -173,9 +173,9 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                         <td><input type="text" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][title]" value="<?php echo esc_attr($title); ?>" /></td>
                                         <td>
                                             <textarea class="widefat" rows="2" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][desc]"><?php echo esc_textarea($desc); ?></textarea>
-                                            <div class="oras-agenda-speakers" style="margin-top:8px;">
+                                            <div class="oras-agenda-speakers oras-agenda-group">
                                                 <strong><?php echo esc_html__('Speakers', 'oras-tickets'); ?></strong>
-                                                <div class="oras-agenda-speakers-rows" style="margin-top:6px;">
+                                                <div class="oras-agenda-speakers-rows oras-agenda-group__rows">
                                                     <?php foreach ($slot_speakers as $speaker_index => $speaker_row) : ?>
                                                         <?php
                                                         if (! is_array($speaker_row)) {
@@ -185,23 +185,23 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                         $speaker_label = isset($speaker_row['label']) ? (string) $speaker_row['label'] : '';
                                                         $speaker_role  = isset($speaker_row['role']) ? (string) $speaker_row['role'] : '';
                                                         ?>
-                                                        <div class="oras-agenda-speaker-row" data-speaker-index="<?php echo esc_attr((string) $speaker_index); ?>" style="margin:6px 0;padding:6px;border:1px solid #ddd;">
+                                                        <div class="oras-agenda-speaker-row" data-speaker-index="<?php echo esc_attr((string) $speaker_index); ?>">
                                                             <select class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][speakers][<?php echo esc_attr((string) $speaker_index); ?>][speaker_id]">
                                                                 <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 ?>
                                                                 <?php echo self::render_speaker_options($available_speakers, $speaker_id); ?>
                                                             </select>
-                                                            <input type="text" class="widefat" style="margin-top:6px;" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][speakers][<?php echo esc_attr((string) $speaker_index); ?>][label]" value="<?php echo esc_attr($speaker_label); ?>" placeholder="<?php echo esc_attr__('Label override', 'oras-tickets'); ?>" />
-                                                            <input type="text" class="widefat" style="margin-top:6px;" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][speakers][<?php echo esc_attr((string) $speaker_index); ?>][role]" value="<?php echo esc_attr($speaker_role); ?>" placeholder="<?php echo esc_attr__('Role', 'oras-tickets'); ?>" />
-                                                            <button type="button" class="button oras-agenda-remove-speaker" style="margin-top:6px;"><?php echo esc_html__('Remove Speaker', 'oras-tickets'); ?></button>
+                                                            <input type="text" class="widefat oras-agenda-stack-input" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][speakers][<?php echo esc_attr((string) $speaker_index); ?>][label]" value="<?php echo esc_attr($speaker_label); ?>" placeholder="<?php echo esc_attr__('Label override', 'oras-tickets'); ?>" />
+                                                            <input type="text" class="widefat oras-agenda-stack-input" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][speakers][<?php echo esc_attr((string) $speaker_index); ?>][role]" value="<?php echo esc_attr($speaker_role); ?>" placeholder="<?php echo esc_attr__('Role', 'oras-tickets'); ?>" />
+                                                            <button type="button" class="button oras-agenda-remove-speaker oras-agenda-stack-action"><?php echo esc_html__('Remove Speaker', 'oras-tickets'); ?></button>
                                                         </div>
                                                     <?php endforeach; ?>
                                                 </div>
-                                                <button type="button" class="button oras-agenda-add-speaker" style="margin-top:6px;"><?php echo esc_html__('Add Speaker', 'oras-tickets'); ?></button>
+                                                <button type="button" class="button oras-agenda-add-speaker oras-agenda-stack-action"><?php echo esc_html__('Add Speaker', 'oras-tickets'); ?></button>
                                             </div>
-                                            <div class="oras-agenda-resources" style="margin-top:8px;">
+                                            <div class="oras-agenda-resources oras-agenda-group">
                                                 <strong><?php echo esc_html__('Resources', 'oras-tickets'); ?></strong>
-                                                <div class="oras-agenda-resources-rows" style="margin-top:6px;">
+                                                <div class="oras-agenda-resources-rows oras-agenda-group__rows">
                                                     <?php
                                                     $slot_resources = isset($slot['resources']) && is_array($slot['resources']) ? $slot['resources'] : array();
                                                     foreach ($slot_resources as $resource_index => $resource) :
@@ -222,7 +222,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                             }
                                                         }
                                                     ?>
-                                                        <div class="oras-agenda-resource-row" data-resource-index="<?php echo esc_attr((string) $resource_index); ?>" style="margin:6px 0;padding:6px;border:1px solid #ddd;">
+                                                        <div class="oras-agenda-resource-row" data-resource-index="<?php echo esc_attr((string) $resource_index); ?>">
                                                             <p>
                                                                 <span class="oras-field-label"><?php echo esc_html__('File', 'oras-tickets'); ?></span><br />
                                                                 <input type="hidden" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][resources][<?php echo esc_attr((string) $resource_index); ?>][attachment_id]" value="<?php echo esc_attr((string) $attachment_id); ?>" />
@@ -261,11 +261,11 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                                     <?php endforeach; ?>
                                                                 </select>
                                                             </p>
-                                                            <button type="button" class="button oras-agenda-remove-resource" style="margin-top:6px;"><?php echo esc_html__('Remove Resource', 'oras-tickets'); ?></button>
+                                                            <button type="button" class="button oras-agenda-remove-resource oras-agenda-stack-action"><?php echo esc_html__('Remove Resource', 'oras-tickets'); ?></button>
                                                         </div>
                                                     <?php endforeach; ?>
                                                 </div>
-                                                <button type="button" class="button oras-agenda-add-resource" style="margin-top:6px;"><?php echo esc_html__('Add Resource', 'oras-tickets'); ?></button>
+                                                <button type="button" class="button oras-agenda-add-resource oras-agenda-stack-action"><?php echo esc_html__('Add Resource', 'oras-tickets'); ?></button>
                                             </div>
                                         </td>
                                         <td>
@@ -333,15 +333,15 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         '<td><input type="text" class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][title]" value="" /></td>' +
                         '<td>' +
                         '<textarea class="widefat" rows="2" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][desc]"></textarea>' +
-                        '<div class="oras-agenda-speakers" style="margin-top:8px;">' +
+                        '<div class="oras-agenda-speakers oras-agenda-group">' +
                         '<strong><?php echo esc_js(__('Speakers', 'oras-tickets')); ?></strong>' +
-                        '<div class="oras-agenda-speakers-rows" style="margin-top:6px;"></div>' +
-                        '<button type="button" class="button oras-agenda-add-speaker" style="margin-top:6px;"><?php echo esc_js(__('Add Speaker', 'oras-tickets')); ?></button>' +
+                        '<div class="oras-agenda-speakers-rows oras-agenda-group__rows"></div>' +
+                        '<button type="button" class="button oras-agenda-add-speaker oras-agenda-stack-action"><?php echo esc_js(__('Add Speaker', 'oras-tickets')); ?></button>' +
                         '</div>' +
-                        '<div class="oras-agenda-resources" style="margin-top:8px;">' +
+                        '<div class="oras-agenda-resources oras-agenda-group">' +
                         '<strong><?php echo esc_js(__('Resources', 'oras-tickets')); ?></strong>' +
-                        '<div class="oras-agenda-resources-rows" style="margin-top:6px;"></div>' +
-                        '<button type="button" class="button oras-agenda-add-resource" style="margin-top:6px;"><?php echo esc_js(__('Add Resource', 'oras-tickets')); ?></button>' +
+                        '<div class="oras-agenda-resources-rows oras-agenda-group__rows"></div>' +
+                        '<button type="button" class="button oras-agenda-add-resource oras-agenda-stack-action"><?php echo esc_js(__('Add Resource', 'oras-tickets')); ?></button>' +
                         '</div>' +
                         '</td>' +
                         '<td><select class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][type]">' + options(types) + '</select></td>' +
@@ -356,17 +356,17 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
 
                 function speakerRowHtml(dayIndex, slotIndex, speakerIndex) {
                     return '' +
-                        '<div class="oras-agenda-speaker-row" data-speaker-index="' + speakerIndex + '" style="margin:6px 0;padding:6px;border:1px solid #ddd;">' +
+                        '<div class="oras-agenda-speaker-row" data-speaker-index="' + speakerIndex + '">' +
                         '<select class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][speakers][' + speakerIndex + '][speaker_id]">' + speakerOptionsHtml + '</select>' +
-                        '<input type="text" class="widefat" style="margin-top:6px;" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][speakers][' + speakerIndex + '][label]" value="" placeholder="<?php echo esc_js(__('Label override', 'oras-tickets')); ?>" />' +
-                        '<input type="text" class="widefat" style="margin-top:6px;" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][speakers][' + speakerIndex + '][role]" value="" placeholder="<?php echo esc_js(__('Role', 'oras-tickets')); ?>" />' +
-                        '<button type="button" class="button oras-agenda-remove-speaker" style="margin-top:6px;"><?php echo esc_js(__('Remove Speaker', 'oras-tickets')); ?></button>' +
+                        '<input type="text" class="widefat oras-agenda-stack-input" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][speakers][' + speakerIndex + '][label]" value="" placeholder="<?php echo esc_js(__('Label override', 'oras-tickets')); ?>" />' +
+                        '<input type="text" class="widefat oras-agenda-stack-input" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][speakers][' + speakerIndex + '][role]" value="" placeholder="<?php echo esc_js(__('Role', 'oras-tickets')); ?>" />' +
+                        '<button type="button" class="button oras-agenda-remove-speaker oras-agenda-stack-action"><?php echo esc_js(__('Remove Speaker', 'oras-tickets')); ?></button>' +
                         '</div>';
                 }
 
                 function resourceRowHtml(dayIndex, slotIndex, resourceIndex) {
                     return '' +
-                        '<div class="oras-agenda-resource-row" data-resource-index="' + resourceIndex + '" style="margin:6px 0;padding:6px;border:1px solid #ddd;">' +
+                        '<div class="oras-agenda-resource-row" data-resource-index="' + resourceIndex + '">' +
                         '<p><span class="oras-field-label"><?php echo esc_js(__('File', 'oras-tickets')); ?></span><br />' +
                         '<input type="hidden" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][resources][' + resourceIndex + '][attachment_id]" value="" />' +
                         '<button type="button" class="button oras-agenda-select-file"><?php echo esc_js(__('Select File', 'oras-tickets')); ?></button>' +
@@ -389,7 +389,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         '</select></p>' +
                         '<p><span class="oras-field-label"><?php echo esc_js(__('Associated Speakers', 'oras-tickets')); ?></span><br />' +
                         '<select multiple class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][resources][' + resourceIndex + '][speaker_ids][]">' + speakerOptionsHtml + '</select></p>' +
-                        '<button type="button" class="button oras-agenda-remove-resource" style="margin-top:6px;"><?php echo esc_js(__('Remove Resource', 'oras-tickets')); ?></button>' +
+                        '<button type="button" class="button oras-agenda-remove-resource oras-agenda-stack-action"><?php echo esc_js(__('Remove Resource', 'oras-tickets')); ?></button>' +
                         '</div>';
                 }
 

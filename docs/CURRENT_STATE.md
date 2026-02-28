@@ -1,6 +1,6 @@
 # CURRENT_STATE — Operational Snapshot
 
-Last updated: 2026-02-25
+Last updated: 2026-02-28
 
 ## Authoritative Status
 For phase percentages and advancement rules, use:
@@ -35,9 +35,62 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - Phase 5 integration checks expanded with explicit on-hold attendee regression coverage.
 - Static analysis restored to green.
 
+## What Was Fixed (2026-02-28)
+- Phase 4 visual polish pass completed for agenda/speaker/admin surfaces:
+  - removed temporary inline agenda CSS injection and moved final styles to tokenized stylesheet rules,
+  - replaced temporary dark-mode overrides with production-ready CSS tokens keyed to WP Dark Mode state (`html[data-wp-dark-mode-active]` / loading),
+  - removed inline speaker template styles and moved them to dedicated frontend stylesheet (`assets/css/speaker.css`),
+  - removed inline style attributes in Event Agenda admin metabox rows/templates and switched to class-based admin CSS hooks.
+- Frontend dark-mode readability hardening for ticketing/RSVP surfaces:
+  - converted ticket and RSVP frontend colors in `assets/css/tickets-frontend.css` to tokenized variables with explicit light and dark-mode values,
+  - added WP Dark Mode-compatible dark selectors for ticket status/phase/countdown badges and RSVP notices/surface,
+  - removed inline RSVP badge color styles from `Event_RSVP` so badge contrast now tracks mode changes.
+- QuickBooks admin/OAuth reliability hardening:
+  - dedicated QuickBooks settings surface with connection indicator,
+  - OAuth redirect/state/callback reliability fixes,
+  - token persistence/sanitization fixes,
+  - Test JournalEntry payload length fix for QBO constraints.
+- QuickBooks security hardening:
+  - encrypted-at-rest storage handling for sensitive OAuth fields,
+  - production OAuth guardrails (HTTPS redirect URI + explicit encryption key constant),
+  - reduced sensitive error logging detail,
+  - labeled auth/CSRF handling paths for audit scenarios:
+    - `Auth Error Access`
+    - `Auth Error Refresh`
+    - `Auth Error Grant`
+    - `CSRF Error`.
+- QuickBooks split classification expansion:
+  - event-series mapping fallback (`slug-...`),
+  - dedicated donations routing (`Donations Account` + category slugs),
+  - dedicated printful routing (`Printful Account` + category slugs, with fallback to Merchandise Account).
+- QuickBooks data-safety hardening:
+  - added sync-mode controls with safe defaults:
+    - `Dry Run Mode` (default on),
+    - `Require Manual Approval` (default on),
+    - `Strict Mapping Mode` (default on),
+    - `Allow Unmapped Fallback` (default off),
+  - added fail-closed queue/sync behavior for safeguard violations,
+  - added manual approval queue status (`pending_qbo_review`),
+  - added duplicate lookup by deterministic `DocNumber` before live writes,
+  - added append-only order audit trail entries (`_oras_qbo_audit_entry`),
+  - added reversal workflow support (dry-run and live) with reversal JE metadata,
+  - added stricter retry policy (retry only transient transport/http faults, no retry for validation/mapping/auth-grant failures).
+- QuickBooks split regression script expanded to cover:
+  - event-series slug fallback,
+  - donations defaults/routing,
+  - printful defaults/routing/fallback.
+- Added QuickBooks safety-control integration script:
+  - `scripts/qbo-safety-controls-tests.php`
+  - validates manual approval gate, dry-run no-write behavior, strict mapping block, and reversal dry-run path.
+- Added QuickBooks reconciliation reporting and verification tooling:
+  - WP-CLI: `wp oras-tickets qbo reconcile-report ...`
+  - script: `scripts/qbo-reconciliation-tests.php`.
+- Added QuickBooks API error-matrix integration script:
+  - `scripts/qbo-api-error-matrix-tests.php`
+  - validates validation/syntax API faults, retriable HTTP fault classification (`429`/`5xx`), invalid JSON handling, transport failure metadata, 401 refresh retry path, refresh `invalid_grant` path, and `intuit_tid` propagation.
+
 ## Remaining Gaps Before Phase 6+
-1. Visual consistency/polish work remains for agenda/speaker/frontend quality.
-2. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
+1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
 
 ## Approved Upcoming Scope (Post-Gate)
 - Board Member Dashboard has been approved for the master plan.
@@ -45,11 +98,11 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - Build remains gated behind current Phase 5 closure requirements.
 
 ## Phase 5.3 Proposal — QuickBooks Revenue Split Sync (Woo Orders)
-Status: planned and gated behind current Phase 5 closure tasks.
+Status: implemented in plugin and currently in pre-live validation mode (live connector verification pending Intuit production app approval).
 
 Goals:
-- Create one QuickBooks JournalEntry per paid Woo order (`processing`/`completed`).
-- Split Woo revenue into mapped income accounts by event/category (ticket event, observer pass, merchandise, fallback).
+- Create one QuickBooks JournalEntry per eligible Woo order (`completed` only, cutoff-date gated, never previously synced).
+- Split Woo revenue into mapped income accounts by event/category (ticket event, observer pass, merchandise, printful, donations, fallback).
 - Keep Stripe connector enabled while moving Woo revenue from a configurable clearing account into specific income accounts.
 - Guarantee idempotency using order meta keys: `_oras_qbo_je_id`, `_oras_qbo_je_hash`, `_oras_qbo_sync_status`.
 
@@ -63,25 +116,47 @@ Architecture:
 - Components: OAuth client, API wrapper, split calculator, JournalEntry creator, sync orchestrator, retry handler, logger, WP-CLI command.
 - Async execution: Action Scheduler when available, `wp_schedule_single_event` fallback.
 - Admin controls: ORAS Tickets Settings page fields and actions for enable/connect/map/test.
+- Write safety model:
+  - manual approval queue before write,
+  - dry-run payload generation mode (no QBO writes),
+  - strict mapping fail-closed behavior,
+  - remote duplicate check by `DocNumber`,
+  - append-only order-level audit metadata,
+  - reversal JE command/admin action for recovery.
 
 Testing strategy:
 - WP-CLI quick checks:
   - `wp oras-tickets qbo test-connection`
+  - `wp oras-tickets qbo preview-order <order_id> [--format=json]`
   - `wp oras-tickets qbo sync-order <order_id>`
+  - `wp oras-tickets qbo reconcile-report --from=<YYYY-MM-DD> --to=<YYYY-MM-DD> [--format=table|json] [--limit=<n>]`
   - `wp oras-tickets qbo retry-failed`
 - Split calculator unit-style script:
   - `wp eval-file scripts/qbo-split-calculator-tests.php`
+- Safety controls script:
+  - `wp eval-file scripts/qbo-safety-controls-tests.php`
+- Reconciliation integration script:
+  - `wp eval-file scripts/qbo-reconciliation-tests.php`
+- API error matrix script:
+  - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
 - Manual scenarios:
-  - ticket-only, merch-only, observer-only, mixed cart, coupon/discount, multi-quantity, and failure/retry path.
+  - ticket-only, merch-only, observer-only, printful-only, donation-only, mixed cart, coupon/discount, multi-quantity, and failure/retry path.
 
 Risk analysis:
 - Duplicate accounting risk if clearing account is mapped incorrectly in QBO.
 - Misclassification risk when product categories/meta are inconsistent.
 - OAuth token expiry/rotation risk (mitigated by refresh logic and retry flow).
 - Network/API reliability risk (mitigated by queue + retry + sync status metadata).
+- Live validation dependency risk: production coexistence test with Stripe connector is blocked until Intuit production app approval.
+- Operational key-management risk: production requires secure provisioning/rotation of `ORAS_TICKETS_QBO_AES_KEY` in server config.
+- Compliance risk: production acceptance can fail if PCI/Intuit audit evidence is incomplete.
 
 ## Required Next Closure Conditions
 - Maintain and extend WP-CLI integration checks as remaining Phase 5 queue/audit features land.
-- Complete Phase 4 visual quality pass.
 - Complete operator soak + UX micro-polish for waitlist queue/history actions.
 - Re-run lint/static checks and update docs in same change set.
+- Add and maintain a compliance checklist + evidence pack for:
+  - PCI Security Standards baseline controls relevant to current architecture:
+    - https://www.pcisecuritystandards.org/
+  - Intuit OAuth/OpenID discovery requirements:
+    - https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-openid-discovery-doc

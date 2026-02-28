@@ -1,9 +1,18 @@
-html.oras-dark-on .oras-agenda__timeline::before {
-    background-color: #00ff00 !important;
-    box-shadow: 0 0 5px #00ff00 !important;
-}
-
-html.oras-dark-on .oras-agenda__item::before {
-    background-color: #00ff00 !important;
-    box-shadow: 0 0 5px #00ff00 !important;
+html[data-wp-dark-mode-active] .oras-agenda,
+html[data-wp-dark-mode-loading] .oras-agenda,
+html.oras-dark-on .oras-agenda {
+	--oras-agenda-text: var(--wpdm-text-color, rgba(232, 230, 227, 0.92));
+	--oras-agenda-muted: rgba(232, 230, 227, 0.68);
+	--oras-agenda-strong: rgba(255, 255, 255, 0.96);
+	--oras-agenda-line: rgba(255, 255, 255, 0.22);
+	--oras-agenda-tab-selected-bg: rgba(255, 255, 255, 0.1);
+	--oras-agenda-pill-bg: rgba(255, 255, 255, 0.1);
+	--oras-agenda-pill-border: rgba(255, 255, 255, 0.2);
+	--oras-agenda-pill-text: rgba(255, 255, 255, 0.86);
+	--oras-agenda-now-bg: rgba(255, 255, 255, 0.14);
+	--oras-agenda-modal-surface: #1f2328;
+	--oras-agenda-modal-border: rgba(255, 255, 255, 0.16);
+	--oras-agenda-modal-link-bg: rgba(255, 255, 255, 0.1);
+	--oras-agenda-modal-link-hover-bg: rgba(255, 255, 255, 0.2);
+	--oras-agenda-modal-overlay: rgba(0, 0, 0, 0.7);
 }

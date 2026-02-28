@@ -1,3 +1,39 @@
+.oras-tickets-display,
+.oras-rsvp-block {
+	--oras-ticket-text: #2b2f33;
+	--oras-ticket-muted: #555;
+	--oras-ticket-phase-bg: #e8f2ff;
+	--oras-ticket-phase-text: #1f4c7a;
+	--oras-ticket-countdown-bg: #fff3cd;
+	--oras-ticket-countdown-text: #7a5b00;
+	--oras-ticket-countdown-border: #f0d58c;
+	--oras-ticket-status-bg: #eef1f4;
+	--oras-ticket-status-text: #2b2f33;
+	--oras-ticket-status-on-sale-bg: #e7f6ec;
+	--oras-ticket-status-on-sale-text: #146b3a;
+	--oras-ticket-status-not-yet-bg: #fff3cd;
+	--oras-ticket-status-not-yet-text: #7a5b00;
+	--oras-ticket-status-ended-bg: #f1f3f5;
+	--oras-ticket-status-ended-text: #5c6570;
+	--oras-ticket-status-sold-out-bg: #fde2e1;
+	--oras-ticket-status-sold-out-text: #8f1d1d;
+	--oras-rsvp-surface: #ffffff;
+	--oras-rsvp-border: #e1e4e8;
+	--oras-rsvp-notice-success-bg: #e6f4ea;
+	--oras-rsvp-notice-success-text: #114b2b;
+	--oras-rsvp-notice-error-bg: #fdecea;
+	--oras-rsvp-notice-error-text: #7a1d1d;
+	--oras-rsvp-status-yes: #0b5132;
+	--oras-rsvp-badge-bg: #e6ffed;
+	--oras-rsvp-badge-border: #bdeccf;
+	--oras-rsvp-badge-text: #114b2b;
+}
+
+.oras-tickets-display,
+.oras-rsvp-block {
+	color: var(--oras-ticket-text);
+}
+
 .oras-tickets-table {
 	width: 100%;
 	table-layout: fixed;
@@ -22,7 +58,7 @@
 .oras-ticket-desc {
 	margin-top: 0.35em;
 	font-size: 0.9em;
-	color: #555;
+	color: var(--oras-ticket-muted);
 }
 
 .oras-ticket-phase {
@@ -33,8 +69,8 @@
 	font-size: 0.8em;
 	font-weight: 600;
 	letter-spacing: 0.01em;
-	background: #e8f2ff;
-	color: #1f4c7a;
+	background: var(--oras-ticket-phase-bg);
+	color: var(--oras-ticket-phase-text);
 }
 
 .oras-ticket-phase-countdown {
@@ -45,9 +81,9 @@
 	font-size: 0.9em;
 	font-weight: 700;
 	letter-spacing: 0.01em;
-	background: #fff3cd;
-	color: #7a5b00;
-	border: 1px solid #f0d58c;
+	background: var(--oras-ticket-countdown-bg);
+	color: var(--oras-ticket-countdown-text);
+	border: 1px solid var(--oras-ticket-countdown-border);
 }
 
 .oras-tickets-table th:nth-child(2),
@@ -77,8 +113,8 @@
 	font-size: 0.85em;
 	font-weight: 600;
 	line-height: 1.3;
-	background: #eef1f4;
-	color: #2b2f33;
+	background: var(--oras-ticket-status-bg);
+	color: var(--oras-ticket-status-text);
 	white-space: nowrap;
 }
 
@@ -89,23 +125,23 @@
 
 /* Status colors */
 .oras-status--on-sale {
-	background: #e7f6ec;
-	color: #146b3a;
+	background: var(--oras-ticket-status-on-sale-bg);
+	color: var(--oras-ticket-status-on-sale-text);
 }
 
 .oras-status--not-yet {
-	background: #fff3cd;
-	color: #7a5b00;
+	background: var(--oras-ticket-status-not-yet-bg);
+	color: var(--oras-ticket-status-not-yet-text);
 }
 
 .oras-status--ended {
-	background: #f1f3f5;
-	color: #5c6570;
+	background: var(--oras-ticket-status-ended-bg);
+	color: var(--oras-ticket-status-ended-text);
 }
 
 .oras-status--sold-out {
-	background: #fde2e1;
-	color: #8f1d1d;
+	background: var(--oras-ticket-status-sold-out-bg);
+	color: var(--oras-ticket-status-sold-out-text);
 }
 
 /* Qty input */
@@ -133,19 +169,19 @@
 /* Mobile */
 @media (max-width: 640px) {
 	.oras-tickets-display {
-	overflow-x: auto;
-	-webkit-overflow-scrolling: touch;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.oras-tickets-table {
-	min-width: 520px;
+		min-width: 520px;
 	}
 }
 
 /* RSVP block separation */
 .oras-rsvp-block {
-	border: 1px solid #e1e4e8;
-	background: #ffffff;
+	border: 1px solid var(--oras-rsvp-border);
+	background: var(--oras-rsvp-surface);
 	padding: 1em;
 	margin: 1.25em 0;
 	border-radius: 6px;
@@ -156,14 +192,64 @@
 	border-radius: 4px;
 }
 .oras-rsvp-notice-success {
-	background: #e6f4ea;
-	color: #114b2b;
+	background: var(--oras-rsvp-notice-success-bg);
+	color: var(--oras-rsvp-notice-success-text);
 }
 .oras-rsvp-notice-error {
-	background: #fdecea;
-	color: #7a1d1d;
+	background: var(--oras-rsvp-notice-error-bg);
+	color: var(--oras-rsvp-notice-error-text);
 }
 .oras-rsvp-status-yes {
 	font-size: 1.05em;
-	color: #0b5132;
+	color: var(--oras-rsvp-status-yes);
+}
+
+.oras-rsvp-badge {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	font-size: 90%;
+	border: 1px solid var(--oras-rsvp-badge-border);
+	background: var(--oras-rsvp-badge-bg);
+	color: var(--oras-rsvp-badge-text);
+}
+
+html[data-wp-dark-mode-active] .oras-tickets-display,
+html[data-wp-dark-mode-loading] .oras-tickets-display,
+html.wp-dark-mode-active .oras-tickets-display,
+body.wp-dark-mode-active .oras-tickets-display,
+html.oras-dark-on .oras-tickets-display,
+html[data-wp-dark-mode-active] .oras-rsvp-block,
+html[data-wp-dark-mode-loading] .oras-rsvp-block,
+html.wp-dark-mode-active .oras-rsvp-block,
+body.wp-dark-mode-active .oras-rsvp-block,
+html.oras-dark-on .oras-rsvp-block {
+	--oras-ticket-text: var(--wpdm-text-color, #e8e6e3);
+	--oras-ticket-muted: rgba(232, 230, 227, 0.74);
+	--oras-ticket-phase-bg: rgba(147, 197, 253, 0.2);
+	--oras-ticket-phase-text: #dbeafe;
+	--oras-ticket-countdown-bg: rgba(250, 204, 21, 0.2);
+	--oras-ticket-countdown-text: #fde68a;
+	--oras-ticket-countdown-border: rgba(250, 204, 21, 0.45);
+	--oras-ticket-status-bg: rgba(148, 163, 184, 0.22);
+	--oras-ticket-status-text: #e2e8f0;
+	--oras-ticket-status-on-sale-bg: rgba(74, 222, 128, 0.2);
+	--oras-ticket-status-on-sale-text: #86efac;
+	--oras-ticket-status-not-yet-bg: rgba(250, 204, 21, 0.2);
+	--oras-ticket-status-not-yet-text: #fde68a;
+	--oras-ticket-status-ended-bg: rgba(148, 163, 184, 0.24);
+	--oras-ticket-status-ended-text: #cbd5e1;
+	--oras-ticket-status-sold-out-bg: rgba(248, 113, 113, 0.2);
+	--oras-ticket-status-sold-out-text: #fca5a5;
+	--oras-rsvp-surface: rgba(15, 23, 42, 0.42);
+	--oras-rsvp-border: rgba(255, 255, 255, 0.2);
+	--oras-rsvp-notice-success-bg: rgba(74, 222, 128, 0.16);
+	--oras-rsvp-notice-success-text: #bbf7d0;
+	--oras-rsvp-notice-error-bg: rgba(248, 113, 113, 0.16);
+	--oras-rsvp-notice-error-text: #fecaca;
+	--oras-rsvp-status-yes: #86efac;
+	--oras-rsvp-badge-bg: rgba(74, 222, 128, 0.16);
+	--oras-rsvp-badge-border: rgba(74, 222, 128, 0.4);
+	--oras-rsvp-badge-text: #bbf7d0;
 }

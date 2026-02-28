@@ -217,6 +217,54 @@ final class Settings_Page
         );
 
         add_settings_field(
+            'quickbooks_dry_run_mode',
+            __('Dry Run Mode', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.dry_run_mode',
+                'label' => __('Preview only: calculate + validate payload but do not write JournalEntry to QuickBooks', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_require_manual_approval',
+            __('Require Manual Approval', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.require_manual_approval',
+                'label' => __('Queue completed orders for explicit approval before syncing to QuickBooks', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_strict_mapping_mode',
+            __('Strict Mapping Mode', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.strict_mapping_mode',
+                'label' => __('Fail closed when any line item cannot be mapped deterministically', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_allow_unmapped_fallback',
+            __('Allow Unmapped Fallback', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.allow_unmapped_fallback',
+                'label' => __('Allow fallback account for unmapped lines (disable for strictest data safety)', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
             'quickbooks_sandbox',
             __('Sandbox Mode', 'oras-tickets'),
             array(self::class, 'render_checkbox_field'),
@@ -263,6 +311,19 @@ final class Settings_Page
             array(
                 'field'       => 'quickbooks.realm_id',
                 'placeholder' => __('Populated after OAuth connection', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_sync_cutoff_date',
+            __('Sync Cutoff Date', 'oras-tickets'),
+            array(self::class, 'render_date_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field'       => 'quickbooks.sync_cutoff_date',
+                'help'        => __('Only completed orders created on/after this date can sync to QuickBooks. Prevents accidental historical sync.', 'oras-tickets'),
+                'placeholder' => 'YYYY-MM-DD',
             )
         );
 
@@ -443,6 +504,10 @@ final class Settings_Page
             ),
             'quickbooks'     => array(
                 'enabled'                    => $has_qbo ? ! empty( $input_qbo['enabled'] ) : ! empty( $current_qbo['enabled'] ),
+                'dry_run_mode'               => $has_qbo ? ! empty( $input_qbo['dry_run_mode'] ) : ! empty( $current_qbo['dry_run_mode'] ),
+                'require_manual_approval'    => $has_qbo ? ! empty( $input_qbo['require_manual_approval'] ) : ! empty( $current_qbo['require_manual_approval'] ),
+                'strict_mapping_mode'        => $has_qbo ? ! empty( $input_qbo['strict_mapping_mode'] ) : ! empty( $current_qbo['strict_mapping_mode'] ),
+                'allow_unmapped_fallback'    => $has_qbo ? ! empty( $input_qbo['allow_unmapped_fallback'] ) : ! empty( $current_qbo['allow_unmapped_fallback'] ),
                 'sandbox'                    => $has_qbo ? ! empty( $input_qbo['sandbox'] ) : ! empty( $current_qbo['sandbox'] ),
                 'client_id'                  => sanitize_text_field( (string) ( $input_qbo['client_id'] ?? '' ) ),
                 'client_secret'              => sanitize_text_field( $client_secret ),
@@ -452,6 +517,7 @@ final class Settings_Page
                 'token_expires_at'           => isset( $input_qbo['token_expires_at'] ) ? (string) $input_qbo['token_expires_at'] : (string) ( $current_qbo['token_expires_at'] ?? '' ),
                 'refresh_token_expires_at'   => isset( $input_qbo['refresh_token_expires_at'] ) ? (string) $input_qbo['refresh_token_expires_at'] : (string) ( $current_qbo['refresh_token_expires_at'] ?? '' ),
                 'connected_at'               => isset( $input_qbo['connected_at'] ) ? (string) $input_qbo['connected_at'] : (string) ( $current_qbo['connected_at'] ?? '' ),
+                'sync_cutoff_date'           => self::sanitize_iso_date( (string) ( $input_qbo['sync_cutoff_date'] ?? ( $current_qbo['sync_cutoff_date'] ?? '' ) ) ),
                 'clearing_account_id'        => sanitize_text_field( (string) ( $input_qbo['clearing_account_id'] ?? '' ) ),
                 'tickets_default_account_id' => sanitize_text_field( (string) ( $input_qbo['tickets_default_account_id'] ?? '' ) ),
                 'observer_account_id'        => sanitize_text_field( (string) ( $input_qbo['observer_account_id'] ?? '' ) ),
@@ -469,6 +535,10 @@ final class Settings_Page
                 'last_error'                 => isset( $input_qbo['last_error'] ) ? (string) $input_qbo['last_error'] : (string) ( $current_qbo['last_error'] ?? '' ),
             ),
         );
+
+        if ( class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
+            $sanitized['quickbooks'] = \ORAS\Tickets\Integrations\QuickBooks\Settings::prepare_for_storage( $sanitized['quickbooks'] );
+        }
 
         return $sanitized;
     }
@@ -497,6 +567,10 @@ final class Settings_Page
             ),
             'quickbooks'     => array(
                 'enabled'                    => false,
+                'dry_run_mode'               => true,
+                'require_manual_approval'    => true,
+                'strict_mapping_mode'        => true,
+                'allow_unmapped_fallback'    => false,
                 'sandbox'                    => true,
                 'client_id'                  => '',
                 'client_secret'              => '',
@@ -506,6 +580,7 @@ final class Settings_Page
                 'token_expires_at'           => '',
                 'refresh_token_expires_at'   => '',
                 'connected_at'               => '',
+                'sync_cutoff_date'           => '',
                 'clearing_account_id'        => '',
                 'tickets_default_account_id' => '',
                 'observer_account_id'        => '',
@@ -532,7 +607,13 @@ final class Settings_Page
             $settings = self::get_default_settings();
         }
 
-        return wp_parse_args( $settings, self::get_default_settings() );
+        $settings = wp_parse_args( $settings, self::get_default_settings() );
+        if ( class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
+            $quickbooks = isset( $settings['quickbooks'] ) && is_array( $settings['quickbooks'] ) ? $settings['quickbooks'] : array();
+            $settings['quickbooks'] = \ORAS\Tickets\Integrations\QuickBooks\Settings::hydrate_from_storage( $quickbooks );
+        }
+
+        return $settings;
     }
 
     public static function render_rsvp_section(): void
@@ -554,6 +635,7 @@ final class Settings_Page
     {
         echo '<p>' . esc_html__( 'Create one QuickBooks JournalEntry per paid Woo order, debiting a clearing account and crediting event/category income accounts.', 'oras-tickets' ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Discount handling:', 'oras-tickets' ) . '</strong> ' . esc_html__( 'Proportional allocation (line net totals) is used by this release.', 'oras-tickets' ) . '</p>';
+        echo '<p><strong>' . esc_html__( 'Safety defaults:', 'oras-tickets' ) . '</strong> ' . esc_html__( 'Dry Run + Manual Approval + Strict Mapping should remain enabled until reconciliation is validated in production.', 'oras-tickets' ) . '</p>';
 
         $redirect_uri = '';
         if ( class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
@@ -563,6 +645,10 @@ final class Settings_Page
         if ( $redirect_uri !== '' ) {
             echo '<p><strong>' . esc_html__( 'OAuth Redirect URI:', 'oras-tickets' ) . '</strong><br /><code>' . esc_html( $redirect_uri ) . '</code></p>';
             echo '<p class="description">' . esc_html__( 'Add this exact URI to your Intuit app Keys tab under Redirect URIs. The value must match exactly (scheme, host, path, query string).', 'oras-tickets' ) . '</p>';
+        }
+
+        if ( class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) && ! \ORAS\Tickets\Integrations\QuickBooks\Settings::has_explicit_encryption_key() ) {
+            echo '<p class="description"><strong>' . esc_html__( 'Security:', 'oras-tickets' ) . '</strong> ' . esc_html__( 'Define ORAS_TICKETS_QBO_AES_KEY in wp-config.php before production go-live to meet Intuit token encryption key separation requirements.', 'oras-tickets' ) . '</p>';
         }
     }
 
@@ -634,6 +720,21 @@ final class Settings_Page
 <?php
     }
 
+    public static function render_date_field( array $args ): void
+    {
+        $settings    = self::get_settings();
+        $value       = self::get_nested_value( $settings, $args['field'] );
+        $name        = self::OPTION_KEY . '[' . str_replace( '.', '][', $args['field'] ) . ']';
+        $placeholder = isset( $args['placeholder'] ) ? (string) $args['placeholder'] : 'YYYY-MM-DD';
+        $help        = isset( $args['help'] ) ? (string) $args['help'] : '';
+?>
+        <input type="date" class="regular-text" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" pattern="\d{4}-\d{2}-\d{2}" />
+        <?php if ( $help !== '' ) : ?>
+            <p class="description"><?php echo esc_html( $help ); ?></p>
+        <?php endif; ?>
+<?php
+    }
+
     public static function render_textarea_field( array $args ): void
     {
         $settings    = self::get_settings();
@@ -698,6 +799,35 @@ final class Settings_Page
                 <?php wp_nonce_field( 'oras_tickets_qbo_test_journal_entry' ); ?>
                 <input type="hidden" name="action" value="oras_tickets_qbo_test_journal_entry" />
                 <button type="submit" class="button"><?php echo esc_html__( 'Test JournalEntry', 'oras-tickets' ); ?></button>
+            </form>
+        </div>
+
+        <h3><?php echo esc_html__( 'Order Safety Controls', 'oras-tickets' ); ?></h3>
+        <p class="description"><?php echo esc_html__( 'Use these controls to approve pending orders and reverse bad postings without direct database edits.', 'oras-tickets' ); ?></p>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin:12px 0 24px;">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <?php wp_nonce_field( 'oras_tickets_qbo_approve_order' ); ?>
+                <input type="hidden" name="action" value="oras_tickets_qbo_approve_order" />
+                <label for="oras-qbo-approve-order-id" class="screen-reader-text"><?php echo esc_html__( 'Approve Order ID', 'oras-tickets' ); ?></label>
+                <input type="number" min="1" required id="oras-qbo-approve-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                <label>
+                    <input type="checkbox" name="sync_now" value="1" />
+                    <?php echo esc_html__( 'Sync now', 'oras-tickets' ); ?>
+                </label>
+                <button type="submit" class="button"><?php echo esc_html__( 'Approve Order for Sync', 'oras-tickets' ); ?></button>
+            </form>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <?php wp_nonce_field( 'oras_tickets_qbo_reverse_order' ); ?>
+                <input type="hidden" name="action" value="oras_tickets_qbo_reverse_order" />
+                <label for="oras-qbo-reverse-order-id" class="screen-reader-text"><?php echo esc_html__( 'Reverse Order ID', 'oras-tickets' ); ?></label>
+                <input type="number" min="1" required id="oras-qbo-reverse-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                <label>
+                    <input type="checkbox" name="force_reversal" value="1" />
+                    <?php echo esc_html__( 'Force', 'oras-tickets' ); ?>
+                </label>
+                <button type="submit" class="button"><?php echo esc_html__( 'Reverse Order JE', 'oras-tickets' ); ?></button>
             </form>
         </div>
         <script>
@@ -878,5 +1008,24 @@ final class Settings_Page
         }
 
         return $sanitized;
+    }
+
+    private static function sanitize_iso_date( string $value ): string
+    {
+        $value = trim( $value );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+            return '';
+        }
+
+        $timestamp = strtotime( $value . ' UTC' );
+        if ( false === $timestamp ) {
+            return '';
+        }
+
+        return gmdate( 'Y-m-d', $timestamp );
     }
 }

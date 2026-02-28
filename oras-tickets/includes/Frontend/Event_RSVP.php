@@ -87,7 +87,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         if ( 'yes' === $status ) {
             echo '<p class="oras-rsvp-status oras-rsvp-status-yes"><strong>' . esc_html__( "You have RSVP'ed to the event. If you wish to revoke the RSVP click \"RSVP No\".", 'oras-tickets' ) . '</strong></p>';
-            echo '<span class="oras-rsvp-badge" style="display:inline-block;margin-left:8px;padding:2px 6px;background:#e6ffed;border:1px solid #bdeccf;border-radius:4px;font-size:90%">' . esc_html__( 'Status: You are RSVPed ✅', 'oras-tickets' ) . '</span>';
+            echo '<span class="oras-rsvp-badge">' . esc_html__( 'Status: You are RSVPed ✅', 'oras-tickets' ) . '</span>';
         } elseif ( 'waitlist' === $status ) {
             echo '<p class="oras-rsvp-status oras-rsvp-status-waitlist"><strong>' . esc_html__( 'You are on the waitlist for this event.', 'oras-tickets' ) . '</strong></p>';
         } elseif ( 'no' === $status ) {

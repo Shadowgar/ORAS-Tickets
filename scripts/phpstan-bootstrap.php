@@ -53,6 +53,14 @@ if (! class_exists('WP_CLI')) {
     {
     }
 
+    public static function line(string $message): void
+    {
+    }
+
+    public static function log(string $message): void
+    {
+    }
+
     /**
      * @param mixed $command
      */

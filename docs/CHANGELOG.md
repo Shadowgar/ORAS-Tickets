@@ -1,5 +1,168 @@
 # CHANGELOG (Append-Only)
 
+## 2026-02-28 — QuickBooks Reconciliation Reporting + API Error Matrix Coverage
+
+Code:
+- Added WP-CLI reconciliation reporting command:
+  - `wp oras-tickets qbo reconcile-report --from=<YYYY-MM-DD> --to=<YYYY-MM-DD> [--format=table|json] [--limit=<n>]`
+  - reports completed/synced/pending/failed/dry-run/reversed/unsynced counts,
+  - compares Woo line-item totals against QBO net posted totals from sync metadata,
+  - outputs per-order mismatch rows with JE IDs and variance.
+- Added deterministic API error matrix integration script:
+  - `scripts/qbo-api-error-matrix-tests.php`
+  - validates:
+    - validation/syntax `400` fault handling,
+    - retriable classification for `429`/`5xx`,
+    - invalid JSON parse failure behavior,
+    - transport failure metadata (`retriable` + endpoint),
+    - 401 refresh retry success path,
+    - refresh `invalid_grant` auth failure path,
+    - `intuit_tid` capture and propagation.
+- Added reconciliation integration script:
+  - `scripts/qbo-reconciliation-tests.php`
+
+Documentation:
+- Updated:
+  - `docs/CURRENT_STATE.md`
+  - `docs/NEXT.md`
+  - `docs/quickbooks-intuit-security-compliance.md`
+  - `docs/quickbooks-live-rollout-checklist.md`
+  to include reconciliation and error-matrix verification workflow.
+
+## 2026-02-28 — QuickBooks Data-Safety Hardening (Fail-Closed + Reversal Controls)
+
+Code:
+- Added explicit QuickBooks write safety controls in settings/admin:
+  - `Dry Run Mode` (default on),
+  - `Require Manual Approval` (default on),
+  - `Strict Mapping Mode` (default on),
+  - `Allow Unmapped Fallback` (default off).
+- Hardened sync orchestration for data safety:
+  - manual review queue status (`pending_qbo_review`) before writes,
+  - completed-only + cutoff-date + `_oras_qbo_synced` safeguard enforcement,
+  - stale queue cleanup/unschedule when safeguards fail,
+  - strict mapping fail-closed behavior for unmapped/unresolved lines.
+- Added preflight payload validation in JournalEntry creator:
+  - DocNumber length,
+  - payload line/account integrity,
+  - debit/credit balance checks.
+- Added duplicate prevention by remote `DocNumber` lookup before JournalEntry create.
+- Added order-level immutable audit metadata stream:
+  - append-only `_oras_qbo_audit_entry`,
+  - order summary metadata for sync/reversal/intuit tracing.
+- Added reversal workflow:
+  - orchestrator support to create reversing JournalEntry from stored split snapshot,
+  - admin actions for approve/reverse by order ID,
+  - WP-CLI commands:
+    - `wp oras-tickets qbo approve-order <order_id> [--sync-now]`
+    - `wp oras-tickets qbo reverse-order <order_id> [--force]`
+    - `wp oras-tickets qbo audit-order <order_id> [--limit=25] [--format=table|json]`
+- Retry policy hardening:
+  - retry only transient transport faults (`429`, `5xx`, network),
+  - no retries for validation/mapping/auth grant class errors.
+- Added safety integration script:
+  - `scripts/qbo-safety-controls-tests.php`.
+
+Verification:
+- `composer phpstan` passed.
+- `php -l` passed for modified QuickBooks/admin/test files.
+- `wp eval-file scripts/qbo-sync-safeguard-tests.php` (via wp-env) passed.
+- `wp eval-file scripts/qbo-split-calculator-tests.php` (via wp-env) passed.
+- `wp eval-file scripts/qbo-safety-controls-tests.php` (via wp-env) passed.
+
+## 2026-02-28 — Frontend Dark-Mode Hardening (Tickets + RSVP)
+
+Code:
+- Updated `assets/css/tickets-frontend.css` to use tokenized frontend color variables instead of light-only hardcoded values for:
+  - ticket description text,
+  - price phase and countdown badges,
+  - ticket status badges,
+  - RSVP container/notice colors.
+- Added explicit WP Dark Mode-compatible selectors and dark token values keyed to:
+  - `html[data-wp-dark-mode-active]`
+  - `html[data-wp-dark-mode-loading]`
+  - `html.wp-dark-mode-active` / `body.wp-dark-mode-active`
+  - `html.oras-dark-on` fallback
+- Removed inline RSVP badge style from `includes/Frontend/Event_RSVP.php` and moved badge styling into CSS so light/dark toggles are consistent.
+
+Verification:
+- `php -l oras-tickets/includes/Frontend/Event_RSVP.php` passed.
+- `composer phpstan` passed.
+- `composer phpcs` passed.
+
+## 2026-02-28 — Phase 4 Visual Polish Pass (Agenda + Speaker + Admin)
+
+Code:
+- Frontend agenda polish:
+  - Removed temporary `wp_add_inline_style(...)` agenda overrides from `Event_Agenda_Render`.
+  - Kept styling in static CSS with tokenized values for maintainability and deterministic rendering.
+  - Replaced temporary dark-mode color overrides with production-ready selectors in `assets/css/oras-agenda-colors.css`.
+- WP Dark Mode compatibility hardening:
+  - Aligned dark-mode state detection to WP Dark Mode attributes (`html[data-wp-dark-mode-active]`, `html[data-wp-dark-mode-loading]`) and retained `html.oras-dark-on` fallback support.
+  - Updated agenda and modal colors to remain readable when users toggle light/dark repeatedly.
+- Speaker template polish:
+  - Removed inline `<style>` block from `templates/single-oras_speaker.php`.
+  - Added dedicated stylesheet `assets/css/speaker.css` and enqueue path for speaker single pages via `Template_Loader`.
+  - Added consistent styles for contribution cards, chips, and resources archive sections with dark-mode token overrides.
+- Admin agenda metabox polish:
+  - Removed inline `style="..."` attributes from Event Agenda metabox markup and JS row templates.
+  - Replaced with class-based hooks and updated `assets/admin/event-addon-metabox.css`.
+
+Verification:
+- `php -l` on updated PHP files passed.
+- `composer phpcs` passed.
+- `composer phpstan` passed.
+
+## 2026-02-28 — QuickBooks Revenue Split Hardening + Category Expansion
+
+Code:
+- QuickBooks OAuth/admin hardening:
+  - Added dedicated `ORAS Tickets > QuickBooks` admin page and persistent connection status indicator.
+  - Fixed external OAuth redirect flow and callback state handling reliability.
+  - Fixed token persistence/sanitization path so successful OAuth connections remain connected across refreshes.
+  - Fixed QuickBooks `Test JournalEntry` payload `DocNumber` length to match QBO limit and clear stale `last_error` on success.
+  - Added encrypted-at-rest storage handling for sensitive fields (`client_secret`, `access_token`, `refresh_token`, `realm_id`) with decryption-on-read for runtime/admin display.
+  - Added production security guardrails before OAuth connect:
+    - require HTTPS redirect URI when sandbox is off,
+    - require explicit `ORAS_TICKETS_QBO_AES_KEY` in `wp-config.php` for production key separation compliance.
+  - Reduced sensitive error logging detail (removed raw API/token response body logging).
+  - Added explicit audit-facing auth error labels and handling:
+    - `Auth Error Access`
+    - `Auth Error Refresh`
+    - `Auth Error Grant`
+    - `CSRF Error`
+- Split mapping hardening:
+  - Added event-series slug fallback matching for per-event maps (`spring-stargaze` matches `spring-stargaze-26` via `slug-...` rule).
+  - Added dedicated donations routing:
+    - settings: `Donations Account`, `Donation Category Slugs`
+    - classifier bucket: `donation`
+  - Added dedicated Printful routing:
+    - settings: `Printful Account`, `Printful Category Slugs`
+    - classifier bucket: `printful`
+    - fallback behavior: if `Printful Account` is blank, route printful bucket to `Merchandise Account`.
+- Expanded split test script coverage for:
+  - event-series slug fallback matching,
+  - donations defaults/routing,
+  - printful defaults/routing/fallback,
+  - encryption storage/hydration round-trip checks.
+- Added new WP-CLI dry-run command:
+  - `wp oras-tickets qbo preview-order <order_id> [--format=json]`
+  - outputs split routing without posting a JournalEntry.
+
+Documentation:
+- Synchronized QuickBooks implementation status and next validation steps in:
+  - `docs/CURRENT_STATE.md`
+  - `docs/NEXT.md`
+- Added live rollout procedure:
+  - `docs/quickbooks-live-rollout-checklist.md`
+- Added security compliance mapping document:
+  - `docs/quickbooks-intuit-security-compliance.md`
+
+Verification:
+- `wp eval-file scripts/qbo-split-calculator-tests.php` (via wp-env) passed.
+- `composer phpstan` passed.
+- `composer phpcs` passed.
+
 ## 2026-02-27 — QuickBooks Revenue Split Sync Foundation (Phase 5.3 plan/start)
 
 Code:

@@ -66,7 +66,7 @@ final class QuickBooks_Logger {
         $safe = array();
         foreach ( $context as $key => $value ) {
             $k = strtolower( (string) $key );
-            if ( strpos( $k, 'token' ) !== false || strpos( $k, 'secret' ) !== false || strpos( $k, 'authorization' ) !== false ) {
+            if ( strpos( $k, 'token' ) !== false || strpos( $k, 'secret' ) !== false || strpos( $k, 'authorization' ) !== false || strpos( $k, 'realm' ) !== false ) {
                 $safe[ $key ] = '[redacted]';
                 continue;
             }

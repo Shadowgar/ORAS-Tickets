@@ -31,9 +31,12 @@ final class Split_Calculator {
         $merch_slugs       = Settings::parse_slug_list( (string) ( $qbo_settings['merch_category_slugs'] ?? '' ) );
         $printful_slugs    = Settings::parse_slug_list( (string) ( $qbo_settings['printful_category_slugs'] ?? '' ) );
         $donation_slugs    = Settings::parse_slug_list( (string) ( $qbo_settings['donation_category_slugs'] ?? '' ) );
+        $allow_unmapped_fallback = ! empty( $qbo_settings['allow_unmapped_fallback'] );
 
         $classified_rows = array();
         $warnings        = array();
+        $unmapped_lines  = 0;
+        $missing_account_lines = 0;
 
         $items = $order->get_items( 'line_item' );
         foreach ( $items as $item ) {
@@ -57,7 +60,18 @@ final class Split_Calculator {
             $bucket_label   = (string) $classification['bucket_label'];
             $account_id     = $this->resolve_account_id( $classification, $event_account_map, $qbo_settings );
 
+            if ( (string) ( $classification['type'] ?? '' ) === 'unmapped' ) {
+                $unmapped_lines++;
+                if ( ! $allow_unmapped_fallback ) {
+                    $warnings[] = sprintf(
+                        'Unmapped product classification for item "%s" and unmapped fallback is disabled.',
+                        (string) $item->get_name()
+                    );
+                }
+            }
+
             if ( $account_id === '' ) {
+                $missing_account_lines++;
                 $warnings[] = sprintf(
                     'Missing account mapping for bucket "%1$s" on order item "%2$s".',
                     $bucket_key,
@@ -79,6 +93,9 @@ final class Split_Calculator {
         $normalized_lines = $aggregated['lines'];
         $split_total      = $aggregated['split_total'];
         if ( abs( $split_total ) < 0.0001 ) {
+            if ( ! empty( $qbo_settings['strict_mapping_mode'] ) && ( $unmapped_lines > 0 || $missing_account_lines > 0 || ! empty( $warnings ) ) ) {
+                return new \WP_Error( 'oras_qbo_strict_mapping_failed', 'Strict mapping mode blocked sync: order contains unmapped or unresolved account lines.' );
+            }
             return new \WP_Error( 'oras_qbo_empty_split', 'No mappable line-item totals were found for this order.' );
         }
 
@@ -101,6 +118,8 @@ final class Split_Calculator {
             'line_total_sum'  => (float) $aggregated['line_total_sum'],
             'discount_total'  => (float) $aggregated['discount_total'],
             'warnings'        => $warnings,
+            'unmapped_lines'  => $unmapped_lines,
+            'missing_account_lines' => $missing_account_lines,
             'discount_mode'   => 'proportional',
         );
     }
@@ -335,10 +354,15 @@ final class Split_Calculator {
         }
 
         $unmapped = (string) ( $qbo_settings['unmapped_account_id'] ?? '' );
-        if ( $unmapped !== '' ) {
-            return $unmapped;
+        $allow_unmapped_fallback = ! empty( $qbo_settings['allow_unmapped_fallback'] );
+        if ( $allow_unmapped_fallback ) {
+            if ( $unmapped !== '' ) {
+                return $unmapped;
+            }
+
+            return (string) ( $qbo_settings['tickets_default_account_id'] ?? '' );
         }
 
-        return (string) ( $qbo_settings['tickets_default_account_id'] ?? '' );
+        return '';
     }
 }

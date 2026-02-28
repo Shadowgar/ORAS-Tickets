@@ -46,6 +46,8 @@ final class Module {
             add_action( 'admin_post_oras_tickets_qbo_oauth_callback', array( $this, 'handle_oauth_callback' ) );
             add_action( 'admin_post_oras_tickets_qbo_test_connection', array( $this, 'handle_test_connection' ) );
             add_action( 'admin_post_oras_tickets_qbo_test_journal_entry', array( $this, 'handle_test_journal_entry' ) );
+            add_action( 'admin_post_oras_tickets_qbo_approve_order', array( $this, 'handle_approve_order' ) );
+            add_action( 'admin_post_oras_tickets_qbo_reverse_order', array( $this, 'handle_reverse_order' ) );
         }
 
         if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -61,6 +63,20 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Set QuickBooks Client ID and Client Secret first.' ),
+                )
+            );
+        }
+
+        $security_error = $this->get_production_security_error();
+        if ( $security_error !== '' ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $security_error,
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $security_error ),
                 )
             );
         }
@@ -95,15 +111,28 @@ final class Module {
         $code     = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
         $realm_id = isset( $_GET['realmId'] ) ? sanitize_text_field( wp_unslash( $_GET['realmId'] ) ) : '';
 
-        if ( $state === '' || $code === '' || $realm_id === '' ) {
+        if ( $state === '' ) {
             Settings::update_quickbooks_settings(
                 array(
-                    'last_error' => 'QuickBooks OAuth callback is missing required fields.',
+                    'last_error' => 'CSRF Error: missing OAuth state parameter.',
                 )
             );
             $this->redirect_to_settings(
                 array(
-                    'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth callback is missing required fields.' ),
+                    'oras_qbo_error' => rawurlencode( 'CSRF Error: missing OAuth state parameter.' ),
+                )
+            );
+        }
+
+        if ( $code === '' || $realm_id === '' ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => 'Auth Error Grant: QuickBooks OAuth callback is missing required grant fields.',
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Auth Error Grant: QuickBooks OAuth callback is missing required grant fields.' ),
                 )
             );
         }
@@ -114,12 +143,12 @@ final class Module {
         if ( ! $state_owner ) {
             Settings::update_quickbooks_settings(
                 array(
-                    'last_error' => 'QuickBooks OAuth state validation failed.',
+                    'last_error' => 'CSRF Error: QuickBooks OAuth state validation failed.',
                 )
             );
             $this->redirect_to_settings(
                 array(
-                    'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth state validation failed.' ),
+                    'oras_qbo_error' => rawurlencode( 'CSRF Error: QuickBooks OAuth state validation failed.' ),
                 )
             );
         }
@@ -128,12 +157,12 @@ final class Module {
         if ( $current_user_id > 0 && (int) $state_owner !== (int) $current_user_id ) {
             Settings::update_quickbooks_settings(
                 array(
-                    'last_error' => 'QuickBooks OAuth state owner mismatch.',
+                    'last_error' => 'CSRF Error: QuickBooks OAuth state owner mismatch.',
                 )
             );
             $this->redirect_to_settings(
                 array(
-                    'oras_qbo_error' => rawurlencode( 'QuickBooks OAuth state owner mismatch.' ),
+                    'oras_qbo_error' => rawurlencode( 'CSRF Error: QuickBooks OAuth state owner mismatch.' ),
                 )
             );
         }
@@ -284,6 +313,82 @@ final class Module {
         );
     }
 
+    public function handle_approve_order(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_approve_order' );
+
+        $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+        $sync_now = ! empty( $_POST['sync_now'] );
+        if ( $order_id <= 0 ) {
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for approval.' ),
+                )
+            );
+        }
+
+        $result = $this->orchestrator->approve_order_sync( $order_id, $sync_now );
+        if ( is_wp_error( $result ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $result->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+                )
+            );
+        }
+
+        $status = isset( $result['status'] ) ? (string) $result['status'] : 'approved';
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( sprintf( 'Order #%d approval complete. Status: %s', $order_id, $status ) ),
+            )
+        );
+    }
+
+    public function handle_reverse_order(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_reverse_order' );
+
+        $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+        if ( $order_id <= 0 ) {
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for reversal.' ),
+                )
+            );
+        }
+
+        $force  = ! empty( $_POST['force_reversal'] );
+        $result = $this->orchestrator->reverse_order( $order_id, $force );
+        if ( is_wp_error( $result ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $result->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+                )
+            );
+        }
+
+        $status      = isset( $result['status'] ) ? (string) $result['status'] : 'reversed';
+        $reversal_je = isset( $result['reversal_je_id'] ) ? (string) $result['reversal_je_id'] : '';
+        $notice      = sprintf( 'Order #%1$d reversal status: %2$s', $order_id, $status );
+        if ( $reversal_je !== '' ) {
+            $notice .= ' (JE ID: ' . $reversal_je . ')';
+        }
+
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( $notice ),
+            )
+        );
+    }
+
     private function assert_settings_access( string $nonce_action ): void {
         if ( ! current_user_can( 'oras_tickets_manage_settings' ) ) {
             wp_die( esc_html__( 'You do not have permission to manage ORAS Tickets settings.', 'oras-tickets' ), '', array( 'response' => 403 ) );
@@ -413,5 +518,22 @@ final class Module {
         } catch ( \Exception $e ) {
             return wp_generate_password( 32, false, false );
         }
+    }
+
+    private function get_production_security_error(): string {
+        if ( Settings::is_sandbox() ) {
+            return '';
+        }
+
+        $redirect_uri = Settings::get_redirect_uri();
+        if ( stripos( $redirect_uri, 'https://' ) !== 0 ) {
+            return 'QuickBooks production OAuth requires an HTTPS redirect URI.';
+        }
+
+        if ( ! Settings::has_explicit_encryption_key() ) {
+            return 'Define ORAS_TICKETS_QBO_AES_KEY in wp-config.php before connecting QuickBooks in production mode.';
+        }
+
+        return '';
     }
 }

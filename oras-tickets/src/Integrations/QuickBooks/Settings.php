@@ -9,6 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Settings {
 
     public const OPTION_KEY = 'oras_tickets_settings_v1';
+    private const ENCRYPTED_FIELDS = array(
+        'client_secret',
+        'access_token',
+        'refresh_token',
+        'realm_id',
+    );
+    private const ENC_PREFIX = 'orasqbo:v1:';
 
     /**
      * Return merged QuickBooks settings.
@@ -20,6 +27,7 @@ final class Settings {
         $qbo      = isset( $settings['quickbooks'] ) && is_array( $settings['quickbooks'] )
             ? $settings['quickbooks']
             : array();
+        $qbo      = self::hydrate_from_storage( $qbo );
 
         return array_merge( self::get_quickbooks_defaults(), $qbo );
     }
@@ -34,7 +42,9 @@ final class Settings {
         $existing_quickbooks  = isset( $settings['quickbooks'] ) && is_array( $settings['quickbooks'] )
             ? $settings['quickbooks']
             : array();
-        $settings['quickbooks'] = array_merge( self::get_quickbooks_defaults(), $existing_quickbooks, $partial );
+        $existing_quickbooks  = self::hydrate_from_storage( $existing_quickbooks );
+        $merged               = array_merge( self::get_quickbooks_defaults(), $existing_quickbooks, $partial );
+        $settings['quickbooks'] = self::prepare_for_storage( $merged );
 
         update_option( self::OPTION_KEY, $settings );
     }
@@ -49,6 +59,19 @@ final class Settings {
         return ! empty( $qbo['sandbox'] )
             ? 'https://sandbox-quickbooks.api.intuit.com'
             : 'https://quickbooks.api.intuit.com';
+    }
+
+    public static function is_sandbox(): bool {
+        $qbo = self::get_quickbooks_settings();
+        return ! empty( $qbo['sandbox'] );
+    }
+
+    public static function has_explicit_encryption_key(): bool {
+        if ( defined( 'ORAS_TICKETS_QBO_AES_KEY' ) ) {
+            return trim( (string) ORAS_TICKETS_QBO_AES_KEY ) !== '';
+        }
+
+        return false;
     }
 
     public static function get_redirect_uri(): string {
@@ -153,6 +176,10 @@ final class Settings {
     public static function get_quickbooks_defaults(): array {
         return array(
             'enabled'                    => false,
+            'dry_run_mode'               => true,
+            'require_manual_approval'    => true,
+            'strict_mapping_mode'        => true,
+            'allow_unmapped_fallback'    => false,
             'sandbox'                    => true,
             'client_id'                  => '',
             'client_secret'              => '',
@@ -162,6 +189,7 @@ final class Settings {
             'token_expires_at'           => '',
             'refresh_token_expires_at'   => '',
             'connected_at'               => '',
+            'sync_cutoff_date'           => '',
             'clearing_account_id'        => '',
             'tickets_default_account_id' => '',
             'observer_account_id'        => '',
@@ -181,10 +209,144 @@ final class Settings {
     }
 
     /**
+     * Encrypt sensitive fields before saving to persistent storage.
+     *
+     * @param array<string,mixed> $quickbooks
+     * @return array<string,mixed>
+     */
+    public static function prepare_for_storage( array $quickbooks ): array {
+        foreach ( self::ENCRYPTED_FIELDS as $field ) {
+            if ( ! array_key_exists( $field, $quickbooks ) ) {
+                continue;
+            }
+
+            $value = (string) $quickbooks[ $field ];
+            if ( $value === '' ) {
+                $quickbooks[ $field ] = '';
+                continue;
+            }
+
+            $quickbooks[ $field ] = self::encrypt_value( $value );
+        }
+
+        return $quickbooks;
+    }
+
+    /**
+     * Decrypt sensitive fields loaded from persistent storage.
+     *
+     * @param array<string,mixed> $quickbooks
+     * @return array<string,mixed>
+     */
+    public static function hydrate_from_storage( array $quickbooks ): array {
+        foreach ( self::ENCRYPTED_FIELDS as $field ) {
+            if ( ! array_key_exists( $field, $quickbooks ) ) {
+                continue;
+            }
+
+            $value = (string) $quickbooks[ $field ];
+            if ( $value === '' ) {
+                $quickbooks[ $field ] = '';
+                continue;
+            }
+
+            $quickbooks[ $field ] = self::decrypt_value( $value );
+        }
+
+        return $quickbooks;
+    }
+
+    /**
      * @return array<string,mixed>
      */
     private static function get_all_settings(): array {
         $settings = get_option( self::OPTION_KEY, array() );
         return is_array( $settings ) ? $settings : array();
+    }
+
+    private static function encrypt_value( string $value ): string {
+        if ( strpos( $value, self::ENC_PREFIX ) === 0 ) {
+            return $value;
+        }
+
+        if ( ! function_exists( 'openssl_encrypt' ) || ! function_exists( 'random_bytes' ) ) {
+            return $value;
+        }
+
+        $key = self::get_encryption_key();
+        if ( $key === '' ) {
+            return $value;
+        }
+
+        try {
+            $iv = random_bytes( 16 );
+        } catch ( \Exception $e ) {
+            return $value;
+        }
+
+        $cipher_raw = openssl_encrypt( $value, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv );
+        if ( ! is_string( $cipher_raw ) || $cipher_raw === '' ) {
+            return $value;
+        }
+
+        $hmac    = hash_hmac( 'sha256', $iv . $cipher_raw, $key, true );
+        $payload = base64_encode( $iv . $hmac . $cipher_raw );
+
+        return self::ENC_PREFIX . $payload;
+    }
+
+    private static function decrypt_value( string $value ): string {
+        if ( strpos( $value, self::ENC_PREFIX ) !== 0 ) {
+            return $value;
+        }
+
+        if ( ! function_exists( 'openssl_decrypt' ) ) {
+            return '';
+        }
+
+        $encoded = substr( $value, strlen( self::ENC_PREFIX ) );
+        if ( $encoded === '' ) {
+            return '';
+        }
+
+        $binary = base64_decode( $encoded, true );
+        if ( ! is_string( $binary ) || strlen( $binary ) <= 48 ) {
+            return '';
+        }
+
+        $iv         = substr( $binary, 0, 16 );
+        $hmac       = substr( $binary, 16, 32 );
+        $cipher_raw = substr( $binary, 48 );
+
+        $key       = self::get_encryption_key();
+        $calc_hmac = hash_hmac( 'sha256', $iv . $cipher_raw, $key, true );
+        if ( ! hash_equals( $hmac, $calc_hmac ) ) {
+            return '';
+        }
+
+        $plain = openssl_decrypt( $cipher_raw, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv );
+        if ( ! is_string( $plain ) ) {
+            return '';
+        }
+
+        return $plain;
+    }
+
+    private static function get_encryption_key(): string {
+        if ( defined( 'ORAS_TICKETS_QBO_AES_KEY' ) ) {
+            $configured = trim( (string) ORAS_TICKETS_QBO_AES_KEY );
+            if ( $configured !== '' ) {
+                return hash( 'sha256', $configured, true );
+            }
+        }
+
+        $auth_key        = defined( 'AUTH_KEY' ) ? (string) AUTH_KEY : '';
+        $secure_auth_key = defined( 'SECURE_AUTH_KEY' ) ? (string) SECURE_AUTH_KEY : '';
+        $material        = $auth_key . '|' . $secure_auth_key;
+        if ( trim( $material ) === '' ) {
+            return '';
+        }
+
+        return hash( 'sha256', $material, true );
     }
 }

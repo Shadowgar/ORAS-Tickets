@@ -15,6 +15,11 @@ if ( ! class_exists( '\ORAS\Tickets\Integrations\QuickBooks\Settings' ) ) {
     return;
 }
 
+if ( ! class_exists( '\ORAS\Tickets\Integrations\QuickBooks\OAuth_Client' ) ) {
+    fwrite( STDERR, "ORAS QuickBooks OAuth_Client class is not loaded.\n" );
+    return;
+}
+
 /**
  * @param mixed $actual
  * @param mixed $expected
@@ -141,6 +146,49 @@ oras_qbo_assert_equals(
     (string) $qbo_defaults['printful_category_slugs'],
     'printful,pod'
 );
+
+$encrypted_qbo = \ORAS\Tickets\Integrations\QuickBooks\Settings::prepare_for_storage(
+    array(
+        'realm_id'      => '1234567890',
+        'refresh_token' => 'refresh-token-value',
+    )
+);
+if ( strpos( (string) $encrypted_qbo['realm_id'], 'orasqbo:v1:' ) !== 0 ) {
+    throw new RuntimeException( 'realm_id encryption prefix missing.' );
+}
+if ( strpos( (string) $encrypted_qbo['refresh_token'], 'orasqbo:v1:' ) !== 0 ) {
+    throw new RuntimeException( 'refresh_token encryption prefix missing.' );
+}
+
+$hydrated_qbo = \ORAS\Tickets\Integrations\QuickBooks\Settings::hydrate_from_storage( $encrypted_qbo );
+oras_qbo_assert_equals( 'realm_id decrypt', (string) $hydrated_qbo['realm_id'], '1234567890' );
+oras_qbo_assert_equals( 'refresh token decrypt', (string) $hydrated_qbo['refresh_token'], 'refresh-token-value' );
+
+$grant_error = \ORAS\Tickets\Integrations\QuickBooks\OAuth_Client::build_auth_error_from_response(
+    array(
+        'error'             => 'invalid_grant',
+        'error_description' => 'authorization code expired',
+    ),
+    400,
+    'authorization_code'
+);
+oras_qbo_assert_equals( 'grant error code', $grant_error->get_error_code(), 'oras_qbo_auth_error_grant' );
+if ( strpos( $grant_error->get_error_message(), 'Auth Error Grant' ) === false ) {
+    throw new RuntimeException( 'grant error message label missing.' );
+}
+
+$refresh_error = \ORAS\Tickets\Integrations\QuickBooks\OAuth_Client::build_auth_error_from_response(
+    array(
+        'error'             => 'invalid_grant',
+        'error_description' => 'refresh token invalid',
+    ),
+    401,
+    'refresh_token'
+);
+oras_qbo_assert_equals( 'refresh error code', $refresh_error->get_error_code(), 'oras_qbo_auth_error_refresh' );
+if ( strpos( $refresh_error->get_error_message(), 'Auth Error Refresh' ) === false ) {
+    throw new RuntimeException( 'refresh error message label missing.' );
+}
 
 $split_calculator = new \ORAS\Tickets\Integrations\QuickBooks\Split_Calculator();
 $resolve_method   = new ReflectionMethod( \ORAS\Tickets\Integrations\QuickBooks\Split_Calculator::class, 'resolve_account_id' );

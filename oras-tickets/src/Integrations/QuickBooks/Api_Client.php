@@ -45,6 +45,44 @@ final class Api_Client {
     }
 
     /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public function find_journal_entry_by_doc_number( string $doc_number ) {
+        $doc_number = trim( $doc_number );
+        if ( $doc_number === '' ) {
+            return new \WP_Error( 'oras_qbo_missing_doc_number', 'JournalEntry lookup requires a doc number.' );
+        }
+
+        $escaped = str_replace( "'", "\\'", $doc_number );
+        $query   = sprintf(
+            "SELECT Id, DocNumber, TxnDate FROM JournalEntry WHERE DocNumber = '%s' MAXRESULTS 1",
+            $escaped
+        );
+
+        $response = $this->request(
+            'GET',
+            'query',
+            array(
+                'query'        => $query,
+                'minorversion' => 65,
+            )
+        );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        $entries = isset( $response['QueryResponse']['JournalEntry'] ) && is_array( $response['QueryResponse']['JournalEntry'] )
+            ? $response['QueryResponse']['JournalEntry']
+            : array();
+
+        return array(
+            'found' => ! empty( $entries ),
+            'entry' => ! empty( $entries ) && is_array( $entries[0] ) ? $entries[0] : array(),
+            'meta'  => isset( $response['__oras_meta'] ) && is_array( $response['__oras_meta'] ) ? $response['__oras_meta'] : array(),
+        );
+    }
+
+    /**
      * @param array<string,mixed> $payload
      */
     public function create_journal_entry( array $payload ) {
@@ -123,12 +161,19 @@ final class Api_Client {
                     'error'    => $response->get_error_message(),
                 )
             );
+            $response->add_data(
+                array(
+                    'endpoint'  => $endpoint,
+                    'retriable' => true,
+                )
+            );
             return $response;
         }
 
         $status = (int) wp_remote_retrieve_response_code( $response );
         $raw    = (string) wp_remote_retrieve_body( $response );
         $data   = json_decode( $raw, true );
+        $intuit_tid = $this->extract_intuit_tid( $response );
 
         if ( $status === 401 && $allow_refresh_retry ) {
             $refresh = $this->oauth_client->refresh_access_token();
@@ -139,6 +184,37 @@ final class Api_Client {
                     return $this->request_with_token( $method, $endpoint, $query, $body, $token, false );
                 }
             }
+
+            $reason = is_wp_error( $refresh ) ? $refresh->get_error_message() : 'Unknown refresh failure.';
+            $error = new \WP_Error(
+                'oras_qbo_auth_error_access',
+                'Auth Error Access: QuickBooks access token is invalid or expired and refresh failed. ' . $reason
+            );
+            $error->add_data(
+                array(
+                    'status'     => $status,
+                    'intuit_tid' => $intuit_tid,
+                    'endpoint'   => $endpoint,
+                    'retriable'  => false,
+                )
+            );
+            return $error;
+        }
+
+        if ( $status === 401 && ! $allow_refresh_retry ) {
+            $error = new \WP_Error(
+                'oras_qbo_auth_error_access',
+                'Auth Error Access: QuickBooks access token authentication failed after refresh attempt. Reconnect QuickBooks.'
+            );
+            $error->add_data(
+                array(
+                    'status'     => $status,
+                    'intuit_tid' => $intuit_tid,
+                    'endpoint'   => $endpoint,
+                    'retriable'  => false,
+                )
+            );
+            return $error;
         }
 
         if ( $status < 200 || $status >= 300 ) {
@@ -153,19 +229,65 @@ final class Api_Client {
             $this->logger->error(
                 'QuickBooks API returned error status',
                 array(
-                    'status'   => $status,
-                    'endpoint' => $endpoint,
-                    'body'     => $raw,
+                    'status'     => $status,
+                    'endpoint'   => $endpoint,
+                    'intuit_tid' => $intuit_tid,
                 )
             );
 
-            return new \WP_Error( 'oras_qbo_api_error', $message );
+            $error = new \WP_Error( 'oras_qbo_api_http_' . $status, $message );
+            $error->add_data(
+                array(
+                    'status'     => $status,
+                    'intuit_tid' => $intuit_tid,
+                    'endpoint'   => $endpoint,
+                    'retriable'  => self::is_retriable_status( $status ),
+                )
+            );
+
+            return $error;
         }
 
         if ( ! is_array( $data ) ) {
-            return new \WP_Error( 'oras_qbo_invalid_json', 'QuickBooks returned invalid JSON.' );
+            $error = new \WP_Error( 'oras_qbo_invalid_json', 'QuickBooks returned invalid JSON.' );
+            $error->add_data(
+                array(
+                    'status'     => $status,
+                    'intuit_tid' => $intuit_tid,
+                    'endpoint'   => $endpoint,
+                    'retriable'  => false,
+                )
+            );
+            return $error;
         }
 
+        $data['__oras_meta'] = array(
+            'status'     => $status,
+            'intuit_tid' => $intuit_tid,
+            'endpoint'   => $endpoint,
+        );
+
         return $data;
+    }
+
+    private function extract_intuit_tid( array $response ): string {
+        $headers = wp_remote_retrieve_headers( $response );
+        if ( is_object( $headers ) && method_exists( $headers, 'get' ) ) {
+            return (string) $headers->get( 'intuit_tid' );
+        }
+
+        if ( is_array( $headers ) && isset( $headers['intuit_tid'] ) ) {
+            return (string) $headers['intuit_tid'];
+        }
+
+        return '';
+    }
+
+    private static function is_retriable_status( int $status ): bool {
+        if ( $status === 429 ) {
+            return true;
+        }
+
+        return $status >= 500 && $status <= 599;
     }
 }
