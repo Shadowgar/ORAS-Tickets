@@ -583,6 +583,18 @@ if ( $product_id <= 0 ) {
                 }
             }
 
+            if ( $product->is_sold_individually() && function_exists( 'WC' ) && WC()->cart ) {
+                $cart_id     = WC()->cart->generate_cart_id( $product_id );
+                $existing_key = WC()->cart->find_product_in_cart( $cart_id );
+                if ( $existing_key ) {
+                    if ( function_exists( 'wc_add_notice' ) ) {
+                        wc_add_notice( sprintf( __( 'Ticket %s is already in your cart and can only be purchased once per order.', 'oras-tickets' ), $name ), 'error' );
+                    }
+                    $had_error = true;
+                    continue;
+                }
+            }
+
             $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
             $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
 
@@ -644,7 +656,23 @@ if ( $product_id <= 0 ) {
             if ( ! $added ) {
                 $error_count_after = function_exists( 'wc_notice_count' ) ? (int) wc_notice_count( 'error' ) : $error_count_before;
                 if ( function_exists( 'wc_add_notice' ) && $error_count_after <= $error_count_before ) {
-                    wc_add_notice( sprintf( __( 'Could not add %s to cart.', 'oras-tickets' ), $name ), 'error' );
+                    $details = array();
+                    $details[] = sprintf( __( 'Product ID: %d', 'oras-tickets' ), (int) $product_id );
+                    if ( method_exists( $product, 'is_sold_individually' ) && $product->is_sold_individually() ) {
+                        $details[] = __( 'sold individually', 'oras-tickets' );
+                    }
+                    if ( method_exists( $product, 'managing_stock' ) && $product->managing_stock() ) {
+                        $details[] = sprintf( __( 'stock: %d', 'oras-tickets' ), (int) $product->get_stock_quantity() );
+                    }
+
+                    wc_add_notice(
+                        sprintf(
+                            __( 'Could not add %1$s to cart. Check product purchasability/stock or plugin validation rules (%2$s).', 'oras-tickets' ),
+                            $name,
+                            implode( ', ', $details )
+                        ),
+                        'error'
+                    );
                 }
                 $had_error = true;
                 continue;
