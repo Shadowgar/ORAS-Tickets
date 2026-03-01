@@ -652,7 +652,42 @@ if ( $product_id <= 0 ) {
             }
 
             $error_count_before = function_exists( 'wc_notice_count' ) ? (int) wc_notice_count( 'error' ) : 0;
+
+            // Some Woo validation extensions depend on standard request keys from
+            // native add-to-cart forms. Mirror those keys while adding ticket
+            // products so validation callbacks can evaluate correctly.
+            $request_has_add_to_cart = array_key_exists( 'add-to-cart', $_REQUEST );
+            $request_has_product_id  = array_key_exists( 'product_id', $_REQUEST );
+            $request_has_quantity    = array_key_exists( 'quantity', $_REQUEST );
+
+            $request_prev_add_to_cart = $request_has_add_to_cart ? $_REQUEST['add-to-cart'] : null;
+            $request_prev_product_id  = $request_has_product_id ? $_REQUEST['product_id'] : null;
+            $request_prev_quantity    = $request_has_quantity ? $_REQUEST['quantity'] : null;
+
+            $_REQUEST['add-to-cart'] = (string) $product_id;
+            $_REQUEST['product_id']  = (string) $product_id;
+            $_REQUEST['quantity']    = (string) $qty_to_add;
+
             $added = WC()->cart->add_to_cart( $product_id, $qty_to_add );
+
+            if ( $request_has_add_to_cart ) {
+                $_REQUEST['add-to-cart'] = $request_prev_add_to_cart;
+            } else {
+                unset( $_REQUEST['add-to-cart'] );
+            }
+
+            if ( $request_has_product_id ) {
+                $_REQUEST['product_id'] = $request_prev_product_id;
+            } else {
+                unset( $_REQUEST['product_id'] );
+            }
+
+            if ( $request_has_quantity ) {
+                $_REQUEST['quantity'] = $request_prev_quantity;
+            } else {
+                unset( $_REQUEST['quantity'] );
+            }
+
             if ( ! $added ) {
                 $error_count_after = function_exists( 'wc_notice_count' ) ? (int) wc_notice_count( 'error' ) : $error_count_before;
                 if ( function_exists( 'wc_add_notice' ) && $error_count_after <= $error_count_before ) {
