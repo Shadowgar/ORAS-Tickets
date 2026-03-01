@@ -214,16 +214,25 @@ final class Journal_Entry_Creator {
         $doc_number = $this->build_doc_number( $order_id, $is_reversal );
         $txn_date   = $order->get_date_paid() ? $order->get_date_paid()->date_i18n( 'Y-m-d' ) : gmdate( 'Y-m-d' );
 
+        $customer_note = $this->format_customer_note( $order );
+
+        $reversal_reference = $original_je_id;
+        if ( $reversal_reference === '' ) {
+            $reversal_reference = 'unknown';
+        }
+
         $private_note = ! $is_reversal
             ? sprintf(
-                'ORAS Woo order #%1$s revenue split (%2$s).',
+                'ORAS Woo order #%1$s revenue split (%2$s). %3$s',
                 $order->get_order_number(),
-                (string) ( $split['discount_mode'] ?? 'proportional' )
+                (string) ( $split['discount_mode'] ?? 'proportional' ),
+                $customer_note
             )
             : sprintf(
-                'ORAS Woo order #%1$s reversal for JE %2$s.',
+                'ORAS Woo order #%1$s reversal for JE %2$s. %3$s',
                 $order->get_order_number(),
-                $original_je_id !== '' ? $original_je_id : 'unknown'
+                $reversal_reference,
+                $customer_note
             );
 
         $payload = array(
@@ -343,5 +352,21 @@ final class Journal_Entry_Creator {
                 ),
             ),
         );
+    }
+
+    /**
+     * @param \WC_Order $order
+     */
+    private function format_customer_note( $order ): string {
+        $name = trim( (string) $order->get_formatted_billing_full_name() );
+        if ( $name === '' ) {
+            $name = trim( (string) $order->get_billing_first_name() . ' ' . (string) $order->get_billing_last_name() );
+        }
+
+        $email = trim( (string) $order->get_billing_email() );
+        $name_part = $name !== '' ? $name : 'Unknown customer';
+        $email_part = $email !== '' ? sprintf( '<%s>', $email ) : '';
+
+        return sprintf( 'Customer: %1$s %2$s', $name_part, $email_part );
     }
 }

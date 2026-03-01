@@ -89,6 +89,57 @@ final class Split_Calculator {
             );
         }
 
+        $fee_items = $order->get_items( 'fee' );
+        foreach ( $fee_items as $fee_item ) {
+            if ( ! $fee_item || ! method_exists( $fee_item, 'get_total' ) ) {
+                continue;
+            }
+
+            if ( ! $fee_item instanceof \WC_Order_Item_Fee ) {
+                continue;
+            }
+
+            $line_total    = round( (float) $fee_item->get_total(), 2 );
+            $line_subtotal = $line_total;
+
+            if ( abs( $line_total ) < 0.0001 ) {
+                continue;
+            }
+
+            $classification = $this->classify_fee_item( $fee_item, $observer_slugs, $merch_slugs, $printful_slugs, $donation_slugs );
+            $bucket_key     = (string) $classification['bucket_key'];
+            $bucket_label   = (string) $classification['bucket_label'];
+            $account_id     = $this->resolve_account_id( $classification, $event_account_map, $qbo_settings );
+
+            if ( (string) ( $classification['type'] ?? '' ) === 'unmapped' ) {
+                $unmapped_lines++;
+                if ( ! $allow_unmapped_fallback ) {
+                    $warnings[] = sprintf(
+                        'Unmapped fee classification for item "%s" and unmapped fallback is disabled.',
+                        (string) $fee_item->get_name()
+                    );
+                }
+            }
+
+            if ( $account_id === '' ) {
+                $missing_account_lines++;
+                $warnings[] = sprintf(
+                    'Missing account mapping for bucket "%1$s" on order fee "%2$s".',
+                    $bucket_key,
+                    (string) $fee_item->get_name()
+                );
+                continue;
+            }
+
+            $classified_rows[] = array(
+                'bucket_key'   => $bucket_key,
+                'bucket_label' => $bucket_label,
+                'account_id'   => $account_id,
+                'total'        => $line_total,
+                'subtotal'     => $line_subtotal,
+            );
+        }
+
         $aggregated = self::aggregate_classified_rows( $classified_rows );
         $normalized_lines = $aggregated['lines'];
         $split_total      = $aggregated['split_total'];
@@ -96,7 +147,7 @@ final class Split_Calculator {
             if ( ! empty( $qbo_settings['strict_mapping_mode'] ) && ( $unmapped_lines > 0 || $missing_account_lines > 0 || ! empty( $warnings ) ) ) {
                 return new \WP_Error( 'oras_qbo_strict_mapping_failed', 'Strict mapping mode blocked sync: order contains unmapped or unresolved account lines.' );
             }
-            return new \WP_Error( 'oras_qbo_empty_split', 'No mappable line-item totals were found for this order.' );
+            return new \WP_Error( 'oras_qbo_empty_split', 'No mappable line-item or fee totals were found for this order.' );
         }
 
         if ( ! empty( $warnings ) ) {
@@ -311,6 +362,102 @@ final class Split_Calculator {
             'bucket_key'   => 'unmapped',
             'bucket_label' => 'Unmapped Woo Revenue',
         );
+    }
+
+    /**
+     * @param \WC_Order_Item_Fee $item
+     * @param string[] $observer_slugs
+     * @param string[] $merch_slugs
+     * @param string[] $printful_slugs
+     * @param string[] $donation_slugs
+     * @return array<string,string>
+     */
+    private function classify_fee_item( $item, array $observer_slugs, array $merch_slugs, array $printful_slugs, array $donation_slugs ): array {
+        $bucket_meta = sanitize_key( (string) $item->get_meta( '_oras_qbo_bucket', true ) );
+        if ( $bucket_meta === 'observer_pass' || $bucket_meta === 'observer' ) {
+            return array(
+                'type'         => 'observer_pass',
+                'bucket_key'   => 'observer_pass',
+                'bucket_label' => 'Observer Pass Income',
+            );
+        }
+
+        if ( $bucket_meta === 'donation' || $bucket_meta === 'donations' ) {
+            return array(
+                'type'         => 'donation',
+                'bucket_key'   => 'donation',
+                'bucket_label' => 'Donations Income',
+            );
+        }
+
+        if ( $bucket_meta === 'printful' || $bucket_meta === 'pod' ) {
+            return array(
+                'type'         => 'printful',
+                'bucket_key'   => 'printful',
+                'bucket_label' => 'Printful Merchandise Income',
+            );
+        }
+
+        if ( $bucket_meta === 'merchandise' || $bucket_meta === 'merch' ) {
+            return array(
+                'type'         => 'merchandise',
+                'bucket_key'   => 'merchandise',
+                'bucket_label' => 'Merchandise Income',
+            );
+        }
+
+        $fee_name = sanitize_title( (string) $item->get_name() );
+        if ( $this->text_matches_slug_list( $fee_name, $observer_slugs ) || strpos( $fee_name, 'observer' ) !== false ) {
+            return array(
+                'type'         => 'observer_pass',
+                'bucket_key'   => 'observer_pass',
+                'bucket_label' => 'Observer Pass Income',
+            );
+        }
+
+        if ( $this->text_matches_slug_list( $fee_name, $donation_slugs ) || strpos( $fee_name, 'donation' ) !== false || strpos( $fee_name, 'contribution' ) !== false ) {
+            return array(
+                'type'         => 'donation',
+                'bucket_key'   => 'donation',
+                'bucket_label' => 'Donations Income',
+            );
+        }
+
+        if ( $this->text_matches_slug_list( $fee_name, $printful_slugs ) || strpos( $fee_name, 'printful' ) !== false ) {
+            return array(
+                'type'         => 'printful',
+                'bucket_key'   => 'printful',
+                'bucket_label' => 'Printful Merchandise Income',
+            );
+        }
+
+        if ( $this->text_matches_slug_list( $fee_name, $merch_slugs ) || strpos( $fee_name, 'merch' ) !== false ) {
+            return array(
+                'type'         => 'merchandise',
+                'bucket_key'   => 'merchandise',
+                'bucket_label' => 'Merchandise Income',
+            );
+        }
+
+        return array(
+            'type'         => 'unmapped',
+            'bucket_key'   => 'unmapped',
+            'bucket_label' => 'Unmapped Woo Fee Revenue',
+        );
+    }
+
+    /**
+     * @param string[] $slugs
+     */
+    private function text_matches_slug_list( string $text, array $slugs ): bool {
+        foreach ( $slugs as $slug ) {
+            $candidate = sanitize_title( (string) $slug );
+            if ( $candidate !== '' && strpos( $text, $candidate ) !== false ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
