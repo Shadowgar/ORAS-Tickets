@@ -100,7 +100,7 @@ final class Sync_Orchestrator {
         $order->save();
 
         $this->append_audit_entry( $order, 'queued_for_sync', array() );
-        $this->schedule_sync( $order_id, 0 );
+        $this->schedule_sync( $order_id, $this->get_initial_sync_delay_minutes() );
     }
 
     /**
@@ -133,7 +133,7 @@ final class Sync_Orchestrator {
         }
 
         if ( ! $this->has_scheduled_action( $order_id ) ) {
-            $this->schedule_sync( $order_id, 0 );
+            $this->schedule_sync( $order_id, $this->get_initial_sync_delay_minutes() );
         }
 
         return array(
@@ -449,6 +449,7 @@ final class Sync_Orchestrator {
 
         $intuit_tid = isset( $result['intuit_tid'] ) ? (string) $result['intuit_tid'] : '';
         $payload    = isset( $prepared['payload'] ) && is_array( $prepared['payload'] ) ? $prepared['payload'] : array();
+        $source_match = isset( $prepared['source_match'] ) && is_array( $prepared['source_match'] ) ? $prepared['source_match'] : array();
 
         $snapshot = array(
             'lines'         => isset( $split['lines'] ) && is_array( $split['lines'] ) ? $split['lines'] : array(),
@@ -465,6 +466,14 @@ final class Sync_Orchestrator {
         $order->update_meta_data( self::META_LAST_INTUIT_TID, $intuit_tid );
         $order->update_meta_data( self::META_SPLIT_SNAPSHOT, wp_json_encode( $snapshot ) );
         $order->update_meta_data( '_oras_qbo_last_payload_hash', hash( 'sha256', wp_json_encode( $payload ) ?: '' ) );
+
+        if ( ! empty( $source_match ) ) {
+            $order->update_meta_data( '_oras_qbo_reclass_source_txn_key', (string) ( $source_match['key'] ?? '' ) );
+            $order->update_meta_data( '_oras_qbo_reclass_source_txn_id', (string) ( $source_match['id'] ?? '' ) );
+            $order->update_meta_data( '_oras_qbo_reclass_source_txn_type', (string) ( $source_match['entity'] ?? '' ) );
+            $order->update_meta_data( '_oras_qbo_reclass_source_txn_date', (string) ( $source_match['txn_date'] ?? '' ) );
+        }
+
         $order->delete_meta_data( '_oras_qbo_sync_error' );
         $order->delete_meta_data( '_oras_qbo_sync_error_code' );
         $order->save();
@@ -477,6 +486,7 @@ final class Sync_Orchestrator {
                 'je_id'      => $je_id,
                 'doc_number' => $doc_number,
                 'intuit_tid' => $intuit_tid,
+                'source_txn' => isset( $source_match['key'] ) ? (string) $source_match['key'] : '',
             )
         );
 
@@ -534,6 +544,52 @@ final class Sync_Orchestrator {
         }
 
         return $count;
+    }
+
+    /**
+     * Reset local QuickBooks sync metadata for one order so it can be re-synced
+     * under a different posting mode (for example, migrating to reclass mode).
+     *
+     * @return true|\WP_Error
+     */
+    public function reset_order_sync_state( int $order_id ) {
+        $order_id = absint( $order_id );
+        if ( $order_id <= 0 ) {
+            return new \WP_Error( 'oras_qbo_invalid_order_id', 'Order ID must be a positive integer.' );
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return new \WP_Error( 'oras_qbo_order_not_found', 'WooCommerce order not found.' );
+        }
+
+        $meta_keys = array(
+            '_oras_qbo_synced',
+            '_oras_qbo_synced_at',
+            '_oras_qbo_je_id',
+            '_oras_qbo_je_hash',
+            '_oras_qbo_doc_number',
+            '_oras_qbo_last_payload_hash',
+            '_oras_qbo_sync_status',
+            '_oras_qbo_sync_error',
+            '_oras_qbo_sync_error_code',
+            '_oras_qbo_retry_count',
+            '_oras_qbo_reclass_source_txn_key',
+            '_oras_qbo_reclass_source_txn_id',
+            '_oras_qbo_reclass_source_txn_type',
+            '_oras_qbo_reclass_source_txn_date',
+        );
+
+        foreach ( $meta_keys as $meta_key ) {
+            $order->delete_meta_data( $meta_key );
+        }
+
+        $order->save();
+        $this->clear_scheduled_actions( $order_id );
+
+        $this->append_audit_entry( $order, 'sync_state_reset', array() );
+
+        return true;
     }
 
     /**
@@ -597,6 +653,11 @@ final class Sync_Orchestrator {
         }
 
         wp_schedule_single_event( time() + $delay_seconds, self::ACTION_HOOK, array( $order_id ) );
+    }
+
+    private function get_initial_sync_delay_minutes(): int {
+        $qbo_settings = Settings::get_quickbooks_settings();
+        return max( 0, absint( $qbo_settings['initial_sync_delay_minutes'] ?? 0 ) );
     }
 
     private function clear_scheduled_actions( int $order_id ): void {
@@ -691,6 +752,26 @@ final class Sync_Orchestrator {
 
         if ( (int) $created->getTimestamp() < (int) $cutoff_ts ) {
             return new \WP_Error( 'oras_qbo_order_before_cutoff', 'Order was created before the configured QuickBooks sync cutoff date.' );
+        }
+
+        $excluded_methods_raw = (string) ( $qbo_settings['excluded_payment_methods'] ?? '' );
+        if ( $excluded_methods_raw !== '' ) {
+            $excluded_methods = array_filter(
+                array_map(
+                    static function ( string $method ): string {
+                        return sanitize_key( trim( $method ) );
+                    },
+                    explode( ',', $excluded_methods_raw )
+                )
+            );
+
+            $order_method = sanitize_key( (string) $order->get_payment_method() );
+            if ( $order_method !== '' && in_array( $order_method, $excluded_methods, true ) ) {
+                return new \WP_Error(
+                    'oras_qbo_excluded_payment_method',
+                    sprintf( 'Order payment method "%s" is excluded from QuickBooks sync.', $order_method )
+                );
+            }
         }
 
         return true;

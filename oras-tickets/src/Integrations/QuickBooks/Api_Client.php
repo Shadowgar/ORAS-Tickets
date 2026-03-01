@@ -45,6 +45,27 @@ final class Api_Client {
     }
 
     /**
+     * Execute a raw QuickBooks SQL-style query.
+     *
+     * @return array<string,mixed>|\WP_Error
+     */
+    public function run_query( string $query ) {
+        $query = trim( $query );
+        if ( $query === '' ) {
+            return new \WP_Error( 'oras_qbo_missing_query', 'QuickBooks query cannot be empty.' );
+        }
+
+        return $this->request(
+            'GET',
+            'query',
+            array(
+                'query'        => $query,
+                'minorversion' => 65,
+            )
+        );
+    }
+
+    /**
      * @return array<string,mixed>|\WP_Error
      */
     public function find_journal_entry_by_doc_number( string $doc_number ) {

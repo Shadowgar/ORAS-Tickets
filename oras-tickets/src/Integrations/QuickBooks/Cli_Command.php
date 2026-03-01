@@ -95,6 +95,42 @@ final class Cli_Command extends \WP_CLI_Command {
     }
 
     /**
+     * Reset local ORAS QuickBooks sync state and re-run sync for an order.
+     *
+     * Useful when migrating old orders to reclass mode after initial testing.
+     *
+     * ## OPTIONS
+     *
+     * <order_id>
+     * : Woo order ID.
+     *
+     * @subcommand resync-order
+     */
+    public function resync_order( array $args, array $assoc_args ): void {
+        $order_id = isset( $args[0] ) ? absint( $args[0] ) : 0;
+        if ( $order_id <= 0 ) {
+            \WP_CLI::error( 'You must pass a valid Woo order ID.' );
+            return;
+        }
+
+        $reset = $this->orchestrator->reset_order_sync_state( $order_id );
+        if ( is_wp_error( $reset ) ) {
+            \WP_CLI::error( $reset->get_error_message() );
+            return;
+        }
+
+        $result = $this->orchestrator->sync_order( $order_id, false );
+        if ( is_wp_error( $result ) ) {
+            \WP_CLI::error( $result->get_error_message() );
+            return;
+        }
+
+        $status = isset( $result['status'] ) ? (string) $result['status'] : 'unknown';
+        $je_id  = isset( $result['je_id'] ) ? (string) $result['je_id'] : '';
+        \WP_CLI::success( sprintf( 'Resync status: %s%s', $status, $je_id !== '' ? ' (JE ID: ' . $je_id . ')' : '' ) );
+    }
+
+    /**
      * Approve one pending order for QuickBooks sync.
      *
      * ## OPTIONS

@@ -136,9 +136,24 @@ final class Journal_Entry_Creator {
      * @return array<string,mixed>|\WP_Error
      */
     public function build_payload_for_order( $order, array $split, array $qbo_settings, bool $is_reversal = false, string $original_je_id = '' ) {
-        $clearing_account_id = trim( (string) ( $qbo_settings['clearing_account_id'] ?? '' ) );
-        if ( $clearing_account_id === '' ) {
-            return new \WP_Error( 'oras_qbo_missing_clearing_account', 'QuickBooks clearing account ID is not configured.' );
+        $posting_mode = sanitize_key( (string) ( $qbo_settings['posting_mode'] ?? 'clearing' ) );
+        if ( ! in_array( $posting_mode, array( 'clearing', 'reclass' ), true ) ) {
+            $posting_mode = 'clearing';
+        }
+
+        $source_match = null;
+
+        $counterparty_account_id = '';
+        if ( $posting_mode === 'reclass' ) {
+            $counterparty_account_id = trim( (string) ( $qbo_settings['reclass_source_account_id'] ?? '' ) );
+            if ( $counterparty_account_id === '' ) {
+                return new \WP_Error( 'oras_qbo_missing_reclass_source_account', 'QuickBooks reclass source account ID is not configured.' );
+            }
+        } else {
+            $counterparty_account_id = trim( (string) ( $qbo_settings['clearing_account_id'] ?? '' ) );
+            if ( $counterparty_account_id === '' ) {
+                return new \WP_Error( 'oras_qbo_missing_clearing_account', 'QuickBooks clearing account ID is not configured.' );
+            }
         }
 
         $lines = isset( $split['lines'] ) && is_array( $split['lines'] ) ? $split['lines'] : array();
@@ -151,13 +166,22 @@ final class Journal_Entry_Creator {
             return new \WP_Error( 'oras_qbo_zero_split_total', 'Split total is zero. JournalEntry was not created.' );
         }
 
+        if ( $posting_mode === 'reclass' && ! $is_reversal ) {
+            $source_match = $this->find_reclass_source_transaction( $order, $split_total );
+            if ( is_wp_error( $source_match ) ) {
+                return $source_match;
+            }
+        }
+
         $payload_lines = array();
         if ( ! $is_reversal ) {
             $payload_lines[] = $this->build_line(
                 $split_total,
                 'Debit',
-                $clearing_account_id,
-                'ORAS Woo clearing debit for order #' . $order->get_order_number()
+                $counterparty_account_id,
+                $posting_mode === 'reclass'
+                    ? 'ORAS Woo reclass debit for order #' . $order->get_order_number()
+                    : 'ORAS Woo clearing debit for order #' . $order->get_order_number()
             );
 
             foreach ( $lines as $line ) {
@@ -201,8 +225,10 @@ final class Journal_Entry_Creator {
             $payload_lines[] = $this->build_line(
                 $split_total,
                 'Credit',
-                $clearing_account_id,
-                'ORAS reversal credit to clearing for order #' . $order->get_order_number()
+                $counterparty_account_id,
+                $posting_mode === 'reclass'
+                    ? 'ORAS reversal credit to reclass source for order #' . $order->get_order_number()
+                    : 'ORAS reversal credit to clearing for order #' . $order->get_order_number()
             );
         }
 
@@ -211,7 +237,7 @@ final class Journal_Entry_Creator {
         }
 
         $order_id   = (int) $order->get_id();
-        $doc_number = $this->build_doc_number( $order_id, $is_reversal );
+        $doc_number = $this->build_doc_number( $order_id, $is_reversal, $posting_mode );
         $txn_date   = $order->get_date_paid() ? $order->get_date_paid()->date_i18n( 'Y-m-d' ) : gmdate( 'Y-m-d' );
 
         $customer_note = $this->format_customer_note( $order );
@@ -223,16 +249,18 @@ final class Journal_Entry_Creator {
 
         $private_note = ! $is_reversal
             ? sprintf(
-                'ORAS Woo order #%1$s revenue split (%2$s). %3$s',
+                'ORAS Woo order #%1$s revenue split (%2$s, mode=%4$s). %3$s',
                 $order->get_order_number(),
                 (string) ( $split['discount_mode'] ?? 'proportional' ),
-                $customer_note
+                $customer_note,
+                $posting_mode
             )
             : sprintf(
-                'ORAS Woo order #%1$s reversal for JE %2$s. %3$s',
+                'ORAS Woo order #%1$s reversal for JE %2$s (mode=%4$s). %3$s',
                 $order->get_order_number(),
                 $reversal_reference,
-                $customer_note
+                $customer_note,
+                $posting_mode
             );
 
         $payload = array(
@@ -252,7 +280,151 @@ final class Journal_Entry_Creator {
             'doc_number' => $doc_number,
             'txn_date'   => $txn_date,
             'split_total' => $split_total,
+            'source_match' => is_array( $source_match ) ? $source_match : array(),
         );
+    }
+
+    /**
+     * @param \WC_Order $order
+     * @return array<string,mixed>|\WP_Error
+     */
+    private function find_reclass_source_transaction( $order, float $split_total ) {
+        $total = round( abs( $split_total ), 2 );
+        if ( $total <= 0 ) {
+            return new \WP_Error( 'oras_qbo_invalid_reclass_total', 'Cannot match reclass source transaction for zero-value order.' );
+        }
+
+        $paid_date   = $order->get_date_paid();
+        $created_date = $order->get_date_created();
+        $base_date   = $paid_date instanceof \WC_DateTime ? $paid_date : $created_date;
+        $base_ts     = $base_date instanceof \WC_DateTime ? (int) $base_date->getTimestamp() : time();
+        $from_date   = gmdate( 'Y-m-d', $base_ts - ( 7 * DAY_IN_SECONDS ) );
+        $to_date     = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
+        $total_sql   = number_format( $total, 2, '.', '' );
+
+        $queries = array(
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
+        );
+
+        $candidates = array();
+        foreach ( $queries as $query ) {
+            $response = $this->api_client->run_query( $query );
+            if ( is_wp_error( $response ) ) {
+                return $response;
+            }
+
+            $items = isset( $response['QueryResponse'] ) && is_array( $response['QueryResponse'] )
+                ? $response['QueryResponse']
+                : array();
+
+            foreach ( array( 'SalesReceipt', 'Payment' ) as $entity_type ) {
+                $rows = isset( $items[ $entity_type ] ) && is_array( $items[ $entity_type ] )
+                    ? $items[ $entity_type ]
+                    : array();
+                foreach ( $rows as $row ) {
+                    if ( ! is_array( $row ) ) {
+                        continue;
+                    }
+
+                    $id = isset( $row['Id'] ) ? trim( (string) $row['Id'] ) : '';
+                    if ( $id === '' ) {
+                        continue;
+                    }
+
+                    $txn_key = strtolower( $entity_type ) . ':' . $id;
+                    if ( $this->is_reclass_source_key_already_used( $txn_key, (int) $order->get_id() ) ) {
+                        continue;
+                    }
+
+                    $doc_number = isset( $row['DocNumber'] ) ? (string) $row['DocNumber'] : '';
+                    $memo       = isset( $row['PrivateNote'] ) ? (string) $row['PrivateNote'] : '';
+                    if ( $memo === '' && isset( $row['CustomerMemo'] ) ) {
+                        $memo = is_array( $row['CustomerMemo'] )
+                            ? (string) ( $row['CustomerMemo']['value'] ?? '' )
+                            : (string) $row['CustomerMemo'];
+                    }
+
+                    $candidates[] = array(
+                        'entity'     => $entity_type,
+                        'id'         => $id,
+                        'key'        => $txn_key,
+                        'txn_date'   => isset( $row['TxnDate'] ) ? (string) $row['TxnDate'] : '',
+                        'total'      => round( (float) ( $row['TotalAmt'] ?? 0.0 ), 2 ),
+                        'doc_number' => $doc_number,
+                        'memo'       => $memo,
+                    );
+                }
+            }
+        }
+
+        if ( empty( $candidates ) ) {
+            $error = new \WP_Error( 'oras_qbo_reclass_source_not_found', 'No matching Stripe-posted QuickBooks transaction found yet for reclass split.' );
+            $error->add_data( array( 'retriable' => true ) );
+            return $error;
+        }
+
+        $order_number = (string) $order->get_order_number();
+        $customer_name = trim( (string) $order->get_formatted_billing_full_name() );
+
+        foreach ( $candidates as $index => $candidate ) {
+            $score = 0;
+            $haystack = strtolower( trim( (string) ( $candidate['doc_number'] . ' ' . $candidate['memo'] ) ) );
+
+            if ( $order_number !== '' && strpos( $haystack, strtolower( $order_number ) ) !== false ) {
+                $score += 100;
+            }
+
+            if ( strpos( $haystack, 'oras order' ) !== false ) {
+                $score += 30;
+            }
+
+            if ( $customer_name !== '' && strpos( $haystack, strtolower( $customer_name ) ) !== false ) {
+                $score += 20;
+            }
+
+            $txn_ts = strtotime( (string) ( $candidate['txn_date'] ?? '' ) . ' 00:00:00 UTC' );
+            if ( $txn_ts !== false ) {
+                $day_diff = (int) abs( floor( ( $txn_ts - $base_ts ) / DAY_IN_SECONDS ) );
+                $score   += max( 0, 10 - $day_diff );
+            }
+
+            $candidates[ $index ]['score'] = $score;
+        }
+
+        usort(
+            $candidates,
+            static function ( array $left, array $right ): int {
+                $left_score  = isset( $left['score'] ) ? (int) $left['score'] : 0;
+                $right_score = isset( $right['score'] ) ? (int) $right['score'] : 0;
+                if ( $left_score !== $right_score ) {
+                    return $right_score <=> $left_score;
+                }
+
+                return strcmp( (string) ( $right['txn_date'] ?? '' ), (string) ( $left['txn_date'] ?? '' ) );
+            }
+        );
+
+        return $candidates[0];
+    }
+
+    private function is_reclass_source_key_already_used( string $txn_key, int $current_order_id ): bool {
+        if ( $txn_key === '' || ! function_exists( 'wc_get_orders' ) ) {
+            return false;
+        }
+
+        $orders = wc_get_orders(
+            array(
+                'type'       => 'shop_order',
+                'return'     => 'ids',
+                'limit'      => 1,
+                'exclude'    => array( $current_order_id ),
+                'meta_key'   => '_oras_qbo_reclass_source_txn_key',
+                'meta_value' => $txn_key,
+            )
+        );
+
+        return ! empty( $orders );
     }
 
     /**
@@ -325,9 +497,15 @@ final class Journal_Entry_Creator {
         return true;
     }
 
-    private function build_doc_number( int $order_id, bool $is_reversal ): string {
+    private function build_doc_number( int $order_id, bool $is_reversal, string $posting_mode = 'clearing' ): string {
         $suffix      = (string) max( 0, $order_id );
-        $base_prefix = $is_reversal ? 'ORAS-RV-' : 'ORAS-WO-';
+        $base_prefix = 'ORAS-WO-';
+        if ( $posting_mode === 'reclass' ) {
+            $base_prefix = 'ORAS-RC-';
+        }
+        if ( $is_reversal ) {
+            $base_prefix = 'ORAS-RV-';
+        }
         $allowed     = 21 - strlen( $suffix );
 
         if ( $allowed < 1 ) {

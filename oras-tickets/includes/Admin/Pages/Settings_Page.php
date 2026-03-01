@@ -328,6 +328,58 @@ final class Settings_Page
         );
 
         add_settings_field(
+            'quickbooks_initial_sync_delay_minutes',
+            __('Initial Sync Delay (Minutes)', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.initial_sync_delay_minutes',
+                'min'   => 0,
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_posting_mode',
+            __('Posting Mode', 'oras-tickets'),
+            array(self::class, 'render_select_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field'   => 'quickbooks.posting_mode',
+                'options' => array(
+                    'clearing' => __( 'Clearing Split (default): DR clearing, CR split income accounts', 'oras-tickets' ),
+                    'reclass'  => __( 'Connector Reclass Split: DR connector source income, CR split income accounts', 'oras-tickets' ),
+                ),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_reclass_source_account_id',
+            __('Reclass Source Account', 'oras-tickets'),
+            array(self::class, 'render_account_select_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.reclass_source_account_id',
+                'help'  => __('Used only in Connector Reclass Split mode. Select the single income account your Stripe connector posts gross sales into.', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_excluded_payment_methods',
+            __('Excluded Payment Methods', 'oras-tickets'),
+            array(self::class, 'render_text_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field'       => 'quickbooks.excluded_payment_methods',
+                'placeholder' => 'stripe,stripe_cc',
+                'help'        => __('Comma-separated Woo payment method IDs to skip ORAS QuickBooks sync for (prevents duplicate posting when another connector already posts those orders).', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
             'quickbooks_clearing_account_id',
             __('Clearing Account', 'oras-tickets'),
             array(self::class, 'render_account_select_field'),
@@ -518,7 +570,13 @@ final class Settings_Page
                 'refresh_token_expires_at'   => isset( $input_qbo['refresh_token_expires_at'] ) ? (string) $input_qbo['refresh_token_expires_at'] : (string) ( $current_qbo['refresh_token_expires_at'] ?? '' ),
                 'connected_at'               => isset( $input_qbo['connected_at'] ) ? (string) $input_qbo['connected_at'] : (string) ( $current_qbo['connected_at'] ?? '' ),
                 'sync_cutoff_date'           => self::sanitize_iso_date( (string) ( $input_qbo['sync_cutoff_date'] ?? ( $current_qbo['sync_cutoff_date'] ?? '' ) ) ),
+                'initial_sync_delay_minutes' => absint( $input_qbo['initial_sync_delay_minutes'] ?? ( $current_qbo['initial_sync_delay_minutes'] ?? 0 ) ),
+                'posting_mode'               => in_array( sanitize_key( (string) ( $input_qbo['posting_mode'] ?? ( $current_qbo['posting_mode'] ?? 'clearing' ) ) ), array( 'clearing', 'reclass' ), true )
+                    ? sanitize_key( (string) ( $input_qbo['posting_mode'] ?? ( $current_qbo['posting_mode'] ?? 'clearing' ) ) )
+                    : 'clearing',
+                'excluded_payment_methods'   => sanitize_text_field( (string) ( $input_qbo['excluded_payment_methods'] ?? ( $current_qbo['excluded_payment_methods'] ?? '' ) ) ),
                 'clearing_account_id'        => sanitize_text_field( (string) ( $input_qbo['clearing_account_id'] ?? '' ) ),
+                'reclass_source_account_id'  => sanitize_text_field( (string) ( $input_qbo['reclass_source_account_id'] ?? '' ) ),
                 'tickets_default_account_id' => sanitize_text_field( (string) ( $input_qbo['tickets_default_account_id'] ?? '' ) ),
                 'observer_account_id'        => sanitize_text_field( (string) ( $input_qbo['observer_account_id'] ?? '' ) ),
                 'merchandise_account_id'     => sanitize_text_field( (string) ( $input_qbo['merchandise_account_id'] ?? '' ) ),
@@ -581,7 +639,11 @@ final class Settings_Page
                 'refresh_token_expires_at'   => '',
                 'connected_at'               => '',
                 'sync_cutoff_date'           => '',
+                'initial_sync_delay_minutes' => 0,
+                'posting_mode'               => 'clearing',
+                'excluded_payment_methods'   => '',
                 'clearing_account_id'        => '',
+                'reclass_source_account_id'  => '',
                 'tickets_default_account_id' => '',
                 'observer_account_id'        => '',
                 'merchandise_account_id'     => '',
