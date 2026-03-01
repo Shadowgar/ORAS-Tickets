@@ -92,6 +92,7 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
 
         // Nonce
         wp_nonce_field( 'oras_tickets_metabox', 'oras_tickets_metabox_nonce' );
+        echo '<input type="hidden" name="oras_tickets_present" value="1" />';
 
         ?>
         <div id="oras-tickets-metabox">
@@ -676,7 +677,13 @@ if ( $start_dt instanceof \DateTimeInterface ) {
             return;
         }
 
-        if ( ! isset( $_POST['oras_tickets_tickets'] ) || ! is_array( $_POST['oras_tickets_tickets'] ) ) {
+        $metabox_present = isset( $_POST['oras_tickets_present'] ) && (string) wp_unslash( $_POST['oras_tickets_present'] ) === '1';
+
+        if ( isset( $_POST['oras_tickets_tickets'] ) && is_array( $_POST['oras_tickets_tickets'] ) ) {
+            $posted_tickets = wp_unslash( $_POST['oras_tickets_tickets'] );
+        } elseif ( $metabox_present ) {
+            $posted_tickets = array();
+        } else {
             return;
         }
 
@@ -685,7 +692,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
             ? $existing_envelope['tickets']
             : array();
 
-        $raw           = wp_unslash( $_POST['oras_tickets_tickets'] );
+        $raw           = $posted_tickets;
         $clean_tickets = array();
 
         // Determine posted index order if provided.
