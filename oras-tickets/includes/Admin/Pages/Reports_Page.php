@@ -8,6 +8,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php'; // NOSO
 use ORAS\Tickets\Admin\Reports_Aggregator;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Ticket_Collection;
+use ORAS\Tickets\Security\CsvSafety;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -791,18 +792,20 @@ return 1;
 
             fputcsv(
                 $output,
-                array(
-                    'event_id',
-                    'event_title',
-                    'event_date',
-                    'orders',
-                    'tickets_sold',
-                    'first_phase',
-                    'after_first_phase',
-                    'gross',
-                    'refunded',
-                    'net',
-                    'last_sale',
+                CsvSafety::row(
+                    array(
+                        'event_id',
+                        'event_title',
+                        'event_date',
+                        'orders',
+                        'tickets_sold',
+                        'first_phase',
+                        'after_first_phase',
+                        'gross',
+                        'refunded',
+                        'net',
+                        'last_sale',
+                    )
                 )
             );
 
@@ -810,18 +813,20 @@ return 1;
             foreach ( $rows as $row ) {
                 fputcsv(
                     $output,
-                    array(
-                        $row['event_id'],
-                        $row['title'],
-                        $row['event_date'],
-                        $row['orders'],
-                        $row['tickets_sold'],
-                        $row['presale_tickets_sold'],
-                        $row['after_presale_tickets_sold'],
-                        $row['gross_sales'],
-                        $row['refunded_amount'],
-                        $row['net_sales'],
-                        $row['last_sale'],
+                    CsvSafety::row(
+                        array(
+                            $row['event_id'],
+                            $row['title'],
+                            $row['event_date'],
+                            $row['orders'],
+                            $row['tickets_sold'],
+                            $row['presale_tickets_sold'],
+                            $row['after_presale_tickets_sold'],
+                            $row['gross_sales'],
+                            $row['refunded_amount'],
+                            $row['net_sales'],
+                            $row['last_sale'],
+                        )
                     )
                 );
             }
@@ -851,19 +856,21 @@ return 1;
 
         fputcsv(
             $output,
-            array(
-                'order_id',
-                'order_date',
-                'order_status',
-                'ticket_name',
-                'ticket_index',
-                'qty',
-                'unit_price',
-                'line_total',
-                'currency',
-                'phase_key',
-                'phase_label',
-                'presale_bucket',
+            CsvSafety::row(
+                array(
+                    'order_id',
+                    'order_date',
+                    'order_status',
+                    'ticket_name',
+                    'ticket_index',
+                    'qty',
+                    'unit_price',
+                    'line_total',
+                    'currency',
+                    'phase_key',
+                    'phase_label',
+                    'presale_bucket',
+                )
             )
         );
 
@@ -891,19 +898,21 @@ return 1;
 
                 fputcsv(
                     $output,
-                    array(
-                        $row['order_id'],
-                        $row['order_date'],
-                        $row['order_status'],
-                        $row['ticket_name'],
-                        $row['ticket_index'],
-                        $row['qty'],
-                        $row['unit_price'],
-                        $row['line_total'],
-                        $row['currency'],
-                        $phase_key,
-                        $phase_label,
-                        $bucket,
+                    CsvSafety::row(
+                        array(
+                            $row['order_id'],
+                            $row['order_date'],
+                            $row['order_status'],
+                            $row['ticket_name'],
+                            $row['ticket_index'],
+                            $row['qty'],
+                            $row['unit_price'],
+                            $row['line_total'],
+                            $row['currency'],
+                            $phase_key,
+                            $phase_label,
+                            $bucket,
+                        )
                     )
                 );
             }

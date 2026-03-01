@@ -46,6 +46,11 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - 2026-02-15: ORAS-only virtual access gating implemented for TEC Virtual Events (meta `_oras_virtual_access_v1`). See `plugin/includes/Frontend/Virtual_Access.php`.
 
 - 2026-02-15: Phase 6 — Attendees Management added admin attendees dashboard, attendee messaging (BCC chunking, validation), and attendee notes with inline editing; key handlers are in `plugin/includes/Bootstrap.php` and frontend JS is `plugin/assets/admin/dashboard-rsvp.js`.
+- 2026-03-01: Security and integrity hardening pass completed for RSVP/waitlist and capacity operations:
+	- event-scoped DB lock helper added and applied to RSVP + waitlist promotion critical sections,
+	- Woo capacity consume/restore hardened with order-level idempotency lock + event-level atomic mutation lock,
+	- CSV export safety centralized and applied across report/export handlers,
+	- admin RSVP dashboard row rendering moved to DOM-safe element construction.
 
 ## Phase 3.1 — Locked (Frontend & UX)
 The Phase 3.1 frontend behaviors are locked and must not be regressed. Implementations that change the runtime display, purchasability, or cart revalidation behavior described below require an explicit design review and a versioned migration plan.

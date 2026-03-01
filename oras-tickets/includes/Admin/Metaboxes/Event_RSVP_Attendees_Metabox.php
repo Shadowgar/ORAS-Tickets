@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Admin\Metaboxes;
 
+use ORAS\Tickets\Security\CsvSafety;
+use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -181,9 +183,9 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         header( 'Content-Disposition: attachment; filename="rsvp-yes-attendees-event-' . $event_id . '.csv"' );
 
         $fp = fopen( 'php://output', 'w' );
-        fputcsv( $fp, array( 'Name', 'Email', 'Status' ) );
+        fputcsv( $fp, CsvSafety::row( array( 'Name', 'Email', 'Status' ) ) );
         foreach ( $users as $user ) {
-            fputcsv( $fp, array( $user->display_name, $user->user_email, 'yes' ) );
+            fputcsv( $fp, CsvSafety::row( array( $user->display_name, $user->user_email, 'yes' ) ) );
         }
         fclose( $fp );
         exit;
@@ -203,18 +205,29 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
             wp_die( esc_html__( 'Invalid event ID.', 'oras-tickets' ) );
         }
 
-        $envelope = get_post_meta( $event_id, '_oras_rsvp_v1', true );
-        $capacity = isset( $envelope['capacity'] ) ? (int) $envelope['capacity'] : 0;
-        $yes_count = self::get_count( $event_id, 'yes' );
+        $result = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id ) {
+                $envelope = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+                $capacity = isset( $envelope['capacity'] ) ? (int) $envelope['capacity'] : 0;
+                $yes_count = self::get_count( $event_id, 'yes' );
 
-        if ( $capacity > 0 && $yes_count >= $capacity ) {
-            wp_die( esc_html__( 'Event is at capacity.', 'oras-tickets' ) );
-        }
+                if ( $capacity > 0 && $yes_count >= $capacity ) {
+                    return new \WP_Error( 'oras_rsvp_capacity', esc_html__( 'Event is at capacity.', 'oras-tickets' ) );
+                }
 
-        $promoted_user_id = Waitlist_Store::promote_next_waiting( $event_id, get_current_user_id(), 'metabox' );
-        if ( $promoted_user_id > 0 ) {
-            update_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
-            delete_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id . '_ts' );
+                $promoted_user_id = Waitlist_Store::promote_next_waiting( $event_id, get_current_user_id(), 'metabox' );
+                if ( $promoted_user_id > 0 ) {
+                    update_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
+                    delete_user_meta( $promoted_user_id, '_oras_rsvp_event_' . $event_id . '_ts' );
+                }
+
+                return true;
+            }
+        );
+
+        if ( is_wp_error( $result ) ) {
+            wp_die( $result->get_error_message() );
         }
 
         wp_safe_redirect( admin_url( 'post.php?post=' . $event_id . '&action=edit' ) );

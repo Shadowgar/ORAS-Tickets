@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Admin\Pages;
 
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Security\CsvSafety;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -153,42 +154,46 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
 
         fputcsv(
             $output,
-            array(
-                'event_id',
-                'event_title',
-                'event_start',
-                'speaker_id',
-                'speaker_name',
-                'speaker_email',
-                'role',
-                'is_primary',
-                'compensation_type',
-                'fee_amount',
-                'pmpro_level_id',
-                'pmpro_level_name',
-                'fulfilled',
-                'fulfilled_date',
+            CsvSafety::row(
+                array(
+                    'event_id',
+                    'event_title',
+                    'event_start',
+                    'speaker_id',
+                    'speaker_name',
+                    'speaker_email',
+                    'role',
+                    'is_primary',
+                    'compensation_type',
+                    'fee_amount',
+                    'pmpro_level_id',
+                    'pmpro_level_name',
+                    'fulfilled',
+                    'fulfilled_date',
+                )
             )
         );
 
         foreach ( $rows as $row ) {
             fputcsv(
                 $output,
-                array(
-                    $row['event_id'],
-                    $row['event_title'],
-                    $row['event_start_raw'],
-                    $row['speaker_id'],
-                    $row['speaker_name'],
-                    $row['speaker_email'],
-                    $row['role'],
-                    $row['is_primary'] ? '1' : '0',
-                    $row['compensation_type'],
-                    $row['fee_amount'],
-                    $row['pmpro_level_id'],
-                    $row['pmpro_level_name'],
-                    $row['fulfilled'] ? '1' : '0',
-                    $row['fulfilled_date'],
+                CsvSafety::row(
+                    array(
+                        $row['event_id'],
+                        $row['event_title'],
+                        $row['event_start_raw'],
+                        $row['speaker_id'],
+                        $row['speaker_name'],
+                        $row['speaker_email'],
+                        $row['role'],
+                        $row['is_primary'] ? '1' : '0',
+                        $row['compensation_type'],
+                        $row['fee_amount'],
+                        $row['pmpro_level_id'],
+                        $row['pmpro_level_name'],
+                        $row['fulfilled'] ? '1' : '0',
+                        $row['fulfilled_date'],
+                    )
                 )
             );
         }

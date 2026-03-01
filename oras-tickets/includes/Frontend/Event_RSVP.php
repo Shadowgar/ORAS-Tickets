@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -188,82 +189,88 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $meta = array();
         }
 
-        $capacity = absint( $meta['capacity'] ?? 0 );
-        $waitlist_enabled = ! empty( $meta['waitlist_enabled'] );
+        $operation = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id, $user_id, $intent, $meta ): array {
+                $capacity = absint( $meta['capacity'] ?? 0 );
+                $waitlist_enabled = ! empty( $meta['waitlist_enabled'] );
 
-        $current = self::get_user_status( $event_id, $user_id );
-        $yes_count = self::yes_count( $event_id );
-        $waitlist_lifecycle = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
-        $was_waitlisted = ( 'waitlist' === $current || 'waiting' === $waitlist_lifecycle );
+                $current = self::get_user_status( $event_id, $user_id );
+                $yes_count = self::yes_count( $event_id );
+                $waitlist_lifecycle = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
+                $was_waitlisted = ( 'waitlist' === $current || 'waiting' === $waitlist_lifecycle );
 
-        $new_status = $current;
-        $error = false;
+                $new_status = $current;
+                $error = false;
 
-        switch ( $intent ) {
-            case 'yes':
-                if ( 'yes' === $current ) {
-                    // no-op
-                    $new_status = 'yes';
-                } else {
-                    if ( 0 === $capacity || $yes_count < $capacity ) {
-                        $new_status = 'yes';
-                    } elseif ( $waitlist_enabled ) {
-                        $new_status = 'waitlist';
-                    } else {
+                switch ( $intent ) {
+                    case 'yes':
+                        if ( 'yes' === $current ) {
+                            $new_status = 'yes';
+                        } else {
+                            if ( 0 === $capacity || $yes_count < $capacity ) {
+                                $new_status = 'yes';
+                            } elseif ( $waitlist_enabled ) {
+                                $new_status = 'waitlist';
+                            } else {
+                                $error = true;
+                            }
+                        }
+                        break;
+
+                    case 'no':
+                        $new_status = 'no';
+                        break;
+
+                    case 'waitlist':
+                        if ( $waitlist_enabled && ( $capacity > 0 && $yes_count >= $capacity ) ) {
+                            $new_status = 'waitlist';
+                        } else {
+                            $error = true;
+                        }
+                        break;
+
+                    case 'leave_waitlist':
+                        if ( 'waitlist' === $current ) {
+                            $new_status = 'no';
+                        }
+                        break;
+
+                    default:
                         $error = true;
+                }
+
+                if ( $error ) {
+                    return array(
+                        'ok'      => false,
+                        'message' => esc_html__( 'Unable to update RSVP.', 'oras-tickets' ),
+                    );
+                }
+
+                if ( 'no' === $intent ) {
+                    if ( $was_waitlisted ) {
+                        Waitlist_Store::mark_left( $event_id, $user_id, 'frontend-no', $user_id );
                     }
-                }
-                break;
 
-            case 'no':
-                $new_status = 'no';
-                break;
-
-            case 'waitlist':
-                if ( $waitlist_enabled && ( $capacity > 0 && $yes_count >= $capacity ) ) {
-                    $new_status = 'waitlist';
-                } else {
-                    $error = true;
-                }
-                break;
-
-            case 'leave_waitlist':
-                if ( 'waitlist' === $current ) {
-                    $new_status = 'no';
-                }
-                break;
-
-            default:
-                $error = true;
-        }
-
-        if ( ! $error ) {
-            // Handle revoke (remove RSVP) deterministically when intent is 'no'.
-            if ( 'no' === $intent ) {
-                if ( $was_waitlisted ) {
-                    Waitlist_Store::mark_left( $event_id, $user_id, 'frontend-no', $user_id );
-                }
-
-                $existing = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
-                if ( empty( $existing ) ) {
-                    // Idempotent: already removed
-                    if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                        wp_send_json_success( array( 'message' => esc_html__( 'RSVP already removed.', 'oras-tickets' ), 'status' => 'none' ) );
+                    $existing = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, true );
+                    if ( empty( $existing ) ) {
+                        return array(
+                            'ok'      => true,
+                            'status'  => 'none',
+                            'message' => esc_html__( 'RSVP already removed.', 'oras-tickets' ),
+                        );
                     }
-                    $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
-                } else {
-                    // Remove user meta entries that represent RSVP
+
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
 
-                    // If request was made via AJAX, return JSON response indicating removal.
-                    if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                        wp_send_json_success( array( 'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ), 'status' => 'none' ) );
-                    }
-                    $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
+                    return array(
+                        'ok'      => true,
+                        'status'  => 'none',
+                        'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ),
+                    );
                 }
-            } else {
-                // Normal update path: set the user meta value for yes/waitlist
+
                 update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
 
                 if ( $new_status === 'waitlist' ) {
@@ -280,21 +287,47 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     }
                 }
 
-                // If request was made via AJAX, return JSON response for other statuses.
-                if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                    $msg = 'yes' === $new_status ? esc_html__( 'You are RSVPed.', 'oras-tickets' ) : esc_html__( 'Your RSVP was updated.', 'oras-tickets' );
-                    wp_send_json_success( array( 'message' => $msg, 'status' => $new_status ) );
-                }
-
-                $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
+                return array(
+                    'ok'      => true,
+                    'status'  => $new_status,
+                    'message' => 'yes' === $new_status
+                        ? esc_html__( 'You are RSVPed.', 'oras-tickets' )
+                        : esc_html__( 'Your RSVP was updated.', 'oras-tickets' ),
+                );
             }
-        } else {
+        );
+
+        if ( is_wp_error( $operation ) ) {
             if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
-                wp_send_json_error( array( 'message' => esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) ) );
+                wp_send_json_error( array( 'message' => $operation->get_error_message() ) );
+            }
+
+            $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'locked' ) ), $redirect );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        $ok = ! empty( $operation['ok'] );
+        if ( ! $ok ) {
+            if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                wp_send_json_error( array( 'message' => (string) ( $operation['message'] ?? esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) ) ) );
             }
 
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'capacity' ) ), $redirect );
+            wp_safe_redirect( $redirect );
+            exit;
         }
+
+        if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+            wp_send_json_success(
+                array(
+                    'message' => (string) ( $operation['message'] ?? esc_html__( 'Your RSVP was updated.', 'oras-tickets' ) ),
+                    'status'  => (string) ( $operation['status'] ?? '' ),
+                )
+            );
+        }
+
+        $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
 
         wp_safe_redirect( $redirect );
         exit;

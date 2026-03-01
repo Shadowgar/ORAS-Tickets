@@ -1,6 +1,6 @@
 # PROJECT_STATE — Canonical Project Definition
 
-Last updated: 2026-02-25
+Last updated: 2026-03-01
 
 ## Project Identity
 - Name: ORAS Events Add-On
@@ -46,7 +46,7 @@ The project is in **stabilize-and-refine mode**:
 - Apply Phase 4 UI/UX polish pass.
 - Only then continue into Phase 6+ build-out.
 
-## Evidence Snapshot (2026-02-25)
+## Evidence Snapshot (2026-03-01)
 Recently completed hardening in code:
 - RSVP intent parsing and waitlist actions corrected.
 - First-class waitlist table with lifecycle/audit tracking added and wired into RSVP/admin promotion paths.
@@ -61,6 +61,10 @@ Recently completed hardening in code:
 - Waitlist queue operations and audit/history surface added to RSVP dashboard.
 - New waitlist AJAX operation handlers added and covered by integration checks.
 - Attendee dashboard ticket-source coverage expanded to all supported Woo statuses; on-hold/all status regression checks added.
+- Centralized CSV export safety helper added and applied across RSVP/attendee/report/speaker export surfaces.
+- Admin RSVP dashboard row rendering moved to DOM-safe element construction.
+- Event-scoped lock helper added and applied to frontend/admin RSVP and waitlist promotion critical sections.
+- Woo capacity consume/restore handlers hardened with order-scoped idempotency lock + event-scoped atomic ticket-envelope updates.
 - Static analysis clean (`phpstan`, `phpcs`).
 
 ## Locked vs Active

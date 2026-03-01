@@ -1,6 +1,6 @@
 # CURRENT_STATE — Operational Snapshot
 
-Last updated: 2026-02-28
+Last updated: 2026-03-01
 
 ## Authoritative Status
 For phase percentages and advancement rules, use:
@@ -106,6 +106,16 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - Added branch-protection automation helper for CI enforcement:
   - `scripts/configure-branch-protection-required-checks.sh`
   - targets required status context `Phase5 Verification / verify`.
+
+## What Was Fixed (2026-03-01)
+- Concurrency hardening for RSVP/waitlist state transitions:
+  - event-scoped lock helper added (`includes/Support/DbLock.php`),
+  - frontend RSVP mutation path now executes under event lock,
+  - dashboard and metabox waitlist promotion paths now execute under event lock.
+- Concurrency hardening for Woo capacity mutation paths:
+  - `includes/Commerce/Woo/Capacity_Consumption.php` now wraps consume/restore flows in order-scoped idempotency locks,
+  - capacity changes are aggregated per order and applied under event-scoped locks,
+  - ticket-capacity envelope saves and product stock sync run from locked, fresh event state.
 
 ## Remaining Gaps Before Phase 6+
 1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.

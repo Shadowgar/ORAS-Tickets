@@ -1,6 +1,6 @@
 # ORAS-Tickets Documentation Index
 
-Last updated: 2026-02-25
+Last updated: 2026-03-01
 
 ## What this plugin is
 ORAS-Tickets is an internal ORAS add-on for WordPress event operations.
@@ -31,6 +31,12 @@ Core stack:
 Phase 5 hardening and completion gating.
 
 Do not start new Phase 6+ features until Phase 5 closure criteria in `MASTER_EXECUTION_TRACKER.md` are complete.
+
+## Recent updates (2026-03-01)
+- RSVP/waitlist state transitions now run under event-scoped DB locks.
+- Woo order capacity consume/restore flows now run under order + event lock boundaries to prevent concurrent double-mutation.
+- CSV exports are hardened through centralized CSV cell neutralization for formula-injection protection.
+- Admin RSVP dashboard row rendering is hardened to DOM-safe element construction (no string-built HTML sinks).
 
 ## Key technical references
 - `docs/EVENT_TICKETS_ENGINE_ARCHITECTURE.md`

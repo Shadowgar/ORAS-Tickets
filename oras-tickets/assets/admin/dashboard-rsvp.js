@@ -292,30 +292,43 @@ jQuery( document ).ready( function( $ ) {
 		$waitlistQueueBody.empty();
 
 		if ( queueRows.length === 0 ) {
-			$waitlistQueueBody.append( '<tr><td colspan="6">No users currently waiting.</td></tr>' );
+			$waitlistQueueBody
+				.append( $( '<tr/>' )
+					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No users currently waiting.' ) ) );
 			return;
 		}
 
 		$.each( queueRows, function( index, row ) {
 			var userId = normalizeInt( row.user_id );
 			var position = normalizeInt( row.position ) > 0 ? normalizeInt( row.position ) : ( index + 1 );
-			var name = escapeHtml( row.name );
-			var email = escapeHtml( row.email );
-			var joinedAt = escapeHtml( formatDateLabel( row.joined_at ) );
-			var source = escapeHtml( row.source );
-			var actionButtons = '<button type="button" class="button button-small oras-waitlist-promote-user" data-user-id="' + userId + '">Promote</button> ' +
-				'<button type="button" class="button button-small oras-waitlist-remove-user" data-user-id="' + userId + '">Remove</button>';
+			var joinedAt = formatDateLabel( row.joined_at );
+			var $actions = $( '<td/>' );
+			var $promoteButton = $( '<button/>' )
+				.attr( {
+					type: 'button',
+					'class': 'button button-small oras-waitlist-promote-user'
+				} )
+				.attr( 'data-user-id', String( userId ) )
+				.text( 'Promote' );
+			var $removeButton = $( '<button/>' )
+				.attr( {
+					type: 'button',
+					'class': 'button button-small oras-waitlist-remove-user'
+				} )
+				.attr( 'data-user-id', String( userId ) )
+				.text( 'Remove' );
 
-			var html = '<tr>' +
-				'<td>' + escapeHtml( String( position ) ) + '</td>' +
-				'<td>' + name + '</td>' +
-				'<td>' + email + '</td>' +
-				'<td>' + joinedAt + '</td>' +
-				'<td>' + source + '</td>' +
-				'<td>' + actionButtons + '</td>' +
-				'</tr>';
+			$actions.append( $promoteButton ).append( ' ' ).append( $removeButton );
 
-			$waitlistQueueBody.append( html );
+			$waitlistQueueBody.append(
+				$( '<tr/>' )
+					.append( $( '<td/>' ).text( String( position ) ) )
+					.append( $( '<td/>' ).text( String( row.name ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( row.email ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( joinedAt ) ) )
+					.append( $( '<td/>' ).text( String( row.source ?? '' ) ) )
+					.append( $actions )
+			);
 		} );
 	}
 
@@ -323,27 +336,24 @@ jQuery( document ).ready( function( $ ) {
 		$waitlistHistoryBody.empty();
 
 		if ( historyRows.length === 0 ) {
-			$waitlistHistoryBody.append( '<tr><td colspan="6">No waitlist history entries found.</td></tr>' );
+			$waitlistHistoryBody
+				.append( $( '<tr/>' )
+					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No waitlist history entries found.' ) ) );
 			return;
 		}
 
 		$.each( historyRows, function( index, row ) {
-			var name = escapeHtml( row.name );
-			var status = escapeHtml( row.status );
-			var lastAction = escapeHtml( row.last_action );
-			var source = escapeHtml( row.source );
-			var actorName = escapeHtml( row.actor_name || '' );
-			var updatedAt = escapeHtml( formatDateLabel( row.updated_at ) );
-			var html = '<tr>' +
-				'<td>' + name + '</td>' +
-				'<td>' + status + '</td>' +
-				'<td>' + lastAction + '</td>' +
-				'<td>' + source + '</td>' +
-				'<td>' + actorName + '</td>' +
-				'<td>' + updatedAt + '</td>' +
-				'</tr>';
+			var updatedAt = formatDateLabel( row.updated_at );
 
-			$waitlistHistoryBody.append( html );
+			$waitlistHistoryBody.append(
+				$( '<tr/>' )
+					.append( $( '<td/>' ).text( String( row.name ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( row.status ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( row.last_action ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( row.source ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( row.actor_name ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( updatedAt ) ) )
+			);
 		} );
 	}
 
@@ -475,20 +485,19 @@ jQuery( document ).ready( function( $ ) {
 	function updateAttendees( attendees ) {
 		$attendeesBody.empty();
 		if ( attendees.length === 0 ) {
-			$attendeesBody.append( '<tr><td colspan="3">No attendees found.</td></tr>' );
+			$attendeesBody
+				.append( $( '<tr/>' )
+					.append( $( '<td/>' ).attr( 'colspan', 3 ).text( 'No attendees found.' ) ) );
 			return;
 		}
 
 		$.each( attendees, function( index, attendee ) {
-			var name = escapeHtml( attendee.name );
-			var email = escapeHtml( attendee.email );
-			var status = escapeHtml( attendee.status );
-			var row = '<tr>' +
-				'<td>' + name + '</td>' +
-				'<td>' + email + '</td>' +
-				'<td>' + status + '</td>' +
-				'</tr>';
-			$attendeesBody.append( row );
+			$attendeesBody.append(
+				$( '<tr/>' )
+					.append( $( '<td/>' ).text( String( attendee.name ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( attendee.email ?? '' ) ) )
+					.append( $( '<td/>' ).text( String( attendee.status ?? '' ) ) )
+			);
 		} );
 	}
 
@@ -664,55 +673,126 @@ jQuery( document ).ready( function( $ ) {
 	function populateAttendeesTable( attendees ) {
 		$attendeesBodyTable.empty();
 		if ( attendees.length === 0 ) {
-			$attendeesBodyTable.append( '<tr><td colspan="8">No attendees found.</td></tr>' );
+			$attendeesBodyTable
+				.append( $( '<tr/>' )
+					.append( $( '<td/>' ).attr( 'colspan', 8 ).text( 'No attendees found.' ) ) );
 			return;
 		}
 
 		$.each( attendees, function( index, attendee ) {
-			var actions = [];
 			var userId = normalizeInt( attendee.user_id );
 			var orderId = normalizeInt( attendee.order_id );
-			var attendeeKey = escapeHtml( attendee.attendee_key );
+			var attendeeKey = String( attendee.attendee_key ?? '' );
 			var emailValue = String( attendee.email ?? '' ).trim();
 			var emailHref = 'mailto:' + encodeURIComponent( emailValue );
-			var name = escapeHtml( attendee.name );
-			var email = escapeHtml( emailValue );
-			var source = escapeHtml( attendee.source );
-			var orderStatus = escapeHtml( attendee.order_status );
 			var userIdLabel = userId > 0 ? String( userId ) : '';
 			var orderIdLabel = orderId > 0 ? String( orderId ) : '';
 			var noteRaw = String( attendee.note ?? '' );
+			var $actionsCell = $( '<td/>' );
+			var $noteCell = $( '<td/>' );
+			var $row = $( '<tr/>' );
+			var hasActions = false;
 
 			if ( userId > 0 ) {
-				actions.push( '<a href="' + adminBase + 'user-edit.php?user_id=' + userId + '" target="_blank">View User</a>' );
+				$actionsCell.append(
+					$( '<a/>' )
+						.attr( {
+							href: adminBase + 'user-edit.php?user_id=' + userId,
+							target: '_blank'
+						} )
+						.text( 'View User' )
+				);
+				hasActions = true;
 			}
 
 			if ( orderId > 0 ) {
-				actions.push( '<a href="' + adminBase + 'post.php?post=' + orderId + '&action=edit" target="_blank">View Order</a>' );
+				if ( hasActions ) {
+					$actionsCell.append( ' | ' );
+				}
+				$actionsCell.append(
+					$( '<a/>' )
+						.attr( {
+							href: adminBase + 'post.php?post=' + orderId + '&action=edit',
+							target: '_blank'
+						} )
+						.text( 'View Order' )
+				);
+				hasActions = true;
 			}
 
-			actions.push( '<a href="#" class="oras-edit-note" data-key="' + attendeeKey + '">Edit Note</a>' );
+			if ( hasActions ) {
+				$actionsCell.append( ' | ' );
+			}
+			$actionsCell.append(
+				$( '<a/>' )
+					.attr( {
+						href: '#',
+						'class': 'oras-edit-note',
+						'data-key': attendeeKey
+					} )
+					.text( 'Edit Note' )
+			);
+			hasActions = true;
 
-			actions.push( '<a href="' + emailHref + '">Email</a>' );
+			$actionsCell.append( ' | ' );
+			$actionsCell.append( $( '<a/>' ).attr( 'href', emailHref ).text( 'Email' ) );
 
 			var notePreview = noteRaw;
 			if ( notePreview.length > 60 ) {
 				notePreview = notePreview.substring( 0, 60 ) + '...';
 			}
-			var notePreviewEscaped = escapeHtml( notePreview );
-			var noteEscaped = escapeHtml( noteRaw );
+			$noteCell
+				.append( $( '<span/>' ).addClass( 'oras-note-preview' ).text( notePreview ) )
+				.append(
+					$( '<div/>' )
+						.addClass( 'oras-note-editor' )
+						.css( {
+							display: 'none',
+							'margin-top': '5px'
+						} )
+						.append(
+							$( '<textarea/>' )
+								.addClass( 'oras-note-text' )
+								.attr( {
+									rows: 3
+								} )
+								.css( 'width', '100%' )
+								.val( noteRaw )
+						)
+						.append(
+							$( '<p/>' )
+								.append(
+									$( '<button/>' )
+										.attr( {
+											type: 'button',
+											'class': 'button button-small oras-note-save',
+											'data-key': attendeeKey
+										} )
+										.text( 'Save' )
+								)
+								.append( ' ' )
+								.append(
+									$( '<button/>' )
+										.attr( {
+											type: 'button',
+											'class': 'button button-small oras-note-cancel'
+										} )
+										.text( 'Cancel' )
+								)
+						)
+				);
 
-			var row = '<tr>' +
-				'<td>' + name + '</td>' +
-				'<td>' + email + '</td>' +
-				'<td>' + source + '</td>' +
-				'<td>' + escapeHtml( userIdLabel ) + '</td>' +
-				'<td>' + escapeHtml( orderIdLabel ) + '</td>' +
-				'<td>' + orderStatus + '</td>' +
-				'<td><span class="oras-note-preview">' + notePreviewEscaped + '</span><div class="oras-note-editor" style="display:none; margin-top:5px;"><textarea class="oras-note-text" rows="3" style="width:100%;">' + noteEscaped + '</textarea><p><button type="button" class="button button-small oras-note-save" data-key="' + attendeeKey + '">Save</button> <button type="button" class="button button-small oras-note-cancel">Cancel</button></p></div></td>' +
-				'<td>' + actions.join( ' | ' ) + '</td>' +
-				'</tr>';
-			$attendeesBodyTable.append( row );
+			$row
+				.append( $( '<td/>' ).text( String( attendee.name ?? '' ) ) )
+				.append( $( '<td/>' ).text( String( emailValue ) ) )
+				.append( $( '<td/>' ).text( String( attendee.source ?? '' ) ) )
+				.append( $( '<td/>' ).text( userIdLabel ) )
+				.append( $( '<td/>' ).text( orderIdLabel ) )
+				.append( $( '<td/>' ).text( String( attendee.order_status ?? '' ) ) )
+				.append( $noteCell )
+				.append( $actionsCell );
+
+			$attendeesBodyTable.append( $row );
 		} );
 	}
 

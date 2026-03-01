@@ -1,6 +1,6 @@
 # ORAS-Tickets Master Execution Tracker
 
-Last updated: 2026-02-25
+Last updated: 2026-03-01
 
 ## Purpose
 This is the operational source of truth for execution progress.
@@ -26,7 +26,7 @@ If phase status conflicts across docs, this file wins.
 | 2 | Woo mapping + commerce integrity | 95% | LOCKED | keep |
 | 3 | Reporting, pricing, member APIs, print | 85% | LOCKED | polish only |
 | 4 | Speakers + agenda + recurrence guardrail | 88% | ACTIVE | polish UI + archive refinement |
-| 5 | Registration + capacity intelligence | 90% | ACTIVE | finish polish + signoff |
+| 5 | Registration + capacity intelligence | 92% | ACTIVE | finish soak + signoff |
 | 6 | Advanced ticketing intelligence | 8% | PLANNED | blocked by Phase 5 completion |
 | 7 | Speaker intelligence expansion | 23% | PLANNED | blocked by Phase 4/5 polish |
 | 8 | Virtual/hybrid advanced features | 15% | PLANNED | keep scoped to add-on rules |
@@ -43,7 +43,7 @@ Overall completion (master-plan aligned): **~56%**
 - Phase 2 (95%): Woo mapping and commerce integrity are stable; remaining 5% is defensive edge-case and lifecycle verification breadth.
 - Phase 3 (85%): core reports and exports exist; advanced analytics depth and board-ready KPI layering are still missing.
 - Phase 4 (88%): speaker/agenda baseline is strong; archive refinement and final UI polish remain open.
-- Phase 5 (90%): RSVP/waitlist/capacity baseline, queue operations, audit surface, and verification suite/CI are in place; remaining work is polish/soak and final signoff.
+- Phase 5 (92%): RSVP/waitlist/capacity baseline, queue operations, audit surface, concurrency locking hardening, and verification suite/CI are in place; remaining work is soak/regression depth and final signoff.
 - Phase 6 (8%): advanced ticket intelligence (QR/check-in/reservations) is largely unstarted by design.
 - Phase 7 (23%): speaker intelligence expansion has partial groundwork only.
 - Phase 8 (15%): virtual/hybrid advanced automation is planned but mostly unimplemented.
@@ -74,6 +74,14 @@ Completed in code:
 - Fixed attendee order-source coverage so dashboard attendee data includes all supported ticket statuses (`completed`, `processing`, `on-hold`, `pending`, `refunded`, `cancelled`, `failed`).
 - Expanded integration checks with on-hold attendee regression assertions (`ticket_status=on-hold` and `ticket_status=all` contracts).
 
+## 2026-03-01 Hardening Update
+Completed in code:
+- Added centralized CSV export safety helper and applied it across RSVP/attendee/report/speaker export surfaces.
+- Hardened admin RSVP dashboard rendering by replacing string-built row HTML with DOM-safe element construction.
+- Added event-scoped DB lock helper and wrapped frontend/admin RSVP + waitlist promotion critical sections.
+- Hardened Woo capacity consume/restore handlers with order-scoped idempotency locking and event-scoped atomic envelope updates.
+- Validation clean for modified scope (`php -l`, `composer phpstan`, `composer phpcs`).
+
 ## Backtrack / Refine Before Advancing
 Do not advance Phase 6+ until all items below are complete:
 
@@ -86,6 +94,7 @@ Do not advance Phase 6+ until all items below are complete:
   - Operational audit/history surface implemented in dashboard.
 - Remaining before lock:
   - Perform UX polish + operator soak testing on queue/history screens.
+  - Add focused concurrency regression coverage for simultaneous promotion/RSVP/order-transition paths.
 
 2. Phase 5 verification and tests
 - Completed:

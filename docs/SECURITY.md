@@ -1,6 +1,6 @@
 # Security Policy
 
-Last updated: 2026-02-25
+Last updated: 2026-03-01
 
 ## Supported Versions
 
@@ -28,6 +28,13 @@ This is an internal ORAS project.
 - Sanitize input and escape output for all user-derived content.
 - Keep deterministic data models and avoid hidden side effects.
 - Run `composer phpcs` and `composer phpstan` before merge.
+
+## Active Hardening Controls (Current)
+
+- CSV export sinks use centralized formula-injection neutralization before `fputcsv` output.
+- RSVP/waitlist mutation flows use event-scoped DB locking to avoid concurrent state races.
+- Woo capacity consume/restore handlers use order-scoped idempotency locking plus event-scoped atomic updates.
+- Admin RSVP dashboard rows are rendered via DOM-safe element construction (no unescaped string-built HTML sinks).
 
 ## Disclosure and Fix Handling
 

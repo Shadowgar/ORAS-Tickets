@@ -1,6 +1,6 @@
 # NEXT — Immediate Work Queue
 
-Last updated: 2026-02-28
+Last updated: 2026-03-01
 
 ## Current Sprint Goal
 Close Phase 5 hardening gates so Phase 6 work can begin safely.
@@ -10,12 +10,16 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
 - Run operator walkthrough on new queue/history tools (manual promote/remove and bulk promote paths).
 - Capture any UI/wording friction and apply a small polish pass.
 
-2. Board Member Dashboard Design Pack (Phase 9.5 / 10.4)
+2. Concurrency Regression Coverage (Phase 5 hardening closeout)
+- Add deterministic integration checks for concurrent RSVP + waitlist promotion + order status transition scenarios.
+- Validate capacity invariants under simultaneous paid/refund/cancel transition triggers.
+
+3. Board Member Dashboard Design Pack (Phase 9.5 / 10.4)
 - Define board KPI contract (PMPro, ticketing, finance, operational alerts).
 - Define Members Hub-aligned UI spec (information hierarchy, card system, responsive behavior).
 - Define capability/permission model for board-only access and exports.
 
-3. Phase 5.3 — QuickBooks Revenue Split Sync (Woo Orders) (Post-Gate)
+4. Phase 5.3 — QuickBooks Revenue Split Sync (Woo Orders) (Post-Gate)
 - Finalize clearing-account accounting policy with treasurer (to avoid Stripe duplicate revenue presentation). (In progress)
 - Keep production safety defaults enabled until treasurer signoff:
   - `Dry Run Mode = ON`
@@ -64,6 +68,13 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
 - Prepare refund-handling follow-up scope (reversal JournalEntry policy).
 
 ## Completed This Cycle
+- Completed RSVP/waitlist concurrency hardening and Woo capacity race mitigation:
+  - added DB named-lock helper (`includes/Support/DbLock.php`),
+  - locked frontend RSVP and admin waitlist promotion critical sections,
+  - locked Woo capacity consume/restore paths with order-scoped idempotency lock plus event-scoped mutation lock.
+- Completed export and admin-surface hardening pass:
+  - centralized CSV formula-injection mitigation helper and applied across export endpoints,
+  - replaced string-built admin table rows in RSVP dashboard with DOM-safe element construction.
 - Completed Phase 4 visual polish pass:
   - removed temporary inline styling from agenda and speaker surfaces,
   - replaced temporary agenda dark-mode overrides with production-ready tokenized CSS,

@@ -1,6 +1,6 @@
 # ORAS-Tickets Roadmap (Execution-Aligned)
 
-Last updated: 2026-02-28
+Last updated: 2026-03-01
 
 This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execution tracker in `docs/MASTER_EXECUTION_TRACKER.md`.
 
@@ -14,6 +14,11 @@ This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execut
 
 ## Current Gate
 The project remains in **stabilize-and-refine mode** before Phase 6+ development (Phase 5 depth largely complete, final polish/soak pending). QuickBooks Phase 5.3 implementation is in pre-live validation pending Intuit production app approval.
+
+Recent gate progress (2026-03-01):
+- RSVP/waitlist mutation paths were hardened with event-scoped locking.
+- Woo capacity consume/restore paths were hardened with order-scoped idempotency locking + event-scoped atomic updates.
+- CSV exports and admin RSVP dashboard rendering were hardened against spreadsheet-formula and DOM-injection classes.
 
 Compliance note:
 - Phase 5.3 closeout must include documented alignment and evidence for:

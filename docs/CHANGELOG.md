@@ -1,5 +1,27 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-01 — RSVP/Waitlist Concurrency + Capacity Consumption Hardening
+
+Code:
+- Added event-scoped DB lock helper:
+  - `oras-tickets/includes/Support/DbLock.php`
+  - provides named-lock wrappers for atomic event operations.
+- Hardened RSVP/waitlist critical sections with event locks:
+  - `oras-tickets/includes/Frontend/Event_RSVP.php`
+  - `oras-tickets/includes/Bootstrap.php`
+  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
+- Hardened Woo capacity consumption/restoration against concurrent order status transitions:
+  - `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`
+  - added order-scoped idempotency lock (`order:<id>`) around consume/restore flows,
+  - grouped and applied ticket capacity mutations per event under event-scoped locks,
+  - preserved product stock synchronization after locked capacity updates.
+
+Verification:
+- `php -l oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php` passed.
+- `php -l oras-tickets/includes/Support/DbLock.php` passed.
+- `composer phpstan` passed.
+- `composer phpcs` passed.
+
 ## 2026-02-28 — QuickBooks Reconciliation Reporting + API Error Matrix Coverage
 
 Code:
