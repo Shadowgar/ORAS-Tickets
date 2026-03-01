@@ -32,7 +32,7 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
         add_action( 'admin_notices', array( $this, 'maybe_show_admin_notices' ) );
     }
 
-    public function enqueue_assets( $hook_suffix ): void {
+    public function enqueue_assets(): void {
         if ( ! function_exists( 'get_current_screen' ) ) {
             return;
         }
@@ -41,12 +41,8 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
             return;
         }
 
-        // Only load on the post editor screens. Accept either screen base === 'post'
-        // (covers editors) or hook suffix explicitly for post edit/new pages.
-        $is_editor = ( 'post' === $screen->base ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
-        if ( ! $is_editor ) {
-            return;
-        }
+        // Some The Events Calendar admin contexts report non-standard screen bases.
+        // Once we've confirmed tribe_events post type, proceed with enqueue.
 
         wp_enqueue_script(
             'oras-tickets-metabox',

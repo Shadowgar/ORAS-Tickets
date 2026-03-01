@@ -40,7 +40,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
         remove_meta_box( 'oras_event_rsvp_attendees_metabox', Meta::EVENT_POST_TYPE, 'normal' );
     }
 
-    public function enqueue_assets( string $hook_suffix ): void {
+    public function enqueue_assets(): void {
         if ( ! function_exists( 'get_current_screen' ) ) {
             return;
         }
@@ -74,10 +74,8 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
             return;
         }
 
-        $is_editor = ( $screen && 'post' === $screen->base ) || in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true );
-        if ( ! $is_editor ) {
-            return;
-        }
+        // Some The Events Calendar admin contexts report non-standard screen bases.
+        // Once we've confirmed tribe_events post type, proceed with enqueue.
 
         wp_enqueue_style(
             'oras-event-addon-metabox',

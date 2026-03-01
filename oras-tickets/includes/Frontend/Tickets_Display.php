@@ -568,6 +568,21 @@ if ( $product_id <= 0 ) {
                 continue;
             }
 
+            if ( ! $product->is_purchasable() ) {
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( sprintf( __( 'Ticket %s is currently unavailable for purchase.', 'oras-tickets' ), $name ), 'error' );
+                }
+                $had_error = true;
+                continue;
+            }
+
+            if ( $product->is_sold_individually() && $qty > 1 ) {
+                $qty = 1;
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( sprintf( __( 'Ticket %s can only be purchased once per order.', 'oras-tickets' ), $name ), 'notice' );
+                }
+            }
+
             $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
             $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
 
@@ -624,9 +639,11 @@ if ( $product_id <= 0 ) {
                 continue;
             }
 
+            $error_count_before = function_exists( 'wc_notice_count' ) ? (int) wc_notice_count( 'error' ) : 0;
             $added = WC()->cart->add_to_cart( $product_id, $qty_to_add );
             if ( ! $added ) {
-                if ( function_exists( 'wc_add_notice' ) ) {
+                $error_count_after = function_exists( 'wc_notice_count' ) ? (int) wc_notice_count( 'error' ) : $error_count_before;
+                if ( function_exists( 'wc_add_notice' ) && $error_count_after <= $error_count_before ) {
                     wc_add_notice( sprintf( __( 'Could not add %s to cart.', 'oras-tickets' ), $name ), 'error' );
                 }
                 $had_error = true;
