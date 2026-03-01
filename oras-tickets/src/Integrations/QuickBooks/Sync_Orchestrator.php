@@ -9,12 +9,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Sync_Orchestrator {
 
     public const ACTION_HOOK = 'oras_tickets_qbo_sync_order';
+    public const ACTION_WAITING_SWEEP_HOOK = 'oras_tickets_qbo_waiting_queue_sweep';
     private const AS_GROUP    = 'oras-tickets';
     private const META_SYNCED = '_oras_qbo_synced';
     private const META_APPROVED_AT = '_oras_qbo_manual_approved_at';
     private const META_DOC_NUMBER = '_oras_qbo_doc_number';
     private const META_LAST_INTUIT_TID = '_oras_qbo_last_intuit_tid';
     private const META_SPLIT_SNAPSHOT = '_oras_qbo_split_snapshot';
+    private const META_WAIT_FIRST_AT = '_oras_qbo_wait_first_at';
+    private const META_WAIT_LAST_CHECK_AT = '_oras_qbo_wait_last_check_at';
+    private const META_WAIT_NEXT_CHECK_AT = '_oras_qbo_wait_next_check_at';
+    private const META_WAIT_ATTEMPTS = '_oras_qbo_wait_attempts';
 
     private Split_Calculator $split_calculator;
     private Journal_Entry_Creator $journal_entry_creator;
@@ -36,6 +41,12 @@ final class Sync_Orchestrator {
     public function register(): void {
         add_action( 'woocommerce_order_status_completed', array( $this, 'enqueue_order_sync' ), 10, 1 );
         add_action( self::ACTION_HOOK, array( $this, 'sync_order_async' ), 10, 1 );
+        add_action( self::ACTION_WAITING_SWEEP_HOOK, array( $this, 'process_waiting_queue_async' ) );
+        $this->ensure_waiting_queue_schedule();
+    }
+
+    public function process_waiting_queue_async(): void {
+        $this->process_waiting_orders( 50 );
     }
 
     public function enqueue_order_sync( int $order_id ): void {
@@ -97,7 +108,7 @@ final class Sync_Orchestrator {
             return;
         }
 
-        if ( ! empty( $qbo_settings['require_manual_approval'] ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
+        if ( $this->should_require_manual_approval( $qbo_settings ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
             $order->update_meta_data( '_oras_qbo_sync_status', 'pending_qbo_review' );
             $order->save();
             $this->append_audit_entry( $order, 'queued_for_manual_review', array() );
@@ -313,7 +324,7 @@ final class Sync_Orchestrator {
         }
 
         $is_dry_run   = ! empty( $qbo_settings['dry_run_mode'] );
-        if ( ! $force && ! empty( $qbo_settings['require_manual_approval'] ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
+        if ( ! $force && $this->should_require_manual_approval( $qbo_settings ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
             $order->update_meta_data( '_oras_qbo_sync_status', 'pending_qbo_review' );
             $order->save();
             $this->append_audit_entry( $order, 'sync_blocked_manual_approval_required', array() );
@@ -344,6 +355,7 @@ final class Sync_Orchestrator {
 
         $order->update_meta_data( '_oras_qbo_sync_status', 'syncing' );
         $order->update_meta_data( '_oras_qbo_last_attempt_at', gmdate( 'Y-m-d H:i:s' ) );
+        $order->update_meta_data( self::META_WAIT_LAST_CHECK_AT, gmdate( 'Y-m-d H:i:s' ) );
         $order->save();
 
         $this->append_audit_entry( $order, 'sync_started', array() );
@@ -488,6 +500,10 @@ final class Sync_Orchestrator {
         $order->update_meta_data( self::META_LAST_INTUIT_TID, $intuit_tid );
         $order->update_meta_data( self::META_SPLIT_SNAPSHOT, wp_json_encode( $snapshot ) );
         $order->update_meta_data( '_oras_qbo_last_payload_hash', hash( 'sha256', wp_json_encode( $payload ) ?: '' ) );
+        $order->delete_meta_data( self::META_WAIT_NEXT_CHECK_AT );
+        $order->delete_meta_data( self::META_WAIT_LAST_CHECK_AT );
+        $order->delete_meta_data( self::META_WAIT_FIRST_AT );
+        $order->delete_meta_data( self::META_WAIT_ATTEMPTS );
 
         if ( ! empty( $source_match ) ) {
             $order->update_meta_data( '_oras_qbo_reclass_source_txn_key', (string) ( $source_match['key'] ?? '' ) );
@@ -557,7 +573,7 @@ final class Sync_Orchestrator {
             }
 
             $qbo_settings = Settings::get_quickbooks_settings();
-            if ( ! empty( $qbo_settings['require_manual_approval'] ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
+            if ( $this->should_require_manual_approval( $qbo_settings ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
                 continue;
             }
 
@@ -566,6 +582,53 @@ final class Sync_Orchestrator {
         }
 
         return $count;
+    }
+
+    /**
+     * Process orders currently waiting for a Stripe-posted source transaction
+     * in QuickBooks and attempt sync again.
+     */
+    public function process_waiting_orders( int $limit = 50 ): int {
+        if ( ! function_exists( 'wc_get_orders' ) ) {
+            return 0;
+        }
+
+        $order_ids = wc_get_orders(
+            array(
+                'type'       => 'shop_order',
+                'limit'      => max( 1, $limit ),
+                'return'     => 'ids',
+                'meta_key'   => '_oras_qbo_sync_status',
+                'meta_value' => 'waiting_for_source_txn',
+                'orderby'    => 'date',
+                'order'      => 'ASC',
+            )
+        );
+
+        $processed = 0;
+        foreach ( $order_ids as $order_id ) {
+            $order_id = absint( $order_id );
+            if ( $order_id <= 0 ) {
+                continue;
+            }
+
+            if ( $this->has_scheduled_action( $order_id ) ) {
+                continue;
+            }
+
+            $result = $this->sync_order( $order_id, false );
+            if ( ! is_wp_error( $result ) ) {
+                $processed++;
+                continue;
+            }
+
+            // Count as processed when we actively re-checked and remained waiting.
+            if ( $result->get_error_code() === 'oras_qbo_reclass_source_not_found' ) {
+                $processed++;
+            }
+        }
+
+        return $processed;
     }
 
     /**
@@ -600,6 +663,10 @@ final class Sync_Orchestrator {
             '_oras_qbo_reclass_source_txn_id',
             '_oras_qbo_reclass_source_txn_type',
             '_oras_qbo_reclass_source_txn_date',
+            self::META_WAIT_FIRST_AT,
+            self::META_WAIT_LAST_CHECK_AT,
+            self::META_WAIT_NEXT_CHECK_AT,
+            self::META_WAIT_ATTEMPTS,
         );
 
         foreach ( $meta_keys as $meta_key ) {
@@ -622,6 +689,71 @@ final class Sync_Orchestrator {
         $error_message = is_wp_error( $error ) ? (string) $error->get_error_message() : (string) $error;
         $error_code    = is_wp_error( $error ) ? (string) $error->get_error_code() : 'oras_qbo_sync_failure';
         $error_data    = is_wp_error( $error ) ? $error->get_error_data() : null;
+
+        if ( $error_code === 'oras_qbo_reclass_source_not_found' ) {
+            $wait_attempts = absint( (string) $order->get_meta( self::META_WAIT_ATTEMPTS, true ) );
+            $wait_attempts++;
+
+            $first_waited_at = trim( (string) $order->get_meta( self::META_WAIT_FIRST_AT, true ) );
+            if ( $first_waited_at === '' ) {
+                $first_waited_at = gmdate( 'Y-m-d H:i:s' );
+                $order->update_meta_data( self::META_WAIT_FIRST_AT, $first_waited_at );
+            }
+
+            $max_days = max( 1, absint( Settings::get_quickbooks_settings()['source_match_max_wait_days'] ?? 180 ) );
+            $first_wait_ts = strtotime( $first_waited_at . ' UTC' );
+            $is_expired = false;
+            if ( $first_wait_ts !== false ) {
+                $is_expired = ( time() - $first_wait_ts ) >= ( $max_days * DAY_IN_SECONDS );
+            }
+
+            if ( $is_expired ) {
+                $order->update_meta_data( '_oras_qbo_sync_status', 'needs_review' );
+                $order->update_meta_data( '_oras_qbo_sync_error_code', 'oras_qbo_wait_expired' );
+                $order->update_meta_data( '_oras_qbo_sync_error', sprintf( 'Source transaction still not found after %d day(s).', $max_days ) );
+                $order->update_meta_data( self::META_WAIT_LAST_CHECK_AT, gmdate( 'Y-m-d H:i:s' ) );
+                $order->delete_meta_data( self::META_WAIT_NEXT_CHECK_AT );
+                $order->update_meta_data( self::META_WAIT_ATTEMPTS, (string) $wait_attempts );
+                $order->save();
+
+                $this->append_audit_entry(
+                    $order,
+                    'source_wait_expired_requires_review',
+                    array(
+                        'wait_attempts' => $wait_attempts,
+                        'max_wait_days' => $max_days,
+                    )
+                );
+
+                return;
+            }
+
+            $delay_minutes = $this->get_source_match_poll_interval_minutes( $wait_attempts );
+            $next_check_at = gmdate( 'Y-m-d H:i:s', time() + ( $delay_minutes * MINUTE_IN_SECONDS ) );
+
+            $order->update_meta_data( '_oras_qbo_sync_status', 'waiting_for_source_txn' );
+            $order->update_meta_data( '_oras_qbo_sync_error_code', sanitize_text_field( $error_code ) );
+            $order->update_meta_data( '_oras_qbo_sync_error', sanitize_text_field( $error_message ) );
+            $order->update_meta_data( '_oras_qbo_retry_count', '0' );
+            $order->update_meta_data( self::META_WAIT_LAST_CHECK_AT, gmdate( 'Y-m-d H:i:s' ) );
+            $order->update_meta_data( self::META_WAIT_NEXT_CHECK_AT, $next_check_at );
+            $order->update_meta_data( self::META_WAIT_ATTEMPTS, (string) $wait_attempts );
+            $order->save();
+
+            $this->append_audit_entry(
+                $order,
+                'waiting_for_source_transaction',
+                array(
+                    'wait_attempts' => $wait_attempts,
+                    'next_check_at' => $next_check_at,
+                    'delay_minutes' => $delay_minutes,
+                )
+            );
+
+            $this->schedule_sync( (int) $order->get_id(), $delay_minutes );
+            return;
+        }
+
         $should_retry  = Retry_Handler::should_retry_error( $error_code, $error_data );
 
         $order->update_meta_data( '_oras_qbo_sync_status', 'failed' );
@@ -661,6 +793,20 @@ final class Sync_Orchestrator {
         return ! empty( $timestamp );
     }
 
+    private function ensure_waiting_queue_schedule(): void {
+        if ( function_exists( 'as_has_scheduled_action' ) && function_exists( 'as_schedule_recurring_action' ) ) {
+            $scheduled = as_has_scheduled_action( self::ACTION_WAITING_SWEEP_HOOK, array(), self::AS_GROUP );
+            if ( ! $scheduled ) {
+                as_schedule_recurring_action( time() + ( 5 * MINUTE_IN_SECONDS ), 30 * MINUTE_IN_SECONDS, self::ACTION_WAITING_SWEEP_HOOK, array(), self::AS_GROUP );
+            }
+            return;
+        }
+
+        if ( ! wp_next_scheduled( self::ACTION_WAITING_SWEEP_HOOK ) ) {
+            wp_schedule_event( time() + ( 5 * MINUTE_IN_SECONDS ), 'hourly', self::ACTION_WAITING_SWEEP_HOOK );
+        }
+    }
+
     private function schedule_sync( int $order_id, int $delay_minutes ): void {
         $delay_seconds = max( 0, $delay_minutes ) * 60;
 
@@ -680,6 +826,33 @@ final class Sync_Orchestrator {
     private function get_initial_sync_delay_minutes(): int {
         $qbo_settings = Settings::get_quickbooks_settings();
         return max( 0, absint( $qbo_settings['initial_sync_delay_minutes'] ?? 0 ) );
+    }
+
+    private function get_source_match_poll_interval_minutes( int $wait_attempts ): int {
+        $qbo_settings   = Settings::get_quickbooks_settings();
+        $base_interval  = max( 5, absint( $qbo_settings['source_match_poll_interval_minutes'] ?? 30 ) );
+        $wait_attempts  = max( 1, $wait_attempts );
+
+        if ( $wait_attempts <= 48 ) {
+            return $base_interval;
+        }
+
+        return min( 240, $base_interval * 4 );
+    }
+
+    /**
+     * In reclass mode, allow unattended processing so treasury only needs to
+     * approve/categorize in QuickBooks.
+     *
+     * @param array<string,mixed> $qbo_settings
+     */
+    private function should_require_manual_approval( array $qbo_settings ): bool {
+        $posting_mode = sanitize_key( (string) ( $qbo_settings['posting_mode'] ?? 'clearing' ) );
+        if ( $posting_mode === 'reclass' ) {
+            return false;
+        }
+
+        return ! empty( $qbo_settings['require_manual_approval'] );
     }
 
     /**

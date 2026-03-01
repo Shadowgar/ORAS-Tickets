@@ -46,6 +46,8 @@ final class Module {
             add_action( 'admin_post_oras_tickets_qbo_oauth_callback', array( $this, 'handle_oauth_callback' ) );
             add_action( 'admin_post_oras_tickets_qbo_test_connection', array( $this, 'handle_test_connection' ) );
             add_action( 'admin_post_oras_tickets_qbo_test_journal_entry', array( $this, 'handle_test_journal_entry' ) );
+            add_action( 'admin_post_oras_tickets_qbo_process_waiting_queue', array( $this, 'handle_process_waiting_queue' ) );
+            add_action( 'admin_post_oras_tickets_qbo_sync_order_now', array( $this, 'handle_sync_order_now' ) );
             add_action( 'admin_post_oras_tickets_qbo_approve_order', array( $this, 'handle_approve_order' ) );
             add_action( 'admin_post_oras_tickets_qbo_reverse_order', array( $this, 'handle_reverse_order' ) );
             add_action( 'admin_post_oras_tickets_qbo_resync_order', array( $this, 'handle_resync_order' ) );
@@ -314,6 +316,64 @@ final class Module {
         );
     }
 
+    public function handle_process_waiting_queue(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_process_waiting_queue' );
+
+        $limit = isset( $_POST['limit'] ) ? absint( wp_unslash( $_POST['limit'] ) ) : 50;
+        $limit = max( 1, min( 250, $limit ) );
+
+        $processed = $this->orchestrator->process_waiting_orders( $limit );
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( sprintf( 'Processed %d waiting order(s).', $processed ) ),
+                'oras_qbo_tab'    => 'pending',
+            )
+        );
+    }
+
+    public function handle_sync_order_now(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_sync_order_now' );
+
+        $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+        if ( $order_id <= 0 ) {
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for sync.' ),
+                    'oras_qbo_tab'   => 'pending',
+                )
+            );
+        }
+
+        $sync = $this->orchestrator->sync_order( $order_id, false );
+        if ( is_wp_error( $sync ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $sync->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
+                    'oras_qbo_tab'   => 'pending',
+                )
+            );
+        }
+
+        $status = isset( $sync['status'] ) ? (string) $sync['status'] : 'unknown';
+        $je_id  = isset( $sync['je_id'] ) ? (string) $sync['je_id'] : '';
+        $notice = sprintf( 'Order #%1$d sync complete. Status: %2$s', $order_id, $status );
+        if ( $je_id !== '' ) {
+            $notice .= ' (JE ID: ' . $je_id . ')';
+        }
+
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( $notice ),
+                'oras_qbo_tab'    => 'pending',
+            )
+        );
+    }
+
     public function handle_approve_order(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_approve_order' );
 
@@ -323,6 +383,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for approval.' ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -337,6 +398,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -345,6 +407,7 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( sprintf( 'Order #%d approval complete. Status: %s', $order_id, $status ) ),
+                'oras_qbo_tab'    => 'pending',
             )
         );
     }
@@ -357,6 +420,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for reversal.' ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -372,6 +436,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -386,6 +451,7 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( $notice ),
+                'oras_qbo_tab'    => 'pending',
             )
         );
     }
@@ -398,6 +464,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for resync.' ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -412,6 +479,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $reset->get_error_message() ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -426,6 +494,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
+                    'oras_qbo_tab'   => 'pending',
                 )
             );
         }
@@ -440,6 +509,7 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( $notice ),
+                'oras_qbo_tab'    => 'pending',
             )
         );
     }

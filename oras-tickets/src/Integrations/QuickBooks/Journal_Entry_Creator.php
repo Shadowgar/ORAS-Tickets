@@ -305,6 +305,7 @@ final class Journal_Entry_Creator {
         $queries = array(
             "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
             "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Deposit WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
         );
 
         $candidates = array();
@@ -318,7 +319,7 @@ final class Journal_Entry_Creator {
                 ? $response['QueryResponse']
                 : array();
 
-            foreach ( array( 'SalesReceipt', 'Payment' ) as $entity_type ) {
+            foreach ( array( 'SalesReceipt', 'Payment', 'Deposit' ) as $entity_type ) {
                 $rows = isset( $items[ $entity_type ] ) && is_array( $items[ $entity_type ] )
                     ? $items[ $entity_type ]
                     : array();

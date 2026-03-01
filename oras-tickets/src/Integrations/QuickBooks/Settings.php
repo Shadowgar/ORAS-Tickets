@@ -191,6 +191,8 @@ final class Settings {
             'connected_at'               => '',
             'sync_cutoff_date'           => '',
             'initial_sync_delay_minutes' => 0,
+            'source_match_poll_interval_minutes' => 30,
+            'source_match_max_wait_days' => 180,
             'posting_mode'               => 'clearing',
             'excluded_payment_methods'   => '',
             'clearing_account_id'        => '',

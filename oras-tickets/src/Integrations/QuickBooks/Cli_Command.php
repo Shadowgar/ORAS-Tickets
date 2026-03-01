@@ -483,6 +483,28 @@ final class Cli_Command extends \WP_CLI_Command {
     }
 
     /**
+     * Process waiting orders that are pending source transaction detection.
+     *
+     * ## OPTIONS
+     *
+     * [--limit=<number>]
+     * : Max waiting orders to process. Default 50.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oras-tickets qbo process-waiting
+     *     wp oras-tickets qbo process-waiting --limit=200
+     *
+     * @subcommand process-waiting
+     * @param array<string,mixed> $assoc_args
+     */
+    public function process_waiting( array $args, array $assoc_args ): void {
+        $limit = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 50;
+        $count = $this->orchestrator->process_waiting_orders( max( 1, $limit ) );
+        \WP_CLI::success( sprintf( 'Processed %d waiting order(s).', $count ) );
+    }
+
+    /**
      * Register command in WP-CLI.
      */
     public static function register( Sync_Orchestrator $orchestrator, Api_Client $api_client ): void {

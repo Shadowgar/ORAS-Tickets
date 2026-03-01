@@ -80,21 +80,284 @@ final class Settings_Page
 ?>
         <div class="wrap">
             <h1><?php echo esc_html__('ORAS Tickets QuickBooks', 'oras-tickets'); ?></h1>
+            <style>
+            .oras-qbo-connection-card{display:block;border-left:4px solid #7ad03a;background:#fff;padding:14px 16px;margin:12px 0;border:1px solid #e5e5e5;border-radius:4px;box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+            .oras-qbo-connection-card.warning{border-left-color:#ffb900}
+            .oras-qbo-connection-card h3{margin:0 0 6px;font-size:16px}
+            .oras-qbo-connection-meta{font-size:13px;color:#333}
+            .oras-qbo-actions{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 24px}
+            .oras-qbo-actions .button{min-width:200px}
+            @media (min-width:780px){.oras-qbo-columns{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}}
+            .oras-qbo-sidebox{background:#fafafa;border:1px solid #eaeaea;padding:12px;border-radius:4px}
+            </style>
             <?php $this->render_quickbooks_connection_indicator( $qbo_settings ); ?>
             <?php echo $qbo_notice; // phpcs:ignore -- safe HTML output ?>
             <?php echo $qbo_error; // phpcs:ignore -- safe HTML output ?>
 
-            <form method="post" action="options.php">
-                <?php
-                settings_fields(self::PAGE_GENERAL);
-                do_settings_sections(self::PAGE_QUICKBOOKS);
-                submit_button(__('Save QuickBooks Settings', 'oras-tickets'));
-                ?>
-            </form>
+            <?php $active_tab = $this->get_active_quickbooks_tab(); ?>
+            <h2 class="nav-tab-wrapper" style="margin-top:20px;">
+                <a href="<?php echo esc_url( $this->build_quickbooks_tab_url( 'settings' ) ); ?>" class="nav-tab <?php echo $active_tab === 'settings' ? 'nav-tab-active' : ''; ?>">
+                    <?php echo esc_html__( 'Settings', 'oras-tickets' ); ?>
+                </a>
+                <a href="<?php echo esc_url( $this->build_quickbooks_tab_url( 'pending' ) ); ?>" class="nav-tab <?php echo $active_tab === 'pending' ? 'nav-tab-active' : ''; ?>">
+                    <?php echo esc_html__( 'Pending Orders', 'oras-tickets' ); ?>
+                </a>
+            </h2>
 
-            <?php $this->render_quickbooks_actions(); ?>
+            <?php if ( $active_tab === 'pending' ) : ?>
+                <?php $this->render_quickbooks_pending_orders_tab(); ?>
+            <?php else : ?>
+                <div class="oras-qbo-columns">
+                    <div>
+                        <form method="post" action="options.php">
+                            <?php
+                            settings_fields(self::PAGE_GENERAL);
+                            do_settings_sections(self::PAGE_QUICKBOOKS);
+                            submit_button(__('Save QuickBooks Settings', 'oras-tickets'));
+                            ?>
+                        </form>
+                    </div>
+                    <div class="oras-qbo-sidebox">
+                        <?php $this->render_quickbooks_actions(); ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     <?php
+    }
+
+    private function get_active_quickbooks_tab(): string
+    {
+        $tab = isset( $_GET['oras_qbo_tab'] ) ? sanitize_key( (string) wp_unslash( $_GET['oras_qbo_tab'] ) ) : 'settings';
+        return in_array( $tab, array( 'settings', 'pending' ), true ) ? $tab : 'settings';
+    }
+
+    private function build_quickbooks_tab_url( string $tab ): string
+    {
+        return add_query_arg(
+            array(
+                'page'         => 'oras-tickets-quickbooks',
+                'oras_qbo_tab' => $tab,
+            ),
+            admin_url( 'admin.php' )
+        );
+    }
+
+    /**
+     * Pending statuses that require operator visibility/action.
+     *
+     * @return string[]
+     */
+    private function get_quickbooks_pending_statuses(): array
+    {
+        return array(
+            'pending_qbo_review',
+            'approved_for_sync',
+            'queued',
+            'retrying',
+            'failed',
+            'migration_required',
+            'changed_after_sync',
+            'waiting_for_source_txn',
+            'needs_review',
+        );
+    }
+
+    private function render_quickbooks_pending_orders_tab(): void
+    {
+        if ( ! function_exists( 'wc_get_orders' ) ) {
+            echo '<p>' . esc_html__( 'WooCommerce order querying is not available.', 'oras-tickets' ) . '</p>';
+            return;
+        }
+
+        $statuses = $this->get_quickbooks_pending_statuses();
+        $status_filter = isset( $_GET['oras_qbo_pending_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['oras_qbo_pending_status'] ) ) : 'all';
+        if ( $status_filter !== 'all' && ! in_array( $status_filter, $statuses, true ) ) {
+            $status_filter = 'all';
+        }
+
+        $meta_query = array(
+            array(
+                'key'     => '_oras_qbo_sync_status',
+                'value'   => $status_filter === 'all' ? $statuses : array( $status_filter ),
+                'compare' => 'IN',
+            ),
+        );
+
+        $order_ids = wc_get_orders(
+            array(
+                'type'       => 'shop_order',
+                'limit'      => 100,
+                'return'     => 'ids',
+                'orderby'    => 'date',
+                'order'      => 'DESC',
+                'meta_query' => $meta_query,
+            )
+        );
+
+        $base_url = add_query_arg(
+            array(
+                'page'         => 'oras-tickets-quickbooks',
+                'oras_qbo_tab' => 'pending',
+            ),
+            admin_url( 'admin.php' )
+        );
+
+        ?>
+        <div style="margin-top:16px;">
+            <h2><?php echo esc_html__( 'Pending / Waiting Orders', 'oras-tickets' ); ?></h2>
+            <p class="description">
+                <?php echo esc_html__( 'These orders are waiting for approval, source transaction matching, retry, or operator review. Use row actions to sync, approve+sync, resync, or reverse.', 'oras-tickets' ); ?>
+            </p>
+
+            <form method="get" style="display:flex; gap:8px; align-items:center; margin:12px 0 16px;">
+                <input type="hidden" name="page" value="oras-tickets-quickbooks" />
+                <input type="hidden" name="oras_qbo_tab" value="pending" />
+                <label for="oras-qbo-pending-status"><?php echo esc_html__( 'Filter', 'oras-tickets' ); ?></label>
+                <select id="oras-qbo-pending-status" name="oras_qbo_pending_status">
+                    <option value="all" <?php selected( $status_filter, 'all' ); ?>><?php echo esc_html__( 'All pending statuses', 'oras-tickets' ); ?></option>
+                    <?php foreach ( $statuses as $status ) : ?>
+                        <option value="<?php echo esc_attr( $status ); ?>" <?php selected( $status_filter, $status ); ?>>
+                            <?php echo esc_html( ucwords( str_replace( '_', ' ', $status ) ) ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="button"><?php echo esc_html__( 'Apply', 'oras-tickets' ); ?></button>
+            </form>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin:0 0 20px;">
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <?php wp_nonce_field( 'oras_tickets_qbo_process_waiting_queue' ); ?>
+                    <input type="hidden" name="action" value="oras_tickets_qbo_process_waiting_queue" />
+                    <input type="hidden" name="oras_qbo_tab" value="pending" />
+                    <label for="oras-qbo-process-limit"><?php echo esc_html__( 'Run waiting queue', 'oras-tickets' ); ?></label>
+                    <input type="number" min="1" max="250" id="oras-qbo-process-limit" name="limit" value="50" />
+                    <button type="submit" class="button button-secondary"><?php echo esc_html__( 'Process Waiting Orders', 'oras-tickets' ); ?></button>
+                </form>
+
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <?php wp_nonce_field( 'oras_tickets_qbo_sync_order_now' ); ?>
+                    <input type="hidden" name="action" value="oras_tickets_qbo_sync_order_now" />
+                    <input type="hidden" name="oras_qbo_tab" value="pending" />
+                    <label for="oras-qbo-sync-order-id" class="screen-reader-text"><?php echo esc_html__( 'Sync Order ID', 'oras-tickets' ); ?></label>
+                    <input type="number" min="1" required id="oras-qbo-sync-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                    <button type="submit" class="button"><?php echo esc_html__( 'Sync Order Now', 'oras-tickets' ); ?></button>
+                </form>
+
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <?php wp_nonce_field( 'oras_tickets_qbo_approve_order' ); ?>
+                    <input type="hidden" name="action" value="oras_tickets_qbo_approve_order" />
+                    <input type="hidden" name="oras_qbo_tab" value="pending" />
+                    <label for="oras-qbo-approve-order-id-tab" class="screen-reader-text"><?php echo esc_html__( 'Approve Order ID', 'oras-tickets' ); ?></label>
+                    <input type="number" min="1" required id="oras-qbo-approve-order-id-tab" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                    <input type="hidden" name="sync_now" value="1" />
+                    <button type="submit" class="button"><?php echo esc_html__( 'Approve + Sync', 'oras-tickets' ); ?></button>
+                </form>
+
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <?php wp_nonce_field( 'oras_tickets_qbo_resync_order' ); ?>
+                    <input type="hidden" name="action" value="oras_tickets_qbo_resync_order" />
+                    <input type="hidden" name="oras_qbo_tab" value="pending" />
+                    <label for="oras-qbo-resync-order-id-tab" class="screen-reader-text"><?php echo esc_html__( 'Resync Order ID', 'oras-tickets' ); ?></label>
+                    <input type="number" min="1" required id="oras-qbo-resync-order-id-tab" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                    <button type="submit" class="button button-primary"><?php echo esc_html__( 'Resync Order (Reset + Sync)', 'oras-tickets' ); ?></button>
+                </form>
+            </div>
+
+            <?php if ( empty( $order_ids ) ) : ?>
+                <p><?php echo esc_html__( 'No pending orders found for the current filter.', 'oras-tickets' ); ?></p>
+            <?php else : ?>
+                <table class="widefat striped">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html__( 'Order', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Created', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Total', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Sync Status', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Wait Attempts', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Next Check', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Last Attempt', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Last Error', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ( $order_ids as $order_id ) : ?>
+                            <?php
+                            $order = wc_get_order( absint( $order_id ) );
+                            if ( ! $order ) {
+                                continue;
+                            }
+
+                            $sync_status = (string) $order->get_meta( '_oras_qbo_sync_status', true );
+                            $wait_attempts = (string) $order->get_meta( '_oras_qbo_wait_attempts', true );
+                            $next_check = (string) $order->get_meta( '_oras_qbo_wait_next_check_at', true );
+                            $last_attempt = (string) $order->get_meta( '_oras_qbo_last_attempt_at', true );
+                            $last_error = (string) $order->get_meta( '_oras_qbo_sync_error', true );
+                            $order_link = get_edit_post_link( (int) $order->get_id(), '' );
+                            ?>
+                            <tr>
+                                <td>
+                                    <?php if ( $order_link ) : ?>
+                                        <a href="<?php echo esc_url( $order_link ); ?>">#<?php echo esc_html( (string) $order->get_order_number() ); ?></a>
+                                    <?php else : ?>
+                                        #<?php echo esc_html( (string) $order->get_order_number() ); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html( $order->get_date_created() ? (string) $order->get_date_created()->date_i18n( 'Y-m-d H:i' ) : '—' ); ?></td>
+                                <td><?php echo wp_kses_post( $order->get_formatted_order_total() ); ?></td>
+                                <td><?php echo esc_html( ucwords( str_replace( '_', ' ', $sync_status ) ) ); ?></td>
+                                <td><?php echo esc_html( $wait_attempts !== '' ? $wait_attempts : '0' ); ?></td>
+                                <td><?php echo esc_html( $next_check !== '' ? $next_check . ' UTC' : '—' ); ?></td>
+                                <td><?php echo esc_html( $last_attempt !== '' ? $last_attempt . ' UTC' : '—' ); ?></td>
+                                <td style="max-width:360px;"><?php echo esc_html( $last_error !== '' ? $last_error : '—' ); ?></td>
+                                <td>
+                                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                            <?php wp_nonce_field( 'oras_tickets_qbo_sync_order_now' ); ?>
+                                            <input type="hidden" name="action" value="oras_tickets_qbo_sync_order_now" />
+                                            <input type="hidden" name="oras_qbo_tab" value="pending" />
+                                            <input type="hidden" name="order_id" value="<?php echo esc_attr( (string) $order->get_id() ); ?>" />
+                                            <button type="submit" class="button button-small"><?php echo esc_html__( 'Sync', 'oras-tickets' ); ?></button>
+                                        </form>
+
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                            <?php wp_nonce_field( 'oras_tickets_qbo_approve_order' ); ?>
+                                            <input type="hidden" name="action" value="oras_tickets_qbo_approve_order" />
+                                            <input type="hidden" name="oras_qbo_tab" value="pending" />
+                                            <input type="hidden" name="order_id" value="<?php echo esc_attr( (string) $order->get_id() ); ?>" />
+                                            <input type="hidden" name="sync_now" value="1" />
+                                            <button type="submit" class="button button-small"><?php echo esc_html__( 'Approve + Sync', 'oras-tickets' ); ?></button>
+                                        </form>
+
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                            <?php wp_nonce_field( 'oras_tickets_qbo_resync_order' ); ?>
+                                            <input type="hidden" name="action" value="oras_tickets_qbo_resync_order" />
+                                            <input type="hidden" name="oras_qbo_tab" value="pending" />
+                                            <input type="hidden" name="order_id" value="<?php echo esc_attr( (string) $order->get_id() ); ?>" />
+                                            <button type="submit" class="button button-small"><?php echo esc_html__( 'Resync', 'oras-tickets' ); ?></button>
+                                        </form>
+
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                            <?php wp_nonce_field( 'oras_tickets_qbo_reverse_order' ); ?>
+                                            <input type="hidden" name="action" value="oras_tickets_qbo_reverse_order" />
+                                            <input type="hidden" name="oras_qbo_tab" value="pending" />
+                                            <input type="hidden" name="order_id" value="<?php echo esc_attr( (string) $order->get_id() ); ?>" />
+                                            <button type="submit" class="button button-small"><?php echo esc_html__( 'Reverse', 'oras-tickets' ); ?></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <p class="description" style="margin-top:8px;">
+                    <?php echo esc_html__( 'Showing up to 100 most recent pending orders.', 'oras-tickets' ); ?>
+                </p>
+            <?php endif; ?>
+            <p><a class="button" href="<?php echo esc_url( $base_url ); ?>"><?php echo esc_html__( 'Refresh List', 'oras-tickets' ); ?></a></p>
+        </div>
+        <?php
     }
 
     public static function register_settings(): void
@@ -340,6 +603,30 @@ final class Settings_Page
         );
 
         add_settings_field(
+            'quickbooks_source_match_poll_interval_minutes',
+            __('Source Match Poll Interval (Minutes)', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.source_match_poll_interval_minutes',
+                'min'   => 5,
+            )
+        );
+
+        add_settings_field(
+            'quickbooks_source_match_max_wait_days',
+            __('Source Match Max Wait (Days)', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
+            self::PAGE_QUICKBOOKS,
+            'oras_quickbooks_revenue_split',
+            array(
+                'field' => 'quickbooks.source_match_max_wait_days',
+                'min'   => 1,
+            )
+        );
+
+        add_settings_field(
             'quickbooks_posting_mode',
             __('Posting Mode', 'oras-tickets'),
             array(self::class, 'render_select_field'),
@@ -571,6 +858,8 @@ final class Settings_Page
                 'connected_at'               => isset( $input_qbo['connected_at'] ) ? (string) $input_qbo['connected_at'] : (string) ( $current_qbo['connected_at'] ?? '' ),
                 'sync_cutoff_date'           => self::sanitize_iso_date( (string) ( $input_qbo['sync_cutoff_date'] ?? ( $current_qbo['sync_cutoff_date'] ?? '' ) ) ),
                 'initial_sync_delay_minutes' => absint( $input_qbo['initial_sync_delay_minutes'] ?? ( $current_qbo['initial_sync_delay_minutes'] ?? 0 ) ),
+                'source_match_poll_interval_minutes' => max( 5, absint( $input_qbo['source_match_poll_interval_minutes'] ?? ( $current_qbo['source_match_poll_interval_minutes'] ?? 30 ) ) ),
+                'source_match_max_wait_days' => max( 1, absint( $input_qbo['source_match_max_wait_days'] ?? ( $current_qbo['source_match_max_wait_days'] ?? 180 ) ) ),
                 'posting_mode'               => in_array( sanitize_key( (string) ( $input_qbo['posting_mode'] ?? ( $current_qbo['posting_mode'] ?? 'clearing' ) ) ), array( 'clearing', 'reclass' ), true )
                     ? sanitize_key( (string) ( $input_qbo['posting_mode'] ?? ( $current_qbo['posting_mode'] ?? 'clearing' ) ) )
                     : 'clearing',
@@ -640,6 +929,8 @@ final class Settings_Page
                 'connected_at'               => '',
                 'sync_cutoff_date'           => '',
                 'initial_sync_delay_minutes' => 0,
+                'source_match_poll_interval_minutes' => 30,
+                'source_match_max_wait_days' => 180,
                 'posting_mode'               => 'clearing',
                 'excluded_payment_methods'   => '',
                 'clearing_account_id'        => '',
@@ -864,42 +1155,6 @@ final class Settings_Page
             </form>
         </div>
 
-        <h3><?php echo esc_html__( 'Order Safety Controls', 'oras-tickets' ); ?></h3>
-        <p class="description"><?php echo esc_html__( 'Use these controls to approve pending orders and reverse bad postings without direct database edits.', 'oras-tickets' ); ?></p>
-
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin:12px 0 24px;">
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <?php wp_nonce_field( 'oras_tickets_qbo_approve_order' ); ?>
-                <input type="hidden" name="action" value="oras_tickets_qbo_approve_order" />
-                <label for="oras-qbo-approve-order-id" class="screen-reader-text"><?php echo esc_html__( 'Approve Order ID', 'oras-tickets' ); ?></label>
-                <input type="number" min="1" required id="oras-qbo-approve-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
-                <label>
-                    <input type="checkbox" name="sync_now" value="1" />
-                    <?php echo esc_html__( 'Sync now', 'oras-tickets' ); ?>
-                </label>
-                <button type="submit" class="button"><?php echo esc_html__( 'Approve Order for Sync', 'oras-tickets' ); ?></button>
-            </form>
-
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <?php wp_nonce_field( 'oras_tickets_qbo_reverse_order' ); ?>
-                <input type="hidden" name="action" value="oras_tickets_qbo_reverse_order" />
-                <label for="oras-qbo-reverse-order-id" class="screen-reader-text"><?php echo esc_html__( 'Reverse Order ID', 'oras-tickets' ); ?></label>
-                <input type="number" min="1" required id="oras-qbo-reverse-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
-                <label>
-                    <input type="checkbox" name="force_reversal" value="1" />
-                    <?php echo esc_html__( 'Force', 'oras-tickets' ); ?>
-                </label>
-                <button type="submit" class="button"><?php echo esc_html__( 'Reverse Order JE', 'oras-tickets' ); ?></button>
-            </form>
-
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <?php wp_nonce_field( 'oras_tickets_qbo_resync_order' ); ?>
-                <input type="hidden" name="action" value="oras_tickets_qbo_resync_order" />
-                <label for="oras-qbo-resync-order-id" class="screen-reader-text"><?php echo esc_html__( 'Resync Order ID', 'oras-tickets' ); ?></label>
-                <input type="number" min="1" required id="oras-qbo-resync-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Resync Order (Reset + Sync)', 'oras-tickets' ); ?></button>
-            </form>
-        </div>
         <script>
         (function () {
             var connectForm = document.getElementById('oras-qbo-connect-form');
@@ -942,7 +1197,6 @@ final class Settings_Page
         $refresh_valid       = self::is_future_gmt_timestamp( $token_expires_at );
 
         $is_connected = $has_connection_data && ( $token_expires_at === '' || $refresh_valid );
-        $status_class = $is_connected ? 'notice-success' : 'notice-warning';
         $status_label = $is_connected
             ? __( 'Connected', 'oras-tickets' )
             : __( 'Not Connected', 'oras-tickets' );
@@ -965,18 +1219,23 @@ final class Settings_Page
             $detail = __( 'QuickBooks connection expired. Reconnect to continue syncing.', 'oras-tickets' );
         }
 ?>
-        <div class="notice <?php echo esc_attr( $status_class ); ?>" style="margin:12px 0; padding:10px 12px;">
-            <p style="margin:0 0 4px;"><strong><?php echo esc_html__( 'Connection Status:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $status_label ); ?></p>
-            <p style="margin:0;"><?php echo esc_html( $detail ); ?></p>
-            <?php if ( $connected_at_display !== '' ) : ?>
-                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Connected At:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $connected_at_display ); ?></p>
-            <?php endif; ?>
-            <?php if ( $expires_display !== '' ) : ?>
-                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Refresh Token Expires:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $expires_display ); ?></p>
-            <?php endif; ?>
-            <?php if ( $last_error !== '' ) : ?>
-                <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Last Error:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $last_error ); ?></p>
-            <?php endif; ?>
+        <?php
+            $card_class = $is_connected ? 'oras-qbo-connection-card' : 'oras-qbo-connection-card warning';
+        ?>
+        <div class="<?php echo esc_attr( $card_class ); ?>">
+            <h3><?php echo esc_html__( 'Connection Status:', 'oras-tickets' ); ?> <?php echo esc_html( $status_label ); ?></h3>
+            <div class="oras-qbo-connection-meta">
+                <p style="margin:0;"><?php echo esc_html( $detail ); ?></p>
+                <?php if ( $connected_at_display !== '' ) : ?>
+                    <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Connected At:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $connected_at_display ); ?></p>
+                <?php endif; ?>
+                <?php if ( $expires_display !== '' ) : ?>
+                    <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Refresh Token Expires:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $expires_display ); ?></p>
+                <?php endif; ?>
+                <?php if ( $last_error !== '' ) : ?>
+                    <p style="margin:6px 0 0;"><strong><?php echo esc_html__( 'Last Error:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $last_error ); ?></p>
+                <?php endif; ?>
+            </div>
         </div>
 <?php
     }
