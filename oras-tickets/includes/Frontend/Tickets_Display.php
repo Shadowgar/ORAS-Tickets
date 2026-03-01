@@ -659,14 +659,23 @@ if ( $product_id <= 0 ) {
             $request_has_add_to_cart = array_key_exists( 'add-to-cart', $_REQUEST );
             $request_has_product_id  = array_key_exists( 'product_id', $_REQUEST );
             $request_has_quantity    = array_key_exists( 'quantity', $_REQUEST );
+            $post_has_add_to_cart    = array_key_exists( 'add-to-cart', $_POST );
+            $post_has_product_id     = array_key_exists( 'product_id', $_POST );
+            $post_has_quantity       = array_key_exists( 'quantity', $_POST );
 
             $request_prev_add_to_cart = $request_has_add_to_cart ? $_REQUEST['add-to-cart'] : null;
             $request_prev_product_id  = $request_has_product_id ? $_REQUEST['product_id'] : null;
             $request_prev_quantity    = $request_has_quantity ? $_REQUEST['quantity'] : null;
+            $post_prev_add_to_cart    = $post_has_add_to_cart ? $_POST['add-to-cart'] : null;
+            $post_prev_product_id     = $post_has_product_id ? $_POST['product_id'] : null;
+            $post_prev_quantity       = $post_has_quantity ? $_POST['quantity'] : null;
 
             $_REQUEST['add-to-cart'] = (string) $product_id;
             $_REQUEST['product_id']  = (string) $product_id;
             $_REQUEST['quantity']    = (string) $qty_to_add;
+            $_POST['add-to-cart']    = (string) $product_id;
+            $_POST['product_id']     = (string) $product_id;
+            $_POST['quantity']       = (string) $qty_to_add;
 
             $added = WC()->cart->add_to_cart( $product_id, $qty_to_add );
 
@@ -686,6 +695,24 @@ if ( $product_id <= 0 ) {
                 $_REQUEST['quantity'] = $request_prev_quantity;
             } else {
                 unset( $_REQUEST['quantity'] );
+            }
+
+            if ( $post_has_add_to_cart ) {
+                $_POST['add-to-cart'] = $post_prev_add_to_cart;
+            } else {
+                unset( $_POST['add-to-cart'] );
+            }
+
+            if ( $post_has_product_id ) {
+                $_POST['product_id'] = $post_prev_product_id;
+            } else {
+                unset( $_POST['product_id'] );
+            }
+
+            if ( $post_has_quantity ) {
+                $_POST['quantity'] = $post_prev_quantity;
+            } else {
+                unset( $_POST['quantity'] );
             }
 
             if ( ! $added ) {
