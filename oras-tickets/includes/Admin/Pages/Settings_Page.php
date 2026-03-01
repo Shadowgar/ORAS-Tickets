@@ -891,6 +891,14 @@ final class Settings_Page
                 </label>
                 <button type="submit" class="button"><?php echo esc_html__( 'Reverse Order JE', 'oras-tickets' ); ?></button>
             </form>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <?php wp_nonce_field( 'oras_tickets_qbo_resync_order' ); ?>
+                <input type="hidden" name="action" value="oras_tickets_qbo_resync_order" />
+                <label for="oras-qbo-resync-order-id" class="screen-reader-text"><?php echo esc_html__( 'Resync Order ID', 'oras-tickets' ); ?></label>
+                <input type="number" min="1" required id="oras-qbo-resync-order-id" name="order_id" placeholder="<?php echo esc_attr__( 'Order ID', 'oras-tickets' ); ?>" />
+                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Resync Order (Reset + Sync)', 'oras-tickets' ); ?></button>
+            </form>
         </div>
         <script>
         (function () {

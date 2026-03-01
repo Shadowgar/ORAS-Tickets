@@ -48,6 +48,7 @@ final class Module {
             add_action( 'admin_post_oras_tickets_qbo_test_journal_entry', array( $this, 'handle_test_journal_entry' ) );
             add_action( 'admin_post_oras_tickets_qbo_approve_order', array( $this, 'handle_approve_order' ) );
             add_action( 'admin_post_oras_tickets_qbo_reverse_order', array( $this, 'handle_reverse_order' ) );
+            add_action( 'admin_post_oras_tickets_qbo_resync_order', array( $this, 'handle_resync_order' ) );
         }
 
         if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -380,6 +381,60 @@ final class Module {
         $notice      = sprintf( 'Order #%1$d reversal status: %2$s', $order_id, $status );
         if ( $reversal_je !== '' ) {
             $notice .= ' (JE ID: ' . $reversal_je . ')';
+        }
+
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( $notice ),
+            )
+        );
+    }
+
+    public function handle_resync_order(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_resync_order' );
+
+        $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+        if ( $order_id <= 0 ) {
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for resync.' ),
+                )
+            );
+        }
+
+        $reset = $this->orchestrator->reset_order_sync_state( $order_id );
+        if ( is_wp_error( $reset ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $reset->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $reset->get_error_message() ),
+                )
+            );
+        }
+
+        $sync = $this->orchestrator->sync_order( $order_id, false );
+        if ( is_wp_error( $sync ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $sync->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
+                )
+            );
+        }
+
+        $status = isset( $sync['status'] ) ? (string) $sync['status'] : 'unknown';
+        $je_id  = isset( $sync['je_id'] ) ? (string) $sync['je_id'] : '';
+        $notice = sprintf( 'Order #%1$d resync complete. Status: %2$s', $order_id, $status );
+        if ( $je_id !== '' ) {
+            $notice .= ' (JE ID: ' . $je_id . ')';
         }
 
         $this->redirect_to_settings(
