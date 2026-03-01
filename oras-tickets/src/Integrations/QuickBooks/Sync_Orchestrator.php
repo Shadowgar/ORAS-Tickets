@@ -80,11 +80,23 @@ final class Sync_Orchestrator {
             return;
         }
 
+        $qbo_settings = Settings::get_quickbooks_settings();
         if ( $order->get_meta( '_oras_qbo_je_id', true ) ) {
+            if ( $this->requires_reclass_migration( $order, $qbo_settings ) ) {
+                $order->update_meta_data( '_oras_qbo_sync_status', 'migration_required' );
+                $order->save();
+                $this->append_audit_entry( $order, 'reclass_migration_required', array() );
+                $this->logger->warning(
+                    'QuickBooks sync migration required for legacy order in reclass mode',
+                    array(
+                        'order_id' => (int) $order->get_id(),
+                        'doc_number' => (string) $order->get_meta( self::META_DOC_NUMBER, true ),
+                    )
+                );
+            }
             return;
         }
 
-        $qbo_settings = Settings::get_quickbooks_settings();
         if ( ! empty( $qbo_settings['require_manual_approval'] ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
             $order->update_meta_data( '_oras_qbo_sync_status', 'pending_qbo_review' );
             $order->save();
@@ -290,6 +302,16 @@ final class Sync_Orchestrator {
         }
 
         $qbo_settings = Settings::get_quickbooks_settings();
+        if ( ! $force && $this->requires_reclass_migration( $order, $qbo_settings ) ) {
+            $order->update_meta_data( '_oras_qbo_sync_status', 'migration_required' );
+            $order->save();
+            $this->append_audit_entry( $order, 'reclass_migration_required', array() );
+            return new \WP_Error(
+                'oras_qbo_reclass_migration_required',
+                'Order was already synced with legacy clearing mode and requires migration before reclass sync. Use resync-order.'
+            );
+        }
+
         $is_dry_run   = ! empty( $qbo_settings['dry_run_mode'] );
         if ( ! $force && ! empty( $qbo_settings['require_manual_approval'] ) && trim( (string) $order->get_meta( self::META_APPROVED_AT, true ) ) === '' ) {
             $order->update_meta_data( '_oras_qbo_sync_status', 'pending_qbo_review' );
@@ -658,6 +680,28 @@ final class Sync_Orchestrator {
     private function get_initial_sync_delay_minutes(): int {
         $qbo_settings = Settings::get_quickbooks_settings();
         return max( 0, absint( $qbo_settings['initial_sync_delay_minutes'] ?? 0 ) );
+    }
+
+    /**
+     * Determine whether an order synced under legacy clearing mode must be
+     * migrated when reclass mode is now enabled.
+     *
+     * @param \WC_Order $order
+     * @param array<string,mixed> $qbo_settings
+     */
+    private function requires_reclass_migration( $order, array $qbo_settings ): bool {
+        $posting_mode = sanitize_key( (string) ( $qbo_settings['posting_mode'] ?? 'clearing' ) );
+        if ( $posting_mode !== 'reclass' ) {
+            return false;
+        }
+
+        $existing_je = trim( (string) $order->get_meta( '_oras_qbo_je_id', true ) );
+        if ( $existing_je === '' ) {
+            return false;
+        }
+
+        $doc_number = trim( (string) $order->get_meta( self::META_DOC_NUMBER, true ) );
+        return strpos( $doc_number, 'ORAS-WO-' ) === 0;
     }
 
     private function clear_scheduled_actions( int $order_id ): void {
