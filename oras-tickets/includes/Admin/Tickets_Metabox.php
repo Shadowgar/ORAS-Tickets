@@ -19,6 +19,17 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
 
     private static ?Tickets_Metabox $instance = null;
 
+    private function assetVersion( string $relative_path ): string {
+        $full_path = ORAS_TICKETS_DIR . ltrim( $relative_path, '/' );
+        $mtime     = file_exists( $full_path ) ? filemtime( $full_path ) : false;
+
+        if ( false === $mtime ) {
+            return ORAS_TICKETS_VERSION;
+        }
+
+        return ORAS_TICKETS_VERSION . '.' . (string) $mtime;
+    }
+
     public static function instance(): Tickets_Metabox {
         return self::$instance ??= new self();
     }
@@ -48,7 +59,7 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
             'oras-tickets-metabox',
             ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.js',
             array(),
-            ORAS_TICKETS_VERSION,
+            $this->assetVersion( 'assets/admin/tickets-metabox.js' ),
             true
         );
 
@@ -56,7 +67,7 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
             'oras-tickets-metabox',
             ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.css',
             array(),
-            ORAS_TICKETS_VERSION
+            $this->assetVersion( 'assets/admin/tickets-metabox.css' )
         );
     }
 

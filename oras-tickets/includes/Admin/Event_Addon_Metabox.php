@@ -15,6 +15,17 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
 
     private const META_BOX_ID = 'oras-events-addon';
 
+    private function assetVersion( string $relative_path ): string {
+        $full_path = ORAS_TICKETS_DIR . ltrim( $relative_path, '/' );
+        $mtime     = file_exists( $full_path ) ? filemtime( $full_path ) : false;
+
+        if ( false === $mtime ) {
+            return ORAS_TICKETS_VERSION;
+        }
+
+        return ORAS_TICKETS_VERSION . '.' . (string) $mtime;
+    }
+
     public function register(): void {
         add_action( 'add_meta_boxes', array( $this, 'register_metabox' ), 40 );
         add_action( 'add_meta_boxes', array( $this, 'remove_legacy_metaboxes' ), 100 );
@@ -81,14 +92,14 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
             'oras-event-addon-metabox',
             ORAS_TICKETS_URL . 'assets/admin/event-addon-metabox.css',
             array(),
-            ORAS_TICKETS_VERSION
+            $this->assetVersion( 'assets/admin/event-addon-metabox.css' )
         );
 
         wp_enqueue_script(
             'oras-event-addon-metabox',
             ORAS_TICKETS_URL . 'assets/admin/event-addon-metabox.js',
             array(),
-            ORAS_TICKETS_VERSION,
+            $this->assetVersion( 'assets/admin/event-addon-metabox.js' ),
             true
         );
 
@@ -98,7 +109,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 'oras-tickets-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.css',
                 array(),
-                ORAS_TICKETS_VERSION
+                $this->assetVersion( 'assets/admin/tickets-metabox.css' )
             );
         }
 
@@ -107,7 +118,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 'oras-tickets-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.js',
                 array(),
-                ORAS_TICKETS_VERSION,
+                $this->assetVersion( 'assets/admin/tickets-metabox.js' ),
                 true
             );
         }
@@ -117,7 +128,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 'oras-tickets-event-speakers-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/event-speakers-metabox.js',
                 array(),
-                ORAS_TICKETS_VERSION,
+                $this->assetVersion( 'assets/admin/event-speakers-metabox.js' ),
                 true
             );
         }

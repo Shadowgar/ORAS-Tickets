@@ -477,6 +477,29 @@
 		initPhaseToggles(row);
 	}
 
+	function activateTicketInnerTab(row, panelSelector) {
+		if (!row || !panelSelector || panelSelector.charAt(0) !== '#') {
+			return;
+		}
+
+		var tabs = toArray(row.querySelectorAll('.oras-ticket-data-tabs li'));
+		tabs.forEach(function (tabItem) {
+			tabItem.classList.remove('active');
+		});
+
+		var selectedTabLink = row.querySelector('.oras-ticket-data-tabs a[href="' + panelSelector + '"]');
+		if (selectedTabLink && selectedTabLink.parentElement) {
+			selectedTabLink.parentElement.classList.add('active');
+		}
+
+		var panels = toArray(row.querySelectorAll('.oras-ticket-data .panel.woocommerce_options_panel'));
+		panels.forEach(function (panel) {
+			var isSelected = '#' + panel.id === panelSelector;
+			panel.style.display = isSelected ? 'block' : 'none';
+			panel.classList.toggle('oras-panel-hidden', !isSelected);
+		});
+	}
+
 	function init() {
 		var root = document.getElementById('oras-tickets-metabox');
 		if (!root) {
@@ -492,6 +515,18 @@
 		updateEmptyState(root);
 
 		root.addEventListener('click', function (event) {
+			var ticketTabLink = event.target.closest('.oras-ticket-data-tabs a');
+			if (ticketTabLink) {
+				event.preventDefault();
+				var tabRow = ticketTabLink.closest('tr.oras-ticket-row');
+				if (!tabRow) {
+					return;
+				}
+				var href = ticketTabLink.getAttribute('href') || '';
+				activateTicketInnerTab(tabRow, href);
+				return;
+			}
+
 			var addButton = event.target.closest('#oras-add-ticket, .oras-add-ticket-trigger');
 			if (addButton) {
 				event.preventDefault();
