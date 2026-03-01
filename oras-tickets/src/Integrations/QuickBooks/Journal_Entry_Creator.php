@@ -300,12 +300,11 @@ final class Journal_Entry_Creator {
         $base_ts     = $base_date instanceof \WC_DateTime ? (int) $base_date->getTimestamp() : time();
         $from_date   = gmdate( 'Y-m-d', $base_ts - ( 7 * DAY_IN_SECONDS ) );
         $to_date     = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
-        $total_sql   = number_format( $total, 2, '.', '' );
 
         $queries = array(
-            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
-            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
-            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Deposit WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' AND TotalAmt = '" . $total_sql . "' ORDER BY TxnDate DESC MAXRESULTS 50",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Deposit WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
         );
 
         $candidates = array();
@@ -325,6 +324,11 @@ final class Journal_Entry_Creator {
                     : array();
                 foreach ( $rows as $row ) {
                     if ( ! is_array( $row ) ) {
+                        continue;
+                    }
+
+                    $row_total = round( (float) ( $row['TotalAmt'] ?? 0.0 ), 2 );
+                    if ( abs( $row_total - $total ) > 0.009 ) {
                         continue;
                     }
 
@@ -351,7 +355,7 @@ final class Journal_Entry_Creator {
                         'id'         => $id,
                         'key'        => $txn_key,
                         'txn_date'   => isset( $row['TxnDate'] ) ? (string) $row['TxnDate'] : '',
-                        'total'      => round( (float) ( $row['TotalAmt'] ?? 0.0 ), 2 ),
+                        'total'      => $row_total,
                         'doc_number' => $doc_number,
                         'memo'       => $memo,
                     );
