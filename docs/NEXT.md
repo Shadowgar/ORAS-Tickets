@@ -89,7 +89,7 @@ Phase 0-5 status update: **LOCKED** (governance closeout complete).
 - Completed Phase 5 operator soak closeout packet and gate transition:
   - added `docs/PHASE5_OPERATOR_SOAK_2026-03-02.md`,
   - captured deterministic Phase 5 soak evidence (`composer phpstan` + `tools/phase5-integration-checks.php` pass),
-  - moved Phase 5 to ready-for-lock review in sweep/tracker/state docs.
+  - moved Phase 5 from ready-for-lock review to LOCKED in sweep/tracker/state docs.
 - Refreshed Phase 5 gate evidence run:
   - synced `scripts/phase5-integration-checks.php` to runtime path `oras-tickets/tools/phase5-integration-checks.php`,
   - executed deterministic integration checks in `oras-wp-env` with passing assertions,

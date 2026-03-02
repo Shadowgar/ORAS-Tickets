@@ -36,4 +36,4 @@ These notices did not impact assertion outcomes.
 
 ## Gate Recommendation
 - Phase 5 operator soak evidence requirement is satisfied.
-- Move Phase 5 to ready-for-lock review pending governance signoff.
+- Phase 5 governance lock decision is complete (LOCKED).

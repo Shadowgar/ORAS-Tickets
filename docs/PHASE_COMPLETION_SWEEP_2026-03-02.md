@@ -21,7 +21,7 @@ Checklist:
 - [x] Bootstrap regression script passes in `oras-wp-env`.
 - [x] Capability boundary checks pass in core regression script.
 - [x] Confirm no unresolved bootstrap/capability TODOs for current gate scope.
-- [x] Mark phase READY FOR LOCK in tracker after evidence + doc sync.
+- [x] Mark phase LOCKED in tracker after evidence + governance/doc sync.
 
 Evidence commands:
 - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
@@ -35,7 +35,7 @@ Checklist:
 - [x] Envelope fallback and schema handling checks pass in core regression script.
 - [x] Ticket key invariants pass in core regression script.
 - [x] Add/confirm migration edge coverage remains sufficient for current gate scope.
-- [x] Mark phase READY FOR LOCK in tracker after evidence + doc sync.
+- [x] Mark phase LOCKED in tracker after evidence + governance/doc sync.
 
 ### Phase 2 — Woo mapping + commerce integrity
 Status: LOCKED
@@ -43,7 +43,7 @@ Status: LOCKED
 Checklist:
 - [x] Mapping/capacity baseline validated via current static/runtime suite.
 - [x] Add explicit deterministic edge-case scenario for refund/cancel/order transition concurrency.
-- [x] Mark phase READY FOR LOCK in tracker after evidence + doc sync.
+- [x] Mark phase LOCKED in tracker after evidence + governance/doc sync.
 
 ### Phase 3 — Reporting depth
 Status: LOCKED

@@ -1,5 +1,47 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Lock-State Consistency Sweep (Post-Lock Sync)
+
+Docs:
+- Updated active-status wording to reflect finalized Phase 0-5 `LOCKED` posture:
+  - `docs/NEXT.md`
+  - `docs/PHASE5_OPERATOR_SOAK_2026-03-02.md`
+  - `docs/PHASE_COMPLETION_SWEEP_2026-03-02.md`
+
+Behavior:
+- Removed stale active references to interim `ready-for-lock review` state where lock decisions are already complete.
+- Preserved historical transition context where it remains useful for audit chronology.
+
+Validation:
+- `composer phpstan` (pass)
+
+## 2026-03-02 — Phase 0-5 Governance Lock + Phase 5.3 Restart Readiness
+
+Docs:
+- Finalized governance lock decision across core phase docs (Phases 0-5 now `LOCKED`):
+  - `docs/MASTER_EXECUTION_TRACKER.md`
+  - `docs/PHASE_COMPLETION_SWEEP_2026-03-02.md`
+  - `docs/CURRENT_STATE.md`
+  - `docs/NEXT.md`
+- Completed lock-review packet checklist and synchronized lock status snapshot:
+  - `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`
+
+Phase 5.3 paused-state readiness:
+- Added compact restart checklist for immediate resumption when production constraints lift:
+  - `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`
+- Linked restart checklist into paused 5.3 workflow artifacts:
+  - `docs/PHASE53_PRELIVE_PACKET_2026-03-02.md`
+  - `docs/PHASE53_PRODUCTION_VALIDATION_EVIDENCE_2026-03-02.md`
+  - `docs/NEXT.md`
+
+Documentation alignment updates:
+- Synced strategic/canonical status wording to locked-baseline mode:
+  - `docs/ROADMAP.md`
+  - `docs/PROJECT_STATE.md`
+
+Validation:
+- `composer phpstan` (pass)
+
 ## 2026-03-02 — Strict Phase 1 Envelope Regression Pass
 
 Code:
