@@ -30,6 +30,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_Agenda_Render.php'; // 
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Dashboard.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
@@ -133,6 +134,7 @@ final class Bootstrap {
         \ORAS\Tickets\Frontend\Event_Agenda_Render::register();
         \ORAS\Tickets\Frontend\Virtual_Access::register();
         \ORAS\Tickets\Frontend\Event_RSVP::register();
+        \ORAS\Tickets\Frontend\Board_Dashboard::register();
         \ORAS\Tickets\Templates\Template_Loader::register();
 
         // Admin-only (or WP-CLI): register ticket metabox and admin hub.

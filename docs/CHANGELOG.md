@@ -1,5 +1,277 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Section View Labels + Admin-Only Watch Alerts
+
+Code:
+- Updated board dashboard section headers to include explicit visibility labels:
+  - `Board View`, `Admin View`, `Treasurer View`
+  - file: `oras-tickets/includes/Frontend/Board_Dashboard.php`
+- Restricted `Watch Alerts` section to admin users only.
+
+Behavior:
+- Board users do not see admin watch-alert diagnostics.
+- Each block now indicates intended audience at the top of the section.
+
+## 2026-03-02 — Operations Health Admin-Only Visibility
+
+Code:
+- Restricted `Operations Health` section to admin-capable users only:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+
+Behavior:
+- Non-admin board users no longer see operational queue/automation health details.
+- Operations health data query is skipped entirely for non-admin viewers.
+
+## 2026-03-02 — Board Watch Alert Threshold Row
+
+Code:
+- Added compact `Watch Alerts` row near the top of board dashboard:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - threshold-triggered alerts for:
+    - elevated failed/pending automation queue,
+    - waitlist pressure and low promotion efficiency,
+    - high subscriber confirmation backlog.
+
+Behavior:
+- Displays alert chips (`WATCH` / `DOWN`) when thresholds are crossed.
+- Displays `STABLE` when no watch thresholds are currently triggered.
+
+## 2026-03-02 — Board Operations/Waitlist/Engagement KPIs
+
+Code:
+- Added three new board dashboard sections:
+  - `Operations Health` (Action Scheduler failed/pending/completed plus recent queue pressure and top failed hooks),
+  - `Waitlist Conversion` (current waiting count, promoted/left totals, promotion efficiency),
+  - `Engagement Funnel` (MailPoet subscriber status mix, form submissions 30d, newsletter opens 30d).
+- File:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+
+Notes:
+- Sections are board-safe/high-level and avoid treasurer-only reconciliation detail.
+- Data automatically degrades to “unavailable” messaging if source tables are not present.
+
+## 2026-03-02 — Notable Changes Severity Chips
+
+Code:
+- Enhanced `Top 5 notable changes this period` rendering with severity tags:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - each change now displays a chip: `UP`, `DOWN`, or `WATCH`.
+- Added per-metric tone logic:
+  - positive/negative trend scoring for sales/activity,
+  - inverse scoring for refund-rate changes.
+
+UX:
+- Board can scan directional change faster without reading full sentence details first.
+
+## 2026-03-02 — Board Top 5 Notable Changes Callout
+
+Code:
+- Added `Top 5 notable changes this period` section to board dashboard:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - compares current selected period to previous equivalent period.
+- Callout currently summarizes key directional deltas for board readout:
+  - gross sales change,
+  - refund rate points change,
+  - merch revenue change,
+  - direct membership cashflow change,
+  - website activity change (logins and signups).
+
+Notes:
+- Comparison uses adjacent equal-length time windows derived from the current board date range.
+
+## 2026-03-02 — Membership Lifecycle Simplification + Level Breakdown
+
+Code:
+- Updated board membership lifecycle presentation:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - removed cancellation and net-change columns from board lifecycle table,
+  - retained period-based new membership counts (weekly/monthly/yearly).
+- Added active member distribution by membership level:
+  - lifecycle section now includes `Active Members by Level` table,
+  - populated from active PMPro membership rows joined to membership level names.
+
+## 2026-03-02 — Board Website Activity (Logins + Signups)
+
+Code:
+- Added Website Activity section to board dashboard:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - weekly/monthly/yearly counts for:
+    - logins,
+    - user signups.
+- Added notable site activity counters:
+  - total users,
+  - active members (when membership table is available).
+- Added login event tracking hook:
+  - stores daily login counts for trend rollups,
+  - retains ~400 days of daily login history,
+  - records per-user last login timestamp metadata.
+
+Notes:
+- Login trends accumulate from the point this tracking is enabled; historical pre-tracking login counts are not reconstructed.
+
+## 2026-03-02 — Board KPI Grid Geometry Lock
+
+Code:
+- Tightened board KPI grid symmetry behavior:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - enabled equal row sizing (`grid-auto-rows: 1fr`),
+  - enforced full-height card fill (`height: 100%`) to keep card blocks visually uniform.
+
+## 2026-03-02 — Board Copy Cleanup + KPI Symmetry Polish
+
+Code:
+- Removed board subtitle copy:
+  - `Rollup across ORAS ticketed events for the selected period.`
+  - file: `oras-tickets/includes/Frontend/Board_Dashboard.php`
+- Improved KPI card visual symmetry:
+  - standardized subtitle block behavior and reserved subtitle space on cards without a natural subtitle,
+  - consistent card interior alignment for mixed-content KPI cards.
+
+## 2026-03-02 — Board Data Freshness Indicators
+
+Code:
+- Added `as of` source freshness display in board dashboard:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - shows freshness for financial totals source,
+  - shows per-source freshness summary for Woo and PMPro in revenue streams section,
+  - shows PMPro lifecycle freshness timestamp.
+
+Notes:
+- This supports board readability by making data recency explicit for operational snapshots.
+
+## 2026-03-02 — Board Cashflow: PMPro Inclusion + Treasurer Confirmation Warning
+
+Code:
+- Expanded board cashflow view to include PMPro direct membership cashflow:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - reads successful PMPro membership orders from `pmpro_membership_orders` in selected date range,
+  - surfaces `PMPro Direct Membership Cashflow` in revenue stream table,
+  - adds `Estimated Total Inflow` KPI (`Woo/QBO gross + PMPro direct cashflow`).
+- Added explicit board-level warning banner:
+  - dashboard states totals are rough operational estimates,
+  - final confirmed totals must come from Treasurer.
+
+Notes:
+- PMPro direct cashflow may overlap with Woo-based membership products depending on checkout configuration; dashboard now surfaces that caveat for board readers.
+
+## 2026-03-02 — Board Note for Non-Treasurer Users
+
+Code:
+- Added a concise board-facing note below KPI cards when reconciliation details are hidden:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - clarifies that detailed variance/mismatch review is handled by Treasurer/Admin.
+
+## 2026-03-02 — Treasurer View Label in Board Reconciliation
+
+Code:
+- Added explicit UI labeling for finance-operational visibility:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - reconciliation section now shows `Treasurer view` badge to make role-scoped access intent clear.
+
+## 2026-03-02 — Treasurer-Only Reconciliation Visibility
+
+Code:
+- Restricted mismatch/variance reconciliation details to treasurer/admin users:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - QuickBooks reconciliation detail block now renders only when user has capability `oras_tickets_view_treasurer_reconciliation`.
+- Added dedicated capability and role assignment logic:
+  - `oras-tickets/includes/Capabilities.php`
+  - new capability: `oras_tickets_view_treasurer_reconciliation`
+  - granted to roles when present: `administrator`, `treasurer`.
+
+Behavior:
+- Board users continue to see high-level dashboard KPIs.
+- Variance/mismatch operational reconciliation is hidden from board-only users.
+
+## 2026-03-02 — Board Reconciliation Detail Table (Top Variance Orders)
+
+Code:
+- Expanded board frontend dashboard reconciliation visibility:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - added compact reconciliation section below KPI cards with:
+    - completed order count for selected period,
+    - mismatch count,
+    - aggregate net variance sum,
+    - top variance orders table (`Order`, `Status`, `Site`, `QBO Net`, `Variance`).
+- Reconciliation row math mirrors existing QBO report semantics:
+  - website line-item total compared against ORAS sync snapshot / JE metadata net amount,
+  - rows sorted by absolute variance descending,
+  - low-noise threshold retained (`abs(variance) > 0.009`).
+
+## 2026-03-02 — Board Dashboard QBO Read-Only Reconciliation + Fallback
+
+Code:
+- Updated frontend board dashboard financial sourcing:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - financial cards now attempt a read-only QuickBooks poll of ORAS JournalEntry records in-range (`ORAS-WO-*`, `ORAS-RC-*`, `ORAS-RV-*`).
+- Added automatic source selection behavior:
+  - when QBO poll succeeds, dashboard financial totals (gross/refunded/net) render from QBO snapshot,
+  - when QBO is unavailable/disabled/error, dashboard falls back to website aggregates.
+- Added operator-facing source note in UI:
+  - indicates whether values are from `QuickBooks (read-only poll)` or `website fallback`,
+  - includes net variance reference between site and QBO when QBO is available.
+- Added short transient cache for QBO snapshot polling to reduce repeated API calls during board-page refreshes.
+
+## 2026-03-02 — Board Frontend Dashboard (Capability-Gated)
+
+Code:
+- Added a frontend board dashboard shortcode:
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - shortcode: `[oras_board_dashboard]`
+  - outputs board-facing rollup KPIs (gross/net/refunds/refund rate/orders/tickets/AOV/member mix).
+- Registered frontend dashboard in bootstrap:
+  - `oras-tickets/includes/Bootstrap.php`
+- Added dedicated access capability:
+  - `oras_tickets_view_board_dashboard`
+  - `oras-tickets/includes/Capabilities.php`
+  - capability now granted to roles when present: `administrator`, `board`, `board_member`.
+
+Usage:
+- Create a WordPress page with slug `board` and place shortcode `[oras_board_dashboard]` in page content.
+- Board users must have capability `oras_tickets_view_board_dashboard`.
+
+## 2026-03-02 — Phase 3 Board KPI Layer (Detail View)
+
+Code:
+- Added board-facing KPI cards to Event Detail report:
+  - `oras-tickets/includes/Admin/Pages/Reports_Page.php`
+  - new derived metrics:
+    - `Refund rate` = refunded amount ÷ gross sales
+    - `Average order value` = gross sales ÷ orders
+- KPI derivation uses existing report summary aggregates with safe zero guards.
+
+## 2026-03-02 — Phase 3 Reports Integration Checks
+
+Code:
+- Added deterministic reports integration check script:
+  - `scripts/reports-integration-checks.php`
+  - validates admin-post hook registration and hardening paths for:
+    - reports export (`oras_tickets_export_csv`)
+    - speaker reports export (`oras_speaker_reports_export_csv`)
+  - validates capability and nonce guard behavior (expected `Not allowed` / `Invalid request` paths).
+- Added reports integration runner:
+  - `scripts/run-reports-integration-checks.sh`
+  - executes report checks via `wp eval-file` in wp-env.
+- Added CI execution step:
+  - `.github/workflows/phase5-verification.yml`
+  - now runs reports integration checks between Phase 5 checks and QBO checks.
+
+## 2026-03-02 — Phase 3 Speaker Attribution Mode Expansion
+
+Code:
+- Added selectable speaker attribution mode in Speaker Reports filters and CSV export context:
+  - `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php`
+  - new filter parameter `allocation_mode` supports:
+    - `equal_assignment_split`
+    - `primary_weighted_split` (primary speakers weighted 2x, non-primary 1x)
+- Updated speaker allocation computation:
+  - equal split remains deterministic by active assignment count,
+  - primary-weighted mode computes per-row allocated gross/net using assignment weights,
+  - weighted mode automatically falls back to equal split when no primary speakers are flagged for an event.
+
+Notes:
+- Allocation context is persisted in CSV via existing `allocation_mode` and `allocation_divisor` fields.
+
 ## 2026-03-02 — Phase 3 Reporting Segmentation (Member vs Non-Member)
 
 Code:

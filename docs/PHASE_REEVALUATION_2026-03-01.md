@@ -26,7 +26,7 @@ This is intended to replace assumption-based progress with evidence-based progre
 | 0 | Foundations/bootstrap/caps | 90% | Mostly implemented | Strong bootstrap/capabilities and architecture boundaries, but still some structural debt and no dedicated bootstrap regression suite. |
 | 1 | Ticket model | 88% | Implemented baseline | Ticket envelope and admin editing are in place; still relies on legacy metabox patterns and has guardrail complexity debt. |
 | 2 | Woo mapping + commerce integrity | 90% | Implemented baseline | Product sync, cart revalidation, capacity consumption, order item snapshots are implemented and hardened. |
-| 3 | Reporting system (treasurer) | 72% | Partial | Reports engine/UI exists, CSV export exists, reports navigation restored, member/non-member segmentation added, and deterministic speaker-level allocation context is now surfaced; advanced analytics depth is still incomplete. |
+| 3 | Reporting system (treasurer) | 78% | Partial | Reports engine/UI exists, CSV export exists, reports navigation restored, member/non-member segmentation added, speaker-level allocation supports both equal and primary-weighted attribution, and board-facing refund rate/AOV KPI cards are now present; deeper analytics layering is still incomplete. |
 | 4 | Speakers + agenda baseline | 68% | Partial | Speaker CPT, event assignment, agenda rendering, resources exist; archive refinement and some workflow polish remain. |
 | 5 | Registration + capacity intelligence | 78% | Partial/advanced | RSVP + waitlist + attendee dashboard + concurrency hardening are strong; still needs closure soak, test-depth, and complete gate signoff. |
 | 5.3 | QuickBooks revenue split | 72% | Pre-live partial | Core sync, safety controls, reconciliation, pending/history ops, waiting queue implemented; production go-live and signoff still pending. |
@@ -74,7 +74,7 @@ Estimated overall completion (master-plan aligned, revised): **~52%**
 ### Remaining
 - Expand edge-case test matrix (refund/cancel partial scenarios under heavy concurrency).
 
-## Phase 3 — Reporting System (62%)
+## Phase 3 — Reporting System (78%)
 ### Implemented evidence
 - Financial aggregation layer: `oras-tickets/includes/Admin/Reports_Aggregator.php`
 - Reports UI + CSV export + date/status scopes: `oras-tickets/includes/Admin/Pages/Reports_Page.php`
@@ -82,11 +82,11 @@ Estimated overall completion (master-plan aligned, revised): **~52%**
 
 ### Gaps found
 - Reports page route exists (`page=oras-tickets-reports`) and submenu wiring has been restored in admin menu registration (`oras-tickets/includes/Admin/Admin_Menu.php`, 2026-03-02), but broader reporting scope remains incomplete.
-- Member/non-member depth has started (event detail KPIs + CSV segmentation), and speaker report now includes event gross/net context plus deterministic per-speaker equal-split allocation fields; board-ready KPI layering and richer attribution modes are still incomplete.
+- Member/non-member depth has started (event detail KPIs + CSV segmentation), speaker report includes event gross/net context plus deterministic per-speaker allocation fields with selectable equal-split and primary-weighted modes, and Event Detail now includes board-facing refund rate and average-order-value KPIs; deeper board analytics layering is still incomplete.
 
 ### Completion checklist
-1. Restore/admin-wire Reports menu discoverability.
-2. Add report integration tests (render + export + capability/nonce checks).
+1. Restore/admin-wire Reports menu discoverability. ✅
+2. Add report integration tests (render + export + capability/nonce checks). ✅
 3. Add missing advanced KPI dimensions and board-oriented views.
 
 ## Phase 4 — Speaker + Agenda Baseline (68%)
