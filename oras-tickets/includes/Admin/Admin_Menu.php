@@ -57,6 +57,16 @@ final class Admin_Menu
             array($this, 'render_dashboard')
         );
 
+        // Reports
+        add_submenu_page(
+            'oras-tickets',
+            __('Reports', 'oras-tickets'),
+            __('Reports', 'oras-tickets'),
+            'oras_tickets_view_reports',
+            'oras-tickets-reports',
+            array($this, 'render_reports')
+        );
+
         // If the Speaker CPT added its own submenu (via show_in_menu), remove it
         // so we can re-insert in the desired position (directly after Dashboard).
         remove_submenu_page('oras-tickets', 'edit.php?post_type=oras_speaker');

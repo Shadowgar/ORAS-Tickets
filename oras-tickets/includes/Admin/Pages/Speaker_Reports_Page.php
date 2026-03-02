@@ -2,6 +2,9 @@
 
 namespace ORAS\Tickets\Admin\Pages;
 
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php'; // NOSONAR legacy include
+
+use ORAS\Tickets\Admin\Reports_Aggregator;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Security\CsvSafety;
 
@@ -32,6 +35,7 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
         ?>
     <div class="wrap">
         <h1><?php echo esc_html__( 'Speaker Reports', 'oras-tickets' ); ?></h1>
+        <p class="description"><?php echo esc_html__( 'Allocation mode: per-speaker revenue is equal-split by active speaker assignments on each event.', 'oras-tickets' ); ?></p>
 
         <form method="get" class="oras-speaker-reports-filters">
         <input type="hidden" name="page" value="oras-tickets-speaker-reports" />
@@ -82,6 +86,10 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
             <th><?php echo esc_html__( 'Primary', 'oras-tickets' ); ?></th>
             <th><?php echo esc_html__( 'Compensation', 'oras-tickets' ); ?></th>
             <th><?php echo esc_html__( 'Compensation value', 'oras-tickets' ); ?></th>
+            <th><?php echo esc_html__( 'Event gross sales', 'oras-tickets' ); ?></th>
+            <th><?php echo esc_html__( 'Event net sales', 'oras-tickets' ); ?></th>
+            <th><?php echo esc_html__( 'Allocated gross sales', 'oras-tickets' ); ?></th>
+            <th><?php echo esc_html__( 'Allocated net sales', 'oras-tickets' ); ?></th>
             <th><?php echo esc_html__( 'Fulfilled', 'oras-tickets' ); ?></th>
             <th><?php echo esc_html__( 'Fulfilled date', 'oras-tickets' ); ?></th>
             </tr>
@@ -89,7 +97,7 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
         <tbody>
             <?php if ( empty( $rows ) ) : ?>
             <tr>
-                <td colspan="9"><?php echo esc_html__( 'No records found.', 'oras-tickets' ); ?></td>
+                <td colspan="13"><?php echo esc_html__( 'No records found.', 'oras-tickets' ); ?></td>
             </tr>
             <?php else : ?>
                 <?php foreach ( $rows as $row ) : ?>
@@ -113,6 +121,10 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
                 <td><?php echo esc_html( $row['is_primary'] ? __( 'Yes', 'oras-tickets' ) : __( 'No', 'oras-tickets' ) ); ?></td>
                 <td><?php echo esc_html( $row['compensation_type'] ); ?></td>
                 <td><?php echo esc_html( $row['compensation_value'] ); ?></td>
+                <td><?php echo esc_html( $this->format_fee( (float) $row['event_gross_sales'] ) ); ?></td>
+                <td><?php echo esc_html( $this->format_fee( (float) $row['event_net_sales'] ) ); ?></td>
+                <td><?php echo esc_html( $this->format_fee( (float) $row['allocated_event_gross_sales'] ) ); ?></td>
+                <td><?php echo esc_html( $this->format_fee( (float) $row['allocated_event_net_sales'] ) ); ?></td>
                 <td><?php echo esc_html( $row['fulfilled'] ? __( 'Yes', 'oras-tickets' ) : __( 'No', 'oras-tickets' ) ); ?></td>
                 <td><?php echo esc_html( $row['fulfilled_date'] ); ?></td>
                 </tr>
@@ -168,6 +180,12 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
                     'fee_amount',
                     'pmpro_level_id',
                     'pmpro_level_name',
+                    'event_gross_sales',
+                    'event_net_sales',
+                    'allocated_event_gross_sales',
+                    'allocated_event_net_sales',
+                    'allocation_mode',
+                    'allocation_divisor',
                     'fulfilled',
                     'fulfilled_date',
                 )
@@ -191,6 +209,12 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
                         $row['fee_amount'],
                         $row['pmpro_level_id'],
                         $row['pmpro_level_name'],
+                        $row['event_gross_sales'],
+                        $row['event_net_sales'],
+                        $row['allocated_event_gross_sales'],
+                        $row['allocated_event_net_sales'],
+                        $row['allocation_mode'],
+                        $row['allocation_divisor'],
                         $row['fulfilled'] ? '1' : '0',
                         $row['fulfilled_date'],
                     )
@@ -238,6 +262,7 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
     private function get_report_rows( array $filters ): array {
         $date_from = $filters['date_from'];
         $date_to   = $filters['date_to'];
+        $aggregator = new Reports_Aggregator();
 
         $meta_query = array(
             'relation' => 'AND',
@@ -295,6 +320,19 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
             $event_start_raw     = (string) get_post_meta( $event_id, self::META_EVENT_START, true );
             $event_title         = $event->post_title !== '' ? $event->post_title : __( '(Untitled)', 'oras-tickets' );
             $event_edit_link     = get_edit_post_link( $event_id );
+            $event_aggregates    = $aggregator->get_aggregates(
+                $event_id,
+                array( 'completed', 'processing', 'on-hold', 'pending', 'refunded', 'cancelled', 'failed' ),
+                array()
+            );
+            $event_summary       = isset( $event_aggregates['summary'] ) && is_array( $event_aggregates['summary'] )
+                ? $event_aggregates['summary']
+                : array();
+            $event_gross_sales   = isset( $event_summary['gross_sales'] ) ? (float) $event_summary['gross_sales'] : 0.0;
+            $event_net_sales     = isset( $event_summary['net_sales'] ) ? (float) $event_summary['net_sales'] : 0.0;
+            $allocation_divisor  = $this->count_active_speaker_assignments( $assignments );
+            $allocated_gross     = $allocation_divisor > 0 ? ( $event_gross_sales / $allocation_divisor ) : 0.0;
+            $allocated_net       = $allocation_divisor > 0 ? ( $event_net_sales / $allocation_divisor ) : 0.0;
 
             foreach ( $assignments as $assignment ) {
                 if ( ! is_array( $assignment ) ) {
@@ -352,6 +390,12 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
                     'fee_amount'         => $fee_amount,
                     'pmpro_level_id'     => $pmpro_level_id,
                     'pmpro_level_name'   => $pmpro_level_name,
+                    'event_gross_sales'  => $event_gross_sales,
+                    'event_net_sales'    => $event_net_sales,
+                    'allocated_event_gross_sales' => $allocated_gross,
+                    'allocated_event_net_sales'   => $allocated_net,
+                    'allocation_mode'    => 'equal_assignment_split',
+                    'allocation_divisor' => $allocation_divisor,
                     'fulfilled'          => $fulfilled,
                     'fulfilled_date'     => $fulfilled_date,
                 );
@@ -428,5 +472,25 @@ if ( ! current_user_can( 'oras_tickets_manage_speakers' ) ) {
         }
 
         return '$' . $formatted;
+    }
+
+    /**
+     * @param array<int,mixed> $assignments
+     */
+    private function count_active_speaker_assignments( array $assignments ): int {
+        $count = 0;
+
+        foreach ( $assignments as $assignment ) {
+            if ( ! is_array( $assignment ) ) {
+                continue;
+            }
+
+            $speaker_id = isset( $assignment['speaker_id'] ) ? (int) $assignment['speaker_id'] : 0;
+            if ( $speaker_id > 0 ) {
+                $count++;
+            }
+        }
+
+        return max( 1, $count );
     }
 }

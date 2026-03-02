@@ -40,6 +40,12 @@ final class Reports_Aggregator { // NOSONAR legacy WP class naming
             'net_sales'                   => 0.0,
             'orders_count'                => 0,
             'tickets_sold'                => 0,
+            'member_orders'               => 0,
+            'member_tickets_sold'         => 0,
+            'member_gross_sales'          => 0.0,
+            'non_member_orders'           => 0,
+            'non_member_tickets_sold'     => 0,
+            'non_member_gross_sales'      => 0.0,
             'refunded_qty'                => 0,
             'unattributed_refunds_amount' => 0.0,
             'unattributed_refunds_count'  => 0,
@@ -261,6 +267,16 @@ return;
                     $summary['tickets_sold'] += $order_oras_qty;
                     $summary['orders_count']++;
 
+                    if ( $this->is_member_order( $order ) ) {
+                        $summary['member_orders']++;
+                        $summary['member_tickets_sold'] += $order_oras_qty;
+                        $summary['member_gross_sales']  += $order_oras_gross;
+                    } else {
+                        $summary['non_member_orders']++;
+                        $summary['non_member_tickets_sold'] += $order_oras_qty;
+                        $summary['non_member_gross_sales']  += $order_oras_gross;
+                    }
+
                     foreach ( $order_by_ticket as $ticket_key => $data ) {
                         if ( ! isset( $by_ticket[ $ticket_key ] ) ) {
                             $by_ticket[ $ticket_key ] = array(
@@ -402,6 +418,7 @@ return;
                 $order_date     = $order->get_date_created();
                 $order_date_str = $order_date ? $order_date->date( 'Y-m-d H:i:s' ) : '';
                 $order_status   = (string) $order->get_status();
+                $member_segment = $this->is_member_order( $order ) ? 'member' : 'non_member';
 
                 $items = $order->get_items( 'line_item' );
                 foreach ( $items as $item ) {
@@ -427,6 +444,7 @@ return;
                             'order_id'     => $order_id,
                             'order_date'   => $order_date_str,
                             'order_status' => $order_status,
+                            'member_segment' => $member_segment,
                             'ticket_name'  => $ticket_name,
                             'ticket_index' => $ticket_index,
                             'qty'          => $qty,
@@ -514,6 +532,20 @@ return;
             'ticket_index' => $item_index !== '' ? (string) $item_index : '',
             'ticket_name'  => $ticket_name,
         );
+    }
+
+    private function is_member_order( \WC_Order $order ): bool {
+        $user_id = (int) $order->get_user_id();
+        if ( $user_id <= 0 ) {
+            return false;
+        }
+
+        if ( function_exists( 'pmpro_getMembershipLevelForUser' ) ) {
+            $level = pmpro_getMembershipLevelForUser( $user_id );
+            return is_object( $level );
+        }
+
+        return false;
     }
 
     /**

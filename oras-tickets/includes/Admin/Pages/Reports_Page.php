@@ -68,6 +68,12 @@ if ( ! current_user_can( 'oras_tickets_view_reports' ) ) {
                 'net_sales'                   => 0.0,
                 'orders_count'                => 0,
                 'tickets_sold'                => 0,
+                'member_orders'               => 0,
+                'member_tickets_sold'         => 0,
+                'member_gross_sales'          => 0.0,
+                'non_member_orders'           => 0,
+                'non_member_tickets_sold'     => 0,
+                'non_member_gross_sales'      => 0.0,
                 'refunded_qty'                => 0,
                 'unattributed_refunds_amount' => 0.0,
                 'unattributed_refunds_count'  => 0,
@@ -501,6 +507,22 @@ if ( ! current_user_can( 'oras_tickets_view_reports' ) ) {
                 <div class="oras-kpi__label"><?php echo esc_html__( 'Tickets sold after first pricing phase', 'oras-tickets' ); ?></div>
                 <div class="oras-kpi__value"><?php echo esc_html( (string) $after_total ); ?></div>
                 </div>
+                <div class="oras-kpi">
+                <div class="oras-kpi__label"><?php echo esc_html__( 'Member gross sales', 'oras-tickets' ); ?></div>
+                <div class="oras-kpi__value"><?php echo esc_html( $this->format_money( (float) ( $aggregates['summary']['member_gross_sales'] ?? 0.0 ) ) ); ?></div>
+                <div class="oras-kpi__sub oras-pill">
+                    <?php echo esc_html__( 'Orders', 'oras-tickets' ); ?>
+                    <strong><?php echo esc_html( (string) ( $aggregates['summary']['member_orders'] ?? 0 ) ); ?></strong>
+                </div>
+                </div>
+                <div class="oras-kpi">
+                <div class="oras-kpi__label"><?php echo esc_html__( 'Non-member gross sales', 'oras-tickets' ); ?></div>
+                <div class="oras-kpi__value"><?php echo esc_html( $this->format_money( (float) ( $aggregates['summary']['non_member_gross_sales'] ?? 0.0 ) ) ); ?></div>
+                <div class="oras-kpi__sub oras-pill">
+                    <?php echo esc_html__( 'Orders', 'oras-tickets' ); ?>
+                    <strong><?php echo esc_html( (string) ( $aggregates['summary']['non_member_orders'] ?? 0 ) ); ?></strong>
+                </div>
+                </div>
             </div>
 
             <?php if ( ! empty( $aggregates['summary']['unattributed_refunds_amount'] ) ) : ?>
@@ -525,6 +547,10 @@ if ( ! current_user_can( 'oras_tickets_view_reports' ) ) {
 
             <p class="description oras-note">
                 <?php echo esc_html__( 'First pricing phase = earliest configured pricing phase per ticket.', 'oras-tickets' ); ?>
+            </p>
+
+            <p class="description oras-note">
+                <?php echo esc_html__( 'Member vs non-member segmentation uses purchaser account membership status at report runtime when PMPro is available.', 'oras-tickets' ); ?>
             </p>
 
             <p class="description oras-note">
@@ -861,6 +887,7 @@ return 1;
                     'order_id',
                     'order_date',
                     'order_status',
+                            'member_segment',
                     'ticket_name',
                     'ticket_index',
                     'qty',
@@ -903,6 +930,7 @@ return 1;
                             $row['order_id'],
                             $row['order_date'],
                             $row['order_status'],
+                            $row['member_segment'] ?? 'non_member',
                             $row['ticket_name'],
                             $row['ticket_index'],
                             $row['qty'],

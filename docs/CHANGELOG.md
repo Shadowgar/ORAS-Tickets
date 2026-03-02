@@ -1,5 +1,43 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Phase 3 Reporting Segmentation (Member vs Non-Member)
+
+Code:
+- Added member vs non-member sales segmentation to reporting summary aggregation:
+  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
+  - summary now tracks:
+    - `member_orders`, `member_tickets_sold`, `member_gross_sales`
+    - `non_member_orders`, `non_member_tickets_sold`, `non_member_gross_sales`
+  - membership detection uses PMPro runtime lookup when available (`pmpro_getMembershipLevelForUser`).
+- Added member segmentation to detail CSV export rows:
+  - `oras-tickets/includes/Admin/Pages/Reports_Page.php`
+  - new `member_segment` column (`member` / `non_member`).
+- Added member/non-member KPI cards to event detail report view:
+  - `oras-tickets/includes/Admin/Pages/Reports_Page.php`
+- Added speaker report financial context columns:
+  - `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php`
+  - table + CSV now include per-event `event_gross_sales` and `event_net_sales` snapshots for each speaker assignment row.
+- Added deterministic speaker-level allocation fields:
+  - `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php`
+  - table + CSV now include:
+    - `allocated_event_gross_sales`
+    - `allocated_event_net_sales`
+    - `allocation_mode` (`equal_assignment_split`)
+    - `allocation_divisor` (active speaker assignment count per event).
+
+Notes:
+- Member segmentation is based on purchaser account membership state at report runtime (when PMPro is available).
+
+## 2026-03-02 — Phase 3 Reporting Navigation Restore
+
+Code:
+- Restored Reports page discoverability in ORAS Tickets admin navigation:
+  - `oras-tickets/includes/Admin/Admin_Menu.php`
+  - added missing submenu registration for `oras-tickets-reports` with `oras_tickets_view_reports` capability and existing `render_reports()` callback.
+
+Verification:
+- Reports page route remains `admin.php?page=oras-tickets-reports` and now appears in ORAS Tickets submenu.
+
 ## 2026-03-01 — QuickBooks Reclass Queue + Operator Tooling Hardening
 
 Code:
