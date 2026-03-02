@@ -50,11 +50,11 @@ final class Event_Addon_Metabox
 
     public function remove_legacy_metaboxes(): void
     {
-        remove_meta_box('oras_tickets_metabox', Meta::EVENT_POST_TYPE, 'normal');
-        remove_meta_box('oras_event_agenda_metabox', Meta::EVENT_POST_TYPE, 'normal');
-        remove_meta_box('oras_event_rsvp_metabox', Meta::EVENT_POST_TYPE, 'normal');
-        remove_meta_box('oras_event_speakers_metabox', Meta::EVENT_POST_TYPE, 'normal');
-        remove_meta_box('oras_event_rsvp_attendees_metabox', Meta::EVENT_POST_TYPE, 'normal');
+        \remove_meta_box('oras_tickets_metabox', Meta::EVENT_POST_TYPE, 'normal');
+        \remove_meta_box('oras_event_agenda_metabox', Meta::EVENT_POST_TYPE, 'normal');
+        \remove_meta_box('oras_event_rsvp_metabox', Meta::EVENT_POST_TYPE, 'normal');
+        \remove_meta_box('oras_event_speakers_metabox', Meta::EVENT_POST_TYPE, 'normal');
+        \remove_meta_box('oras_event_rsvp_attendees_metabox', Meta::EVENT_POST_TYPE, 'normal');
     }
 
     public function enqueue_assets(): void
@@ -80,12 +80,12 @@ final class Event_Addon_Metabox
         if (empty($post_type) && ! empty($_GET['post'])) {
             $maybe_id = absint(wp_unslash($_GET['post']));
             if ($maybe_id) {
-                $post_type = get_post_type($maybe_id);
+                $post_type = \get_post_type($maybe_id);
             }
         }
 
         if (empty($post_type)) {
-            $post_type = get_post_type();
+            $post_type = \get_post_type();
         }
 
         if (empty($post_type) || Meta::EVENT_POST_TYPE !== $post_type) {
@@ -111,7 +111,7 @@ final class Event_Addon_Metabox
         );
 
         // Ensure per-feature assets are present when rendered inside the unified metabox.
-        if (! wp_style_is('oras-tickets-metabox', 'enqueued')) {
+        if (! \wp_style_is('oras-tickets-metabox', 'enqueued')) {
             wp_enqueue_style(
                 'oras-tickets-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.css',
@@ -120,7 +120,7 @@ final class Event_Addon_Metabox
             );
         }
 
-        if (! wp_script_is('oras-tickets-metabox', 'enqueued')) {
+        if (! \wp_script_is('oras-tickets-metabox', 'enqueued')) {
             wp_enqueue_script(
                 'oras-tickets-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.js',
@@ -130,7 +130,7 @@ final class Event_Addon_Metabox
             );
         }
 
-        if (! wp_script_is('oras-tickets-event-speakers-metabox', 'enqueued')) {
+        if (! \wp_script_is('oras-tickets-event-speakers-metabox', 'enqueued')) {
             wp_enqueue_script(
                 'oras-tickets-event-speakers-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/event-speakers-metabox.js',
@@ -140,7 +140,7 @@ final class Event_Addon_Metabox
             );
         }
 
-        if (! wp_script_is('oras-door-prizes-metabox', 'enqueued')) {
+        if (! \wp_script_is('oras-door-prizes-metabox', 'enqueued')) {
             wp_enqueue_script(
                 'oras-door-prizes-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/event-door-prizes-metabox.js',
@@ -150,7 +150,7 @@ final class Event_Addon_Metabox
             );
         }
 
-        if (! wp_style_is('oras-door-prizes-metabox', 'enqueued')) {
+        if (! \wp_style_is('oras-door-prizes-metabox', 'enqueued')) {
             wp_enqueue_style(
                 'oras-door-prizes-metabox',
                 ORAS_TICKETS_URL . 'assets/admin/event-door-prizes-metabox.css',

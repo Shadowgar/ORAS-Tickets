@@ -137,12 +137,12 @@ final class Sync_Orchestrator
     {
         $order_id = absint($order_id);
         if ($order_id <= 0) {
-            return new \WP_Error('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
+            return $this->makeWpError('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
         }
 
         $order = wc_get_order($order_id);
         if (! $order) {
-            return new \WP_Error('oras_qbo_order_not_found', 'WooCommerce order not found.');
+            return $this->makeWpError('oras_qbo_order_not_found', 'WooCommerce order not found.');
         }
 
         $guard_error = $this->validate_sync_safeguards($order);
@@ -176,32 +176,32 @@ final class Sync_Orchestrator
     public function reverse_order(int $order_id, bool $force = false)
     {
         if ($order_id <= 0) {
-            return new \WP_Error('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
+            return $this->makeWpError('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
         }
 
         if (! Settings::is_enabled()) {
-            return new \WP_Error('oras_qbo_disabled', 'QuickBooks Revenue Split Sync is disabled.');
+            return $this->makeWpError('oras_qbo_disabled', 'QuickBooks Revenue Split Sync is disabled.');
         }
 
         $order = wc_get_order($order_id);
         if (! $order) {
-            return new \WP_Error('oras_qbo_order_not_found', 'WooCommerce order not found.');
+            return $this->makeWpError('oras_qbo_order_not_found', 'WooCommerce order not found.');
         }
 
         $original_je_id = trim((string) $order->get_meta('_oras_qbo_je_id', true));
         if ($original_je_id === '') {
-            return new \WP_Error('oras_qbo_no_je_to_reverse', 'Order has no synced JournalEntry to reverse.');
+            return $this->makeWpError('oras_qbo_no_je_to_reverse', 'Order has no synced JournalEntry to reverse.');
         }
 
         $existing_reversal = trim((string) $order->get_meta('_oras_qbo_reversal_je_id', true));
         if ($existing_reversal !== '' && ! $force) {
-            return new \WP_Error('oras_qbo_already_reversed', 'Order already has a reversal JournalEntry.');
+            return $this->makeWpError('oras_qbo_already_reversed', 'Order already has a reversal JournalEntry.');
         }
 
         $snapshot_raw = (string) $order->get_meta(self::META_SPLIT_SNAPSHOT, true);
         $snapshot     = json_decode($snapshot_raw, true);
         if (! is_array($snapshot) || empty($snapshot['lines']) || ! isset($snapshot['split_total'])) {
-            return new \WP_Error('oras_qbo_missing_split_snapshot', 'Cannot reverse: split snapshot is missing from the order sync metadata.');
+            return $this->makeWpError('oras_qbo_missing_split_snapshot', 'Cannot reverse: split snapshot is missing from the order sync metadata.');
         }
 
         $qbo_settings   = Settings::get_quickbooks_settings();
@@ -302,16 +302,16 @@ final class Sync_Orchestrator
     public function sync_order(int $order_id, bool $force = false)
     {
         if ($order_id <= 0) {
-            return new \WP_Error('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
+            return $this->makeWpError('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
         }
 
         if (! Settings::is_enabled()) {
-            return new \WP_Error('oras_qbo_disabled', 'QuickBooks Revenue Split Sync is disabled.');
+            return $this->makeWpError('oras_qbo_disabled', 'QuickBooks Revenue Split Sync is disabled.');
         }
 
         $order = wc_get_order($order_id);
         if (! $order) {
-            return new \WP_Error('oras_qbo_order_not_found', 'WooCommerce order not found.');
+            return $this->makeWpError('oras_qbo_order_not_found', 'WooCommerce order not found.');
         }
 
         $guard_error = $this->validate_sync_safeguards($order);
@@ -325,7 +325,7 @@ final class Sync_Orchestrator
             $order->update_meta_data('_oras_qbo_sync_status', 'migration_required');
             $order->save();
             $this->append_audit_entry($order, 'reclass_migration_required', array());
-            return new \WP_Error(
+            return $this->makeWpError(
                 'oras_qbo_reclass_migration_required',
                 'Order was already synced with legacy clearing mode and requires migration before reclass sync. Use resync-order.'
             );
@@ -336,7 +336,7 @@ final class Sync_Orchestrator
             $order->update_meta_data('_oras_qbo_sync_status', 'pending_qbo_review');
             $order->save();
             $this->append_audit_entry($order, 'sync_blocked_manual_approval_required', array());
-            return new \WP_Error('oras_qbo_manual_approval_required', 'Order requires manual approval before QuickBooks sync.');
+            return $this->makeWpError('oras_qbo_manual_approval_required', 'Order requires manual approval before QuickBooks sync.');
         }
 
         $order_hash    = $this->build_order_hash($order);
@@ -355,7 +355,7 @@ final class Sync_Orchestrator
         if (! $force && $existing_je !== '' && $existing_hash !== '' && $existing_hash !== $order_hash) {
             $order->update_meta_data('_oras_qbo_sync_status', 'changed_after_sync');
             $order->save();
-            return new \WP_Error(
+            return $this->makeWpError(
                 'oras_qbo_already_synced_changed',
                 'Order was already synced to QuickBooks and changed afterwards. Manual review is required.'
             );
@@ -379,7 +379,7 @@ final class Sync_Orchestrator
             $unmapped_lines        = (int) ($split['unmapped_lines'] ?? 0);
             $missing_account_lines = (int) ($split['missing_account_lines'] ?? 0);
             if ($unmapped_lines > 0 || $missing_account_lines > 0 || ! empty($warnings)) {
-                $error = new \WP_Error(
+                $error = $this->makeWpError(
                     'oras_qbo_strict_mapping_failed',
                     'Strict mapping mode blocked sync: order contains unmapped or unresolved account lines.'
                 );
@@ -407,7 +407,7 @@ final class Sync_Orchestrator
             $existing_remote = $this->journal_entry_creator->find_existing_journal_entry($doc_number);
             if (is_wp_error($existing_remote)) {
                 if (! empty($qbo_settings['strict_mapping_mode'])) {
-                    $error = new \WP_Error(
+                    $error = $this->makeWpError(
                         'oras_qbo_duplicate_lookup_failed',
                         'Duplicate check failed before write; sync blocked in strict mode. ' . $existing_remote->get_error_message()
                     );
@@ -484,7 +484,7 @@ final class Sync_Orchestrator
 
         $je_id = isset($result['je_id']) ? (string) $result['je_id'] : '';
         if ($je_id === '') {
-            $error = new \WP_Error('oras_qbo_missing_je_id', 'QuickBooks sync completed without a JournalEntry ID.');
+            $error = $this->makeWpError('oras_qbo_missing_je_id', 'QuickBooks sync completed without a JournalEntry ID.');
             $this->handle_sync_failure($order, $error);
             return $error;
         }
@@ -651,12 +651,12 @@ final class Sync_Orchestrator
     {
         $order_id = absint($order_id);
         if ($order_id <= 0) {
-            return new \WP_Error('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
+            return $this->makeWpError('oras_qbo_invalid_order_id', 'Order ID must be a positive integer.');
         }
 
         $order = wc_get_order($order_id);
         if (! $order) {
-            return new \WP_Error('oras_qbo_order_not_found', 'WooCommerce order not found.');
+            return $this->makeWpError('oras_qbo_order_not_found', 'WooCommerce order not found.');
         }
 
         $meta_keys = array(
@@ -974,32 +974,32 @@ final class Sync_Orchestrator
     {
         $status = (string) $order->get_status();
         if ($status !== 'completed') {
-            return new \WP_Error('oras_qbo_order_not_completed', 'Order must be completed before syncing.');
+            return $this->makeWpError('oras_qbo_order_not_completed', 'Order must be completed before syncing.');
         }
 
         $already_synced = trim((string) $order->get_meta(self::META_SYNCED, true));
         if ($already_synced !== '') {
-            return new \WP_Error('oras_qbo_already_synced', 'Order already has _oras_qbo_synced meta and cannot be synced again.');
+            return $this->makeWpError('oras_qbo_already_synced', 'Order already has _oras_qbo_synced meta and cannot be synced again.');
         }
 
         $qbo_settings = Settings::get_quickbooks_settings();
         $cutoff_raw   = trim((string) ($qbo_settings['sync_cutoff_date'] ?? ''));
         if ($cutoff_raw === '') {
-            return new \WP_Error('oras_qbo_missing_cutoff_date', 'QuickBooks sync cutoff date is required before syncing orders.');
+            return $this->makeWpError('oras_qbo_missing_cutoff_date', 'QuickBooks sync cutoff date is required before syncing orders.');
         }
 
         $cutoff_ts = strtotime($cutoff_raw . ' 00:00:00 UTC');
         if ($cutoff_ts === false) {
-            return new \WP_Error('oras_qbo_invalid_cutoff_date', 'QuickBooks sync cutoff date is invalid.');
+            return $this->makeWpError('oras_qbo_invalid_cutoff_date', 'QuickBooks sync cutoff date is invalid.');
         }
 
         $created = $order->get_date_created();
         if (! is_object($created) || ! method_exists($created, 'getTimestamp')) {
-            return new \WP_Error('oras_qbo_missing_order_created_date', 'Order created date is missing.');
+            return $this->makeWpError('oras_qbo_missing_order_created_date', 'Order created date is missing.');
         }
 
         if ((int) $created->getTimestamp() < (int) $cutoff_ts) {
-            return new \WP_Error('oras_qbo_order_before_cutoff', 'Order was created before the configured QuickBooks sync cutoff date.');
+            return $this->makeWpError('oras_qbo_order_before_cutoff', 'Order was created before the configured QuickBooks sync cutoff date.');
         }
 
         $excluded_methods_raw = (string) ($qbo_settings['excluded_payment_methods'] ?? '');
@@ -1015,7 +1015,7 @@ final class Sync_Orchestrator
 
             $order_method = $this->getOrderPaymentMethod($order);
             if ($order_method !== '' && in_array($order_method, $excluded_methods, true)) {
-                return new \WP_Error(
+                return $this->makeWpError(
                     'oras_qbo_excluded_payment_method',
                     sprintf('Order payment method "%s" is excluded from QuickBooks sync.', $order_method)
                 );
@@ -1068,6 +1068,47 @@ final class Sync_Orchestrator
         }
 
         return sanitize_key((string) $order->get_payment_method());
+    }
+
+    private function makeWpError(string $code, string $message, $data = null)
+    {
+        if (class_exists('WP_Error')) {
+            $factory = new \ReflectionClass('WP_Error');
+            return $factory->newInstance($code, $message, $data);
+        }
+
+        return new class($code, $message, $data) {
+            private string $code;
+            private string $message;
+            private $data;
+
+            public function __construct(string $code, string $message, $data)
+            {
+                $this->code    = $code;
+                $this->message = $message;
+                $this->data    = $data;
+            }
+
+            public function get_error_message(): string
+            {
+                return $this->message;
+            }
+
+            public function get_error_code(): string
+            {
+                return $this->code;
+            }
+
+            public function get_error_data()
+            {
+                return $this->data;
+            }
+
+            public function add_data($data): void
+            {
+                $this->data = $data;
+            }
+        };
     }
 
     /**
