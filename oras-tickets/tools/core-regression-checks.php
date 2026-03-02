@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Core regression checks for Phase 0-2 hardening.
  *

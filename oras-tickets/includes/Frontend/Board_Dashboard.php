@@ -110,26 +110,32 @@ final class Board_Dashboard
         $open_to_form_rate       = $forms_30d > 0 ? (($opens_30d / $forms_30d) * 100) : 0.0;
 
         ob_start();
-        ?>
+?>
         <div class="oras-board-dashboard">
             <style>
-                .oras-board-dashboard { margin: 24px 0; }
+                .oras-board-dashboard {
+                    margin: 24px 0;
+                }
+
                 .oras-board-dashboard .oras-board-grid {
                     display: grid;
                     grid-template-columns: repeat(1, minmax(0, 1fr));
                     gap: 12px;
                     grid-auto-rows: 1fr;
                 }
+
                 @media (min-width: 720px) {
                     .oras-board-dashboard .oras-board-grid {
                         grid-template-columns: repeat(2, minmax(0, 1fr));
                     }
                 }
+
                 @media (min-width: 1120px) {
                     .oras-board-dashboard .oras-board-grid {
                         grid-template-columns: repeat(3, minmax(0, 1fr));
                     }
                 }
+
                 .oras-board-dashboard .oras-board-card {
                     background: #fff;
                     border: 1px solid #dcdcde;
@@ -141,17 +147,20 @@ final class Board_Dashboard
                     flex-direction: column;
                     justify-content: flex-start;
                 }
+
                 .oras-board-dashboard .oras-board-label {
                     font-size: 12px;
                     color: #50575e;
                     text-transform: uppercase;
                     letter-spacing: .02em;
                 }
+
                 .oras-board-dashboard .oras-board-value {
                     font-size: 24px;
                     font-weight: 600;
                     margin-top: 6px;
                 }
+
                 .oras-board-dashboard .oras-board-sub {
                     font-size: 12px;
                     color: #646970;
@@ -159,6 +168,7 @@ final class Board_Dashboard
                     min-height: 22px;
                     display: block;
                 }
+
                 .oras-board-dashboard .oras-board-recon {
                     margin-top: 18px;
                     background: #fff;
@@ -166,31 +176,37 @@ final class Board_Dashboard
                     border-radius: 8px;
                     padding: 14px;
                 }
+
                 .oras-board-dashboard .oras-board-recon-meta {
                     margin: 8px 0 12px;
                     font-size: 13px;
                     color: #50575e;
                 }
+
                 .oras-board-dashboard .oras-board-table {
                     width: 100%;
                     border-collapse: collapse;
                     font-size: 13px;
                 }
+
                 .oras-board-dashboard .oras-board-table th,
                 .oras-board-dashboard .oras-board-table td {
                     border-top: 1px solid #f0f0f1;
                     text-align: left;
                     padding: 8px 6px;
                 }
+
                 .oras-board-dashboard .oras-board-table th {
                     font-weight: 600;
                     color: #1d2327;
                 }
+
                 .oras-board-dashboard .oras-board-note {
                     margin-top: 10px;
                     font-size: 12px;
                     color: #646970;
                 }
+
                 .oras-board-dashboard .oras-board-role-pill {
                     display: inline-block;
                     margin-left: 8px;
@@ -204,6 +220,7 @@ final class Board_Dashboard
                     text-transform: uppercase;
                     letter-spacing: .03em;
                 }
+
                 .oras-board-dashboard .oras-board-section {
                     margin-top: 18px;
                     background: #fff;
@@ -211,6 +228,7 @@ final class Board_Dashboard
                     border-radius: 8px;
                     padding: 14px;
                 }
+
                 .oras-board-dashboard .oras-board-warning {
                     margin: 12px 0;
                     background: #fcf9e8;
@@ -220,13 +238,16 @@ final class Board_Dashboard
                     color: #3c434a;
                     font-size: 13px;
                 }
+
                 .oras-board-dashboard .oras-board-list {
                     margin: 0;
                     padding-left: 18px;
                 }
+
                 .oras-board-dashboard .oras-board-list li {
                     margin: 6px 0;
                 }
+
                 .oras-board-dashboard .oras-board-chip {
                     display: inline-block;
                     font-size: 10px;
@@ -240,16 +261,19 @@ final class Board_Dashboard
                     letter-spacing: .03em;
                     vertical-align: middle;
                 }
+
                 .oras-board-dashboard .oras-board-chip.up {
                     color: #1e6f43;
                     border-color: #46b450;
                     background: #e7f7ed;
                 }
+
                 .oras-board-dashboard .oras-board-chip.down {
                     color: #8a2424;
                     border-color: #d63638;
                     background: #fbeaea;
                 }
+
                 .oras-board-dashboard .oras-board-chip.watch {
                     color: #8a6a00;
                     border-color: #dba617;
@@ -386,12 +410,30 @@ final class Board_Dashboard
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td><?php echo esc_html__('Ticket Sales', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($ticket_sales)); ?></td></tr>
-                        <tr><td><?php echo esc_html__('Merch Sales', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($merch_sales)); ?></td></tr>
-                        <tr><td><?php echo esc_html__('Membership Sales', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($membership_sales)); ?></td></tr>
-                        <tr><td><?php echo esc_html__('Direct Membership Cashflow', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($pmpro_direct_sales)); ?></td></tr>
-                        <tr><td><?php echo esc_html__('Donations', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($donation_sales)); ?></td></tr>
-                        <tr><td><?php echo esc_html__('Other Revenue', 'oras-tickets'); ?></td><td><?php echo esc_html(self::format_money($other_sales)); ?></td></tr>
+                        <tr>
+                            <td><?php echo esc_html__('Ticket Sales', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($ticket_sales)); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo esc_html__('Merch Sales', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($merch_sales)); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo esc_html__('Membership Sales', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($membership_sales)); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo esc_html__('Direct Membership Cashflow', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($pmpro_direct_sales)); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo esc_html__('Donations', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($donation_sales)); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo esc_html__('Other Revenue', 'oras-tickets'); ?></td>
+                            <td><?php echo esc_html(self::format_money($other_sales)); ?></td>
+                        </tr>
                     </tbody>
                 </table>
                 <?php if (! empty($pmpro_cashflow['source_note'])) : ?>
@@ -522,11 +564,26 @@ final class Board_Dashboard
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td><?php echo esc_html__('Failed jobs', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($operations_health['failed_total'] ?? 0))); ?></td></tr>
-                                <tr><td><?php echo esc_html__('Pending jobs', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($operations_health['pending_total'] ?? 0))); ?></td></tr>
-                                <tr><td><?php echo esc_html__('Completed jobs', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($operations_health['complete_total'] ?? 0))); ?></td></tr>
-                                <tr><td><?php echo esc_html__('Failed jobs (last 7 days)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($operations_health['failed_7d'] ?? 0))); ?></td></tr>
-                                <tr><td><?php echo esc_html__('Pending jobs (last 7 days)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($operations_health['pending_7d'] ?? 0))); ?></td></tr>
+                                <tr>
+                                    <td><?php echo esc_html__('Failed jobs', 'oras-tickets'); ?></td>
+                                    <td><?php echo esc_html((string) ((int) ($operations_health['failed_total'] ?? 0))); ?></td>
+                                </tr>
+                                <tr>
+                                    <td><?php echo esc_html__('Pending jobs', 'oras-tickets'); ?></td>
+                                    <td><?php echo esc_html((string) ((int) ($operations_health['pending_total'] ?? 0))); ?></td>
+                                </tr>
+                                <tr>
+                                    <td><?php echo esc_html__('Completed jobs', 'oras-tickets'); ?></td>
+                                    <td><?php echo esc_html((string) ((int) ($operations_health['complete_total'] ?? 0))); ?></td>
+                                </tr>
+                                <tr>
+                                    <td><?php echo esc_html__('Failed jobs (last 7 days)', 'oras-tickets'); ?></td>
+                                    <td><?php echo esc_html((string) ((int) ($operations_health['failed_7d'] ?? 0))); ?></td>
+                                </tr>
+                                <tr>
+                                    <td><?php echo esc_html__('Pending jobs (last 7 days)', 'oras-tickets'); ?></td>
+                                    <td><?php echo esc_html((string) ((int) ($operations_health['pending_7d'] ?? 0))); ?></td>
+                                </tr>
                             </tbody>
                         </table>
                         <?php $failed_hooks = isset($operations_health['top_failed_hooks']) && is_array($operations_health['top_failed_hooks']) ? $operations_health['top_failed_hooks'] : array(); ?>
@@ -564,10 +621,22 @@ final class Board_Dashboard
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td><?php echo esc_html__('Currently waiting', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($waitlist_summary['waiting_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Promoted (all-time)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($waitlist_summary['promoted_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Left waitlist (all-time)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($waitlist_summary['left_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Promotion efficiency', 'oras-tickets'); ?></td><td><?php echo esc_html(number_format_i18n((float) ($waitlist_summary['promotion_efficiency'] ?? 0.0), 2) . '%'); ?></td></tr>
+                            <tr>
+                                <td><?php echo esc_html__('Currently waiting', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($waitlist_summary['waiting_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Promoted (all-time)', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($waitlist_summary['promoted_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Left waitlist (all-time)', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($waitlist_summary['left_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Promotion efficiency', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html(number_format_i18n((float) ($waitlist_summary['promotion_efficiency'] ?? 0.0), 2) . '%'); ?></td>
+                            </tr>
                         </tbody>
                     </table>
                 <?php else : ?>
@@ -595,11 +664,26 @@ final class Board_Dashboard
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td><?php echo esc_html__('Confirmed subscribers', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($engagement_summary['subscribed_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Unconfirmed subscribers', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($engagement_summary['unconfirmed_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Unsubscribed contacts', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($engagement_summary['unsubscribed_count'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Form submissions (30d)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($engagement_summary['form_submissions_30d'] ?? 0))); ?></td></tr>
-                            <tr><td><?php echo esc_html__('Newsletter opens (30d)', 'oras-tickets'); ?></td><td><?php echo esc_html((string) ((int) ($engagement_summary['opens_30d'] ?? 0))); ?></td></tr>
+                            <tr>
+                                <td><?php echo esc_html__('Confirmed subscribers', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($engagement_summary['subscribed_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Unconfirmed subscribers', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($engagement_summary['unconfirmed_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Unsubscribed contacts', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($engagement_summary['unsubscribed_count'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Form submissions (30d)', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($engagement_summary['form_submissions_30d'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <td><?php echo esc_html__('Newsletter opens (30d)', 'oras-tickets'); ?></td>
+                                <td><?php echo esc_html((string) ((int) ($engagement_summary['opens_30d'] ?? 0))); ?></td>
+                            </tr>
                         </tbody>
                     </table>
                 <?php else : ?>
@@ -765,7 +849,7 @@ final class Board_Dashboard
                 </div>
             <?php endif; ?>
         </div>
-        <?php
+<?php
 
         return (string) ob_get_clean();
     }
@@ -807,7 +891,7 @@ final class Board_Dashboard
     /**
      * @param array<string,mixed> $summary
      * @param array{after?:string,before?:string} $date_range
-    * @return array{gross_sales:float,refunded_amount:float,net_sales:float,source:string,source_note:string,as_of:string}
+     * @return array{gross_sales:float,refunded_amount:float,net_sales:float,source:string,source_note:string,as_of:string}
      */
     private static function resolve_financials(array $summary, array $date_range): array
     {
@@ -1065,7 +1149,7 @@ final class Board_Dashboard
             );
             $signups = (int) $wpdb->get_var($signups_sql);
 
-            $result['periods'][ $period_key ] = array(
+            $result['periods'][$period_key] = array(
                 'label' => (string) $period['label'],
                 'signups' => $signups,
             );
@@ -1603,7 +1687,7 @@ final class Board_Dashboard
      * @param array<string,mixed> $cashflow
      * @param array<string,mixed> $pmpro_cashflow
      * @param array<string,mixed> $website_activity
-    * @return array<int,array{tone:string,text:string}>
+     * @return array<int,array{tone:string,text:string}>
      */
     private static function build_notable_changes(array $date_range, array $cashflow, array $pmpro_cashflow, array $website_activity): array
     {
@@ -1815,7 +1899,7 @@ final class Board_Dashboard
      * Read-only QuickBooks snapshot for ORAS JournalEntry totals.
      *
      * @param array{after?:string,before?:string} $date_range
-    * @return array{available:bool,gross_sales?:float,refunded_amount?:float,net_sales?:float,reason?:string,as_of?:string}
+     * @return array{available:bool,gross_sales?:float,refunded_amount?:float,net_sales?:float,reason?:string,as_of?:string}
      */
     private static function get_qbo_snapshot(array $date_range): array
     {
