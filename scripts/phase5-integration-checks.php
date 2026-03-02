@@ -8,6 +8,8 @@
 
 use ORAS\Tickets\Bootstrap;
 use ORAS\Tickets\Capabilities;
+use ORAS\Tickets\Commerce\Woo\Capacity_Consumption;
+use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -179,6 +181,23 @@ function oras_phase5_get_filtered_attendees(
 /**
  * @throws Oras_Phase5_Check_Exception
  */
+function oras_phase5_get_ticket_capacity( int $event_id, int $index ): int {
+	$envelope = get_post_meta( $event_id, Meta::META_KEY_TICKETS, true );
+	if ( ! is_array( $envelope ) || ! isset( $envelope['tickets'] ) || ! is_array( $envelope['tickets'] ) ) {
+		oras_phase5_fail( 'Ticket envelope is missing while checking capacity invariants.' );
+	}
+
+	$ticket = $envelope['tickets'][ $index ] ?? null;
+	if ( ! is_array( $ticket ) ) {
+		oras_phase5_fail( 'Ticket index is missing while checking capacity invariants.' );
+	}
+
+	return absint( $ticket['capacity'] ?? 0 );
+}
+
+/**
+ * @throws Oras_Phase5_Check_Exception
+ */
 function oras_phase5_run_checks(): void {
 	require_once ABSPATH . 'wp-admin/includes/user.php';
 	require_once ABSPATH . 'wp-admin/includes/post.php';
@@ -261,6 +280,39 @@ function oras_phase5_run_checks(): void {
 		}
 		oras_phase5_assert_same( ! empty( $response['success'] ), true, 'User 1 YES RSVP succeeded' );
 		oras_phase5_assert_same( $response['data']['status'] ?? '', 'yes', 'User 1 status is yes' );
+
+		$event_lock_key = 'oras_tickets:' . substr( md5( 'event:' . (string) $event_id ), 0, 40 );
+		$force_lock_timeout = static function ( string $query ) use ( $event_lock_key ): string {
+			if ( false !== strpos( $query, 'GET_LOCK' ) && false !== strpos( $query, $event_lock_key ) ) {
+				return 'SELECT 0';
+			}
+
+			return $query;
+		};
+
+		add_filter( 'query', $force_lock_timeout, 10, 1 );
+		$lock_fail_response = oras_phase5_call_json_handler(
+			array( Event_RSVP::class, 'handle_post' ),
+			array(
+				'event_id'  => (string) $event_id,
+				'intent'    => 'yes',
+				'oras_ajax' => '1',
+			),
+			$user_4,
+			'oras_rsvp_' . $event_id,
+			'oras_rsvp_nonce'
+		);
+		remove_filter( 'query', $force_lock_timeout, 10 );
+
+		oras_phase5_assert_same( ! empty( $lock_fail_response['success'] ), false, 'Concurrent RSVP attempt fails when event lock acquisition times out' );
+		$lock_fail_message = '';
+		if ( isset( $lock_fail_response['data']['message'] ) ) {
+			$lock_fail_message = (string) $lock_fail_response['data']['message'];
+		} elseif ( isset( $lock_fail_response['data'] ) && is_string( $lock_fail_response['data'] ) ) {
+			$lock_fail_message = (string) $lock_fail_response['data'];
+		}
+		oras_phase5_assert( false !== stripos( $lock_fail_message, 'in progress' ), 'Concurrent RSVP lock timeout returns user-facing retry guidance' );
+		oras_phase5_assert_same( get_user_meta( $user_4, '_oras_rsvp_event_' . $event_id, true ), '', 'Concurrent RSVP lock timeout does not mutate RSVP status' );
 
 		$response = oras_phase5_call_json_handler(
 			array( Event_RSVP::class, 'handle_post' ),
@@ -574,6 +626,42 @@ function oras_phase5_run_checks(): void {
 		$response = oras_phase5_call_json_handler(
 			array( Event_RSVP::class, 'handle_post' ),
 			array(
+				'event_id'  => (string) $event_id,
+				'intent'    => 'waitlist',
+				'oras_ajax' => '1',
+			),
+			$user_4,
+			'oras_rsvp_' . $event_id,
+			'oras_rsvp_nonce'
+		);
+		oras_phase5_assert_same( $response['data']['status'] ?? '', 'waitlist', 'User 4 joins waitlist for lock-contention bulk promotion check' );
+
+		add_filter( 'query', $force_lock_timeout, 10, 1 );
+		$bulk_lock_fail_response = oras_phase5_call_json_handler(
+			array( $bootstrap, 'handle_waitlist_bulk_promote' ),
+			array(
+				'event_id' => (string) $event_id,
+				'count'    => '1',
+			),
+			$admin_id,
+			'oras_rsvp_dashboard',
+			'nonce'
+		);
+		remove_filter( 'query', $force_lock_timeout, 10 );
+
+		oras_phase5_assert_same( ! empty( $bulk_lock_fail_response['success'] ), false, 'Bulk waitlist promote fails while event lock acquisition times out' );
+		$bulk_lock_fail_message = '';
+		if ( isset( $bulk_lock_fail_response['data']['message'] ) ) {
+			$bulk_lock_fail_message = (string) $bulk_lock_fail_response['data']['message'];
+		} elseif ( isset( $bulk_lock_fail_response['data'] ) && is_string( $bulk_lock_fail_response['data'] ) ) {
+			$bulk_lock_fail_message = (string) $bulk_lock_fail_response['data'];
+		}
+		oras_phase5_assert( false !== stripos( $bulk_lock_fail_message, 'in progress' ), 'Bulk waitlist promote lock timeout returns user-facing retry guidance' );
+		oras_phase5_assert_same( Waitlist_Store::get_current_waitlist_status( $event_id, $user_4 ), 'waiting', 'Bulk lock timeout preserves waitlist lifecycle state' );
+
+		$response = oras_phase5_call_json_handler(
+			array( Event_RSVP::class, 'handle_post' ),
+			array(
 				'event_id'        => (string) $event_id,
 				'intent'          => 'yes',
 				'oras_ajax'       => '1',
@@ -623,6 +711,76 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert( has_action( 'wp_ajax_oras_waitlist_remove_user' ) > 0, 'Waitlist remove AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_attendees_send_email' ) > 0, 'Attendees messaging AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_attendees_save_note' ) > 0, 'Attendees note AJAX action is registered' );
+
+		$concurrency_event_id = wp_insert_post(
+			array(
+				'post_title'  => 'ORAS Phase5 Concurrency ' . $suffix,
+				'post_status' => 'publish',
+				'post_type'   => 'tribe_events',
+			)
+		);
+		oras_phase5_assert( is_int( $concurrency_event_id ) && $concurrency_event_id > 0, 'Concurrency fixture event created' );
+		$created_posts[] = (int) $concurrency_event_id;
+
+		update_post_meta(
+			$concurrency_event_id,
+			Meta::META_KEY_TICKETS,
+			array(
+				'schema'  => 1,
+				'tickets' => array(
+					array(
+						'name'     => 'Concurrency Check Ticket',
+						'price'    => 15,
+						'capacity' => 5,
+					),
+				),
+			)
+		);
+
+		$concurrency_product = new WC_Product_Simple();
+		$concurrency_product->set_name( 'Phase5 Concurrency Ticket ' . $suffix );
+		$concurrency_product->set_status( 'publish' );
+		$concurrency_product->set_catalog_visibility( 'hidden' );
+		$concurrency_product->set_regular_price( '20.00' );
+		$concurrency_product->set_price( '20.00' );
+		$concurrency_product_id = $concurrency_product->save();
+		oras_phase5_assert( is_int( $concurrency_product_id ) && $concurrency_product_id > 0, 'Concurrency fixture ticket product created' );
+		$created_posts[] = (int) $concurrency_product_id;
+
+		update_post_meta( $concurrency_product_id, '_oras_ticket_event_id', (int) $concurrency_event_id );
+		update_post_meta( $concurrency_product_id, '_oras_ticket_index', 0 );
+
+		$concurrency_order = wc_create_order(
+			array(
+				'customer_id' => $user_4,
+			)
+		);
+		oras_phase5_assert( is_object( $concurrency_order ), 'Concurrency fixture Woo order created' );
+		$concurrency_order->add_product( wc_get_product( $concurrency_product_id ), 2 );
+		$concurrency_order->calculate_totals();
+		$concurrency_order_id = (int) $concurrency_order->get_id();
+		oras_phase5_assert( $concurrency_order_id > 0, 'Concurrency fixture Woo order persisted' );
+		$created_posts[] = $concurrency_order_id;
+
+		$capacity_consumption = new Capacity_Consumption();
+		$start_capacity = oras_phase5_get_ticket_capacity( $concurrency_event_id, 0 );
+		oras_phase5_assert_same( $start_capacity, 5, 'Concurrency fixture starts with expected ticket capacity' );
+
+		$capacity_consumption->handle_paid_order( $concurrency_order_id );
+		$capacity_after_processing = oras_phase5_get_ticket_capacity( $concurrency_event_id, 0 );
+		oras_phase5_assert_same( $capacity_after_processing, 3, 'Paid transition consumes capacity once' );
+
+		$capacity_consumption->handle_paid_order( $concurrency_order_id );
+		$capacity_after_completed = oras_phase5_get_ticket_capacity( $concurrency_event_id, 0 );
+		oras_phase5_assert_same( $capacity_after_completed, 3, 'Repeated paid transition remains idempotent' );
+
+		$capacity_consumption->handle_restore_order( $concurrency_order_id );
+		$capacity_after_cancelled = oras_phase5_get_ticket_capacity( $concurrency_event_id, 0 );
+		oras_phase5_assert_same( $capacity_after_cancelled, 5, 'Restore transition returns capacity once' );
+
+		$capacity_consumption->handle_restore_order( $concurrency_order_id );
+		$capacity_after_refunded = oras_phase5_get_ticket_capacity( $concurrency_event_id, 0 );
+		oras_phase5_assert_same( $capacity_after_refunded, 5, 'Repeated restore transition remains idempotent' );
 
 		echo "PASS: Phase 5 integration checks completed\n";
 	} finally {

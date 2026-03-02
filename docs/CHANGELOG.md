@@ -1,5 +1,29 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Phase 5 Task 2 Concurrency Regression Coverage
+
+Code:
+- Extended deterministic Phase 5 integration checks with explicit concurrency/idempotency assertions:
+  - file: `scripts/phase5-integration-checks.php`
+  - added lock-timeout coverage for RSVP writes and waitlist bulk promotion operations,
+  - added invariant checks to confirm lock timeout paths do not mutate RSVP/waitlist state,
+  - added Woo capacity idempotency checks for repeated paid/restore transition handling.
+
+Validation:
+- Executed Phase 5 integration checks in wp-env CLI and confirmed pass for all existing and new assertions.
+
+## 2026-03-02 — Waitlist Operator Wording Polish (Soak Pass)
+
+Code:
+- Polished RSVP dashboard waitlist operator wording for manual and bulk queue actions:
+  - `oras-tickets/includes/Admin/Pages/Dashboard_Page.php`
+  - `oras-tickets/assets/admin/dashboard-rsvp.js`
+
+UX:
+- Clarified queue action labels (`Open Waitlist Queue`, `Promote Next in Queue`, `Refresh Queue Data`).
+- Improved operation status text and confirmation prompts for promote/remove flows.
+- Updated empty-state copy for queue/history to reduce ambiguity during operator use.
+
 ## 2026-03-02 — Section View Labels + Admin-Only Watch Alerts
 
 Code:

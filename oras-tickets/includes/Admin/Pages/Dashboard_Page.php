@@ -91,24 +91,24 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
 
             <div id="oras-rsvp-actions" style="display:none;">
                 <h3><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></h3>
-                <button id="oras-rsvp-export-yes" class="button"><?php echo esc_html__( 'Export YES CSV', 'oras-tickets' ); ?></button>
-                <button id="oras-rsvp-export-waitlist" class="button"><?php echo esc_html__( 'Export WAITLIST CSV', 'oras-tickets' ); ?></button>
-                <button id="oras-rsvp-promote" class="button"><?php echo esc_html__( 'Promote from Waitlist', 'oras-tickets' ); ?></button>
+                <button id="oras-rsvp-export-yes" class="button"><?php echo esc_html__( 'Export Yes RSVPs CSV', 'oras-tickets' ); ?></button>
+                <button id="oras-rsvp-export-waitlist" class="button"><?php echo esc_html__( 'Export Waitlist CSV', 'oras-tickets' ); ?></button>
+                <button id="oras-rsvp-promote" class="button"><?php echo esc_html__( 'Open Waitlist Queue', 'oras-tickets' ); ?></button>
             </div>
 
             <div id="oras-waitlist-ops" style="display:none; margin-top: 20px;">
-                <h3><?php echo esc_html__( 'Waitlist Queue Operations', 'oras-tickets' ); ?></h3>
-                <p><?php echo esc_html__( 'Use manual and bulk operations to manage the waitlist queue and review lifecycle actions.', 'oras-tickets' ); ?></p>
+                <h3><?php echo esc_html__( 'Waitlist Queue', 'oras-tickets' ); ?></h3>
+                <p><?php echo esc_html__( 'Use bulk or one-by-one actions to promote attendees and keep a clear queue history.', 'oras-tickets' ); ?></p>
                 <div style="margin-bottom: 12px;">
-                    <label for="oras-waitlist-bulk-count"><?php echo esc_html__( 'Bulk promote count:', 'oras-tickets' ); ?></label>
+                    <label for="oras-waitlist-bulk-count"><?php echo esc_html__( 'Bulk promote next:', 'oras-tickets' ); ?></label>
                     <input type="number" id="oras-waitlist-bulk-count" min="1" max="25" value="1" style="width: 80px; margin-left: 8px; margin-right: 8px;" />
-                    <button id="oras-waitlist-bulk-promote" class="button button-primary"><?php echo esc_html__( 'Promote Next', 'oras-tickets' ); ?></button>
-                    <button id="oras-waitlist-refresh" class="button"><?php echo esc_html__( 'Refresh Queue', 'oras-tickets' ); ?></button>
+                    <button id="oras-waitlist-bulk-promote" class="button button-primary"><?php echo esc_html__( 'Promote Next in Queue', 'oras-tickets' ); ?></button>
+                    <button id="oras-waitlist-refresh" class="button"><?php echo esc_html__( 'Refresh Queue Data', 'oras-tickets' ); ?></button>
                     <span id="oras-waitlist-operation-message" style="margin-left: 12px;"></span>
                 </div>
 
                 <div id="oras-waitlist-queue-container">
-                    <h4><?php echo esc_html__( 'Current Queue', 'oras-tickets' ); ?></h4>
+                    <h4><?php echo esc_html__( 'Current Waitlist Queue', 'oras-tickets' ); ?></h4>
                     <table class="widefat striped" id="oras-waitlist-queue-table">
                         <thead>
                             <tr>
@@ -125,7 +125,7 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
                 </div>
 
                 <div id="oras-waitlist-history-container" style="margin-top: 18px;">
-                    <h4><?php echo esc_html__( 'Waitlist History', 'oras-tickets' ); ?></h4>
+                    <h4><?php echo esc_html__( 'Waitlist Queue History', 'oras-tickets' ); ?></h4>
                     <table class="widefat striped" id="oras-waitlist-history-table">
                         <thead>
                             <tr>

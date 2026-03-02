@@ -294,7 +294,7 @@ jQuery( document ).ready( function( $ ) {
 		if ( queueRows.length === 0 ) {
 			$waitlistQueueBody
 				.append( $( '<tr/>' )
-					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No users currently waiting.' ) ) );
+					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No attendees are currently waiting.' ) ) );
 			return;
 		}
 
@@ -338,7 +338,7 @@ jQuery( document ).ready( function( $ ) {
 		if ( historyRows.length === 0 ) {
 			$waitlistHistoryBody
 				.append( $( '<tr/>' )
-					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No waitlist history entries found.' ) ) );
+					.append( $( '<td/>' ).attr( 'colspan', 6 ).text( 'No waitlist history entries yet.' ) ) );
 			return;
 		}
 
@@ -381,7 +381,7 @@ jQuery( document ).ready( function( $ ) {
 		}
 
 		$waitlistBulkPromote.prop( 'disabled', true );
-		setWaitlistMessage( 'Promoting from waitlist...', false );
+		setWaitlistMessage( 'Running bulk promotion from queue...', false );
 
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
@@ -396,10 +396,10 @@ jQuery( document ).ready( function( $ ) {
 				$waitlistBulkPromote.prop( 'disabled', false );
 				if ( response.success ) {
 					var promoted = normalizeInt( response.data.promoted_count );
-					setWaitlistMessage( 'Promoted ' + promoted + ' attendee(s).', false );
+					setWaitlistMessage( 'Promoted ' + promoted + ' attendee(s) from queue.', false );
 					loadRsvpData( eventId );
 				} else {
-					setWaitlistMessage( String( response.data || 'Unable to promote users.' ), true );
+					setWaitlistMessage( String( response.data || 'Unable to run bulk promotion.' ), true );
 				}
 			},
 			error: function() {
@@ -416,7 +416,7 @@ jQuery( document ).ready( function( $ ) {
 			return;
 		}
 
-		setWaitlistMessage( 'Promoting selected attendee...', false );
+		setWaitlistMessage( 'Promoting selected waitlist attendee...', false );
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
 			type: 'POST',
@@ -428,10 +428,10 @@ jQuery( document ).ready( function( $ ) {
 			},
 			success: function( response ) {
 				if ( response.success ) {
-					setWaitlistMessage( 'Selected attendee promoted.', false );
+					setWaitlistMessage( 'Selected waitlist attendee promoted.', false );
 					loadRsvpData( eventId );
 				} else {
-					setWaitlistMessage( String( response.data || 'Unable to promote selected attendee.' ), true );
+					setWaitlistMessage( String( response.data || 'Unable to promote selected waitlist attendee.' ), true );
 				}
 			},
 			error: function() {
@@ -447,11 +447,11 @@ jQuery( document ).ready( function( $ ) {
 			return;
 		}
 
-		if ( ! globalThis.confirm( 'Remove this attendee from the waitlist?' ) ) {
+		if ( ! globalThis.confirm( 'Remove this attendee from the waitlist queue?' ) ) {
 			return;
 		}
 
-		setWaitlistMessage( 'Removing attendee from waitlist...', false );
+		setWaitlistMessage( 'Removing attendee from waitlist queue...', false );
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
 			type: 'POST',
@@ -463,10 +463,10 @@ jQuery( document ).ready( function( $ ) {
 			},
 			success: function( response ) {
 				if ( response.success ) {
-					setWaitlistMessage( 'Attendee removed from waitlist.', false );
+					setWaitlistMessage( 'Attendee removed from waitlist queue.', false );
 					loadRsvpData( eventId );
 				} else {
-					setWaitlistMessage( String( response.data || 'Unable to remove attendee.' ), true );
+					setWaitlistMessage( String( response.data || 'Unable to remove attendee from queue.' ), true );
 				}
 			},
 			error: function() {
