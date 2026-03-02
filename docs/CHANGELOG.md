@@ -1,5 +1,34 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Internal Context Alignment (Locked Baseline)
+
+Docs:
+- Updated internal Copilot context status model to current governance state:
+  - `docs/COPILOT_CONTEXT.md`
+  - phases 0-5 set as locked baseline,
+  - phase 5.3 set as paused for advancement,
+  - 6-12 marked planned/gated.
+- Updated remaining roadmap sequence wording to remove stale “current focus” phrasing:
+  - `docs/ROADMAP.md`
+
+Validation:
+- `composer phpstan` (pass)
+
+## 2026-03-02 — Historical Doc Supersession Labels
+
+Docs:
+- Marked legacy planning artifacts as historical/superseded and pointed readers to current authoritative lock-state docs:
+  - `docs/PHASE_COMPLETION_SWEEP.md`
+  - `docs/PHASE_REEVALUATION_2026-03-01.md`
+- Updated docs index mode language to current governance posture:
+  - `docs/README.md`
+
+Behavior:
+- Reduces ambiguity between historical assessments and current lock-state governance documents.
+
+Validation:
+- `composer phpstan` (pass)
+
 ## 2026-03-02 — Lock-State Consistency Sweep (Post-Lock Sync)
 
 Docs:

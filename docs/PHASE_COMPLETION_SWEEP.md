@@ -2,6 +2,15 @@
 
 Last updated: 2026-03-02
 
+> Historical planning snapshot.
+>
+> Current authoritative sweep state is maintained in:
+> - `docs/PHASE_COMPLETION_SWEEP_2026-03-02.md`
+> - `docs/MASTER_EXECUTION_TRACKER.md`
+> - `docs/CURRENT_STATE.md`
+>
+> Governance note: Phases 0-5 are now LOCKED for the current execution baseline.
+
 Purpose: after Door Prize feature completion, execute unfinished work in strict phase order using the governance precedence in `docs/MASTER_EXECUTION_TRACKER.md` + `docs/CURRENT_STATE.md` + `docs/PROJECT_STATE.md`.
 
 ## Audit Baseline (2026-03-02)

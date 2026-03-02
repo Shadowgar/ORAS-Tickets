@@ -26,20 +26,9 @@ You are coding a WordPress plugin add-on for The Events Calendar + WooCommerce.
 - Migration to ET v2 views is deferred to a later phase.
 
 ## Current phase status
-- Phase 1.2 — Admin Ticket Metabox UI: ✅ Complete
-- Phase 2.0 — Woo Product Sync: ✅ Complete
-- Phase 2.1B — POST Enforcement: ✅ Complete
-- Phase 2.1C — Cart & Checkout Revalidation: ✅ Complete
-- Phase 3.4 — Treasurer Reporting: ✅ Complete
-- Phase 3.5-A — REST API: ✅ Complete
-- Phase 3.5-B — Grouped-by-event API: ✅ Complete
-- Phase 3.5-C — Member Hub UI rendering: ✅ Complete
-- Phase 3.5-D — Printable tickets: ✅ Complete
-- Phase 4.1 — Speaker Management MVP: ✅ Complete
-- Phase 4.1-B — Public speaker profiles and event display: ✅ Complete
-- Phase 4.5.x — Agenda + current-slot highlight + speaker modal: ✅ Complete
-
-- Phase 6 — Attendees Management (6.2 → 6.5): ✅ Implemented (Attendees Dashboard, Operations, Messaging, Notes)
+- Phases 0-5: ✅ LOCKED (governance lock applied for current baseline)
+- Phase 5.3: ⏸️ Paused for advancement (production WP-CLI constraint; restart checklist prepared)
+- Phases 6-12: PLANNED (do not start until governance opens next gate)
 
 ## Recent activity
 - 2026-02-15: Phase 5.1 — RSVP frontend + waitlist implemented (basic non-commerce RSVP UI and admin-post handler). See `plugin/includes/Frontend/Event_RSVP.php` for the frontend renderer and handler.
@@ -70,7 +59,7 @@ Guidance for future phases:
 - Member hub and member-only features are separate concerns and should be scoped to dedicated phases.
 
 ## Locked Phases
-Phases 0 through 3.5 are complete and must not be modified without an explicit design review and a documented migration plan.
+Phases 0 through 5 are governance-locked and must not be modified without an explicit design review and a documented migration plan.
 
 Prohibited changes (unless explicitly approved):
 - Time-based pricing resolver logic (`ORAS\Tickets\Domain\Pricing\Price_Resolver`).
@@ -79,4 +68,4 @@ Prohibited changes (unless explicitly approved):
 - Phase 3.1 sale window filtering, cart safety checks, and frontend UX behaviors.
 
 ## Upcoming Work
-- Next planned phase: Phase 4.2 — Speaker reporting and automation refinements.
+- Next planned action: Phase 5.3 restart only after constraints lift, following `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`.

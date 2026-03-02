@@ -1,5 +1,14 @@
 # ORAS-Tickets Phase Re-Evaluation (Code + Docs)
 
+> Historical assessment snapshot from 2026-03-01.
+>
+> Current authoritative operational status is tracked in:
+> - `docs/MASTER_EXECUTION_TRACKER.md`
+> - `docs/CURRENT_STATE.md`
+> - `docs/NEXT.md`
+>
+> Governance note: subsequent lock decisions moved Phases 0-5 to LOCKED.
+
 Date: 2026-03-01  
 Auditor: GitHub Copilot (GPT-5.3-Codex)
 

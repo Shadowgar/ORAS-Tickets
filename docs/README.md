@@ -1,6 +1,6 @@
 # ORAS-Tickets Documentation Index
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## What this plugin is
 ORAS-Tickets is an internal ORAS add-on for WordPress event operations.
@@ -28,9 +28,9 @@ Core stack:
 5. No telemetry/SaaS lock-in.
 
 ## Current project mode
-Phase 5 hardening and completion gating.
+Phase 0-5 locked baseline with Phase 5.3 paused for advancement.
 
-Do not start new Phase 6+ features until Phase 5 closure criteria in `MASTER_EXECUTION_TRACKER.md` are complete.
+Do not start new Phase 6+ features until governance explicitly opens the next gate in `MASTER_EXECUTION_TRACKER.md`.
 
 ## Recent updates (2026-03-01)
 - RSVP/waitlist state transitions now run under event-scoped DB locks.
