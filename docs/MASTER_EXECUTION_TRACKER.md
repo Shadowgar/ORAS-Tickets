@@ -1,6 +1,6 @@
 # ORAS-Tickets Master Execution Tracker
 
-Last updated: 2026-03-02
+Last updated: 2026-03-02 (phase sweep mode)
 
 ## Purpose
 This is the operational source of truth for execution progress.
@@ -21,38 +21,39 @@ If phase status conflicts across docs, this file wins.
 
 | Phase | Summary | Completion | Status | Decision |
 |---|---|---:|---|---|
-| 0 | Foundations / bootstrap / capabilities | 98% | LOCKED | keep |
-| 1 | Ticket model + versioned envelope | 97% | LOCKED | keep |
-| 2 | Woo mapping + commerce integrity | 97% | LOCKED | keep |
-| 3 | Reporting, pricing, member APIs, print | 88% | LOCKED | polish only |
-| 4 | Speakers + agenda + recurrence guardrail | 91% | ACTIVE | polish UI + archive refinement |
-| 5 | Registration + capacity intelligence | 94% | ACTIVE | finish soak + signoff |
-| 6 | Advanced ticketing intelligence | 12% | PLANNED | blocked by Phase 5 completion |
+| 0 | Foundations / bootstrap / capabilities | 90% | LOCKED | locked |
+| 1 | Ticket model + versioned envelope | 88% | LOCKED | locked |
+| 2 | Woo mapping + commerce integrity | 90% | LOCKED | locked |
+| 3 | Reporting, pricing, member APIs, print | 80% | LOCKED | locked |
+| 4 | Speakers + agenda + recurrence guardrail | 82% | LOCKED | locked |
+| 5 | Registration + capacity intelligence | 86% | LOCKED | locked |
+| 6 | Advanced ticketing intelligence | 5% | PLANNED | begin after Phase 0-5 closure |
 | 7 | Speaker intelligence expansion | 35% | PLANNED | blocked by Phase 4/5 polish |
-| 8 | Virtual/hybrid advanced features | 22% | PLANNED | keep scoped to add-on rules |
-| 9 | Member Hub expansion + board dashboard surface | 48% | PLANNED | build after Phase 5/6 baseline |
-| 10 | Financial intelligence + board analytics layer | 42% | PLANNED | expand from existing reports |
-| 11 | Discovery and UX enhancements | 28% | PLANNED | defer until core stabilizes |
-| 12 | Automation and notifications | 8% | PLANNED | start only after data model maturity |
+| 8 | Virtual/hybrid advanced features | 30% | PLANNED | keep scoped to add-on rules |
+| 9 | Member Hub expansion + board dashboard surface | 28% | PLANNED | build after earlier phase closure |
+| 10 | Financial intelligence + board analytics layer | 25% | PLANNED | expand from reporting baseline |
+| 11 | Discovery and UX enhancements | 8% | PLANNED | defer until core stabilizes |
+| 12 | Automation and notifications | 3% | PLANNED | start only after data model maturity |
 
-Overall completion (master-plan aligned): **58.5%**
+Overall completion (master-plan aligned): **~52%**
 
 Recalculation source: `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
 
 ## Phase Scoring Rationale (Why Each % Is Not 100 Yet)
-- Phase 0 (98%): architecture/capability/bootstrap baseline is stable with expanded regression automation around bootstrap/capability invariants.
-- Phase 1 (97%): versioned ticket envelope is stable in production paths; small residual depth remains around migration/edge-case test breadth.
-- Phase 2 (97%): Woo mapping and commerce integrity are stable; remaining gap is primarily additional lifecycle edge-case verification breadth.
-- Phase 3 (88%): core reports and exports exist with initial KPI layering; deeper analytics and board packet depth remain open.
-- Phase 4 (91%): speaker/agenda baseline is strong with history/indexing coverage; archive refinement and final UI polish remain open.
-- Phase 5 (94%): RSVP/waitlist/capacity baseline, queue operations, audit surface, concurrency hardening, and verification suite/CI are in place; remaining work is soak depth and final signoff evidence.
-- Phase 6 (12%): advanced ticket intelligence (QR/check-in/reservations) remains largely unbuilt; current score reflects foundational capability/identity primitives only.
-- Phase 7 (35%): speaker history/indexing groundwork is implemented, while analytics and submission pipelines remain unbuilt.
-- Phase 8 (22%): virtual access baseline exists, but Zoom sync and hybrid operational layers are still unimplemented.
-- Phase 9 (48%): member-facing ticket baseline exists across ORAS Member Hub + API support; major slices (RSVP history, speaking history, invoices, complete board surface) remain pending.
-- Phase 10 (42%): advanced financial implementation depth increased significantly via QuickBooks module and board analytics scaffolding; invoice/refund intelligence remains pending.
-- Phase 11 (28%): discovery UX suite is still mostly deferred, but Door Prize system is now implemented in admin + frontend.
-- Phase 12 (8%): limited notification pathways exist, but reminder/follow-up automation has not been implemented.
+- Phase 0 (90%): governance lock decision applied for the current execution baseline.
+- Phase 1 (88%): governance lock decision applied for the current execution baseline.
+- Phase 2 (90%): governance lock decision applied for the current execution baseline.
+- Phase 3 (80%): governance lock decision applied after deterministic reporting integration and KPI-layering completion.
+- Phase 4 (82%): governance lock decision applied after deterministic speaker-history and surface regression evidence.
+- Phase 5 (86%): governance lock decision applied after deterministic concurrency coverage and operator soak closeout evidence.
+- Phase 5.3 (technical pre-live): deterministic QBO verification suite and pre-live packet are complete; treasurer signoff, production approval/live validation tracker, and operator handoff sequence are prepared; phase advancement is currently paused because production WP-CLI execution is not available in the operating model.
+- Phase 6 (5%): QR/check-in/reservation systems are largely not implemented.
+- Phase 7 (35%): speaker intelligence expansion is partial (history/reporting groundwork only).
+- Phase 8 (30%): virtual access baseline exists; Zoom auto-sync and hybrid split capacity are not complete.
+- Phase 9 (28%): APIs/baseline member support exists; broader dashboard/history/invoice completion remains.
+- Phase 10 (25%): financial baseline and QBO reconciliation exist; invoice/refund intelligence is incomplete.
+- Phase 11 (8%): discovery/UX expansion remains largely unimplemented.
+- Phase 12 (3%): automation/reminder systems remain largely unimplemented.
 
 ## 2026-02-25 Hardening Update
 Completed in code:
@@ -123,8 +124,10 @@ A phase cannot move to `LOCKED` unless:
 - Docs (`CURRENT_STATE.md`, `PROJECT_STATE.md`, `NEXT.md`, `ROADMAP.md`) are updated in same change set.
 
 ## Active Priority Order
-1. Complete Phase 4 frontend/admin visual polish pass.
-2. Perform short operator soak pass on new waitlist queue/history operations.
-3. Complete QuickBooks Phase 5.3 pre-live validation packet (operator soak + reconciliation evidence + treasurer mapping signoff).
-4. Advance Board Dashboard design pack (Phase 9.5/10.4) with KPI contract + access model.
-5. Resume Phase 6 features (QR/check-in, reservation windows) after 1-4 are closed.
+1. Maintain Phase 0-5 lock integrity; changes require explicit design review.
+2. Keep Phase 5.3 in paused state until production WP-CLI constraint is resolved.
+3. Keep deferred artifacts current for immediate 5.3 restart when constraints change.
+4. Do not begin Phase 6 implementation until governance explicitly opens the next gate.
+
+Governance packet available:
+- `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`

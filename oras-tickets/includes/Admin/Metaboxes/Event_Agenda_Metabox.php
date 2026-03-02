@@ -791,6 +791,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
 
         if (! $enabled && empty($days)) {
             delete_post_meta($post_id, self::META_KEY);
+            self::rebuild_speaker_history_index($post_id, array('days' => array()));
             return;
         }
 

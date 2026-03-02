@@ -108,8 +108,69 @@ final class Reports_Page
         $summary_gross_sales    = isset($aggregates['summary']['gross_sales']) ? (float) $aggregates['summary']['gross_sales'] : 0.0;
         $summary_refunded       = isset($aggregates['summary']['refunded_amount']) ? (float) $aggregates['summary']['refunded_amount'] : 0.0;
         $summary_orders_count   = isset($aggregates['summary']['orders_count']) ? (int) $aggregates['summary']['orders_count'] : 0;
+        $member_gross_sales     = (float) ($aggregates['summary']['member_gross_sales'] ?? 0.0);
+        $non_member_gross_sales = (float) ($aggregates['summary']['non_member_gross_sales'] ?? 0.0);
+        $member_tickets_sold    = (int) ($aggregates['summary']['member_tickets_sold'] ?? 0);
+        $non_member_tickets     = (int) ($aggregates['summary']['non_member_tickets_sold'] ?? 0);
+        $total_tickets_sold     = (int) ($aggregates['summary']['tickets_sold'] ?? 0);
         $refund_rate_pct        = $summary_gross_sales > 0 ? (($summary_refunded / $summary_gross_sales) * 100) : 0.0;
         $average_order_value    = $summary_orders_count > 0 ? ($summary_gross_sales / $summary_orders_count) : 0.0;
+        $member_gross_share_pct = $summary_gross_sales > 0 ? (($member_gross_sales / $summary_gross_sales) * 100) : 0.0;
+        $non_member_gross_pct   = $summary_gross_sales > 0 ? (($non_member_gross_sales / $summary_gross_sales) * 100) : 0.0;
+        $member_ticket_share    = $total_tickets_sold > 0 ? (($member_tickets_sold / $total_tickets_sold) * 100) : 0.0;
+        $non_member_ticket_pct  = $total_tickets_sold > 0 ? (($non_member_tickets / $total_tickets_sold) * 100) : 0.0;
+        $comparison_date_range  = $this->build_comparison_date_range($date_range);
+        $overview_trend_labels  = array(
+            'gross'    => __('No prior-period baseline', 'oras-tickets'),
+            'refunded' => __('No prior-period baseline', 'oras-tickets'),
+            'net'      => __('No prior-period baseline', 'oras-tickets'),
+        );
+        $detail_trend_labels    = array(
+            'gross'       => __('No prior-period baseline', 'oras-tickets'),
+            'refunded'    => __('No prior-period baseline', 'oras-tickets'),
+            'net'         => __('No prior-period baseline', 'oras-tickets'),
+            'refund_rate' => __('No prior-period baseline', 'oras-tickets'),
+            'aov'         => __('No prior-period baseline', 'oras-tickets'),
+        );
+
+        if (! empty($comparison_date_range)) {
+            $comparison_range_data = array(
+                'range'      => 'comparison',
+                'after'      => wp_date('Y-m-d', strtotime((string) $comparison_date_range['after'])),
+                'before'     => wp_date('Y-m-d', strtotime((string) $comparison_date_range['before'])),
+                'date_range' => $comparison_date_range,
+                'label'      => __('Previous matched period', 'oras-tickets'),
+            );
+
+            $comparison_overview_rows = $this->get_event_summary_rows($selected_statuses, $comparison_date_range, $comparison_range_data);
+            $comparison_overview      = $this->build_summary_totals($comparison_overview_rows);
+
+            $overview_trend_labels = array(
+                'gross'    => $this->format_trend_delta_label((float) $comparison_overview['gross_sales'], (float) $summary_gross_sales),
+                'refunded' => $this->format_trend_delta_label((float) $comparison_overview['refunded_amount'], (float) $summary_refunded),
+                'net'      => $this->format_trend_delta_label((float) $comparison_overview['net_sales'], (float) $summary_gross_sales - $summary_refunded),
+            );
+
+            if ($selected_event_id > 0) {
+                $comparison_aggregates = $aggregator->get_aggregates($selected_event_id, $selected_statuses, $comparison_date_range);
+                $comparison_summary    = isset($comparison_aggregates['summary']) && is_array($comparison_aggregates['summary']) ? $comparison_aggregates['summary'] : array();
+
+                $comparison_gross      = (float) ($comparison_summary['gross_sales'] ?? 0.0);
+                $comparison_refunded   = (float) ($comparison_summary['refunded_amount'] ?? 0.0);
+                $comparison_net        = (float) ($comparison_summary['net_sales'] ?? 0.0);
+                $comparison_orders     = (int) ($comparison_summary['orders_count'] ?? 0);
+                $comparison_refund_pct = $comparison_gross > 0 ? (($comparison_refunded / $comparison_gross) * 100) : 0.0;
+                $comparison_aov        = $comparison_orders > 0 ? ($comparison_gross / $comparison_orders) : 0.0;
+
+                $detail_trend_labels = array(
+                    'gross'       => $this->format_trend_delta_label($comparison_gross, $summary_gross_sales),
+                    'refunded'    => $this->format_trend_delta_label($comparison_refunded, $summary_refunded),
+                    'net'         => $this->format_trend_delta_label($comparison_net, (float) ($aggregates['summary']['net_sales'] ?? 0.0)),
+                    'refund_rate' => $this->format_trend_delta_label($comparison_refund_pct, $refund_rate_pct),
+                    'aov'         => $this->format_trend_delta_label($comparison_aov, $average_order_value),
+                );
+            }
+        }
 
 ?>
         <div class="wrap oras-tickets-reports">
@@ -418,14 +479,17 @@ final class Reports_Page
                             <div>
                                 <div class="oras-kpi__label"><?php echo esc_html__('Gross', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($summary_gross)); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($overview_trend_labels['gross']); ?></div>
                             </div>
                             <div>
                                 <div class="oras-kpi__label"><?php echo esc_html__('Refunded', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($summary_refunded)); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($overview_trend_labels['refunded']); ?></div>
                             </div>
                             <div>
                                 <div class="oras-kpi__label"><?php echo esc_html__('Net', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($summary_net)); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($overview_trend_labels['net']); ?></div>
                             </div>
                             <div>
                                 <div class="oras-kpi__label"><?php echo esc_html__('Last sale', 'oras-tickets'); ?></div>
@@ -489,15 +553,18 @@ final class Reports_Page
                             <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Gross sales', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($aggregates['summary']['gross_sales'])); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($detail_trend_labels['gross']); ?></div>
                             </div>
                             <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Refunded', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($aggregates['summary']['refunded_amount'])); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($detail_trend_labels['refunded']); ?></div>
                                 <div class="oras-kpi__sub"><?php echo esc_html__('Includes unattributed refunds', 'oras-tickets'); ?></div>
                             </div>
                             <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Net sales', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($aggregates['summary']['net_sales'])); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($detail_trend_labels['net']); ?></div>
                             </div>
                             <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Tickets sold', 'oras-tickets'); ?></div>
@@ -532,13 +599,25 @@ final class Reports_Page
                                 </div>
                             </div>
                             <div class="oras-kpi">
+                                <div class="oras-kpi__label"><?php echo esc_html__('Member gross share', 'oras-tickets'); ?></div>
+                                <div class="oras-kpi__value"><?php echo esc_html(number_format_i18n($member_gross_share_pct, 2) . '%'); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html(sprintf(__('Non-member share: %s%%', 'oras-tickets'), number_format_i18n($non_member_gross_pct, 2))); ?></div>
+                            </div>
+                            <div class="oras-kpi">
+                                <div class="oras-kpi__label"><?php echo esc_html__('Member ticket share', 'oras-tickets'); ?></div>
+                                <div class="oras-kpi__value"><?php echo esc_html(number_format_i18n($member_ticket_share, 2) . '%'); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html(sprintf(__('Non-member share: %s%%', 'oras-tickets'), number_format_i18n($non_member_ticket_pct, 2))); ?></div>
+                            </div>
+                            <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Refund rate', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html(number_format_i18n($refund_rate_pct, 2) . '%'); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($detail_trend_labels['refund_rate']); ?></div>
                                 <div class="oras-kpi__sub"><?php echo esc_html__('Refunded ÷ gross sales', 'oras-tickets'); ?></div>
                             </div>
                             <div class="oras-kpi">
                                 <div class="oras-kpi__label"><?php echo esc_html__('Average order value', 'oras-tickets'); ?></div>
                                 <div class="oras-kpi__value"><?php echo esc_html($this->format_money($average_order_value)); ?></div>
+                                <div class="oras-kpi__sub"><?php echo esc_html($detail_trend_labels['aov']); ?></div>
                                 <div class="oras-kpi__sub"><?php echo esc_html__('Gross sales ÷ orders', 'oras-tickets'); ?></div>
                             </div>
                         </div>
@@ -850,12 +929,21 @@ final class Reports_Page
                         'refunded',
                         'net',
                         'last_sale',
+                        'board_kpi_refund_rate_pct',
+                        'board_kpi_average_order_value',
+                        'board_kpi_slice_version',
                     )
                 )
             );
 
             $rows = $this->get_event_summary_rows($statuses, $date_range, $range_data);
             foreach ($rows as $row) {
+                $gross_sales   = (float) ($row['gross_sales'] ?? 0.0);
+                $refunded      = (float) ($row['refunded_amount'] ?? 0.0);
+                $order_count   = (int) ($row['orders'] ?? 0);
+                $refund_rate   = $gross_sales > 0 ? (($refunded / $gross_sales) * 100) : 0.0;
+                $average_order = $order_count > 0 ? ($gross_sales / $order_count) : 0.0;
+
                 fputcsv(
                     $output,
                     CsvSafety::row(
@@ -871,6 +959,9 @@ final class Reports_Page
                             $row['refunded_amount'],
                             $row['net_sales'],
                             $row['last_sale'],
+                            number_format($refund_rate, 2, '.', ''),
+                            number_format($average_order, 2, '.', ''),
+                            'v1',
                         )
                     )
                 );
@@ -1088,6 +1179,90 @@ final class Reports_Page
         }
 
         return number_format_i18n($amount, 2);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array{gross_sales:float,refunded_amount:float,net_sales:float,orders:int,tickets_sold:int}
+     */
+    private function build_summary_totals(array $rows): array
+    {
+        $summary = array(
+            'gross_sales'     => 0.0,
+            'refunded_amount' => 0.0,
+            'net_sales'       => 0.0,
+            'orders'          => 0,
+            'tickets_sold'    => 0,
+        );
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $summary['gross_sales']     += (float) ($row['gross_sales'] ?? 0.0);
+            $summary['refunded_amount'] += (float) ($row['refunded_amount'] ?? 0.0);
+            $summary['net_sales']       += (float) ($row['net_sales'] ?? 0.0);
+            $summary['orders']          += (int) ($row['orders'] ?? 0);
+            $summary['tickets_sold']    += (int) ($row['tickets_sold'] ?? 0);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array{after?:string,before?:string} $date_range
+        * @return array{after?:string,before?:string}
+     */
+    private function build_comparison_date_range(array $date_range): array
+    {
+        $after = isset($date_range['after']) ? (string) $date_range['after'] : '';
+        if ($after === '') {
+            return array();
+        }
+
+        $after_ts = strtotime($after);
+        if ($after_ts === false) {
+            return array();
+        }
+
+        $before_raw = isset($date_range['before']) ? (string) $date_range['before'] : '';
+        $before_ts  = $before_raw !== '' ? strtotime($before_raw) : (int) current_time('timestamp');
+        if ($before_ts === false || $before_ts <= $after_ts) {
+            return array();
+        }
+
+        $window_seconds = $before_ts - $after_ts;
+        if ($window_seconds <= 0) {
+            return array();
+        }
+
+        $prev_before = $after_ts - 1;
+        $prev_after  = $prev_before - $window_seconds;
+
+        return array(
+            'after'  => wp_date('Y-m-d H:i:s', $prev_after),
+            'before' => wp_date('Y-m-d H:i:s', $prev_before),
+        );
+    }
+
+    private function format_trend_delta_label(float $previous_value, float $current_value): string
+    {
+        if ($previous_value <= 0.0) {
+            if ($current_value <= 0.0) {
+                return __('No change vs prior period', 'oras-tickets');
+            }
+
+            return __('No prior-period baseline', 'oras-tickets');
+        }
+
+        $delta_pct = (($current_value - $previous_value) / $previous_value) * 100;
+        $prefix    = $delta_pct >= 0 ? '+' : '';
+
+        return sprintf(
+            /* translators: %s: percent change */
+            __('%s%% vs prior period', 'oras-tickets'),
+            $prefix . number_format_i18n($delta_pct, 1)
+        );
     }
 
     /**

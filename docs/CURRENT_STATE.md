@@ -8,9 +8,11 @@ For phase percentages and advancement rules, use:
 - Recalculation evidence: `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
 
 ## Current Mode
-**Phase 5 stabilization and completion hardening**.
+**Phase 0-5 governance-locked baseline with Phase 5.3 paused**.
 
-The project should not move into new Phase 6+ implementation until Phase 5 completion gates are passed.
+The project should not move into new Phase 6+ implementation until governance explicitly opens the next gate.
+
+Execution mode is currently a **sequential Phase 0->12 closure sweep** with evidence-first gates and same-change-set documentation sync.
 
 ## What Is Stable
 - Ticket core, Woo mapping, pricing, cart/checkout revalidation, print routes.
@@ -130,26 +132,66 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
   - safe add-only auto-map now runs after account refresh and event update when account cache is available.
 
 ## What Was Fixed (2026-03-02)
-- Phase completion sweep execution started in strict phase order with Phase 0-2 hardening closure.
-- Added core regression automation script:
   - `oras-tickets/tools/core-regression-checks.php`
   - validates capability boundary and ticket envelope/mapping edge cases.
-- Added bootstrap regression automation script:
   - `oras-tickets/tools/bootstrap-regression-checks.php`
   - validates dependency guard conditions and required hook registration surface.
-- Both scripts validated in wp-env and now serve as repeatable baseline checks for early-phase hardening gates.
-- Started Phase 3 analytics expansion with first board KPI-layer increment:
   - new executive-signal KPI section added to Board Dashboard,
   - adds derived signal coverage for diversification, dependency, waitlist efficiency, and engagement conversion indicators.
-- Continued strict-order early-phase closure with Phase 1 envelope hardening pass:
   - expanded core regression checks to cover unsupported schema fallback,
   - added `ticket_key` row-key fallback assertions,
   - added ticket-key generator invariant checks (length + uniqueness),
   - validated new checks in wp-env with passing assertions.
+  - clarified queue operation guidance in RSVP dashboard,
+  - added explicit confirmations for bulk promote and manual promote/remove actions,
+  - added per-action button locking during queue AJAX mutations.
+  - extended `scripts/phase5-integration-checks.php` with interleaved RSVP/waitlist + Woo paid/restore transition assertions,
+  - validated that order-status capacity mutations preserve waitlist lifecycle state under interleaved operations,
+  - validated promotion correctness after slot release in the interleaved path.
+  - `composer phpstan` passing,
+  - `tools/core-regression-checks.php` passing in `oras-wp-env`,
+  - `tools/bootstrap-regression-checks.php` passing in `oras-wp-env`,
+  - updated Phase 5 integration checks passing in `oras-wp-env`.
+  - new reporting checks script added: `scripts/phase3-reporting-checks.php`,
+  - validated reports page capability gating and render surface for authorized admins,
+  - validated reports export admin-post wiring and nonce/capability rejection paths,
+  - validated script in `oras-wp-env` with passing assertions.
+  - added stable runner `scripts/run-phase3-reporting-checks.sh` for deterministic wp-env execution via plugin tools staging,
+  - validated runner execution in `oras-wp-env` with passing assertions.
+  - fixed agenda-clear save path in `includes/Admin/Metaboxes/Event_Agenda_Metabox.php` to rebuild speaker history index before early return,
+  - added deterministic script `scripts/phase4-speaker-history-checks.php` with runtime entrypoint copy at `oras-tickets/tools/phase4-speaker-history-checks.php`,
+  - validated speaker-history rebuild/update/clear behavior (including resource-attributed speakers) in `oras-wp-env` with passing assertions.
+  - added deterministic script `scripts/phase4-surface-checks.php` with runtime entrypoint copy at `oras-tickets/tools/phase4-surface-checks.php`,
+  - validated speaker assignment admin sanitization invariants (compensation normalization, notes/role sanitization),
+  - validated frontend speaker payload/modal generation invariants in frontend PHP context (`ORAS_WP_LOAD_PATH` bootstrap) in `oras-wp-env` with passing assertions.
+- Phase 4 closure gate moved from ready-for-lock review to LOCKED after governance synchronization.
+- Refreshed Phase 5 deterministic verification evidence:
+  - copied runtime entrypoint `scripts/phase5-integration-checks.php` to `oras-tickets/tools/phase5-integration-checks.php` for `wp-env` execution,
+  - re-ran `tools/phase5-integration-checks.php` in `oras-wp-env` with passing assertions,
+  - re-ran `composer phpstan` with passing result.
+- Completed Phase 5 operator soak closeout packet: `docs/PHASE5_OPERATOR_SOAK_2026-03-02.md`.
+- Phase 5 closure gate moved from ready-for-lock review to LOCKED after governance synchronization.
+- Completed Phase 5.3 technical pre-live evidence packet: `docs/PHASE53_PRELIVE_PACKET_2026-03-02.md`.
+- Added treasurer signoff template: `docs/PHASE53_TREASURER_SIGNOFF_2026-03-02.md`.
+- Added production approval/live validation evidence tracker: `docs/PHASE53_PRODUCTION_VALIDATION_EVIDENCE_2026-03-02.md`.
+- Added production live validation run log template: `docs/PHASE53_LIVE_RUN_LOG_TEMPLATE_2026-03-02.md`.
+- Added Phase 5.3 operator handoff sequence: `docs/PHASE53_OPERATOR_HANDOFF_2026-03-02.md`.
+- Phase 5.3 is paused for implementation advancement due operating constraint: no WP-CLI on production.
+- Keep existing 5.3 evidence artifacts as reference only; do not schedule additional production-command validation work.
+- Phase 3 reporting depth gate moved from READY FOR LOCK review to LOCKED after deterministic integration + KPI layering completion.
+- Next active non-production item: `docs/PHASE3_KPI_LAYERING_BACKLOG_2026-03-02.md`.
+- Implemented first Phase 3 KPI layering increment in reports: prior-period trend delta labels for overview and detail KPI cards.
+- Re-validated with `composer phpstan` and `scripts/run-phase3-reporting-checks.sh` in `oras-wp-env`.
+- Implemented second Phase 3 KPI layering increment: append-only board packet KPI slice fields in overview CSV export (`board_kpi_refund_rate_pct`, `board_kpi_average_order_value`, `board_kpi_slice_version`).
+- Implemented third Phase 3 KPI layering increment: member vs non-member comparative contribution ratios in detail KPI cards (gross-share and ticket-share signals).
+- Added governance closeout artifact for Phases 0-5 lock decision: `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`.
+- Fixed QBO integration runner reliability:
+  - updated `scripts/run-qbo-integration-checks.sh` to remove stdin/TTY-dependent execution,
+  - validated full runner execution in `oras-wp-env` with all six deterministic QBO checks passing,
+  - validated `composer phpstan` pass after runner update.
 
 ## Remaining Gaps Before Phase 6+
-1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
-2. QuickBooks Phase 5.3 pre-live completion remains:
+1. QuickBooks Phase 5.3 pre-live completion remains:
   - execute smoke + reconciliation run after test-server deploy validation window,
   - complete treasurer signoff on production mapping/cutover policy,
   - complete Intuit production app approval and one controlled production validation order.

@@ -1,6 +1,6 @@
 # ORAS-Tickets Roadmap (Execution-Aligned)
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execution tracker in `docs/MASTER_EXECUTION_TRACKER.md`.
 
@@ -13,14 +13,12 @@ This roadmap is aligned to `docs/MASTER_DEVELOPMENT_PLAN.md` and the live execut
 6. Phase 7-12: Speaker intelligence expansion, virtual/hybrid depth, member expansion (including board dashboard), financial intelligence, discovery UX, and automation.
 
 ## Current Gate
-The project remains in **stabilize-and-refine mode** before Phase 6+ development (Phase 5 depth largely complete, final polish/soak pending). QuickBooks Phase 5.3 implementation is in pre-live validation pending Intuit production app approval.
+The project is in a **Phase 0-5 locked baseline mode** before any Phase 6+ development. QuickBooks Phase 5.3 remains paused for advancement because production WP-CLI execution is currently unavailable.
 
-Recent gate progress (2026-03-01):
-- RSVP/waitlist mutation paths were hardened with event-scoped locking.
-- Woo capacity consume/restore paths were hardened with order-scoped idempotency locking + event-scoped atomic updates.
-- CSV exports and admin RSVP dashboard rendering were hardened against spreadsheet-formula and DOM-injection classes.
-- QuickBooks Phase 5.3 implementation was hardened with waiting-queue orchestration, source-match query fixes, and expanded operator controls (pending/history/reversal flows).
-- QuickBooks safe add-only account auto-map now supports operator-triggered and runtime refresh/event-update automation paths.
+Recent gate progress (2026-03-02):
+- Governance lock decision applied across Phases 0-5.
+- Phase 3 reporting integration and KPI-layering backlog increments completed.
+- Phase 5.3 remains pre-live and paused for advancement pending external approvals + production command availability.
 
 Compliance note:
 - Phase 5.3 closeout must include documented alignment and evidence for:
@@ -35,6 +33,10 @@ Compliance note:
 - Integration checks for RSVP/waitlist/attendees flows exist and pass in CI. (Implemented 2026-02-25)
 - QuickBooks pre-live validation evidence is complete (operator soak + reconciliation + controlled sync/reverse flow verification).
 - Core docs remain synchronized in same PR/change set.
+
+Current note:
+- Phase 5 is governance-locked.
+- Phase 5.3 restart path is prepared in `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`.
 
 ## Board Dashboard Scope (Approved)
 - Board-only one-stop dashboard in Members Hub visual style.
@@ -51,3 +53,4 @@ Compliance note:
 - Strategic baseline: `docs/MASTER_DEVELOPMENT_PLAN.md`
 - Live phase scoring: `docs/MASTER_EXECUTION_TRACKER.md`
 - Immediate queue: `docs/NEXT.md`
+- Phase 0-5 lock packet: `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`

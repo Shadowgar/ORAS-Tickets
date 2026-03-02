@@ -39,15 +39,16 @@ Current recalculation artifact:
 ## Current Project Maturity (Master-plan aligned)
 - Overall completion: **58.5%**
 - Core ticketing and reporting foundations are production-capable.
-- Phase 5 is partially complete and currently in hardening mode.
-- Phases 6+ are mostly planned and should not advance until Phase 5 completion gates are satisfied.
+- Phases 0-5 are governance-locked for the current execution baseline.
+- Phase 5.3 remains paused for advancement pending production WP-CLI availability and external approvals.
+- Phases 6+ are mostly planned and should not advance until governance explicitly opens the next gate.
 - Strategic scope now includes a board-only executive dashboard (Members Hub style) under Phase 9.5/10.4.
 
 ## Current Enforcement Decision
-The project is in **stabilize-and-refine mode**:
-- Finish Phase 5 depth and hardening first.
-- Apply Phase 4 UI/UX polish pass.
-- Only then continue into Phase 6+ build-out.
+The project is in **locked-baseline enforcement mode**:
+- Maintain Phase 0-5 lock integrity.
+- Keep Phase 5.3 paused until constraints lift.
+- Do not begin Phase 6+ build-out until governance opens the next gate.
 
 ## Evidence Snapshot (2026-03-01)
 Recently completed hardening in code:
@@ -75,6 +76,6 @@ Recently completed hardening in code:
 - Static analysis clean (`phpstan`, `phpcs`).
 
 ## Locked vs Active
-- Locked baseline: Phases 0-3; major parts of Phase 4.
-- Active: Phase 5 hardening and completion criteria.
-- Planned: Phases 6-12, gated by Phase 5 completion.
+- Locked baseline: Phases 0-5.
+- Active: Phase 5.3 paused-state readiness artifacts only.
+- Planned: Phases 6-12, gated by explicit post-lock governance decision.

@@ -98,11 +98,11 @@ final class Dashboard_Page { // NOSONAR legacy WP class naming
 
             <div id="oras-waitlist-ops" style="display:none; margin-top: 20px;">
                 <h3><?php echo esc_html__( 'Waitlist Queue', 'oras-tickets' ); ?></h3>
-                <p><?php echo esc_html__( 'Use bulk or one-by-one actions to promote attendees and keep a clear queue history.', 'oras-tickets' ); ?></p>
+                <p><?php echo esc_html__( 'Use bulk or one-by-one actions to promote attendees and keep a clear queue history. Removing a user from this queue marks their RSVP as No for this event.', 'oras-tickets' ); ?></p>
                 <div style="margin-bottom: 12px;">
                     <label for="oras-waitlist-bulk-count"><?php echo esc_html__( 'Bulk promote next:', 'oras-tickets' ); ?></label>
                     <input type="number" id="oras-waitlist-bulk-count" min="1" max="25" value="1" style="width: 80px; margin-left: 8px; margin-right: 8px;" />
-                    <button id="oras-waitlist-bulk-promote" class="button button-primary"><?php echo esc_html__( 'Promote Next in Queue', 'oras-tickets' ); ?></button>
+                    <button id="oras-waitlist-bulk-promote" class="button button-primary"><?php echo esc_html__( 'Bulk Promote from Queue', 'oras-tickets' ); ?></button>
                     <button id="oras-waitlist-refresh" class="button"><?php echo esc_html__( 'Refresh Queue Data', 'oras-tickets' ); ?></button>
                     <span id="oras-waitlist-operation-message" style="margin-left: 12px;"></span>
                 </div>

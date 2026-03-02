@@ -380,6 +380,10 @@ jQuery( document ).ready( function( $ ) {
 			count = 25;
 		}
 
+		if ( ! globalThis.confirm( 'Promote the next ' + count + ' attendee(s) from the waitlist queue?' ) ) {
+			return;
+		}
+
 		$waitlistBulkPromote.prop( 'disabled', true );
 		setWaitlistMessage( 'Running bulk promotion from queue...', false );
 
@@ -412,10 +416,16 @@ jQuery( document ).ready( function( $ ) {
 	$( document ).on( 'click', '.oras-waitlist-promote-user', function() {
 		var eventId = sanitizeEventId( $selector.val() );
 		var userId = normalizeInt( $( this ).data( 'user-id' ) );
+		var $button = $( this );
 		if ( ! eventId || userId <= 0 ) {
 			return;
 		}
 
+		if ( ! globalThis.confirm( 'Promote this attendee from waitlist to RSVP Yes?' ) ) {
+			return;
+		}
+
+		$button.prop( 'disabled', true );
 		setWaitlistMessage( 'Promoting selected waitlist attendee...', false );
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
@@ -427,6 +437,7 @@ jQuery( document ).ready( function( $ ) {
 				nonce: orasDashboardRsvp.nonce
 			},
 			success: function( response ) {
+				$button.prop( 'disabled', false );
 				if ( response.success ) {
 					setWaitlistMessage( 'Selected waitlist attendee promoted.', false );
 					loadRsvpData( eventId );
@@ -435,6 +446,7 @@ jQuery( document ).ready( function( $ ) {
 				}
 			},
 			error: function() {
+				$button.prop( 'disabled', false );
 				setWaitlistMessage( 'Network error promoting selected attendee.', true );
 			}
 		} );
@@ -443,14 +455,16 @@ jQuery( document ).ready( function( $ ) {
 	$( document ).on( 'click', '.oras-waitlist-remove-user', function() {
 		var eventId = sanitizeEventId( $selector.val() );
 		var userId = normalizeInt( $( this ).data( 'user-id' ) );
+		var $button = $( this );
 		if ( ! eventId || userId <= 0 ) {
 			return;
 		}
 
-		if ( ! globalThis.confirm( 'Remove this attendee from the waitlist queue?' ) ) {
+		if ( ! globalThis.confirm( 'Remove this attendee from the waitlist queue and mark RSVP as No?' ) ) {
 			return;
 		}
 
+		$button.prop( 'disabled', true );
 		setWaitlistMessage( 'Removing attendee from waitlist queue...', false );
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
@@ -462,6 +476,7 @@ jQuery( document ).ready( function( $ ) {
 				nonce: orasDashboardRsvp.nonce
 			},
 			success: function( response ) {
+				$button.prop( 'disabled', false );
 				if ( response.success ) {
 					setWaitlistMessage( 'Attendee removed from waitlist queue.', false );
 					loadRsvpData( eventId );
@@ -470,6 +485,7 @@ jQuery( document ).ready( function( $ ) {
 				}
 			},
 			error: function() {
+				$button.prop( 'disabled', false );
 				setWaitlistMessage( 'Network error removing attendee.', true );
 			}
 		} );

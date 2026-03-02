@@ -1,84 +1,128 @@
 # NEXT — Immediate Work Queue
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Current Sprint Goal
-Close Phase 5 hardening gates so Phase 6 work can begin safely.
+Maintain Phase 0-5 locked baseline and hold Phase 5.3 in paused state until external constraints are resolved.
+
+Phase 0-5 status update: **LOCKED** (governance closeout complete).
 
 ## Ordered Tasks
-1. Waitlist Queue Operator Soak (Phase 5.2 final)
+1. Waitlist Queue Operator Soak (Phase 5.2 final) — Completed 2026-03-02
 - Run operator walkthrough on new queue/history tools (manual promote/remove and bulk promote paths).
 - Capture any UI/wording friction and apply a small polish pass.
 
-2. Concurrency Regression Coverage (Phase 5 hardening closeout)
+2. Concurrency Regression Coverage (Phase 5 hardening closeout) — Completed 2026-03-02
 - Add deterministic integration checks for concurrent RSVP + waitlist promotion + order status transition scenarios.
 - Validate capacity invariants under simultaneous paid/refund/cancel transition triggers.
 
-3. Board Member Dashboard Design Pack (Phase 9.5 / 10.4)
+3. Board Member Dashboard Design Pack (Phase 9.5 / 10.4) — Completed 2026-03-02
 - Define board KPI contract (PMPro, ticketing, finance, operational alerts).
 - Define Members Hub-aligned UI spec (information hierarchy, card system, responsive behavior).
 - Define capability/permission model for board-only access and exports.
+- Artifact: `docs/BOARD_DASHBOARD_DESIGN_PACK_2026-03-02.md`.
 
-4. Phase 5.3 — QuickBooks Revenue Split Sync (Woo Orders) (Post-Gate)
-- Finalize clearing-account accounting policy with treasurer (to avoid Stripe duplicate revenue presentation). (In progress)
-- Keep production safety defaults enabled until treasurer signoff:
-  - `Dry Run Mode = ON`
-  - `Require Manual Approval = ON`
-  - `Strict Mapping Mode = ON`
-  - `Allow Unmapped Fallback = OFF`
-- Run operator validation workflow in sandbox/live-safe mode:
-  - approve pending order manually,
-  - run dry-run sync,
-  - inspect order audit entries (`_oras_qbo_audit_entry`),
-  - verify no JE write occurs in dry-run mode.
-- Add compliance workstream for Intuit production audit readiness:
-  - align plugin + deployment controls to PCI Security Standards guidance as close as practical for current architecture:
-    - https://www.pcisecuritystandards.org/
-  - align OAuth implementation and documentation to Intuit OpenID discovery requirements:
-    - https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-openid-discovery-doc
-  - include deterministic test evidence for required auth error scenarios:
-    - `Auth Error Access`
-    - `Auth Error Refresh`
-    - `Auth Error Grant`
-    - `CSRF Error`
-- Validate account mappings for:
-  - event ticket income (per-event slug map)
-  - observer pass income
-  - merchandise income
-  - printful merchandise income
-  - donations income
-  - fallback/unmapped income
-- Execute controlled sandbox/test-server run using check gateway orders and WP-CLI sync commands. (In progress)
-- Run operator soak on new QuickBooks operational surfaces:
-  - Pending tab actions (sync now / approve / resync / reverse / process waiting queue),
-  - Sync History tab reverse path and source transaction visibility,
-  - waiting queue polling/escalation behavior (`waiting_for_source_txn` -> `needs_review`).
-- Verify safe auto-map behavior:
-  - run `Test Connection + Refresh Accounts` and confirm add-only mapping counts,
-  - update one published/future event and verify only missing mappings are added.
-- Use dry-run command before live posting during mapping verification:
-  - `wp oras-tickets qbo preview-order <order_id> [--format=json]`
-- Use reconciliation command after each controlled run to verify variance and status distribution:
-  - `wp oras-tickets qbo reconcile-report --from=<YYYY-MM-DD> --to=<YYYY-MM-DD> [--format=table|json]`
-- Use new safety commands for operator flow:
-  - `wp oras-tickets qbo approve-order <order_id> [--sync-now]`
-  - `wp oras-tickets qbo audit-order <order_id> [--format=json]`
-  - `wp oras-tickets qbo reverse-order <order_id> [--force]`
-- Run deterministic API fault matrix evidence script before live go/no-go:
-  - `wp eval-file scripts/qbo-api-error-matrix-tests.php`
-- Run deterministic OAuth callback guard evidence script before live go/no-go:
-  - `wp eval-file scripts/qbo-oauth-callback-tests.php`
-- Complete live go-live validation once Intuit production app approval is granted:
-  - connect production QuickBooks credentials
-  - run one controlled low-value live Woo/Stripe order
-  - verify no duplicate net income effect in P&L
-- Capture evidence from latest queue/reclass hardening before go-live packet:
-  - successful sync after source-match polling in reclass mode,
-  - pending/history operational workflow screenshots,
-  - reverse flow evidence and reconciliation output snapshot.
-- Prepare refund-handling follow-up scope (reversal JournalEntry policy).
+3a. Phase 3 Reporting Integration Closure — Completed 2026-03-02
+- Add deterministic integration checks for reports render and export permission/nonce contracts.
+- Validate reports route discoverability + export action wiring via admin hooks.
+- Stable runner: `scripts/run-phase3-reporting-checks.sh`.
+
+4. Phase 3 KPI Layering Backlog — Completed 2026-03-02
+- Define next reporting-depth increments for trend and comparative board-ready signals.
+- Artifact: `docs/PHASE3_KPI_LAYERING_BACKLOG_2026-03-02.md`.
+
+5. Phase 0-5 Governance Lock Review Packet — Completed 2026-03-02
+- Consolidate lock-review evidence and reviewer checklist for Phases 0-5.
+- Artifact: `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`.
+
+## Deferred / Parked (Constraint-Bound)
+### Phase 5.3 — QuickBooks Revenue Split Sync (post-gate)
+- Paused due operating constraint: no production WP-CLI execution.
+- Keep evidence artifacts ready:
+  - `docs/PHASE53_PRELIVE_PACKET_2026-03-02.md`
+  - `docs/PHASE53_TREASURER_SIGNOFF_2026-03-02.md`
+  - `docs/PHASE53_PRODUCTION_VALIDATION_EVIDENCE_2026-03-02.md`
+  - `docs/PHASE53_LIVE_RUN_LOG_TEMPLATE_2026-03-02.md`
+  - `docs/PHASE53_OPERATOR_HANDOFF_2026-03-02.md`
+  - `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`
 
 ## Completed This Cycle
+- Added compact Phase 5.3 restart checklist for constraint-lift resumption:
+  - `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`.
+- Executed governance lock decision sweep for Phases 0-5:
+  - synchronized lock state across tracker/sweep/state/queue docs,
+  - lock packet checklist completed in `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`.
+- Added Phase 0-5 governance lock review packet:
+  - `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`.
+- Implemented third Phase 3 KPI layering increment (comparative signals):
+  - added member vs non-member gross-share and ticket-share comparative KPI cards,
+  - implemented in `oras-tickets/includes/Admin/Pages/Reports_Page.php`.
+- Implemented second Phase 3 KPI layering increment (board packet CSV slice fields):
+  - added append-only overview CSV columns `board_kpi_refund_rate_pct`, `board_kpi_average_order_value`, and `board_kpi_slice_version`,
+  - implemented in `oras-tickets/includes/Admin/Pages/Reports_Page.php`.
+- Implemented first Phase 3 KPI layering increment (trend deltas):
+  - overview trend labels for gross/refunded/net,
+  - detail trend labels for gross/refunded/net/refund rate/AOV,
+  - implemented in `oras-tickets/includes/Admin/Pages/Reports_Page.php`.
+- Added deterministic Phase 3 reporting runner for wp-env execution:
+  - `scripts/run-phase3-reporting-checks.sh`.
+- Runner stages `scripts/phase3-reporting-checks.php` into plugin tools path at runtime for deterministic `wp eval-file` execution.
+- Added board dashboard design pack artifact (design-only, implementation gated by Phase 5 closure):
+  - `docs/BOARD_DASHBOARD_DESIGN_PACK_2026-03-02.md`.
+- Added Phase 5.3 operator handoff sequence:
+  - `docs/PHASE53_OPERATOR_HANDOFF_2026-03-02.md`.
+- Added Phase 5.3 production approval/live validation tracker:
+  - `docs/PHASE53_PRODUCTION_VALIDATION_EVIDENCE_2026-03-02.md`.
+- Fixed `scripts/run-qbo-integration-checks.sh` TTY/stdin execution issue:
+  - replaced stdin-piped `wp eval-file` execution with runtime tool-path staging + direct `wp eval-file`,
+  - validated end-to-end runner execution in `oras-wp-env` with all QBO deterministic scripts passing,
+  - validated `composer phpstan` pass after the runner fix.
+
+## Direction Change (Operator Constraint)
+- Do not continue advanced Phase 5.3 execution work that requires production WP-CLI.
+- Treat Phase 5.3 as paused until a non-production-command validation path is approved.
+- Prioritize simpler, local-only hardening/documentation tasks instead of further 5.3 runbook expansion.
+- Completed Phase 5.3 technical pre-live packet:
+  - added `docs/PHASE53_PRELIVE_PACKET_2026-03-02.md`,
+  - executed full deterministic QBO verification suite (safeguards, split, safety controls, reconciliation, API error matrix, OAuth callback guards) with passing results,
+  - confirmed `composer phpstan` pass after evidence run.
+- Completed Phase 5 operator soak closeout packet and gate transition:
+  - added `docs/PHASE5_OPERATOR_SOAK_2026-03-02.md`,
+  - captured deterministic Phase 5 soak evidence (`composer phpstan` + `tools/phase5-integration-checks.php` pass),
+  - moved Phase 5 to ready-for-lock review in sweep/tracker/state docs.
+- Refreshed Phase 5 gate evidence run:
+  - synced `scripts/phase5-integration-checks.php` to runtime path `oras-tickets/tools/phase5-integration-checks.php`,
+  - executed deterministic integration checks in `oras-wp-env` with passing assertions,
+  - re-ran `composer phpstan` with passing result.
+- Completed Phase 4 frontend/admin surface regression checks:
+  - added `scripts/phase4-surface-checks.php` and `oras-tickets/tools/phase4-surface-checks.php`,
+  - validated admin speaker assignment sanitization invariants,
+  - validated frontend speaker payload/modal generation invariants,
+  - executed checks in `oras-wp-env` via `npx wp-env run cli sh -lc 'ORAS_WP_LOAD_PATH=/var/www/html/wp-load.php php /var/www/html/wp-content/plugins/oras-tickets/tools/phase4-surface-checks.php'`.
+- Completed Phase 4 speaker-history indexing hardening + deterministic checks:
+  - fixed agenda-clear path in `Event_Agenda_Metabox::save()` to rebuild speaker history index before returning,
+  - added `scripts/phase4-speaker-history-checks.php` and `oras-tickets/tools/phase4-speaker-history-checks.php`,
+  - validated rebuild/update/clear scenarios (including resource-linked speaker history and stale-entry removal),
+  - executed checks in `oras-wp-env` via `wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/phase4-speaker-history-checks.php`.
+- Completed deterministic Phase 3 reporting integration checks:
+  - added `scripts/phase3-reporting-checks.php`,
+  - validated reports render capability gating (403 for unauthorized, success for admin),
+  - validated reports export nonce/capability guards and admin-post handler wiring,
+  - validated new checks in `oras-wp-env` via `wp eval-file /tmp/oras-phase3-reporting-checks.php`.
+- Completed phase-sweep evidence refresh for Phases 0-2:
+  - re-ran `composer phpstan` with passing result,
+  - re-ran core/bootstrap regression scripts in `oras-wp-env` with passing results,
+  - synced tracker to reevaluation baseline for sequential 0->12 closure mode.
+- Completed deterministic interleaved concurrency regression coverage (Phase 5 hardening closeout):
+  - expanded `scripts/phase5-integration-checks.php` with interleaved RSVP/waitlist + Woo paid/restore transition assertions,
+  - validated invariants that order transitions do not mutate waitlist lifecycle unexpectedly,
+  - validated promotion correctness after slot release in the same interleaved scenario,
+  - executed updated script in `oras-wp-env` with passing assertions.
+- Completed waitlist queue operator micro-polish pass (Phase 5.2 final hardening):
+  - clarified queue operation copy in RSVP dashboard,
+  - added explicit operator confirmations for bulk promote and single promote/remove actions,
+  - added per-row action button locking during AJAX requests to reduce accidental double-submits,
+  - validated with `composer phpstan` and wp-env core/bootstrap regression scripts.
 - Completed RSVP/waitlist concurrency hardening and Woo capacity race mitigation:
   - added DB named-lock helper (`includes/Support/DbLock.php`),
   - locked frontend RSVP and admin waitlist promotion critical sections,
