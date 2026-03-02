@@ -161,7 +161,7 @@ function orasCoreRunPhase1EnvelopeChecks(int $event_id): void
     $generated_key_a = Ticket_Collection::generate_ticket_key();
     $generated_key_b = Ticket_Collection::generate_ticket_key();
     orasCoreAssert(
-        is_string($generated_key_a) && strlen($generated_key_a) === 12,
+        strlen($generated_key_a) === 12,
         'Generated ticket key uses expected 12-character length'
     );
     orasCoreAssert(

@@ -418,12 +418,12 @@ final class Journal_Entry_Creator
                 $score += 20;
             }
 
-            $candidate_customer_name = trim((string) ($candidate['customer_ref_name'] ?? ''));
+            $candidate_customer_name = trim((string) $candidate['customer_ref_name']);
             if ($customer_name !== '' && $candidate_customer_name !== '' && strpos(strtolower($candidate_customer_name), strtolower($customer_name)) !== false) {
                 $score += 40;
             }
 
-            $txn_ts = strtotime((string) ($candidate['txn_date'] ?? '') . ' 00:00:00 UTC');
+            $txn_ts = strtotime((string) $candidate['txn_date'] . ' 00:00:00 UTC');
             if ($txn_ts !== false) {
                 $day_diff = (int) abs(floor(($txn_ts - $base_ts) / DAY_IN_SECONDS));
                 $score   += max(0, 10 - $day_diff);
@@ -435,13 +435,13 @@ final class Journal_Entry_Creator
         usort(
             $candidates,
             static function (array $left, array $right): int {
-                $left_score  = isset($left['score']) ? (int) $left['score'] : 0;
-                $right_score = isset($right['score']) ? (int) $right['score'] : 0;
+                $left_score  = (int) $left['score'];
+                $right_score = (int) $right['score'];
                 if ($left_score !== $right_score) {
                     return $right_score <=> $left_score;
                 }
 
-                return strcmp((string) ($right['txn_date'] ?? ''), (string) ($left['txn_date'] ?? ''));
+                return strcmp((string) $right['txn_date'], (string) $left['txn_date']);
             }
         );
 

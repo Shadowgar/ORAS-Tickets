@@ -278,11 +278,11 @@ final class Board_Dashboard
                         <ul class="oras-board-list">
                             <?php foreach ($watch_alerts as $alert_row) : ?>
                                 <?php
-                                $tone = is_array($alert_row) ? sanitize_key((string) ($alert_row['tone'] ?? 'watch')) : 'watch';
+                                $tone = sanitize_key((string) ($alert_row['tone'] ?? 'watch'));
                                 if (! in_array($tone, array('up', 'down', 'watch'), true)) {
                                     $tone = 'watch';
                                 }
-                                $message = is_array($alert_row) ? (string) ($alert_row['text'] ?? '') : (string) $alert_row;
+                                $message = (string) ($alert_row['text'] ?? '');
                                 ?>
                                 <li>
                                     <span class="oras-board-chip <?php echo esc_attr($tone); ?>"><?php echo esc_html(strtoupper($tone)); ?></span>
@@ -308,11 +308,11 @@ final class Board_Dashboard
                     <ul class="oras-board-list">
                         <?php foreach ($notable_changes as $change_row) : ?>
                             <?php
-                            $tone = is_array($change_row) ? sanitize_key((string) ($change_row['tone'] ?? 'watch')) : 'watch';
+                            $tone = sanitize_key((string) ($change_row['tone'] ?? 'watch'));
                             if (! in_array($tone, array('up', 'down', 'watch'), true)) {
                                 $tone = 'watch';
                             }
-                            $message = is_array($change_row) ? (string) ($change_row['text'] ?? '') : (string) $change_row;
+                            $message = (string) ($change_row['text'] ?? '');
                             ?>
                             <li>
                                 <span class="oras-board-chip <?php echo esc_attr($tone); ?>"><?php echo esc_html(strtoupper($tone)); ?></span>
@@ -397,20 +397,18 @@ final class Board_Dashboard
                 <?php if (! empty($pmpro_cashflow['source_note'])) : ?>
                     <p class="oras-board-note"><?php echo esc_html((string) $pmpro_cashflow['source_note']); ?></p>
                 <?php endif; ?>
-                <?php if ($woo_as_of !== '' || $pmpro_as_of !== '') : ?>
-                    <p class="oras-board-note">
-                        <?php
-                        $source_as_of_parts = array();
-                        if ($woo_as_of !== '') {
-                            $source_as_of_parts[] = 'Woo: ' . self::format_as_of($woo_as_of);
-                        }
-                        if ($pmpro_as_of !== '') {
-                            $source_as_of_parts[] = 'Membership: ' . self::format_as_of($pmpro_as_of);
-                        }
-                        echo esc_html('Source freshness — ' . implode(' · ', $source_as_of_parts));
-                        ?>
-                    </p>
-                <?php endif; ?>
+                <p class="oras-board-note">
+                    <?php
+                    $source_as_of_parts = array();
+                    if ($woo_as_of !== '') {
+                        $source_as_of_parts[] = 'Woo: ' . self::format_as_of($woo_as_of);
+                    }
+                    if ($pmpro_as_of !== '') {
+                        $source_as_of_parts[] = 'Membership: ' . self::format_as_of($pmpro_as_of);
+                    }
+                    echo esc_html('Source freshness — ' . implode(' · ', $source_as_of_parts));
+                    ?>
+                </p>
             </div>
 
             <div class="oras-board-section">
@@ -693,14 +691,14 @@ final class Board_Dashboard
                             ),
                         );
                         foreach ($kpi_rows as $kpi_row) :
-                            $status = sanitize_key((string) ($kpi_row['status'] ?? 'watch'));
+                            $status = sanitize_key((string) $kpi_row['status']);
                             if (! in_array($status, array('up', 'watch', 'down'), true)) {
                                 $status = 'watch';
                             }
                         ?>
                             <tr>
                                 <td><?php echo esc_html((string) ($kpi_row['label'] ?? '')); ?></td>
-                                <td><?php echo esc_html((string) ($kpi_row['value'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) $kpi_row['value']); ?></td>
                                 <td><span class="oras-board-chip <?php echo esc_attr($status); ?>"><?php echo esc_html(strtoupper($status)); ?></span></td>
                             </tr>
                         <?php endforeach; ?>
@@ -1056,10 +1054,7 @@ final class Board_Dashboard
         $now = gmdate('Y-m-d H:i:s');
 
         foreach ($periods as $period_key => $period) {
-            $days = (int) ($period['days'] ?? 0);
-            if ($days <= 0) {
-                continue;
-            }
+            $days = (int) $period['days'];
 
             $start = gmdate('Y-m-d H:i:s', time() - ($days * DAY_IN_SECONDS));
 
@@ -1071,7 +1066,7 @@ final class Board_Dashboard
             $signups = (int) $wpdb->get_var($signups_sql);
 
             $result['periods'][ $period_key ] = array(
-                'label' => (string) ($period['label'] ?? ucfirst((string) $period_key)),
+                'label' => (string) $period['label'],
                 'signups' => $signups,
             );
         }
@@ -1087,7 +1082,7 @@ final class Board_Dashboard
                 WHERE mu.status = 'active'
                 GROUP BY mu.membership_id, ml.name
                 ORDER BY member_count DESC, level_name ASC",
-                ARRAY_A
+                'ARRAY_A'
             );
             if (is_array($level_rows)) {
                 foreach ($level_rows as $level_row) {
@@ -1214,31 +1209,29 @@ final class Board_Dashboard
 
         $now = gmdate('Y-m-d H:i:s');
         foreach ($period_defs as $period_key => $period_def) {
-            $days = (int) ($period_def['days'] ?? 0);
-            $label = (string) ($period_def['label'] ?? $period_key);
+            $days = (int) $period_def['days'];
+            $label = (string) $period_def['label'];
             $signups = 0;
             $logins = 0;
 
-            if ($days > 0) {
-                $start_ts = time() - ($days * DAY_IN_SECONDS);
-                $start_dt = gmdate('Y-m-d H:i:s', $start_ts);
+            $start_ts = time() - ($days * DAY_IN_SECONDS);
+            $start_dt = gmdate('Y-m-d H:i:s', $start_ts);
 
-                foreach ($login_daily as $day => $count) {
-                    $day_ts = strtotime((string) $day . ' 00:00:00 UTC');
-                    if ($day_ts !== false && $day_ts >= $start_ts) {
-                        $logins += (int) $count;
-                    }
+            foreach ($login_daily as $day => $count) {
+                $day_ts = strtotime((string) $day . ' 00:00:00 UTC');
+                if ($day_ts !== false && $day_ts >= $start_ts) {
+                    $logins += (int) $count;
                 }
+            }
 
-                if (isset($wpdb) && $wpdb instanceof \wpdb) {
-                    $users_table = $wpdb->users;
-                    $signup_sql = $wpdb->prepare(
-                        "SELECT COUNT(*) FROM {$users_table} WHERE user_registered >= %s AND user_registered <= %s",
-                        $start_dt,
-                        $now
-                    );
-                    $signups = (int) $wpdb->get_var($signup_sql);
-                }
+            if (isset($wpdb) && $wpdb instanceof \wpdb) {
+                $users_table = $wpdb->users;
+                $signup_sql = $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$users_table} WHERE user_registered >= %s AND user_registered <= %s",
+                    $start_dt,
+                    $now
+                );
+                $signups = (int) $wpdb->get_var($signup_sql);
             }
 
             $summary['periods'][$period_key] = array(
@@ -1301,7 +1294,7 @@ final class Board_Dashboard
 
         $status_rows = $wpdb->get_results(
             "SELECT status, COUNT(*) AS c FROM {$actions_table} GROUP BY status",
-            ARRAY_A
+            'ARRAY_A'
         );
         if (is_array($status_rows)) {
             foreach ($status_rows as $status_row) {
@@ -1331,7 +1324,7 @@ final class Board_Dashboard
                 "SELECT status, COUNT(*) AS c FROM {$actions_table} WHERE scheduled_date_gmt >= %s GROUP BY status",
                 $recent_since
             ),
-            ARRAY_A
+            'ARRAY_A'
         );
         if (is_array($recent_rows)) {
             foreach ($recent_rows as $recent_row) {
@@ -1353,7 +1346,7 @@ final class Board_Dashboard
 
         $failed_hooks = $wpdb->get_results(
             "SELECT hook, COUNT(*) AS c FROM {$actions_table} WHERE status = 'failed' GROUP BY hook ORDER BY c DESC LIMIT 3",
-            ARRAY_A
+            'ARRAY_A'
         );
         if (is_array($failed_hooks)) {
             foreach ($failed_hooks as $failed_hook) {
@@ -1403,7 +1396,7 @@ final class Board_Dashboard
 
         $status_rows = $wpdb->get_results(
             "SELECT status, COUNT(*) AS c FROM {$waitlist_table} GROUP BY status",
-            ARRAY_A
+            'ARRAY_A'
         );
 
         if (is_array($status_rows)) {
@@ -1468,7 +1461,7 @@ final class Board_Dashboard
 
         $subscriber_rows = $wpdb->get_results(
             "SELECT status, COUNT(*) AS c FROM {$subscriber_table} GROUP BY status",
-            ARRAY_A
+            'ARRAY_A'
         );
         if (is_array($subscriber_rows)) {
             foreach ($subscriber_rows as $subscriber_row) {
@@ -1965,7 +1958,7 @@ final class Board_Dashboard
         }
 
         if (preg_match('/^\d{4}-\d{2}-\d{2}/', $value, $matches) === 1) {
-            return (string) ($matches[0] ?? '');
+            return (string) $matches[0];
         }
 
         return '';
@@ -2032,8 +2025,15 @@ final class Board_Dashboard
         $variance_total = 0.0;
 
         foreach ($order_ids as $order_id) {
-            $order = wc_get_order((int) $order_id);
-            if (! $order) {
+            if ($order_id instanceof \WC_Order) {
+                $order = $order_id;
+            } elseif (is_scalar($order_id)) {
+                $order = wc_get_order((int) $order_id);
+            } else {
+                continue;
+            }
+
+            if (! $order instanceof \WC_Order) {
                 continue;
             }
 
@@ -2068,10 +2068,10 @@ final class Board_Dashboard
         usort(
             $mismatches,
             static function (array $left, array $right): int {
-                $left_abs = abs((float) ($left['variance'] ?? 0.0));
-                $right_abs = abs((float) ($right['variance'] ?? 0.0));
+                $left_abs = abs((float) $left['variance']);
+                $right_abs = abs((float) $right['variance']);
                 if ($left_abs === $right_abs) {
-                    return (int) ($left['order_id'] ?? 0) <=> (int) ($right['order_id'] ?? 0);
+                    return (int) $left['order_id'] <=> (int) $right['order_id'];
                 }
 
                 return $right_abs <=> $left_abs;
