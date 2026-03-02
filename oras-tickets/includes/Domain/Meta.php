@@ -25,4 +25,10 @@ final class Meta {
      * Versioned envelope for migrations.
      */
     public const META_KEY_TICKETS = '_oras_tickets_v1';
+
+    /**
+     * Single meta key on the event that stores door prize definitions.
+     * Versioned envelope for migrations.
+     */
+    public const META_KEY_DOOR_PRIZES = '_oras_door_prizes_v1';
 }

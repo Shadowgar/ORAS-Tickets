@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Admin;
 
 use ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox;
+use ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox;
 use ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Ticket_Collection;
@@ -132,6 +133,25 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 true
             );
         }
+
+        if ( ! wp_script_is( 'oras-door-prizes-metabox', 'enqueued' ) ) {
+            wp_enqueue_script(
+                'oras-door-prizes-metabox',
+                ORAS_TICKETS_URL . 'assets/admin/event-door-prizes-metabox.js',
+                array(),
+                $this->assetVersion( 'assets/admin/event-door-prizes-metabox.js' ),
+                true
+            );
+        }
+
+        if ( ! wp_style_is( 'oras-door-prizes-metabox', 'enqueued' ) ) {
+            wp_enqueue_style(
+                'oras-door-prizes-metabox',
+                ORAS_TICKETS_URL . 'assets/admin/event-door-prizes-metabox.css',
+                array(),
+                $this->assetVersion( 'assets/admin/event-door-prizes-metabox.css' )
+            );
+        }
     }
 
     public function render_metabox( \WP_Post $post ): void {
@@ -152,6 +172,12 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
 
         $speaker_envelope = get_post_meta( $post->ID, '_oras_speakers_v1', true );
         $speaker_count    = is_array( $speaker_envelope ) ? count( $speaker_envelope ) : 0;
+
+        $door_prizes_envelope = Event_Door_Prizes_Metabox::load_envelope( $post->ID );
+        $door_prize_items     = isset( $door_prizes_envelope['items'] ) && is_array( $door_prizes_envelope['items'] ) ? $door_prizes_envelope['items'] : array();
+        $door_prize_count     = count( $door_prize_items );
+        $save_event_label     = __( 'Save Event', 'oras-tickets' );
+        $saving_event_label   = __( 'Saving…', 'oras-tickets' );
         ?>
         <div id="oras-events-addon" class="oras-events-addon" data-post-id="<?php echo esc_attr( (string) $post->ID ); ?>">
             <header class="oras-events-addon__header">
@@ -164,9 +190,11 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                     <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Tickets', 'oras-tickets' ), $ticket_count ) ); ?></span>
                     <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Days', 'oras-tickets' ), $agenda_count ) ); ?></span>
                     <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Speakers', 'oras-tickets' ), $speaker_count ) ); ?></span>
+                    <span class="oras-events-addon__badge"><?php echo esc_html( sprintf( __( '%d Door Prizes', 'oras-tickets' ), $door_prize_count ) ); ?></span>
                     <span class="oras-events-addon__badge <?php echo $rsvp_enabled ? 'is-success' : 'is-muted'; ?>">
                         <?php echo esc_html( $rsvp_enabled ? __( 'RSVP Enabled', 'oras-tickets' ) : __( 'RSVP Disabled', 'oras-tickets' ) ); ?>
                     </span>
+                    <button type="button" class="button button-primary oras-events-addon-save-trigger" data-saving-label="<?php echo esc_attr( $saving_event_label ); ?>" data-default-label="<?php echo esc_attr( $save_event_label ); ?>"><?php echo esc_html( $save_event_label ); ?></button>
                 </div>
             </header>
 
@@ -175,6 +203,7 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                 <button type="button" id="oras-events-tab-agenda" class="nav-tab oras-events-addon__tab" data-tab="agenda" role="tab" aria-controls="oras-events-panel-agenda" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'Agenda', 'oras-tickets' ); ?></button>
                 <button type="button" id="oras-events-tab-rsvp" class="nav-tab oras-events-addon__tab" data-tab="rsvp" role="tab" aria-controls="oras-events-panel-rsvp" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'RSVP', 'oras-tickets' ); ?></button>
                 <button type="button" id="oras-events-tab-speakers" class="nav-tab oras-events-addon__tab" data-tab="speakers" role="tab" aria-controls="oras-events-panel-speakers" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'Speakers', 'oras-tickets' ); ?></button>
+                <button type="button" id="oras-events-tab-door-prizes" class="nav-tab oras-events-addon__tab" data-tab="door-prizes" role="tab" aria-controls="oras-events-panel-door-prizes" aria-selected="false" tabindex="-1"><?php echo esc_html__( 'Door Prizes', 'oras-tickets' ); ?></button>
             </div>
 
             <div class="oras-events-addon__panels">
@@ -201,6 +230,16 @@ final class Event_Addon_Metabox { // NOSONAR legacy WP class naming
                         <?php ( new Event_Speakers_Metabox() )->render_metabox( $post ); ?>
                     </div>
                 </section>
+
+                <section id="oras-events-panel-door-prizes" class="oras-events-addon__panel" data-panel="door-prizes" role="tabpanel" aria-labelledby="oras-events-tab-door-prizes" hidden>
+                    <div class="oras-events-addon__panel-inner">
+                        <?php Event_Door_Prizes_Metabox::render( $post ); ?>
+                    </div>
+                </section>
+            </div>
+
+            <div class="oras-events-addon__save-bar">
+                <button type="button" class="button button-primary oras-events-addon-save-trigger" data-saving-label="<?php echo esc_attr( $saving_event_label ); ?>" data-default-label="<?php echo esc_attr( $save_event_label ); ?>"><?php echo esc_html( $save_event_label ); ?></button>
             </div>
         </div>
         <?php

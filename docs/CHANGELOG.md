@@ -1,5 +1,110 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Strict Phase 1 Envelope Regression Pass
+
+Code:
+- Extended Phase 1 regression depth in:
+  - `oras-tickets/tools/core-regression-checks.php`
+- Added deterministic assertions for:
+  - unsupported ticket-envelope schema fallback (`load_for_event` returns empty collection),
+  - ticket-key fallback when `ticket_key` is omitted in stored row payload,
+  - ticket-key generation invariants (12-char length + consecutive uniqueness).
+
+Validation:
+- `php -l oras-tickets/tools/core-regression-checks.php`
+- `wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/core-regression-checks.php`
+- All assertions pass in wp-env runtime.
+
+## 2026-03-02 — Full Phase Completeness Audit + Strict Phase 0 Pass
+
+Docs:
+- Added full codebase audit artifact with recalculated per-phase completion percentages:
+  - `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
+- Synced operational status docs to audited baseline:
+  - `docs/MASTER_EXECUTION_TRACKER.md`
+  - `docs/PROJECT_STATE.md`
+  - `docs/CURRENT_STATE.md`
+  - `docs/PHASE_COMPLETION_SWEEP.md`
+
+Phase 0 hardening (strict-order pass):
+- Expanded `oras-tickets/tools/core-regression-checks.php` capability-boundary coverage to verify:
+  - all `Capabilities::CAPS` are granted to administrator and denied to subscriber,
+  - all `Capabilities::TREASURER_ONLY_CAPS` are granted to administrator and denied to subscriber.
+- Re-ran wp-env checks with passing assertions:
+  - `wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/core-regression-checks.php`
+  - `wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/bootstrap-regression-checks.php`
+
+## 2026-03-02 — Door Prize Feature Kickoff (Phase 11.4 start)
+
+Code:
+- Added first implementation slice for event door prizes:
+  - `oras-tickets/includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php`
+  - `oras-tickets/includes/Frontend/Door_Prizes.php`
+  - `oras-tickets/assets/admin/event-door-prizes-metabox.js`
+  - `oras-tickets/assets/admin/event-door-prizes-metabox.css`
+  - `oras-tickets/assets/css/door-prizes-frontend.css`
+- Wired feature into plugin bootstrap and unified event addon tabs:
+  - `oras-tickets/includes/Bootstrap.php`
+  - `oras-tickets/includes/Admin/Event_Addon_Metabox.php`
+  - `oras-tickets/includes/Domain/Meta.php`
+
+Behavior:
+- Event admins can manage structured door prize rows (title, donor, value, image URL, visibility, display mode).
+- Frontend event pages now render visible door prizes with `inline`, `hover`, and `modal` presentation styles.
+- Visibility filtering supports `public`, `members`, and `internal` audiences.
+
+Follow-up fixes:
+- Fixed door prize add-row behavior in admin metabox interaction.
+- Added `External Link` field to door prize entries.
+- Frontend now links door prize title/media to external URL when present.
+- When no explicit image URL is provided, frontend attempts thumbnail fallback from external link (`og:image`/`twitter:image` or direct image URL).
+- Added `Save Event` quick-action controls inside the unified ORAS event editor panel (header + footer), so admins can save from any ORAS tab without scrolling to the WordPress publish/update controls.
+- Updated Door Prize frontend styling to be WP Dark Mode-aware (`html[data-wp-dark-mode-active]` and theme variants), using mode-aware color tokens so the same card layout remains polished in light and dark views.
+
+Phase completion sweep execution (Phase 0-2 start):
+- Added core hardening regression script for capability and envelope/mapping edge cases:
+  - `oras-tickets/tools/core-regression-checks.php` (wp-env executable path)
+  - `scripts/core-regression-checks.php` (wrapper entrypoint)
+- Verified in wp-env:
+  - admin vs subscriber capability boundary,
+  - missing ticket envelope default shape,
+  - `price_phases` preservation when omitted,
+  - invalid `price_phases` normalization to empty array.
+- Added bootstrap regression hardening script:
+  - `oras-tickets/tools/bootstrap-regression-checks.php`
+- Verified in wp-env:
+  - TEC/Woo dependency presence guard,
+  - bootstrap singleton + `init` hook registration,
+  - required RSVP/waitlist/attendees handler hook registration,
+  - Door Prize frontend renderer filter registration.
+
+Phase completion sweep execution (Phase 3 start):
+- Expanded board analytics layering with a new **KPI Layer (Executive Signals)** section in `includes/Frontend/Board_Dashboard.php`.
+- Added derived board-facing signals:
+  - revenue diversity score,
+  - membership dependency,
+  - waitlist promotion efficiency,
+  - subscriber confirmation ratio,
+  - open-to-form momentum (30d).
+
+## 2026-03-02 — Phase Completion Sweep Plan Added
+
+Docs:
+- Added ordered phase-by-phase unfinished-work checklist:
+  - `docs/PHASE_COMPLETION_SWEEP.md`
+- This plan is intended for post-door-prize execution sequencing from Phase 0 through Phase 12.
+
+## 2026-03-02 — Documentation Authority Alignment (Execution Precedence)
+
+Docs:
+- Updated instruction authority order to align execution with the full governance stack:
+  - file: `copilot-instructions.md`
+  - precedence now reflects tracker/state/queue/boundaries/plan responsibilities.
+
+Behavior:
+- Prevents planning drift caused by conflicting “single source of truth” wording.
+- Reinforces gate-first execution (Phase tracker + state enforcement before queue work).
+
 ## 2026-03-02 — Phase 5 Task 2 Concurrency Regression Coverage
 
 Code:

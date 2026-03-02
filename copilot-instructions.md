@@ -1,10 +1,12 @@
 # ORAS Events Add-On (repo: ORAS-Tickets) — Copilot Instructions
 
-Authority:
+Authority (apply in this order):
 
-- docs/CURRENT_STATE.md is the single source of truth for phase + scope.
-- docs/NEXT.md is the current objective. Do not work outside it.
-- docs/ARCHITECTURE_BOUNDARIES.md defines allowed code paths.
+- docs/MASTER_EXECUTION_TRACKER.md is authoritative for phase status, completion, and advancement gates.
+- docs/CURRENT_STATE.md and docs/PROJECT_STATE.md define current enforcement mode and operational constraints.
+- docs/NEXT.md is the immediate ordered queue within the active gate; do not skip order unless explicitly approved.
+- docs/ARCHITECTURE_BOUNDARIES.md defines allowed code paths and prohibited implementation areas.
+- docs/MASTER_DEVELOPMENT_PLAN.md is strategic baseline scope.
 - docs/CHANGELOG.md is append-only; do not rewrite history.
 
 Non-negotiables:

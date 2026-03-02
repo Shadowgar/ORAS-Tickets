@@ -1,6 +1,6 @@
 # PROJECT_STATE — Canonical Project Definition
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Project Identity
 - Name: ORAS Events Add-On
@@ -33,8 +33,11 @@ Provide deterministic, auditable, ORAS-specific event operations on top of WordP
 
 If completion percentages differ, `MASTER_EXECUTION_TRACKER.md` wins.
 
+Current recalculation artifact:
+- `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
+
 ## Current Project Maturity (Master-plan aligned)
-- Overall completion: **~56%**
+- Overall completion: **58.5%**
 - Core ticketing and reporting foundations are production-capable.
 - Phase 5 is partially complete and currently in hardening mode.
 - Phases 6+ are mostly planned and should not advance until Phase 5 completion gates are satisfied.

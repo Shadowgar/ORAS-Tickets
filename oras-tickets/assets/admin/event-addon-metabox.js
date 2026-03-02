@@ -93,6 +93,73 @@
 		});
 	}
 
+	function setSaveButtonsSaving(container, saving) {
+		toArray(container.querySelectorAll('.oras-events-addon-save-trigger')).forEach(function (button) {
+			const defaultLabel = button.dataset.defaultLabel || 'Save Event';
+			const savingLabel = button.dataset.savingLabel || 'Saving…';
+			button.disabled = !!saving;
+			button.textContent = saving ? savingLabel : defaultLabel;
+		});
+	}
+
+	function triggerEventSave(container) {
+		setSaveButtonsSaving(container, true);
+
+		if (globalThis.tinyMCE && typeof globalThis.tinyMCE.triggerSave === 'function') {
+			globalThis.tinyMCE.triggerSave();
+		}
+
+		const postForm = document.getElementById('post');
+		if (postForm) {
+			const publish = postForm.querySelector('#publish');
+			if (publish && !publish.disabled) {
+				publish.click();
+				return;
+			}
+
+			const saveDraft = postForm.querySelector('#save-post');
+			if (saveDraft && !saveDraft.disabled) {
+				saveDraft.click();
+				return;
+			}
+		}
+
+		if (typeof globalThis.wp?.data?.dispatch === 'function') {
+			const editorDispatch = globalThis.wp.data.dispatch('core/editor');
+			if (editorDispatch && typeof editorDispatch.savePost === 'function') {
+				editorDispatch.savePost();
+				return;
+			}
+		}
+
+		setSaveButtonsSaving(container, false);
+	}
+
+	function setupSaveTriggers(container) {
+		container.addEventListener('click', function (event) {
+			const saveButton = event.target.closest('.oras-events-addon-save-trigger');
+			if (!saveButton || !container.contains(saveButton)) {
+				return;
+			}
+
+			event.preventDefault();
+			if (saveButton.disabled) {
+				return;
+			}
+
+			triggerEventSave(container);
+		});
+
+		globalThis.setInterval(function () {
+			const publish = document.querySelector('#publish');
+			const saveDraft = document.querySelector('#save-post');
+			const canReset = (publish && !publish.disabled) || (saveDraft && !saveDraft.disabled);
+			if (canReset) {
+				setSaveButtonsSaving(container, false);
+			}
+		}, 1200);
+	}
+
 	function updateDaySummary(day) {
 		var titleEl = day.querySelector('.oras-card__name');
 		var metaEl = day.querySelector('.oras-card__meta');
@@ -325,6 +392,7 @@
 		}
 
 		setupTabs(container);
+		setupSaveTriggers(container);
 
 		var defaultTab = 'tickets';
 		var postId = container.dataset.postId;

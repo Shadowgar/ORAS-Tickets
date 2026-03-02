@@ -1,6 +1,6 @@
 # ORAS-Tickets Master Execution Tracker
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Purpose
 This is the operational source of truth for execution progress.
@@ -21,36 +21,38 @@ If phase status conflicts across docs, this file wins.
 
 | Phase | Summary | Completion | Status | Decision |
 |---|---|---:|---|---|
-| 0 | Foundations / bootstrap / capabilities | 95% | LOCKED | keep |
-| 1 | Ticket model + versioned envelope | 95% | LOCKED | keep |
-| 2 | Woo mapping + commerce integrity | 95% | LOCKED | keep |
-| 3 | Reporting, pricing, member APIs, print | 85% | LOCKED | polish only |
-| 4 | Speakers + agenda + recurrence guardrail | 88% | ACTIVE | polish UI + archive refinement |
-| 5 | Registration + capacity intelligence | 92% | ACTIVE | finish soak + signoff |
-| 6 | Advanced ticketing intelligence | 8% | PLANNED | blocked by Phase 5 completion |
-| 7 | Speaker intelligence expansion | 23% | PLANNED | blocked by Phase 4/5 polish |
-| 8 | Virtual/hybrid advanced features | 15% | PLANNED | keep scoped to add-on rules |
-| 9 | Member Hub expansion + board dashboard surface | 38% | PLANNED | build after Phase 5/6 baseline |
-| 10 | Financial intelligence + board analytics layer | 17% | PLANNED | expand from existing reports |
-| 11 | Discovery and UX enhancements | 5% | PLANNED | defer until core stabilizes |
-| 12 | Automation and notifications | 0% | PLANNED | start only after data model maturity |
+| 0 | Foundations / bootstrap / capabilities | 98% | LOCKED | keep |
+| 1 | Ticket model + versioned envelope | 97% | LOCKED | keep |
+| 2 | Woo mapping + commerce integrity | 97% | LOCKED | keep |
+| 3 | Reporting, pricing, member APIs, print | 88% | LOCKED | polish only |
+| 4 | Speakers + agenda + recurrence guardrail | 91% | ACTIVE | polish UI + archive refinement |
+| 5 | Registration + capacity intelligence | 94% | ACTIVE | finish soak + signoff |
+| 6 | Advanced ticketing intelligence | 12% | PLANNED | blocked by Phase 5 completion |
+| 7 | Speaker intelligence expansion | 35% | PLANNED | blocked by Phase 4/5 polish |
+| 8 | Virtual/hybrid advanced features | 22% | PLANNED | keep scoped to add-on rules |
+| 9 | Member Hub expansion + board dashboard surface | 48% | PLANNED | build after Phase 5/6 baseline |
+| 10 | Financial intelligence + board analytics layer | 42% | PLANNED | expand from existing reports |
+| 11 | Discovery and UX enhancements | 28% | PLANNED | defer until core stabilizes |
+| 12 | Automation and notifications | 8% | PLANNED | start only after data model maturity |
 
-Overall completion (master-plan aligned): **~56%**
+Overall completion (master-plan aligned): **58.5%**
+
+Recalculation source: `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
 
 ## Phase Scoring Rationale (Why Each % Is Not 100 Yet)
-- Phase 0 (95%): architecture/capability/bootstrap baseline is stable; remaining 5% is reserved for stronger regression automation around bootstrap/capability invariants.
-- Phase 1 (95%): versioned ticket envelope is stable in production paths; remaining 5% is deeper migration/edge-case test depth, not feature gaps.
-- Phase 2 (95%): Woo mapping and commerce integrity are stable; remaining 5% is defensive edge-case and lifecycle verification breadth.
-- Phase 3 (85%): core reports and exports exist; advanced analytics depth and board-ready KPI layering are still missing.
-- Phase 4 (88%): speaker/agenda baseline is strong; archive refinement and final UI polish remain open.
-- Phase 5 (92%): RSVP/waitlist/capacity baseline, queue operations, audit surface, concurrency locking hardening, and verification suite/CI are in place; remaining work is soak/regression depth and final signoff.
-- Phase 6 (8%): advanced ticket intelligence (QR/check-in/reservations) is largely unstarted by design.
-- Phase 7 (23%): speaker intelligence expansion has partial groundwork only.
-- Phase 8 (15%): virtual/hybrid advanced automation is planned but mostly unimplemented.
-- Phase 9 (38%): member-facing baseline exists, but major slices (RSVP history, speaking history, invoices, board dashboard surface) are pending.
-- Phase 10 (17%): baseline reporting exists, but advanced suite, invoice/refund intelligence, and board analytics data layer are pending.
-- Phase 11 (5%): discovery UX enhancements are intentionally deferred.
-- Phase 12 (0%): automation/notification system has not started.
+- Phase 0 (98%): architecture/capability/bootstrap baseline is stable with expanded regression automation around bootstrap/capability invariants.
+- Phase 1 (97%): versioned ticket envelope is stable in production paths; small residual depth remains around migration/edge-case test breadth.
+- Phase 2 (97%): Woo mapping and commerce integrity are stable; remaining gap is primarily additional lifecycle edge-case verification breadth.
+- Phase 3 (88%): core reports and exports exist with initial KPI layering; deeper analytics and board packet depth remain open.
+- Phase 4 (91%): speaker/agenda baseline is strong with history/indexing coverage; archive refinement and final UI polish remain open.
+- Phase 5 (94%): RSVP/waitlist/capacity baseline, queue operations, audit surface, concurrency hardening, and verification suite/CI are in place; remaining work is soak depth and final signoff evidence.
+- Phase 6 (12%): advanced ticket intelligence (QR/check-in/reservations) remains largely unbuilt; current score reflects foundational capability/identity primitives only.
+- Phase 7 (35%): speaker history/indexing groundwork is implemented, while analytics and submission pipelines remain unbuilt.
+- Phase 8 (22%): virtual access baseline exists, but Zoom sync and hybrid operational layers are still unimplemented.
+- Phase 9 (48%): member-facing ticket baseline exists across ORAS Member Hub + API support; major slices (RSVP history, speaking history, invoices, complete board surface) remain pending.
+- Phase 10 (42%): advanced financial implementation depth increased significantly via QuickBooks module and board analytics scaffolding; invoice/refund intelligence remains pending.
+- Phase 11 (28%): discovery UX suite is still mostly deferred, but Door Prize system is now implemented in admin + frontend.
+- Phase 12 (8%): limited notification pathways exist, but reminder/follow-up automation has not been implemented.
 
 ## 2026-02-25 Hardening Update
 Completed in code:

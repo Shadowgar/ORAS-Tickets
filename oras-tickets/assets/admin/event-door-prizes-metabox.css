@@ -1,0 +1,12 @@
+#oras-door-prizes-metabox .regular-text {
+	width: 100%;
+	max-width: 260px;
+}
+
+#oras-door-prizes-metabox table td {
+	vertical-align: top;
+}
+
+#oras-door-prizes-metabox #oras-door-prize-add {
+	margin-top: 8px;
+}

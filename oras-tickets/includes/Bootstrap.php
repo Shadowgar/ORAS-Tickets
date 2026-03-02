@@ -20,6 +20,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Speaker_CPT.php'; // NOSONAR leg
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Event_Speakers_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Agenda_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Metabox.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php'; // NOSONAR legacy include
@@ -31,6 +32,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Dashboard.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
@@ -139,6 +141,7 @@ final class Bootstrap
         \ORAS\Tickets\Frontend\Virtual_Access::register();
         \ORAS\Tickets\Frontend\Event_RSVP::register();
         \ORAS\Tickets\Frontend\Board_Dashboard::register();
+        \ORAS\Tickets\Frontend\Door_Prizes::register();
         \ORAS\Tickets\Templates\Template_Loader::register();
 
         // Admin-only (or WP-CLI): register ticket metabox and admin hub.
@@ -148,6 +151,7 @@ final class Bootstrap
             $event_addon_metabox->register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::register();
+            \ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox::register();
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php'; // NOSONAR legacy include
             \ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::register();
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php'; // NOSONAR legacy include

@@ -89,6 +89,26 @@ final class Board_Dashboard
         $merch_mix     = $gross_sales > 0 ? (($merch_sales / $gross_sales) * 100) : 0.0;
         $membership_mix = $gross_sales > 0 ? (($membership_sales / $gross_sales) * 100) : 0.0;
 
+        $revenue_stream_count = 0;
+        foreach (array($ticket_sales, $merch_sales, $membership_sales, $donation_sales, $other_sales) as $stream_amount) {
+            if ((float) $stream_amount > 0.0) {
+                ++$revenue_stream_count;
+            }
+        }
+        $revenue_diversity_score = ($revenue_stream_count / 5) * 100;
+        $membership_dependency   = $estimated_total_inflow > 0 ? ((($membership_sales + $pmpro_direct_sales) / $estimated_total_inflow) * 100) : 0.0;
+        $waitlist_efficiency     = (float) ($waitlist_summary['promotion_efficiency'] ?? 0.0);
+
+        $subscribed_count        = (int) ($engagement_summary['subscribed_count'] ?? 0);
+        $unconfirmed_count       = (int) ($engagement_summary['unconfirmed_count'] ?? 0);
+        $unsubscribed_count      = (int) ($engagement_summary['unsubscribed_count'] ?? 0);
+        $engagement_total        = $subscribed_count + $unconfirmed_count + $unsubscribed_count;
+        $subscriber_confirmation = $engagement_total > 0 ? (($subscribed_count / $engagement_total) * 100) : 0.0;
+
+        $forms_30d               = (int) ($engagement_summary['form_submissions_30d'] ?? 0);
+        $opens_30d               = (int) ($engagement_summary['opens_30d'] ?? 0);
+        $open_to_form_rate       = $forms_30d > 0 ? (($opens_30d / $forms_30d) * 100) : 0.0;
+
         ob_start();
         ?>
         <div class="oras-board-dashboard">
@@ -593,6 +613,100 @@ final class Board_Dashboard
                 <?php if ($engagement_as_of !== '') : ?>
                     <p class="oras-board-note"><?php echo esc_html__('Engagement funnel as of: ', 'oras-tickets') . esc_html(self::format_as_of($engagement_as_of)); ?></p>
                 <?php endif; ?>
+            </div>
+
+            <div class="oras-board-section">
+                <h3>
+                    <?php echo esc_html__('KPI Layer (Executive Signals)', 'oras-tickets'); ?>
+                    <span class="oras-board-role-pill"><?php echo esc_html__('Board View', 'oras-tickets'); ?></span>
+                </h3>
+                <table class="oras-board-table" aria-label="<?php echo esc_attr__('Executive KPI signal layer', 'oras-tickets'); ?>">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html__('Signal', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Value', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Status', 'oras-tickets'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $revenue_diversity_status = 'down';
+                        if ($revenue_diversity_score >= 60) {
+                            $revenue_diversity_status = 'up';
+                        } elseif ($revenue_diversity_score >= 40) {
+                            $revenue_diversity_status = 'watch';
+                        }
+
+                        $membership_dependency_status = 'down';
+                        if ($membership_dependency <= 45) {
+                            $membership_dependency_status = 'up';
+                        } elseif ($membership_dependency <= 65) {
+                            $membership_dependency_status = 'watch';
+                        }
+
+                        $waitlist_efficiency_status = 'down';
+                        if ($waitlist_efficiency >= 50) {
+                            $waitlist_efficiency_status = 'up';
+                        } elseif ($waitlist_efficiency >= 30) {
+                            $waitlist_efficiency_status = 'watch';
+                        }
+
+                        $subscriber_confirmation_status = 'down';
+                        if ($subscriber_confirmation >= 60) {
+                            $subscriber_confirmation_status = 'up';
+                        } elseif ($subscriber_confirmation >= 40) {
+                            $subscriber_confirmation_status = 'watch';
+                        }
+
+                        $open_to_form_status = 'down';
+                        if ($open_to_form_rate >= 40) {
+                            $open_to_form_status = 'up';
+                        } elseif ($open_to_form_rate >= 20) {
+                            $open_to_form_status = 'watch';
+                        }
+
+                        $kpi_rows = array(
+                            array(
+                                'label'  => __('Revenue diversity score', 'oras-tickets'),
+                                'value'  => number_format_i18n($revenue_diversity_score, 2) . '%',
+                                'status' => $revenue_diversity_status,
+                            ),
+                            array(
+                                'label'  => __('Membership dependency', 'oras-tickets'),
+                                'value'  => number_format_i18n($membership_dependency, 2) . '%',
+                                'status' => $membership_dependency_status,
+                            ),
+                            array(
+                                'label'  => __('Waitlist promotion efficiency', 'oras-tickets'),
+                                'value'  => number_format_i18n($waitlist_efficiency, 2) . '%',
+                                'status' => $waitlist_efficiency_status,
+                            ),
+                            array(
+                                'label'  => __('Subscriber confirmation ratio', 'oras-tickets'),
+                                'value'  => number_format_i18n($subscriber_confirmation, 2) . '%',
+                                'status' => $subscriber_confirmation_status,
+                            ),
+                            array(
+                                'label'  => __('Open-to-form momentum (30d)', 'oras-tickets'),
+                                'value'  => number_format_i18n($open_to_form_rate, 2) . '%',
+                                'status' => $open_to_form_status,
+                            ),
+                        );
+                        foreach ($kpi_rows as $kpi_row) :
+                            $status = sanitize_key((string) ($kpi_row['status'] ?? 'watch'));
+                            if (! in_array($status, array('up', 'watch', 'down'), true)) {
+                                $status = 'watch';
+                            }
+                        ?>
+                            <tr>
+                                <td><?php echo esc_html((string) ($kpi_row['label'] ?? '')); ?></td>
+                                <td><?php echo esc_html((string) ($kpi_row['value'] ?? '')); ?></td>
+                                <td><span class="oras-board-chip <?php echo esc_attr($status); ?>"><?php echo esc_html(strtoupper($status)); ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <p class="oras-board-note"><?php echo esc_html__('Signal layer uses derived website metrics for board-level direction and does not replace Treasurer closeout reporting.', 'oras-tickets'); ?></p>
             </div>
 
             <?php if (! $can_view_reconciliation) : ?>

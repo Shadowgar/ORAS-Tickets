@@ -421,7 +421,7 @@ final class Sync_Orchestrator {
                     $order->update_meta_data( '_oras_qbo_synced_at', gmdate( 'Y-m-d H:i:s' ) );
                     $order->update_meta_data( self::META_DOC_NUMBER, $doc_number );
                     $order->update_meta_data( self::META_LAST_INTUIT_TID, $intuit_tid );
-                    $order->delete_meta_data( '_oras_qbo_sync_error' );
+                    $this->deleteOrderMeta( $order, '_oras_qbo_sync_error' );
                     $order->save();
 
                     $this->retry_handler->mark_success( $order );
@@ -500,10 +500,10 @@ final class Sync_Orchestrator {
         $order->update_meta_data( self::META_LAST_INTUIT_TID, $intuit_tid );
         $order->update_meta_data( self::META_SPLIT_SNAPSHOT, wp_json_encode( $snapshot ) );
         $order->update_meta_data( '_oras_qbo_last_payload_hash', hash( 'sha256', wp_json_encode( $payload ) ?: '' ) );
-        $order->delete_meta_data( self::META_WAIT_NEXT_CHECK_AT );
-        $order->delete_meta_data( self::META_WAIT_LAST_CHECK_AT );
-        $order->delete_meta_data( self::META_WAIT_FIRST_AT );
-        $order->delete_meta_data( self::META_WAIT_ATTEMPTS );
+        $this->deleteOrderMeta( $order, self::META_WAIT_NEXT_CHECK_AT );
+        $this->deleteOrderMeta( $order, self::META_WAIT_LAST_CHECK_AT );
+        $this->deleteOrderMeta( $order, self::META_WAIT_FIRST_AT );
+        $this->deleteOrderMeta( $order, self::META_WAIT_ATTEMPTS );
 
         if ( ! empty( $source_match ) ) {
             $order->update_meta_data( '_oras_qbo_reclass_source_txn_key', (string) ( $source_match['key'] ?? '' ) );
@@ -512,8 +512,8 @@ final class Sync_Orchestrator {
             $order->update_meta_data( '_oras_qbo_reclass_source_txn_date', (string) ( $source_match['txn_date'] ?? '' ) );
         }
 
-        $order->delete_meta_data( '_oras_qbo_sync_error' );
-        $order->delete_meta_data( '_oras_qbo_sync_error_code' );
+        $this->deleteOrderMeta( $order, '_oras_qbo_sync_error' );
+        $this->deleteOrderMeta( $order, '_oras_qbo_sync_error_code' );
         $order->save();
 
         $this->retry_handler->mark_success( $order );
@@ -670,7 +670,7 @@ final class Sync_Orchestrator {
         );
 
         foreach ( $meta_keys as $meta_key ) {
-            $order->delete_meta_data( $meta_key );
+            $this->deleteOrderMeta( $order, $meta_key );
         }
 
         $order->save();
@@ -712,7 +712,7 @@ final class Sync_Orchestrator {
                 $order->update_meta_data( '_oras_qbo_sync_error_code', 'oras_qbo_wait_expired' );
                 $order->update_meta_data( '_oras_qbo_sync_error', sprintf( 'Source transaction still not found after %d day(s).', $max_days ) );
                 $order->update_meta_data( self::META_WAIT_LAST_CHECK_AT, gmdate( 'Y-m-d H:i:s' ) );
-                $order->delete_meta_data( self::META_WAIT_NEXT_CHECK_AT );
+                $this->deleteOrderMeta( $order, self::META_WAIT_NEXT_CHECK_AT );
                 $order->update_meta_data( self::META_WAIT_ATTEMPTS, (string) $wait_attempts );
                 $order->save();
 
@@ -789,7 +789,9 @@ final class Sync_Orchestrator {
             return (bool) $scheduled;
         }
 
-        $timestamp = wp_next_scheduled( self::ACTION_HOOK, array( $order_id ) );
+        $timestamp = function_exists( 'wp_next_scheduled' )
+            ? call_user_func( 'wp_next_scheduled', self::ACTION_HOOK, array( $order_id ) )
+            : false;
         return ! empty( $timestamp );
     }
 
@@ -802,8 +804,10 @@ final class Sync_Orchestrator {
             return;
         }
 
-        if ( ! wp_next_scheduled( self::ACTION_WAITING_SWEEP_HOOK ) ) {
-            wp_schedule_event( time() + ( 5 * MINUTE_IN_SECONDS ), 'hourly', self::ACTION_WAITING_SWEEP_HOOK );
+        if ( ! function_exists( 'wp_next_scheduled' ) || ! call_user_func( 'wp_next_scheduled', self::ACTION_WAITING_SWEEP_HOOK ) ) {
+            if ( function_exists( 'wp_schedule_event' ) ) {
+                call_user_func( 'wp_schedule_event', time() + ( 5 * MINUTE_IN_SECONDS ), 'hourly', self::ACTION_WAITING_SWEEP_HOOK );
+            }
         }
     }
 
@@ -820,7 +824,9 @@ final class Sync_Orchestrator {
             return;
         }
 
-        wp_schedule_single_event( time() + $delay_seconds, self::ACTION_HOOK, array( $order_id ) );
+        if ( function_exists( 'wp_schedule_single_event' ) ) {
+            call_user_func( 'wp_schedule_single_event', time() + $delay_seconds, self::ACTION_HOOK, array( $order_id ) );
+        }
     }
 
     private function get_initial_sync_delay_minutes(): int {
@@ -883,7 +889,9 @@ final class Sync_Orchestrator {
             return;
         }
 
-        wp_clear_scheduled_hook( self::ACTION_HOOK, array( $order_id ) );
+        if ( function_exists( 'wp_clear_scheduled_hook' ) ) {
+            call_user_func( 'wp_clear_scheduled_hook', self::ACTION_HOOK, array( $order_id ) );
+        }
     }
 
     /**
@@ -892,7 +900,7 @@ final class Sync_Orchestrator {
      * @param \WC_Order $order
      */
     private function clear_queue_state( $order ): void {
-        $order->delete_meta_data( '_oras_qbo_sync_status' );
+        $this->deleteOrderMeta( $order, '_oras_qbo_sync_status' );
         $order->save();
     }
 
@@ -963,7 +971,7 @@ final class Sync_Orchestrator {
         }
 
         $created = $order->get_date_created();
-        if ( ! $created instanceof \WC_DateTime ) {
+        if ( ! is_object( $created ) || ! method_exists( $created, 'getTimestamp' ) ) {
             return new \WP_Error( 'oras_qbo_missing_order_created_date', 'Order created date is missing.' );
         }
 
@@ -982,7 +990,7 @@ final class Sync_Orchestrator {
                 )
             );
 
-            $order_method = sanitize_key( (string) $order->get_payment_method() );
+            $order_method = $this->getOrderPaymentMethod( $order );
             if ( $order_method !== '' && in_array( $order_method, $excluded_methods, true ) ) {
                 return new \WP_Error(
                     'oras_qbo_excluded_payment_method',
@@ -1015,9 +1023,25 @@ final class Sync_Orchestrator {
             'context'       => $this->sanitize_audit_context( $context ),
         );
 
-        add_post_meta( $order_id, '_oras_qbo_audit_entry', wp_json_encode( $entry ), false );
+        if ( function_exists( 'add_post_meta' ) ) {
+            call_user_func( 'add_post_meta', $order_id, '_oras_qbo_audit_entry', wp_json_encode( $entry ), false );
+        }
         $order->update_meta_data( '_oras_qbo_last_audit_event', (string) $entry['event'] );
         $order->save();
+    }
+
+    private function deleteOrderMeta( $order, string $meta_key ): void {
+        if ( is_object( $order ) && method_exists( $order, 'delete_meta_data' ) ) {
+            $order->delete_meta_data( $meta_key );
+        }
+    }
+
+    private function getOrderPaymentMethod( $order ): string {
+        if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) ) {
+            return '';
+        }
+
+        return sanitize_key( (string) $order->get_payment_method() );
     }
 
     /**

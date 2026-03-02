@@ -1,0 +1,146 @@
+.oras-door-prizes {
+	--oras-door-prizes-bg: var(--wpdm-background-color, #ffffff);
+	--oras-door-prizes-surface: var(--wpdm-background-color, #ffffff);
+	--oras-door-prizes-surface-soft: transparent;
+	--oras-door-prizes-border: var(--wpdm-border-color, currentColor);
+	--oras-door-prizes-text: var(--wpdm-text-color, inherit);
+	--oras-door-prizes-muted: var(--wpdm-text-color, inherit);
+	--oras-door-prizes-link: var(--wpdm-link-color, currentColor);
+	--oras-door-prizes-link-hover: var(--wpdm-link-color, currentColor);
+
+	margin-top: 2rem;
+	padding: 1.25rem;
+	border: 1px solid var(--oras-door-prizes-border);
+	border-radius: 0.5rem;
+	background: var(--oras-door-prizes-bg);
+	color: var(--oras-door-prizes-text);
+}
+
+html[data-wp-dark-mode-active] .oras-door-prizes,
+html.wp-dark-mode-theme-darkmode .oras-door-prizes,
+html.wp-dark-mode-theme-chathams .oras-door-prizes,
+html.wp-dark-mode-theme-concord .oras-door-prizes,
+html.wp-dark-mode-theme-mustard .oras-door-prizes,
+html.wp-dark-mode-theme-pumpkin .oras-door-prizes,
+body.wp-dark-mode-active .oras-door-prizes {
+	--oras-door-prizes-bg: var(--wpdm-background-color, inherit);
+	--oras-door-prizes-surface: var(--wpdm-background-color, inherit);
+	--oras-door-prizes-surface-soft: transparent;
+	--oras-door-prizes-border: var(--wpdm-border-color, currentColor);
+	--oras-door-prizes-text: var(--wpdm-text-color, inherit);
+	--oras-door-prizes-muted: var(--wpdm-text-color, inherit);
+	--oras-door-prizes-link: var(--wpdm-link-color, currentColor);
+	--oras-door-prizes-link-hover: var(--wpdm-link-color, currentColor);
+}
+
+.oras-door-prizes__header {
+	margin-bottom: 1rem;
+}
+
+.oras-door-prizes__header h2 {
+	margin: 0 0 0.25rem;
+	font-size: 1.5rem;
+	line-height: 1.2;
+}
+
+.oras-door-prizes__header p {
+	margin: 0;
+	font-size: 0.95rem;
+	color: var(--oras-door-prizes-muted);
+	opacity: 0.85;
+}
+
+.oras-door-prizes__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+}
+
+.oras-door-prizes__list,
+.oras-door-prizes__list li,
+.oras-door-prizes__item {
+	list-style: none !important;
+	margin-left: 0 !important;
+	padding-left: 0 !important;
+}
+
+.oras-door-prizes__item {
+	margin: 0;
+}
+
+.oras-door-prizes__card {
+	display: flex;
+	flex-direction: column;
+	height: auto;
+	border: 1px solid var(--oras-door-prizes-border);
+	border-radius: 0.5rem;
+	overflow: hidden;
+	background: var(--oras-door-prizes-surface);
+}
+
+.oras-door-prizes__media {
+	aspect-ratio: 16 / 10;
+	background: var(--oras-door-prizes-surface-soft);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.5rem;
+}
+
+.oras-door-prizes__media img {
+	max-width: 100%;
+	max-height: 100%;
+	height: auto;
+	object-fit: contain;
+}
+
+.oras-door-prizes__body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding: 0.85rem;
+}
+
+.oras-door-prizes__title {
+	margin: 0;
+	font-size: 1rem;
+	line-height: 1.35;
+}
+
+.oras-door-prizes__title a {
+	color: var(--oras-door-prizes-link);
+	text-decoration: none;
+}
+
+.oras-door-prizes__title a:hover,
+.oras-door-prizes__title a:focus {
+	color: var(--oras-door-prizes-link-hover);
+	text-decoration: underline;
+}
+
+.oras-door-prizes__meta {
+	margin: 0;
+	font-size: 0.9rem;
+	line-height: 1.4;
+	color: var(--oras-door-prizes-muted);
+	opacity: 0.9;
+}
+
+.oras-door-prizes__action {
+	margin: 0.35rem 0 0;
+	padding-top: 0.25rem;
+	font-size: 0.9rem;
+}
+
+.oras-door-prizes__action a {
+	color: var(--oras-door-prizes-link);
+	text-decoration: underline;
+}
+
+.oras-door-prizes__action a:hover,
+.oras-door-prizes__action a:focus {
+	color: var(--oras-door-prizes-link-hover);
+}

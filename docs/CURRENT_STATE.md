@@ -1,10 +1,11 @@
 # CURRENT_STATE — Operational Snapshot
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Authoritative Status
 For phase percentages and advancement rules, use:
 - `docs/MASTER_EXECUTION_TRACKER.md`
+- Recalculation evidence: `docs/PHASE_COMPLETENESS_AUDIT_2026-03-02.md`
 
 ## Current Mode
 **Phase 5 stabilization and completion hardening**.
@@ -127,6 +128,24 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
 - QuickBooks mapping automation expansion:
   - safe add-only event-account auto-map action added to QuickBooks settings,
   - safe add-only auto-map now runs after account refresh and event update when account cache is available.
+
+## What Was Fixed (2026-03-02)
+- Phase completion sweep execution started in strict phase order with Phase 0-2 hardening closure.
+- Added core regression automation script:
+  - `oras-tickets/tools/core-regression-checks.php`
+  - validates capability boundary and ticket envelope/mapping edge cases.
+- Added bootstrap regression automation script:
+  - `oras-tickets/tools/bootstrap-regression-checks.php`
+  - validates dependency guard conditions and required hook registration surface.
+- Both scripts validated in wp-env and now serve as repeatable baseline checks for early-phase hardening gates.
+- Started Phase 3 analytics expansion with first board KPI-layer increment:
+  - new executive-signal KPI section added to Board Dashboard,
+  - adds derived signal coverage for diversification, dependency, waitlist efficiency, and engagement conversion indicators.
+- Continued strict-order early-phase closure with Phase 1 envelope hardening pass:
+  - expanded core regression checks to cover unsupported schema fallback,
+  - added `ticket_key` row-key fallback assertions,
+  - added ticket-key generator invariant checks (length + uniqueness),
+  - validated new checks in wp-env with passing assertions.
 
 ## Remaining Gaps Before Phase 6+
 1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
