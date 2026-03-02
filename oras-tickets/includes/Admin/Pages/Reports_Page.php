@@ -1211,7 +1211,7 @@ final class Reports_Page
 
     /**
      * @param array{after?:string,before?:string} $date_range
-        * @return array{after?:string,before?:string}
+     * @return array{after?:string,before?:string}
      */
     private function build_comparison_date_range(array $date_range): array
     {
