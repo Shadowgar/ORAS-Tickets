@@ -116,9 +116,24 @@ The project should not move into new Phase 6+ implementation until Phase 5 compl
   - `includes/Commerce/Woo/Capacity_Consumption.php` now wraps consume/restore flows in order-scoped idempotency locks,
   - capacity changes are aggregated per order and applied under event-scoped locks,
   - ticket-capacity envelope saves and product stock sync run from locked, fresh event state.
+- QuickBooks reclass sync reliability hardening:
+  - reclass source lookup no longer queries non-queryable `TotalAmt` in QBO SQL filters; amount matching now occurs in deterministic PHP candidate filtering,
+  - source candidate scan includes `Deposit` plus `SalesReceipt`/`Payment`,
+  - source `CustomerRef` scoring and JE line customer-entity propagation added for improved accounting name visibility.
+- QuickBooks waiting queue + operator control expansion:
+  - added `waiting_for_source_txn` orchestration path with bounded polling and escalation to `needs_review`,
+  - added waiting queue processing support in admin and WP-CLI,
+  - added QuickBooks `Pending` and `Sync History` operational tabs with reverse/resync/sync-now actions.
+- QuickBooks mapping automation expansion:
+  - safe add-only event-account auto-map action added to QuickBooks settings,
+  - safe add-only auto-map now runs after account refresh and event update when account cache is available.
 
 ## Remaining Gaps Before Phase 6+
 1. Short operator soak pass remains for the new waitlist queue/history dashboard flows.
+2. QuickBooks Phase 5.3 pre-live completion remains:
+  - execute smoke + reconciliation run after test-server deploy validation window,
+  - complete treasurer signoff on production mapping/cutover policy,
+  - complete Intuit production app approval and one controlled production validation order.
 
 ## Approved Upcoming Scope (Post-Gate)
 - Board Member Dashboard has been approved for the master plan.
@@ -184,6 +199,7 @@ Risk analysis:
 ## Required Next Closure Conditions
 - Maintain and extend WP-CLI integration checks as remaining Phase 5 queue/audit features land.
 - Complete operator soak + UX micro-polish for waitlist queue/history actions.
+- Complete QuickBooks operator soak on pending/history/reversal actions and waiting queue processing.
 - Re-run lint/static checks and update docs in same change set.
 - Add and maintain a compliance checklist + evidence pack for:
   - PCI Security Standards baseline controls relevant to current architecture:

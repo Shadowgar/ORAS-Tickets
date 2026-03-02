@@ -19,6 +19,8 @@ Recent gate progress (2026-03-01):
 - RSVP/waitlist mutation paths were hardened with event-scoped locking.
 - Woo capacity consume/restore paths were hardened with order-scoped idempotency locking + event-scoped atomic updates.
 - CSV exports and admin RSVP dashboard rendering were hardened against spreadsheet-formula and DOM-injection classes.
+- QuickBooks Phase 5.3 implementation was hardened with waiting-queue orchestration, source-match query fixes, and expanded operator controls (pending/history/reversal flows).
+- QuickBooks safe add-only account auto-map now supports operator-triggered and runtime refresh/event-update automation paths.
 
 Compliance note:
 - Phase 5.3 closeout must include documented alignment and evidence for:
@@ -31,6 +33,7 @@ Compliance note:
 - Waitlist architecture depth reaches master-plan expectations. (Implemented 2026-02-25)
 - Promotion and cancellation lifecycle is deterministic and auditable. (Implemented 2026-02-25)
 - Integration checks for RSVP/waitlist/attendees flows exist and pass in CI. (Implemented 2026-02-25)
+- QuickBooks pre-live validation evidence is complete (operator soak + reconciliation + controlled sync/reverse flow verification).
 - Core docs remain synchronized in same PR/change set.
 
 ## Board Dashboard Scope (Approved)

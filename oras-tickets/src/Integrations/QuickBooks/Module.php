@@ -51,6 +51,8 @@ final class Module {
             add_action( 'admin_post_oras_tickets_qbo_approve_order', array( $this, 'handle_approve_order' ) );
             add_action( 'admin_post_oras_tickets_qbo_reverse_order', array( $this, 'handle_reverse_order' ) );
             add_action( 'admin_post_oras_tickets_qbo_resync_order', array( $this, 'handle_resync_order' ) );
+            add_action( 'admin_post_oras_tickets_qbo_auto_map_event_accounts', array( $this, 'handle_auto_map_event_accounts' ) );
+            add_action( 'save_post_tribe_events', array( $this, 'handle_event_saved_auto_map' ), 20, 3 );
         }
 
         if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -223,6 +225,24 @@ final class Module {
         }
 
         $account_cache = $this->extract_account_cache_rows( $accounts );
+        $auto_map_result = $this->auto_map_event_accounts( $account_cache );
+        $auto_added = 0;
+        $auto_kept = 0;
+        $auto_unmatched = 0;
+
+        if ( is_wp_error( $auto_map_result ) ) {
+            $this->logger->warning(
+                'QuickBooks test connection succeeded but auto-map failed',
+                array(
+                    'error' => $auto_map_result->get_error_message(),
+                )
+            );
+        } else {
+            $auto_added = isset( $auto_map_result['added'] ) ? (int) $auto_map_result['added'] : 0;
+            $auto_kept = isset( $auto_map_result['kept'] ) ? (int) $auto_map_result['kept'] : 0;
+            $auto_unmatched = isset( $auto_map_result['unmatched'] ) ? (int) $auto_map_result['unmatched'] : 0;
+        }
+
         Settings::update_quickbooks_settings(
             array(
                 'account_cache' => $account_cache,
@@ -232,7 +252,7 @@ final class Module {
 
         $this->redirect_to_settings(
             array(
-                'oras_qbo_notice' => rawurlencode( sprintf( 'QuickBooks test connection succeeded. Cached %d account(s).', count( $account_cache ) ) ),
+                'oras_qbo_notice' => rawurlencode( sprintf( 'QuickBooks test connection succeeded. Cached %1$d account(s). Auto-map added %2$d, kept %3$d, unmatched %4$d.', count( $account_cache ), $auto_added, $auto_kept, $auto_unmatched ) ),
             )
         );
     }
@@ -318,6 +338,7 @@ final class Module {
 
     public function handle_process_waiting_queue(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_process_waiting_queue' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'pending' );
 
         $limit = isset( $_POST['limit'] ) ? absint( wp_unslash( $_POST['limit'] ) ) : 50;
         $limit = max( 1, min( 250, $limit ) );
@@ -326,20 +347,21 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( sprintf( 'Processed %d waiting order(s).', $processed ) ),
-                'oras_qbo_tab'    => 'pending',
+                'oras_qbo_tab'    => $target_tab,
             )
         );
     }
 
     public function handle_sync_order_now(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_sync_order_now' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'pending' );
 
         $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
         if ( $order_id <= 0 ) {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for sync.' ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -354,7 +376,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -369,13 +391,14 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( $notice ),
-                'oras_qbo_tab'    => 'pending',
+                'oras_qbo_tab'    => $target_tab,
             )
         );
     }
 
     public function handle_approve_order(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_approve_order' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'pending' );
 
         $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
         $sync_now = ! empty( $_POST['sync_now'] );
@@ -383,7 +406,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for approval.' ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -398,7 +421,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -407,20 +430,21 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( sprintf( 'Order #%d approval complete. Status: %s', $order_id, $status ) ),
-                'oras_qbo_tab'    => 'pending',
+                'oras_qbo_tab'    => $target_tab,
             )
         );
     }
 
     public function handle_reverse_order(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_reverse_order' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'pending' );
 
         $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
         if ( $order_id <= 0 ) {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for reversal.' ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -436,7 +460,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -451,20 +475,21 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( $notice ),
-                'oras_qbo_tab'    => 'pending',
+                'oras_qbo_tab'    => $target_tab,
             )
         );
     }
 
     public function handle_resync_order(): void {
         $this->assert_settings_access( 'oras_tickets_qbo_resync_order' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'pending' );
 
         $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
         if ( $order_id <= 0 ) {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for resync.' ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -479,7 +504,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $reset->get_error_message() ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -494,7 +519,7 @@ final class Module {
             $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
-                    'oras_qbo_tab'   => 'pending',
+                    'oras_qbo_tab'   => $target_tab,
                 )
             );
         }
@@ -509,9 +534,106 @@ final class Module {
         $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode( $notice ),
-                'oras_qbo_tab'    => 'pending',
+                'oras_qbo_tab'    => $target_tab,
             )
         );
+    }
+
+    public function handle_auto_map_event_accounts(): void {
+        $this->assert_settings_access( 'oras_tickets_qbo_auto_map_event_accounts' );
+        $target_tab = $this->get_requested_quickbooks_tab( 'settings' );
+
+        $accounts = $this->api_client->fetch_accounts();
+        if ( is_wp_error( $accounts ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'last_error' => $accounts->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( 'Unable to fetch QuickBooks accounts for auto-map: ' . $accounts->get_error_message() ),
+                    'oras_qbo_tab'   => $target_tab,
+                )
+            );
+        }
+
+        $account_cache = $this->extract_account_cache_rows( $accounts );
+        $result        = $this->auto_map_event_accounts( $account_cache );
+
+        if ( is_wp_error( $result ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'account_cache' => $account_cache,
+                    'last_error'    => $result->get_error_message(),
+                )
+            );
+            $this->redirect_to_settings(
+                array(
+                    'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+                    'oras_qbo_tab'   => $target_tab,
+                )
+            );
+        }
+
+        $added     = isset( $result['added'] ) ? (int) $result['added'] : 0;
+        $kept      = isset( $result['kept'] ) ? (int) $result['kept'] : 0;
+        $unmatched = isset( $result['unmatched'] ) ? (int) $result['unmatched'] : 0;
+
+        $this->redirect_to_settings(
+            array(
+                'oras_qbo_notice' => rawurlencode( sprintf( 'Auto-map complete. Added %1$d new mapping(s); kept %2$d existing; unmatched events: %3$d.', $added, $kept, $unmatched ) ),
+                'oras_qbo_tab'    => $target_tab,
+            )
+        );
+    }
+
+    /**
+     * @param int $post_id
+     * @param mixed $post
+     * @param bool $update
+     */
+    public function handle_event_saved_auto_map( int $post_id, $post, bool $update ): void {
+        if ( ! $update || wp_is_post_revision( $post_id ) ) {
+            return;
+        }
+
+        if ( ! $post instanceof \WP_Post ) {
+            return;
+        }
+
+        if ( $post->post_type !== 'tribe_events' ) {
+            return;
+        }
+
+        if ( $post->post_status !== 'publish' && $post->post_status !== 'future' ) {
+            return;
+        }
+
+        $qbo_settings = Settings::get_quickbooks_settings();
+        $account_cache = isset( $qbo_settings['account_cache'] ) && is_array( $qbo_settings['account_cache'] )
+            ? $qbo_settings['account_cache']
+            : array();
+
+        if ( empty( $account_cache ) ) {
+            return;
+        }
+
+        $result = $this->auto_map_event_accounts( $account_cache, array( $post_id ) );
+        if ( is_wp_error( $result ) ) {
+            $this->logger->warning(
+                'QuickBooks auto-map on event save failed',
+                array(
+                    'event_id' => $post_id,
+                    'error'    => $result->get_error_message(),
+                )
+            );
+        }
+    }
+
+    private function get_requested_quickbooks_tab( string $fallback = 'pending' ): string {
+        $tab = isset( $_REQUEST['oras_qbo_tab'] ) ? sanitize_key( (string) wp_unslash( $_REQUEST['oras_qbo_tab'] ) ) : $fallback;
+        return in_array( $tab, array( 'settings', 'pending', 'history' ), true ) ? $tab : $fallback;
     }
 
     private function assert_settings_access( string $nonce_action ): void {
@@ -663,6 +785,195 @@ final class Module {
         } catch ( \Exception $e ) {
             return wp_generate_password( 32, false, false );
         }
+    }
+
+    /**
+     * @param array<int,array<string,string>> $account_cache
+     * @return array<string,string>
+     */
+    private function build_income_account_match_index( array $account_cache ): array {
+        $index = array();
+
+        foreach ( $account_cache as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+
+            $account_id = isset( $row['id'] ) ? trim( (string) $row['id'] ) : '';
+            $type       = isset( $row['type'] ) ? strtolower( trim( (string) $row['type'] ) ) : '';
+            $label      = isset( $row['label'] ) ? trim( (string) $row['label'] ) : '';
+
+            if ( $account_id === '' || $label === '' ) {
+                continue;
+            }
+
+            if ( $type !== 'income' && $type !== 'other income' ) {
+                continue;
+            }
+
+            $normalized_label = $this->normalize_auto_map_label( $label );
+            if ( $normalized_label !== '' && ! isset( $index[ $normalized_label ] ) ) {
+                $index[ $normalized_label ] = $account_id;
+            }
+
+            $parts = array_filter( array_map( 'trim', explode( ':', $label ) ) );
+            if ( ! empty( $parts ) ) {
+                $leaf = (string) end( $parts );
+                $normalized_leaf = $this->normalize_auto_map_label( $leaf );
+                if ( $normalized_leaf !== '' && ! isset( $index[ $normalized_leaf ] ) ) {
+                    $index[ $normalized_leaf ] = $account_id;
+                }
+            }
+        }
+
+        return $index;
+    }
+
+    private function normalize_auto_map_label( string $value ): string {
+        $value = strtolower( wp_strip_all_tags( $value ) );
+        $value = preg_replace( '/[^a-z0-9]+/', '', $value );
+        return is_string( $value ) ? $value : '';
+    }
+
+    /**
+     * @param array<int,array<string,string>> $account_cache
+     * @param array<int,int>|null $event_ids
+     * @return array<string,int>|\WP_Error
+     */
+    private function auto_map_event_accounts( array $account_cache, ?array $event_ids = null ) {
+        $income_match_index = $this->build_income_account_match_index( $account_cache );
+        if ( empty( $income_match_index ) ) {
+            return new \WP_Error( 'oras_qbo_auto_map_no_income_accounts', 'No active QuickBooks income accounts were found to auto-map events.' );
+        }
+
+        $query_args = array(
+            'post_type'      => 'tribe_events',
+            'post_status'    => array( 'publish', 'future' ),
+            'posts_per_page' => 500,
+            'fields'         => 'ids',
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( is_array( $event_ids ) && ! empty( $event_ids ) ) {
+            $query_args['post__in'] = array_values( array_unique( array_map( 'absint', $event_ids ) ) );
+            $query_args['orderby']  = 'post__in';
+        }
+
+        $events = get_posts( $query_args );
+        if ( ! is_array( $events ) || empty( $events ) ) {
+            Settings::update_quickbooks_settings(
+                array(
+                    'account_cache' => $account_cache,
+                    'last_error'    => '',
+                )
+            );
+
+            return array(
+                'added'     => 0,
+                'kept'      => 0,
+                'unmatched' => 0,
+            );
+        }
+
+        $qbo_settings   = Settings::get_quickbooks_settings();
+        $existing_map   = Settings::parse_event_account_map( (string) ( $qbo_settings['event_account_map'] ?? '' ) );
+        $new_pairs      = array();
+        $kept_existing  = 0;
+        $unmatched      = 0;
+
+        foreach ( $events as $event_id ) {
+            $event_id = absint( $event_id );
+            if ( $event_id <= 0 ) {
+                continue;
+            }
+
+            $event_post = get_post( $event_id );
+            if ( ! $event_post instanceof \WP_Post ) {
+                continue;
+            }
+
+            $event_slug = sanitize_title( (string) $event_post->post_name );
+            if ( $event_slug === '' ) {
+                $event_slug = sanitize_title( (string) $event_post->post_title );
+            }
+
+            if ( $event_slug === '' ) {
+                continue;
+            }
+
+            if ( isset( $existing_map[ $event_slug ] ) && trim( (string) $existing_map[ $event_slug ] ) !== '' ) {
+                $kept_existing++;
+                continue;
+            }
+
+            $event_title           = trim( (string) $event_post->post_title );
+            $normalized_event      = $this->normalize_auto_map_label( $event_title );
+            $normalized_event_slug = $this->normalize_auto_map_label( str_replace( '-', ' ', $event_slug ) );
+
+            $matched_account_id = '';
+            if ( $normalized_event !== '' && isset( $income_match_index[ $normalized_event ] ) ) {
+                $matched_account_id = (string) $income_match_index[ $normalized_event ];
+            } elseif ( $normalized_event_slug !== '' && isset( $income_match_index[ $normalized_event_slug ] ) ) {
+                $matched_account_id = (string) $income_match_index[ $normalized_event_slug ];
+            }
+
+            if ( $matched_account_id === '' ) {
+                $unmatched++;
+                continue;
+            }
+
+            $new_pairs[ $event_slug ] = $matched_account_id;
+        }
+
+        if ( ! empty( $new_pairs ) ) {
+            $merged_map = $existing_map;
+            foreach ( $new_pairs as $slug => $account_id ) {
+                if ( ! isset( $merged_map[ $slug ] ) || trim( (string) $merged_map[ $slug ] ) === '' ) {
+                    $merged_map[ $slug ] = (string) $account_id;
+                }
+            }
+
+            Settings::update_quickbooks_settings(
+                array(
+                    'event_account_map' => $this->serialize_event_account_map( $merged_map ),
+                    'account_cache'     => $account_cache,
+                    'last_error'        => '',
+                )
+            );
+        } else {
+            Settings::update_quickbooks_settings(
+                array(
+                    'account_cache' => $account_cache,
+                    'last_error'    => '',
+                )
+            );
+        }
+
+        return array(
+            'added'     => count( $new_pairs ),
+            'kept'      => $kept_existing,
+            'unmatched' => $unmatched,
+        );
+    }
+
+    /**
+     * @param array<string,string> $event_account_map
+     */
+    private function serialize_event_account_map( array $event_account_map ): string {
+        $lines = array();
+        ksort( $event_account_map );
+
+        foreach ( $event_account_map as $slug => $account_id ) {
+            $clean_slug       = sanitize_title( (string) $slug );
+            $clean_account_id = trim( sanitize_text_field( (string) $account_id ) );
+            if ( $clean_slug === '' || $clean_account_id === '' ) {
+                continue;
+            }
+
+            $lines[] = $clean_slug . '=' . $clean_account_id;
+        }
+
+        return implode( "\n", $lines );
     }
 
     private function get_production_security_error(): string {

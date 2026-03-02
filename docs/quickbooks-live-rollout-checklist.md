@@ -1,6 +1,6 @@
 # QuickBooks Live Rollout Checklist (ORAS Tickets)
 
-Last updated: 2026-02-28
+Last updated: 2026-03-01
 
 ## Purpose
 Run a controlled production rollout of ORAS Tickets QuickBooks Revenue Split Sync while Stripe Connector remains active, and verify no duplicate net income effect.
@@ -24,6 +24,9 @@ Run a controlled production rollout of ORAS Tickets QuickBooks Revenue Split Syn
 2. Click `Connect / Reconnect QuickBooks` and authorize the live company.
 3. Click `Test Connection + Refresh Accounts`.
 4. Confirm `Connection Status: Connected` and production mode in the indicator.
+5. Run/confirm safe auto-map behavior:
+- Use `Auto-Map Event Accounts (Safe Add-Only)` once after first account refresh.
+- Confirm existing mappings are unchanged and only missing event-slug mappings are added.
 5. Set income mappings:
 - Clearing Account: use the same account Stripe Connector uses as source/clearing for Woo revenue.
 - Default Ticket Income Account.
@@ -50,7 +53,7 @@ Run a controlled production rollout of ORAS Tickets QuickBooks Revenue Split Syn
 1. Enable ORAS QuickBooks sync if currently disabled.
 2. Place one low-value real Woo order via Stripe and ensure order reaches `completed` (sync safeguard requires completed).
 3. Approve order manually:
-   - admin: `ORAS Tickets > QuickBooks > Order Safety Controls`
+   - admin: `ORAS Tickets > QuickBooks > Pending Orders`
    - CLI: `wp oras-tickets qbo approve-order <order_id>`
 4. Run sync while Dry Run is ON and validate:
    - `_oras_qbo_sync_status = dry_run`
@@ -71,6 +74,9 @@ Run a controlled production rollout of ORAS Tickets QuickBooks Revenue Split Syn
    - split amounts appear in intended income accounts (tickets/observer/merch/printful/donations).
 9. Run reconciliation summary for the live validation date range and archive result:
    - `wp oras-tickets qbo reconcile-report --from=<YYYY-MM-DD> --to=<YYYY-MM-DD> --format=json`
+10. Validate operator recovery surfaces:
+   - verify order appears in `Sync History` with source transaction context,
+   - run one controlled reverse from history and confirm reversal JE metadata is written.
 
 ## Rollback / Safety
 If mapping is incorrect or duplicate presentation appears:

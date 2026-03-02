@@ -147,10 +147,15 @@ final class Settings_Page
                 <a href="<?php echo esc_url($this->build_quickbooks_tab_url('pending')); ?>" class="nav-tab <?php echo $active_tab === 'pending' ? 'nav-tab-active' : ''; ?>">
                     <?php echo esc_html__('Pending Orders', 'oras-tickets'); ?>
                 </a>
+                <a href="<?php echo esc_url($this->build_quickbooks_tab_url('history')); ?>" class="nav-tab <?php echo $active_tab === 'history' ? 'nav-tab-active' : ''; ?>">
+                    <?php echo esc_html__('Sync History', 'oras-tickets'); ?>
+                </a>
             </h2>
 
             <?php if ($active_tab === 'pending') : ?>
                 <?php $this->render_quickbooks_pending_orders_tab(); ?>
+            <?php elseif ($active_tab === 'history') : ?>
+                <?php $this->render_quickbooks_sync_history_tab(); ?>
             <?php else : ?>
                 <div class="oras-qbo-columns">
                     <div>
@@ -174,7 +179,7 @@ final class Settings_Page
     private function get_active_quickbooks_tab(): string
     {
         $tab = isset($_GET['oras_qbo_tab']) ? sanitize_key((string) wp_unslash($_GET['oras_qbo_tab'])) : 'settings';
-        return in_array($tab, array('settings', 'pending'), true) ? $tab : 'settings';
+        return in_array($tab, array('settings', 'pending', 'history'), true) ? $tab : 'settings';
     }
 
     private function build_quickbooks_tab_url(string $tab): string
@@ -401,6 +406,165 @@ final class Settings_Page
                 </p>
             <?php endif; ?>
             <p><a class="button" href="<?php echo esc_url($base_url); ?>"><?php echo esc_html__('Refresh List', 'oras-tickets'); ?></a></p>
+        </div>
+    <?php
+    }
+
+    private function render_quickbooks_sync_history_tab(): void
+    {
+        if (! function_exists('wc_get_orders')) {
+            echo '<p>' . esc_html__('WooCommerce order querying is not available.', 'oras-tickets') . '</p>';
+            return;
+        }
+
+        $order_ids = wc_get_orders(
+            array(
+                'type'       => 'shop_order',
+                'limit'      => 200,
+                'return'     => 'ids',
+                'orderby'    => 'date',
+                'order'      => 'DESC',
+                'meta_query' => array(
+                    'relation' => 'OR',
+                    array(
+                        'key'     => '_oras_qbo_je_id',
+                        'compare' => 'EXISTS',
+                    ),
+                    array(
+                        'key'     => '_oras_qbo_reversal_je_id',
+                        'compare' => 'EXISTS',
+                    ),
+                    array(
+                        'key'     => '_oras_qbo_synced_at',
+                        'compare' => 'EXISTS',
+                    ),
+                ),
+            )
+        );
+
+        $base_url = add_query_arg(
+            array(
+                'page'         => 'oras-tickets-quickbooks',
+                'oras_qbo_tab' => 'history',
+            ),
+            admin_url('admin.php')
+        );
+
+    ?>
+        <div style="margin-top:16px;">
+            <h2><?php echo esc_html__('Sync History', 'oras-tickets'); ?></h2>
+            <p class="description">
+                <?php echo esc_html__('Running log of orders that have ORAS QuickBooks sync history. Use Reverse to create reversal entries directly from this history table.', 'oras-tickets'); ?>
+            </p>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin:0 0 20px;">
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <?php wp_nonce_field('oras_tickets_qbo_reverse_order'); ?>
+                    <input type="hidden" name="action" value="oras_tickets_qbo_reverse_order" />
+                    <input type="hidden" name="oras_qbo_tab" value="history" />
+                    <label for="oras-qbo-history-reverse-order-id"><?php echo esc_html__('Reverse Order ID', 'oras-tickets'); ?></label>
+                    <input type="number" min="1" required id="oras-qbo-history-reverse-order-id" name="order_id" placeholder="<?php echo esc_attr__('Order ID', 'oras-tickets'); ?>" />
+                    <label>
+                        <input type="checkbox" name="force_reversal" value="1" />
+                        <?php echo esc_html__('Force', 'oras-tickets'); ?>
+                    </label>
+                    <button type="submit" class="button"><?php echo esc_html__('Reverse Order JE', 'oras-tickets'); ?></button>
+                </form>
+            </div>
+
+            <?php if (empty($order_ids)) : ?>
+                <p><?php echo esc_html__('No sync history found yet.', 'oras-tickets'); ?></p>
+            <?php else : ?>
+                <table class="widefat striped">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html__('Order', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Created', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Synced At', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Status', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Doc Number', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Source Txn', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('JE ID', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Reversal JE', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Processor Fee', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Last Event', 'oras-tickets'); ?></th>
+                            <th><?php echo esc_html__('Actions', 'oras-tickets'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($order_ids as $order_id) : ?>
+                            <?php
+                            $order = wc_get_order(absint($order_id));
+                            if (! $order) {
+                                continue;
+                            }
+
+                            $sync_status = (string) $order->get_meta('_oras_qbo_sync_status', true);
+                            $synced_at = (string) $order->get_meta('_oras_qbo_synced_at', true);
+                            $doc_number = (string) $order->get_meta('_oras_qbo_doc_number', true);
+                            $je_id = (string) $order->get_meta('_oras_qbo_je_id', true);
+                            $reversal_je = (string) $order->get_meta('_oras_qbo_reversal_je_id', true);
+                            $source_txn_type = (string) $order->get_meta('_oras_qbo_reclass_source_txn_type', true);
+                            $source_txn_id = (string) $order->get_meta('_oras_qbo_reclass_source_txn_id', true);
+                            $source_txn_date = (string) $order->get_meta('_oras_qbo_reclass_source_txn_date', true);
+                            $source_txn_key = (string) $order->get_meta('_oras_qbo_reclass_source_txn_key', true);
+                            $last_event = (string) $order->get_meta('_oras_qbo_last_audit_event', true);
+                            $order_link = get_edit_post_link((int) $order->get_id(), '');
+
+                            $source_txn_parts = array();
+                            if ($source_txn_type !== '' || $source_txn_id !== '') {
+                                $source_txn_parts[] = trim($source_txn_type . ($source_txn_id !== '' ? ':' . $source_txn_id : ''));
+                            } elseif ($source_txn_key !== '') {
+                                $source_txn_parts[] = $source_txn_key;
+                            }
+                            if ($source_txn_date !== '') {
+                                $source_txn_parts[] = $source_txn_date;
+                            }
+                            $source_txn_display = ! empty($source_txn_parts) ? implode(' | ', $source_txn_parts) : '—';
+
+                            $fee_note = $source_txn_key !== ''
+                                ? __('Stripe fee expected in Stripe connector Expense/Bank Fee entry; JE intentionally excludes processor fees.', 'oras-tickets')
+                                : __('No matched reclass source recorded yet; confirm Stripe fee entry exists in QBO feed.', 'oras-tickets');
+                            ?>
+                            <tr>
+                                <td>
+                                    <?php if ($order_link) : ?>
+                                        <a href="<?php echo esc_url($order_link); ?>">#<?php echo esc_html((string) $order->get_order_number()); ?></a>
+                                    <?php else : ?>
+                                        #<?php echo esc_html((string) $order->get_order_number()); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html($order->get_date_created() ? (string) $order->get_date_created()->date_i18n('Y-m-d H:i') : '—'); ?></td>
+                                <td><?php echo esc_html($synced_at !== '' ? $synced_at . ' UTC' : '—'); ?></td>
+                                <td><?php echo esc_html($sync_status !== '' ? ucwords(str_replace('_', ' ', $sync_status)) : '—'); ?></td>
+                                <td><?php echo esc_html($doc_number !== '' ? $doc_number : '—'); ?></td>
+                                <td style="max-width:260px;"><?php echo esc_html($source_txn_display); ?></td>
+                                <td><?php echo esc_html($je_id !== '' ? $je_id : '—'); ?></td>
+                                <td><?php echo esc_html($reversal_je !== '' ? $reversal_je : '—'); ?></td>
+                                <td style="max-width:360px;"><?php echo esc_html($fee_note); ?></td>
+                                <td><?php echo esc_html($last_event !== '' ? str_replace('_', ' ', $last_event) : '—'); ?></td>
+                                <td>
+                                    <?php if ($je_id !== '') : ?>
+                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-flex; gap:6px; align-items:center;">
+                                            <?php wp_nonce_field('oras_tickets_qbo_reverse_order'); ?>
+                                            <input type="hidden" name="action" value="oras_tickets_qbo_reverse_order" />
+                                            <input type="hidden" name="oras_qbo_tab" value="history" />
+                                            <input type="hidden" name="order_id" value="<?php echo esc_attr((string) $order->get_id()); ?>" />
+                                            <button type="submit" class="button button-small" <?php disabled($reversal_je !== ''); ?>><?php echo esc_html__('Reverse', 'oras-tickets'); ?></button>
+                                        </form>
+                                    <?php else : ?>
+                                        —
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <p class="description" style="margin-top:8px;">
+                    <?php echo esc_html__('Showing up to 200 recent orders with QuickBooks sync history.', 'oras-tickets'); ?>
+                </p>
+            <?php endif; ?>
+            <p><a class="button" href="<?php echo esc_url($base_url); ?>"><?php echo esc_html__('Refresh History', 'oras-tickets'); ?></a></p>
         </div>
     <?php
     }
@@ -1198,7 +1362,19 @@ final class Settings_Page
                 <input type="hidden" name="action" value="oras_tickets_qbo_test_journal_entry" />
                 <button type="submit" class="button"><?php echo esc_html__('Test JournalEntry', 'oras-tickets'); ?></button>
             </form>
+
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <?php wp_nonce_field('oras_tickets_qbo_auto_map_event_accounts'); ?>
+                <input type="hidden" name="action" value="oras_tickets_qbo_auto_map_event_accounts" />
+                <input type="hidden" name="oras_qbo_tab" value="settings" />
+                <button type="submit" class="button"><?php echo esc_html__('Auto-Map Event Accounts (Safe Add-Only)', 'oras-tickets'); ?></button>
+            </form>
         </div>
+
+        <p class="description" style="margin-top:-12px;">
+            <?php echo esc_html__('Auto-Map scans published/future website events and active QuickBooks income accounts. It adds only missing event-slug mappings when names match and never changes existing mappings.', 'oras-tickets'); ?>
+            <?php echo esc_html__('Automation: after a successful account refresh and when a published/future event is updated, ORAS re-runs safe add-only auto-map in the background.', 'oras-tickets'); ?>
+        </p>
 
         <script>
             (function() {

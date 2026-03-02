@@ -65,6 +65,10 @@ Recently completed hardening in code:
 - Admin RSVP dashboard row rendering moved to DOM-safe element construction.
 - Event-scoped lock helper added and applied to frontend/admin RSVP and waitlist promotion critical sections.
 - Woo capacity consume/restore handlers hardened with order-scoped idempotency lock + event-scoped atomic ticket-envelope updates.
+- QuickBooks reclass source-match hardening completed (queryability-safe source matching + customer entity propagation on JE lines).
+- QuickBooks waiting queue and review escalation flow added for delayed source transaction visibility.
+- QuickBooks Pending + Sync History operational tabs added with sync/approve/resync/reverse actions.
+- QuickBooks safe add-only event-account auto-map added (manual action + refresh/event-update automation).
 - Static analysis clean (`phpstan`, `phpcs`).
 
 ## Locked vs Active

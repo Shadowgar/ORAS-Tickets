@@ -142,6 +142,7 @@ final class Journal_Entry_Creator {
         }
 
         $source_match = null;
+        $customer_entity = null;
 
         $counterparty_account_id = '';
         if ( $posting_mode === 'reclass' ) {
@@ -171,6 +172,16 @@ final class Journal_Entry_Creator {
             if ( is_wp_error( $source_match ) ) {
                 return $source_match;
             }
+
+            if ( is_array( $source_match ) ) {
+                $customer_ref_id = trim( (string) ( $source_match['customer_ref_id'] ?? '' ) );
+                if ( $customer_ref_id !== '' ) {
+                    $customer_entity = array(
+                        'id'   => $customer_ref_id,
+                        'name' => trim( (string) ( $source_match['customer_ref_name'] ?? '' ) ),
+                    );
+                }
+            }
         }
 
         $payload_lines = array();
@@ -181,7 +192,8 @@ final class Journal_Entry_Creator {
                 $counterparty_account_id,
                 $posting_mode === 'reclass'
                     ? 'ORAS Woo reclass debit for order #' . $order->get_order_number()
-                    : 'ORAS Woo clearing debit for order #' . $order->get_order_number()
+                    : 'ORAS Woo clearing debit for order #' . $order->get_order_number(),
+                is_array( $customer_entity ) ? $customer_entity : null
             );
 
             foreach ( $lines as $line ) {
@@ -199,7 +211,8 @@ final class Journal_Entry_Creator {
                     $amount,
                     'Credit',
                     $account_id,
-                    (string) ( $line['bucket_label'] ?? 'ORAS revenue split' )
+                    (string) ( $line['bucket_label'] ?? 'ORAS revenue split' ),
+                    is_array( $customer_entity ) ? $customer_entity : null
                 );
             }
         } else {
@@ -302,8 +315,8 @@ final class Journal_Entry_Creator {
         $to_date     = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
 
         $queries = array(
-            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
-            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerMemo, CustomerRef FROM SalesReceipt WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
+            "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote, CustomerRef FROM Payment WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
             "SELECT Id, DocNumber, TxnDate, TotalAmt, PrivateNote FROM Deposit WHERE TxnDate >= '" . $from_date . "' AND TxnDate <= '" . $to_date . "' ORDER BY TxnDate DESC MAXRESULTS 100",
         );
 
@@ -350,6 +363,14 @@ final class Journal_Entry_Creator {
                             : (string) $row['CustomerMemo'];
                     }
 
+                    $customer_ref_id = '';
+                    $customer_ref_name = '';
+                    if ( isset( $row['CustomerRef'] ) ) {
+                        $customer_ref = is_array( $row['CustomerRef'] ) ? $row['CustomerRef'] : array();
+                        $customer_ref_id = isset( $customer_ref['value'] ) ? trim( (string) $customer_ref['value'] ) : '';
+                        $customer_ref_name = isset( $customer_ref['name'] ) ? trim( (string) $customer_ref['name'] ) : '';
+                    }
+
                     $candidates[] = array(
                         'entity'     => $entity_type,
                         'id'         => $id,
@@ -358,6 +379,8 @@ final class Journal_Entry_Creator {
                         'total'      => $row_total,
                         'doc_number' => $doc_number,
                         'memo'       => $memo,
+                        'customer_ref_id' => $customer_ref_id,
+                        'customer_ref_name' => $customer_ref_name,
                     );
                 }
             }
@@ -386,6 +409,11 @@ final class Journal_Entry_Creator {
 
             if ( $customer_name !== '' && strpos( $haystack, strtolower( $customer_name ) ) !== false ) {
                 $score += 20;
+            }
+
+            $candidate_customer_name = trim( (string) ( $candidate['customer_ref_name'] ?? '' ) );
+            if ( $customer_name !== '' && $candidate_customer_name !== '' && strpos( strtolower( $candidate_customer_name ), strtolower( $customer_name ) ) !== false ) {
+                $score += 40;
             }
 
             $txn_ts = strtotime( (string) ( $candidate['txn_date'] ?? '' ) . ' 00:00:00 UTC' );
@@ -523,17 +551,38 @@ final class Journal_Entry_Creator {
     /**
      * @return array<string,mixed>
      */
-    private function build_line( float $amount, string $posting_type, string $account_id, string $description ): array {
+    private function build_line( float $amount, string $posting_type, string $account_id, string $description, ?array $customer_entity = null ): array {
+        $line_detail = array(
+            'PostingType' => $posting_type,
+            'AccountRef'  => array(
+                'value' => $account_id,
+            ),
+        );
+
+        if ( is_array( $customer_entity ) ) {
+            $customer_id = trim( (string) ( $customer_entity['id'] ?? '' ) );
+            if ( $customer_id !== '' ) {
+                $entity = array(
+                    'Type'      => 'Customer',
+                    'EntityRef' => array(
+                        'value' => $customer_id,
+                    ),
+                );
+
+                $customer_name = trim( (string) ( $customer_entity['name'] ?? '' ) );
+                if ( $customer_name !== '' ) {
+                    $entity['EntityRef']['name'] = $customer_name;
+                }
+
+                $line_detail['Entity'] = $entity;
+            }
+        }
+
         return array(
             'Amount'                 => round( abs( $amount ), 2 ),
             'Description'            => $description,
             'DetailType'             => 'JournalEntryLineDetail',
-            'JournalEntryLineDetail' => array(
-                'PostingType' => $posting_type,
-                'AccountRef'  => array(
-                    'value' => $account_id,
-                ),
-            ),
+            'JournalEntryLineDetail' => $line_detail,
         );
     }
 

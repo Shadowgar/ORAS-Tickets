@@ -80,6 +80,10 @@ Completed in code:
 - Hardened admin RSVP dashboard rendering by replacing string-built row HTML with DOM-safe element construction.
 - Added event-scoped DB lock helper and wrapped frontend/admin RSVP + waitlist promotion critical sections.
 - Hardened Woo capacity consume/restore handlers with order-scoped idempotency locking and event-scoped atomic envelope updates.
+- Added QuickBooks reclass source-match hardening (`TotalAmt` queryability fix, candidate expansion to Deposit, and customer-entity propagation on JE lines).
+- Added QuickBooks waiting queue orchestration (`waiting_for_source_txn` polling + escalation to `needs_review`) and queue processor support.
+- Added QuickBooks operator workflow surfaces (Pending + Sync History tabs, reverse/resync/sync-now queue actions, tab-preserving redirects).
+- Added safe add-only event-income auto-map action and runtime auto-map hooks on account refresh and event update.
 - Validation clean for modified scope (`php -l`, `composer phpstan`, `composer phpcs`).
 
 ## Backtrack / Refine Before Advancing
@@ -102,6 +106,7 @@ Do not advance Phase 6+ until all items below are complete:
   - CI job that runs PHPCS, PHPStan, and the WP-CLI checks.
 - Remaining before lock:
   - Extend checks as new queue/audit behavior is added in future iterations.
+  - Add deterministic integration checks for QuickBooks waiting queue/history/operator paths (pending/history actions + source-match wait escalation).
 
 3. Phase 4 visual quality and consistency
 - Remove remaining inline CSS in frontend templates where feasible.
@@ -118,5 +123,6 @@ A phase cannot move to `LOCKED` unless:
 ## Active Priority Order
 1. Complete Phase 4 frontend/admin visual polish pass.
 2. Perform short operator soak pass on new waitlist queue/history operations.
-3. Advance Board Dashboard design pack (Phase 9.5/10.4) with KPI contract + access model.
-4. Resume Phase 6 features (QR/check-in, reservation windows) after 1-3 are closed.
+3. Complete QuickBooks Phase 5.3 pre-live validation packet (operator soak + reconciliation evidence + treasurer mapping signoff).
+4. Advance Board Dashboard design pack (Phase 9.5/10.4) with KPI contract + access model.
+5. Resume Phase 6 features (QR/check-in, reservation windows) after 1-4 are closed.

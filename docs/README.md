@@ -37,6 +37,7 @@ Do not start new Phase 6+ features until Phase 5 closure criteria in `MASTER_EXE
 - Woo order capacity consume/restore flows now run under order + event lock boundaries to prevent concurrent double-mutation.
 - CSV exports are hardened through centralized CSV cell neutralization for formula-injection protection.
 - Admin RSVP dashboard row rendering is hardened to DOM-safe element construction (no string-built HTML sinks).
+- QuickBooks Phase 5.3 hardening expanded with waiting queue orchestration, source-match reliability fixes, Pending/History operator workflows, and safe add-only account auto-map controls.
 
 ## Key technical references
 - `docs/EVENT_TICKETS_ENGINE_ARCHITECTURE.md`

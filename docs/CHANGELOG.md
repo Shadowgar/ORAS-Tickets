@@ -1,5 +1,41 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-01 — QuickBooks Reclass Queue + Operator Tooling Hardening
+
+Code:
+- Extended reclass source-transaction matching and posting context:
+  - `oras-tickets/src/Integrations/QuickBooks/Journal_Entry_Creator.php`
+  - removed non-queryable `TotalAmt` WHERE filtering from QBO SQL and moved amount filtering to deterministic PHP-side candidate filtering,
+  - expanded source candidate scan to include `Deposit` in addition to `SalesReceipt` and `Payment`,
+  - added `CustomerRef` capture/scoring and propagated customer entity to JE lines when source customer is available.
+- Added waiting-state orchestration for delayed Stripe/QBO source visibility:
+  - `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`
+  - introduced `waiting_for_source_txn` flow with bounded retry/poll scheduling,
+  - added max-wait escalation path to `needs_review`,
+  - added queue processor for waiting orders.
+- Expanded admin operations for queue and history workflows:
+  - `oras-tickets/includes/Admin/Pages/Settings_Page.php`
+  - added `Sync History` tab with source-transaction context and reverse controls,
+  - added pending/waiting operator actions for sync/approve/resync/reverse and queue processing controls,
+  - added QuickBooks auto-map action button (`Safe Add-Only`).
+- Expanded QuickBooks admin handlers and mapping automation:
+  - `oras-tickets/src/Integrations/QuickBooks/Module.php`
+  - added pending/history tab-preserving redirects across operator actions,
+  - added auto-map handler for event-income account mapping (`oras_tickets_qbo_auto_map_event_accounts`),
+  - restored runtime safe add-only auto-map triggers on account refresh and event save updates.
+- Extended QuickBooks defaults/controls for source polling behavior:
+  - `oras-tickets/src/Integrations/QuickBooks/Settings.php`
+  - added source-match interval and max-wait settings defaults.
+- Extended CLI queue operations:
+  - `oras-tickets/src/Integrations/QuickBooks/Cli_Command.php`
+  - added waiting queue processor command.
+
+Verification:
+- `php -l oras-tickets/src/Integrations/QuickBooks/Module.php` passed.
+- `php -l oras-tickets/src/Integrations/QuickBooks/Journal_Entry_Creator.php` passed.
+- `php -l oras-tickets/includes/Admin/Pages/Settings_Page.php` passed.
+- Controlled live-safe sync validation completed on test-server workflow for Woo order `#4127` with successful sync status and JE creation metadata.
+
 ## 2026-03-01 — RSVP/Waitlist Concurrency + Capacity Consumption Hardening
 
 Code:

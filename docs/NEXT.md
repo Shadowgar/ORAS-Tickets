@@ -48,7 +48,14 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
   - printful merchandise income
   - donations income
   - fallback/unmapped income
-- Execute controlled sandbox test run using check gateway orders and WP-CLI sync commands. (In progress)
+- Execute controlled sandbox/test-server run using check gateway orders and WP-CLI sync commands. (In progress)
+- Run operator soak on new QuickBooks operational surfaces:
+  - Pending tab actions (sync now / approve / resync / reverse / process waiting queue),
+  - Sync History tab reverse path and source transaction visibility,
+  - waiting queue polling/escalation behavior (`waiting_for_source_txn` -> `needs_review`).
+- Verify safe auto-map behavior:
+  - run `Test Connection + Refresh Accounts` and confirm add-only mapping counts,
+  - update one published/future event and verify only missing mappings are added.
 - Use dry-run command before live posting during mapping verification:
   - `wp oras-tickets qbo preview-order <order_id> [--format=json]`
 - Use reconciliation command after each controlled run to verify variance and status distribution:
@@ -65,6 +72,10 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
   - connect production QuickBooks credentials
   - run one controlled low-value live Woo/Stripe order
   - verify no duplicate net income effect in P&L
+- Capture evidence from latest queue/reclass hardening before go-live packet:
+  - successful sync after source-match polling in reclass mode,
+  - pending/history operational workflow screenshots,
+  - reverse flow evidence and reconciliation output snapshot.
 - Prepare refund-handling follow-up scope (reversal JournalEntry policy).
 
 ## Completed This Cycle
@@ -116,6 +127,12 @@ Close Phase 5 hardening gates so Phase 6 work can begin safely.
   - `scripts/qbo-api-error-matrix-tests.php`
 - Added deterministic QuickBooks OAuth callback guard test coverage:
   - `scripts/qbo-oauth-callback-tests.php`
+- Added QuickBooks reclass/operator hardening:
+  - waiting queue orchestration (`waiting_for_source_txn` polling + escalation),
+  - Pending + Sync History admin tabs with reverse controls,
+  - source-match query fix for non-queryable `TotalAmt` filter,
+  - source `CustomerRef` scoring + JE line customer entity propagation,
+  - safe add-only event-account auto-map action plus runtime auto-map on account refresh/event update.
 - Added test-run email suppression for local/CI integration scripts:
   - QBO and Phase 5 scripts disable outbound `wp_mail` under WP-CLI to prevent notification spam.
 - Added GitHub branch-protection helper for required status checks:
