@@ -11,7 +11,7 @@
     "stan:php": "composer phpstan"
   },
   "devDependencies": {
-    "@wordpress/env": "^11.0.0"
+    "@wordpress/env": "^11.2.0"
   },
   "overrides": {
     "minimatch": "^9.0.7"
