@@ -1,0 +1,243 @@
+# NEXT STEPS
+
+## Step 1
+- Goal:
+  - Extract one shared attendance service for RSVP state, waitlist state, attendee lists, counts, and queue mutations.
+- Why now:
+  - The locked Phase 5 baseline already depends on the same attendance logic in frontend, admin, metabox, and API code, and those paths currently duplicate behavior.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Bootstrap.php`
+  - `oras-tickets/includes/Frontend/Event_RSVP.php`
+  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
+  - `oras-tickets/includes/Api/Rsvp.php`
+  - `oras-tickets/includes/Waitlist_Store.php`
+  - `oras-tickets/includes/RSVP.php`
+  - create `oras-tickets/includes/Domain/Attendance_Service.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Bootstrap::handle_rsvp_dashboard_data()`
+  - `ORAS\Tickets\Bootstrap::handle_waitlist_bulk_promote()`
+  - `ORAS\Tickets\Bootstrap::handle_waitlist_promote_user()`
+  - `ORAS\Tickets\Bootstrap::handle_waitlist_remove_user()`
+  - `ORAS\Tickets\Bootstrap::get_filtered_attendees()`
+  - `ORAS\Tickets\Frontend\Event_RSVP::handle_post()`
+  - `ORAS\Tickets\Frontend\Event_RSVP::get_user_status()`
+  - `ORAS\Tickets\Api\Rsvp::get_my_rsvps()`
+  - `ORAS\Tickets\Api\Rsvp::get_event_rsvp()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::get_count()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::get_attendees()`
+  - `ORAS\Tickets\Waitlist_Store::*`
+- Expected behavior after change:
+  - RSVP, waitlist, attendee dashboards, metaboxes, and REST reads use one shared attendance read/write layer with the same counting and status rules.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - `cd /home/rocco/projects/oras-wp-env && npx wp-env run cli wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/phase5-integration-checks.php`
+  - Admin UI checks:
+    - ORAS Tickets dashboard RSVP tab still loads queue/history and attendee counts correctly.
+    - Event RSVP attendees metabox still shows YES/waitlist counts and promote action.
+  - Frontend checks:
+    - RSVP yes/no/waitlist transitions still work on a `tribe_events` single page.
+  - Woo order checks:
+    - Paid attendee rows still appear in attendee views for a ticketed event.
+- Risk / rollback note:
+  - Risk is behavior drift between old and new attendance logic.
+  - Roll back by restoring the previous callers if the new service changes queue or attendee counts unexpectedly.
+
+## Step 2
+- Goal:
+  - Tighten capability boundaries for attendee operations and speaker management.
+- Why now:
+  - Role separation is already part of the plugin’s capability model, but some endpoints still use broad WordPress post capabilities.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Capabilities.php`
+  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
+  - `oras-tickets/includes/Admin/Speaker_CPT.php`
+  - `oras-tickets/includes/Admin/Admin_Menu.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Capabilities::add_caps()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::handle_export()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::handle_promote()`
+  - `ORAS\Tickets\Admin\Speaker_CPT::register_post_type()`
+  - `admin_post_oras_rsvp_export`
+  - `admin_post_oras_rsvp_metabox_promote`
+- Expected behavior after change:
+  - RSVP exports/promotions require plugin-specific capabilities, and speaker management uses a capability model that matches the plugin’s role boundaries.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - `cd /home/rocco/projects/oras-wp-env && npx wp-env run cli wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/core-regression-checks.php`
+  - Admin UI checks:
+    - Administrator still sees Speakers, Speaker Obligations, Speaker Reports, and RSVP attendee actions.
+    - A user without the relevant ORAS caps cannot access those actions/pages.
+  - Frontend checks:
+    - No frontend RSVP behavior changes.
+  - Woo order checks:
+    - None required beyond ensuring speaker/attendee capability changes do not affect ticket order handling.
+- Risk / rollback note:
+  - Risk is accidentally removing access from current operators.
+  - Roll back by restoring prior capability checks and re-running capability repair.
+
+## Step 3
+- Goal:
+  - Make RSVP window fields (`open_at`, `close_at`) deterministic by enforcing them or removing them from the UI.
+- Why now:
+  - The current admin UI advertises behavior that runtime code does not implement.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`
+  - `oras-tickets/includes/Frontend/Event_RSVP.php`
+  - `oras-tickets/includes/Api/Rsvp.php`
+  - `oras-tickets/includes/Bootstrap.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::render()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::save()`
+  - `ORAS\Tickets\Frontend\Event_RSVP::render_rsvp_block()`
+  - `ORAS\Tickets\Frontend\Event_RSVP::handle_post()`
+  - `ORAS\Tickets\Api\Rsvp::get_event_rsvp()`
+  - `ORAS\Tickets\Bootstrap::get_rsvp_stats_from_settings()`
+- Expected behavior after change:
+  - RSVP status and submission availability consistently reflect the configured window in frontend, API, and admin surfaces, or the fields are removed everywhere.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - extend and run `cd /home/rocco/projects/oras-wp-env && npx wp-env run cli wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/phase5-integration-checks.php`
+  - Admin UI checks:
+    - Event RSVP metabox still saves values or no longer presents them.
+    - Dashboard stats reflect closed/open state if enforced.
+  - Frontend checks:
+    - Before open time: RSVP actions are blocked or hidden.
+    - During open time: RSVP actions work.
+    - After close time: RSVP actions are blocked or hidden.
+  - Woo order checks:
+    - None required.
+- Risk / rollback note:
+  - Risk is changing operator expectations for events that already have stored window fields.
+  - Roll back by temporarily reverting to the current “fields stored but ignored” behavior if live events are affected.
+
+## Step 4
+- Goal:
+  - Normalize ticket sale-window timezone semantics to one explicit convention.
+- Why now:
+  - Future pricing/tier work depends on deterministic sale windows, and the current code mixes site-timezone storage with UTC validation.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Domain/Ticket.php`
+  - `oras-tickets/includes/Admin/Tickets_Metabox.php`
+  - `oras-tickets/includes/Frontend/Tickets_Display.php`
+  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Domain\Ticket`
+  - `ORAS\Tickets\Admin\Tickets_Metabox::render_metabox()`
+  - `ORAS\Tickets\Frontend\Tickets_Display::getAddToCartValidationError()`
+  - `ORAS\Tickets\Frontend\Tickets_Display::revalidate_cart_items()`
+  - `ORAS\Tickets\Commerce\Woo\Product_Sync::on_save_event()`
+- Expected behavior after change:
+  - Sale start/end behave the same in admin display, frontend validation, and Woo product sale dates.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - extend and run `cd /home/rocco/projects/oras-wp-env && npx wp-env run cli wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/core-regression-checks.php`
+  - Admin UI checks:
+    - Ticket metabox shows the expected saved datetime values after reload.
+  - Frontend checks:
+    - A future sale window blocks add-to-cart before start.
+    - An expired sale window blocks add-to-cart after end.
+  - Woo order checks:
+    - Woo product sale dates match the event ticket configuration.
+- Risk / rollback note:
+  - Risk is off-by-hours behavior for existing tickets if stored values are reinterpreted.
+  - Roll back by restoring the previous parser and documenting the inconsistency until a migration can be staged.
+
+## Step 5
+- Goal:
+  - Remove live remote thumbnail discovery from door-prize frontend rendering and persist explicit image URLs only.
+- Why now:
+  - Frontend network fetches violate the deterministic/self-hosted direction and can slow event-page render.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Frontend/Door_Prizes.php`
+  - `oras-tickets/includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Frontend\Door_Prizes::render_event_block()`
+  - `ORAS\Tickets\Frontend\Door_Prizes::resolve_thumbnail_url()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox::render()`
+  - `ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox::save()`
+  - `the_content`
+- Expected behavior after change:
+  - Door-prize rendering uses saved local/external image URLs only and no longer fetches remote HTML during page render.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+  - Admin UI checks:
+    - Door Prize entries still save/display title, donor, value, external link, and image URL.
+  - Frontend checks:
+    - Event pages render door prizes without network-dependent thumbnail discovery.
+  - Woo order checks:
+    - None required.
+- Risk / rollback note:
+  - Risk is losing implicit thumbnails for entries that relied on remote metadata scraping.
+  - Roll back by restoring the fallback until existing content is updated with explicit image URLs.
+
+## Step 6
+- Goal:
+  - Reconcile runtime scope with the locked baseline by explicitly gating or documenting board dashboard, check-in, and door-prize runtime surfaces.
+- Why now:
+  - The evaluation found active runtime modules that exceed the current authoritative phase docs.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Bootstrap.php`
+  - `oras-tickets/includes/Admin/Admin_Menu.php`
+  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+  - `oras-tickets/includes/Api/Checkin.php`
+  - `oras-tickets/includes/Admin/Pages/Checkin_Page.php`
+  - `oras-tickets/includes/Frontend/Door_Prizes.php`
+  - matching authoritative docs in a follow-up change set outside `docs/evaluation/2026-03-22/`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Bootstrap::register_phase1()`
+  - `ORAS\Tickets\Admin\Admin_Menu::register_menu()`
+  - `ORAS\Tickets\Frontend\Board_Dashboard::register()`
+  - `ORAS\Tickets\Api\Checkin::register()`
+  - `ORAS\Tickets\Admin\Pages\CheckinPage::render()`
+  - `ORAS\Tickets\Frontend\Door_Prizes::register()`
+- Expected behavior after change:
+  - Runtime scope and authoritative docs no longer conflict; the extra modules are either explicitly approved/documented or feature-gated.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - `cd /home/rocco/projects/oras-wp-env && npx wp-env run cli wp eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/bootstrap-regression-checks.php`
+  - Admin UI checks:
+    - Check-In menu presence matches the chosen governance decision.
+  - Frontend checks:
+    - Board dashboard shortcode and door-prize block presence match the chosen governance decision.
+  - Woo order checks:
+    - Printed ticket behavior still works if check-in remains enabled.
+- Risk / rollback note:
+  - Risk is temporarily removing access to already-used runtime surfaces.
+  - Roll back by re-enabling the registration hooks while governance/documentation is clarified.
+
+## Step 7
+- Goal:
+  - Isolate QuickBooks settings/rendering concerns so QBO stays a downstream adapter, not a driver of general plugin settings.
+- Why now:
+  - QBO is already bounded in code, but settings ownership is split and will become harder to maintain as the adapter grows.
+- Exact files to inspect/modify:
+  - `oras-tickets/includes/Admin/Pages/Settings_Page.php`
+  - `oras-tickets/src/Integrations/QuickBooks/Settings.php`
+  - `oras-tickets/src/Integrations/QuickBooks/Module.php`
+- Exact classes/functions/hooks involved:
+  - `ORAS\Tickets\Admin\Pages\Settings_Page::sanitize_settings()`
+  - `ORAS\Tickets\Admin\Pages\Settings_Page::render_quickbooks()`
+  - `ORAS\Tickets\Admin\Pages\Settings_Page::get_default_settings()`
+  - `ORAS\Tickets\Integrations\QuickBooks\Settings::*`
+  - `ORAS\Tickets\Integrations\QuickBooks\Module::register()`
+- Expected behavior after change:
+  - General settings and QuickBooks-specific validation/rendering have one clear ownership boundary while retaining the same option storage and existing QBO functionality.
+- Verification:
+  - WP-CLI:
+    - `cd /home/rocco/projects/ORAS-Tickets && composer phpstan`
+    - `cd /home/rocco/projects/ORAS-Tickets && ORAS_WP_ENV_DIR=/home/rocco/projects/oras-wp-env bash scripts/run-qbo-integration-checks.sh`
+  - Admin UI checks:
+    - QBO settings page still saves, connects, and shows Pending/History tabs.
+  - Frontend checks:
+    - None required.
+  - Woo order checks:
+    - Preview/sync actions still read the same order metadata and queue states.
+- Risk / rollback note:
+  - Risk is corrupting the shared option payload if migration is not strictly additive.
+  - Roll back by restoring the previous settings owner and saved option structure.

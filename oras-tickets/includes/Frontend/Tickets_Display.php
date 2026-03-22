@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Admin\Pages\Settings_Page;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket_Collection;
@@ -11,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Tickets_Display { // NOSONAR legacy WP class naming
+
+    private const CART_HOLD_SECONDS_DEFAULT = 900;
 
 
 
@@ -41,6 +44,147 @@ final class Tickets_Display { // NOSONAR legacy WP class naming
         add_action( 'woocommerce_check_cart_items', array( $this, 'revalidate_cart_items' ), 10 );
         add_action( 'woocommerce_before_checkout_process', array( $this, 'revalidate_cart_items' ), 10 );
         add_action( 'woocommerce_checkout_process', array( $this, 'revalidate_cart_items' ), 10 );
+
+        // Validate ORAS ticket reservation window and quantity on direct Woo add-to-cart calls.
+        add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validateAddToCart' ), 10, 5 );
+
+        // Stamp hold start in cart item data; reuse existing hold timestamp so merge keys stay stable.
+        add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_oras_hold_timestamp' ), 10, 4 );
+    }
+
+    /**
+     * @param array<string,mixed> $cart_item_data
+     * @return array<string,mixed>
+     */
+    public function add_oras_hold_timestamp( array $cart_item_data, int $product_id, int $variation_id, int $quantity ): array {
+        unset( $variation_id, $quantity );
+
+        if ( ! $this->is_oras_ticket_product( $product_id ) ) {
+            return $cart_item_data;
+        }
+
+        if ( isset( $cart_item_data['_oras_hold_started_at'] ) && (int) $cart_item_data['_oras_hold_started_at'] > 0 ) {
+            return $cart_item_data;
+        }
+
+        $existing_started_at = $this->get_existing_hold_started_at( $product_id );
+        $cart_item_data['_oras_hold_started_at'] = $existing_started_at > 0 ? $existing_started_at : (int) time();
+
+        return $cart_item_data;
+    }
+
+    /**
+     * Validate ORAS ticket items when added to cart via Woo endpoints.
+     *
+     * @param bool  $passed Original validation state.
+     * @param int   $product_id Product ID.
+     * @param int   $quantity Requested quantity.
+     * @param mixed ...$args Unused Woo callback args.
+     */
+    public function validateAddToCart( bool $passed, int $product_id, int $quantity, ...$args ): bool {
+        unset( $args );
+
+        if ( ! $passed || $product_id <= 0 ) {
+            return $passed;
+        }
+
+        $context = $this->buildAddToCartContext( $product_id );
+        if ( null === $context ) {
+            return true;
+        }
+
+        $error_message = isset( $context['error_message'] ) ? (string) $context['error_message'] : '';
+        if ( '' === $error_message ) {
+            $error_message = $this->getAddToCartValidationError( $context, $quantity );
+        }
+
+        if ( '' === $error_message ) {
+            return true;
+        }
+
+        if ( function_exists( 'wc_add_notice' ) ) {
+            wc_add_notice( $error_message, 'error' );
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function buildAddToCartContext( int $product_id ): ?array {
+        $event_id_raw = get_post_meta( $product_id, '_oras_ticket_event_id', true );
+        $index_raw    = get_post_meta( $product_id, '_oras_ticket_index', true );
+
+        if ( $event_id_raw === '' && $index_raw === '' ) {
+            return null;
+        }
+
+        $event_id = (int) $event_id_raw;
+        $index    = (int) $index_raw;
+        if ( $event_id <= 0 || $index < 0 ) {
+            return array(
+                'error_message' => __( 'This ticket is no longer available.', 'oras-tickets' ),
+            );
+        }
+
+        $ticket = $this->get_ticket_definition( $event_id, $index );
+        if ( ! $ticket ) {
+            return array(
+                'error_message' => __( 'This ticket is no longer available.', 'oras-tickets' ),
+            );
+        }
+
+        $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+
+        return array(
+            'product_id' => $product_id,
+            'ticket'     => $ticket,
+            'product'    => $product,
+            'name'       => $this->get_ticket_name( $ticket, $product ),
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     */
+    private function getAddToCartValidationError( array $context, int $quantity ): string {
+        $ticket  = isset( $context['ticket'] ) && is_array( $context['ticket'] ) ? $context['ticket'] : array();
+        $product = $context['product'] ?? null;
+        $name    = isset( $context['name'] ) ? (string) $context['name'] : __( 'Ticket', 'oras-tickets' );
+
+        if ( ! $this->is_ticket_on_sale_now( $ticket, (int) time() ) ) {
+            $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
+            $start_ts   = $sale_start !== '' ? strtotime( $sale_start . ' UTC' ) : false;
+            $is_future  = $start_ts && $start_ts > (int) time();
+            return $is_future
+                ? sprintf( __( 'Ticket %s is not on sale yet.', 'oras-tickets' ), $name )
+                : sprintf( __( 'Ticket %s sales have ended.', 'oras-tickets' ), $name );
+        }
+
+        if ( ! $product instanceof \WC_Product || ! $product->is_purchasable() ) {
+            return sprintf( __( 'Ticket %s is currently unavailable for purchase.', 'oras-tickets' ), $name );
+        }
+
+        $product_id      = isset( $context['product_id'] ) ? (int) $context['product_id'] : 0;
+        $already_in_cart = $this->get_cart_quantity_for_product( $product_id );
+        $requested_total = max( 0, $already_in_cart + max( 0, $quantity ) );
+
+        if ( $product->is_sold_individually() && $requested_total > 1 ) {
+            return sprintf( __( 'Ticket %s can only be purchased once per order.', 'oras-tickets' ), $name );
+        }
+
+        if ( $product->managing_stock() ) {
+            $available = max( 0, (int) $product->get_stock_quantity() );
+            if ( $requested_total > $available && ! $product->backorders_allowed() ) {
+                return sprintf( __( 'Ticket %1$s has only %2$d remaining.', 'oras-tickets' ), $name, $available );
+            }
+            return '';
+        }
+
+        return $requested_total > 10
+            ? sprintf( __( 'Ticket %s has a maximum quantity of 10 per order.', 'oras-tickets' ), $name )
+            : '';
     }
 
     /**
@@ -76,6 +220,15 @@ final class Tickets_Display { // NOSONAR legacy WP class naming
         foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
             $product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
             if ( $product_id <= 0 ) {
+                continue;
+            }
+
+            if ( $this->is_cart_item_hold_expired( $cart_item, $now ) ) {
+                WC()->cart->remove_cart_item( $cart_item_key );
+                $changed = true;
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( __( 'A ticket hold in your cart expired and was removed.', 'oras-tickets' ), 'error' );
+                }
                 continue;
             }
 
@@ -266,6 +419,94 @@ WC()->cart->remove_cart_item( $cart_item_key );
         }
 
         return 0;
+    }
+
+    private function get_cart_quantity_for_product( int $product_id ): int {
+        if ( $product_id <= 0 || ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
+            return 0;
+        }
+
+        $quantity = 0;
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            $cart_product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+            if ( $cart_product_id !== $product_id ) {
+                continue;
+            }
+
+            $quantity += isset( $cart_item['quantity'] ) ? max( 0, (int) $cart_item['quantity'] ) : 0;
+        }
+
+        return $quantity;
+    }
+
+    private function is_oras_ticket_product( int $product_id ): bool {
+        if ( $product_id <= 0 ) {
+            return false;
+        }
+
+        $event_id_raw = get_post_meta( $product_id, '_oras_ticket_event_id', true );
+        $index_raw    = get_post_meta( $product_id, '_oras_ticket_index', true );
+
+        return $event_id_raw !== '' && $index_raw !== '';
+    }
+
+    private function get_existing_hold_started_at( int $product_id ): int {
+        if ( $product_id <= 0 || ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
+            return 0;
+        }
+
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            $cart_product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+            if ( $cart_product_id !== $product_id ) {
+                continue;
+            }
+
+            $started_at = isset( $cart_item['_oras_hold_started_at'] ) ? (int) $cart_item['_oras_hold_started_at'] : 0;
+            if ( $started_at > 0 ) {
+                return $started_at;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string,mixed> $cart_item
+     */
+    private function is_cart_item_hold_expired( array $cart_item, int $now ): bool {
+        $product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+        if ( ! $this->is_oras_ticket_product( $product_id ) ) {
+            return false;
+        }
+
+        $started_at = isset( $cart_item['_oras_hold_started_at'] ) ? (int) $cart_item['_oras_hold_started_at'] : 0;
+        if ( $started_at <= 0 ) {
+            return false;
+        }
+
+        $hold_seconds = $this->get_cart_hold_seconds( $cart_item );
+        if ( $hold_seconds <= 0 ) {
+            return false;
+        }
+
+        return ( $now - $started_at ) >= $hold_seconds;
+    }
+
+    /**
+     * @param array<string,mixed> $cart_item
+     */
+    private function get_cart_hold_seconds( array $cart_item ): int {
+        $hold_seconds = self::CART_HOLD_SECONDS_DEFAULT;
+
+        $settings = Settings_Page::get_settings();
+        $minutes  = isset( $settings['tickets']['cart_hold_minutes'] ) ? absint( $settings['tickets']['cart_hold_minutes'] ) : 0;
+        if ( $minutes > 0 ) {
+            $hold_seconds = $minutes * 60;
+        }
+
+        $hold_seconds = (int) apply_filters( 'oras_tickets_cart_hold_seconds', $hold_seconds, $cart_item );
+
+        return max( 0, $hold_seconds );
     }
 
     /**

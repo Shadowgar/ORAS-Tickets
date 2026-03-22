@@ -46,7 +46,13 @@ Phase 0-5 status update: **LOCKED** (governance closeout complete).
   - `docs/PHASE53_OPERATOR_HANDOFF_2026-03-02.md`
   - `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`
 
+## Governance Templates
+- Phase 6+ gate-open request template:
+  - `docs/PHASE6_GATE_OPEN_REQUEST_TEMPLATE_2026-03-02.md`
+
 ## Completed This Cycle
+- Added governance template for opening the next implementation gate:
+  - `docs/PHASE6_GATE_OPEN_REQUEST_TEMPLATE_2026-03-02.md`.
 - Added compact Phase 5.3 restart checklist for constraint-lift resumption:
   - `docs/PHASE53_RESTART_CHECKLIST_2026-03-02.md`.
 - Executed governance lock decision sweep for Phases 0-5:

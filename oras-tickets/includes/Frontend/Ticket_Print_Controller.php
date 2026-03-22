@@ -162,9 +162,10 @@ final class Ticket_Print_Controller { // NOSONAR legacy WP class naming
 
     /**
      * @param \WC_Order_Item_Product|\WC_Order_Item $item
-     * @return array{event_id:int,ticket_index:int,ticket_name:string,quantity:int,unit_price:float,currency:string,phase_label:string}
+      * @return array{item_id:int,event_id:int,ticket_index:int,ticket_name:string,quantity:int,unit_price:float,currency:string,phase_label:string}
      */
     private function get_item_ticket_context( $item ): array {
+          $item_id      = method_exists( $item, 'get_id' ) ? (int) $item->get_id() : 0;
         $event_id     = $item->get_meta( '_oras_ticket_event_id', true );
         $ticket_index = $item->get_meta( '_oras_ticket_index', true );
 
@@ -204,6 +205,7 @@ final class Ticket_Print_Controller { // NOSONAR legacy WP class naming
         }
 
         return array(
+            'item_id'      => $item_id,
             'event_id'     => (int) $event_id,
             'ticket_index' => (int) $ticket_index,
             'ticket_name'  => $ticket_name,

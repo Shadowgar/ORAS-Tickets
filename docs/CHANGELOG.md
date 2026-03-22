@@ -1,5 +1,17 @@
 # CHANGELOG (Append-Only)
 
+## 2026-03-02 — Phase 6 Gate-Open Governance Template
+
+Docs:
+- Added a standardized governance request template to open Phase 6+ work after locked-baseline enforcement:
+  - `docs/PHASE6_GATE_OPEN_REQUEST_TEMPLATE_2026-03-02.md`
+- Linked template in active status docs:
+  - `docs/NEXT.md`
+  - `docs/CURRENT_STATE.md`
+
+Validation:
+- `composer phpstan` (pass)
+
 ## 2026-03-02 — Internal Context Alignment (Locked Baseline)
 
 Docs:

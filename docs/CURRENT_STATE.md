@@ -200,6 +200,7 @@ Execution mode is currently a **sequential Phase 0->12 closure sweep** with evid
 - Board Member Dashboard has been approved for the master plan.
 - It is scoped as a board-only, Members Hub-style executive surface backed by PMPro + ticketing + financial KPIs.
 - Build remains gated behind current Phase 5 closure requirements.
+- Gate-open request template for Phase 6+ planning: `docs/PHASE6_GATE_OPEN_REQUEST_TEMPLATE_2026-03-02.md`.
 
 ## Phase 5.3 Proposal — QuickBooks Revenue Split Sync (Woo Orders)
 Status: implemented in plugin and currently in pre-live validation mode (live connector verification pending Intuit production app approval).
