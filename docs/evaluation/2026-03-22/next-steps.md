@@ -241,3 +241,9 @@
 - Risk / rollback note:
   - Risk is corrupting the shared option payload if migration is not strictly additive.
   - Roll back by restoring the previous settings owner and saved option structure.
+
+End of PASS 6 — Next Steps
+
+Notes:
+- All steps are strictly sequenced; do not start Step N+1 until Step N has passed the full verification checklist above and an operator signs off.
+- No storage schema changes were specified; if later schema changes are required, record as a separate PASS with explicit migration approvals.

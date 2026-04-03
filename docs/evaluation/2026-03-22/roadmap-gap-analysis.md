@@ -1,3 +1,80 @@
+---
+ROADMAP GAP ANALYSIS — PASS 2
+
+Scope: ROADMAP GAPS only (evidence-mapped). This file records gaps between the project's documented roadmap and the codebase as of 2026-03-22.
+
+1) Phase 0–4 (foundation, ticket model, Woo mapping, reporting, print, speakers)
+- Status: Mostly implemented.
+- Evidence of implementation:
+  - Ticket model and versioned envelope: `includes/Domain/Meta.php` (META_KEY_TICKETS = `_oras_tickets_v1`).
+  - Woo mapping and item snapshot meta: `includes/Commerce/Woo/Product_Sync.php` (snapshot meta `_oras_ticket_*`).
+  - Ticket print route: `includes/Frontend/Ticket_Print_Controller.php` (`add_rewrite_rule('^oras-ticket/print/?$'...)`).
+  - Speaker CPT: `includes/Admin/Speaker_CPT.php` (post type `oras_speaker`, speaker meta keys).
+- Gaps:
+  - UI refinement items mentioned in Phase 4.4 & 4.6 (agenda UI polishing, speaker history rendering) are only partially implemented; evidence: `Event_Agenda_Render.php` exists but notes in docs indicate UI refinement ongoing; `Speaker Resources` history indexing and archive rendering marked pending in master plan (no complete implementation files for history indexing).
+
+2) Phase 3 & Reporting / Treasurer-grade analytics
+- Status: Core reporting present; advanced analytics incomplete.
+- Evidence:
+  - CSV export and basic reporting: `includes/Reports/Reports_Aggregator.php` (report aggregation and CSV hooks) and admin exports in `Admin_Menu`.
+- Gaps:
+  - Advanced reporting suite, invoice engine, and board analytics data layer (Phase 10) are not implemented; no evidence of invoice PDF engine, unified KPI query layer, or cached aggregate views.
+
+3) Phase 5 — Registration & Capacity Intelligence (including 5.1–5.3)
+- Status: Partial — core systems present but governance-locked for Phase 5 closure.
+- Evidence:
+  - Waitlist system: `includes/Waitlist_Store.php` (custom table `oras_ticket_waitlist`, install_schema), features implemented and marked built in docs.
+  - RSVP surfaces: `includes/Frontend/Event_RSVP.php`, `includes/Api/Rsvp.php` (API routes and frontend renderers exist).
+  - Capacity consumption hooks: `includes/Commerce/Woo/Capacity_Consumption.php` (order status handlers and `_oras_capacity_consumed`).
+  - QuickBooks integration code present: `src/Integrations/QuickBooks/*` (Sync_Orchestrator and admin_post hooks).
+- Gaps:
+  - Phase 5 closure criteria require CI integration tests and documented operator soak for QuickBooks Phase 5.3; current evidence shows QuickBooks module present but Phase 5.3 is paused (ROADMAP note: pre-live, paused). No evidence of completed pre-live reconciliation reports or production WP-CLI executions.
+  - Capacity Dashboard (Phase 5.3/5.2 predictive layer and sellout visibility) is partial: core metrics exist but predictive analytics and dashboard aggregation are not implemented (no centralized KPI query layer).
+
+4) Phase 6 — Advanced Ticketing Intelligence
+- Status: Not Built / Missing
+- Gaps (explicit roadmap items with no code evidence):
+  - Tier System Enhancements (early bird, member-only pricing, per-user limits): NO EVIDENCE in `includes/Commerce` for date-based transitions or per-user limits.
+  - QR Code Ticket System (unique QR, verification endpoint, duplicate prevention): NO EVIDENCE; though `includes/Api/Checkin.php` registers checkin routes, there is no full QR generation/verification implementation or QR payload issuance tied to order items.
+  - Check-In System (mobile UI, QR scan, timestamps, exports): Partial API exists (`Api/Checkin.php`) but mobile-friendly UI and exportable check-in lists or timestamp logs are not implemented.
+  - Seat Reservation: NO EVIDENCE (no seat grid, locking logic, or price-per-seat code).
+
+5) Phase 7–9 (Speaker Intelligence, Virtual/Hybrid, Member Hub expansion)
+- Status: Mostly Not Built / Partially Built
+- Gaps:
+  - Speaker history & performance analytics: partial; `Speaker_CPT` exists, but `oras_speaker_history_v1` and automatic indexing not found.
+  - Virtual/Hybrid features (Zoom gating, meeting sync): NO EVIDENCE (no Zoom integration module).
+  - Member Hub expansions (My RSVPs, My Speaking History, Invoice Access): My Tickets and basic member ticket display exist, but My RSVPs, speaking history pages, invoice access, and PDF invoice engine are not implemented.
+
+6) Phase 10–12 (Financial intelligence, discovery, automation)
+- Status: Not Built
+- Gaps:
+  - Invoice engine, refund analytics, board analytics data layer, advanced filtering, map view, recurrence intelligence extensions, door prize system, reminders/post-event automation: NO EVIDENCE or marked Not Built in master plan.
+
+7) Cross-cutting governance & compliance
+- Gaps:
+  - Phase 5.3 QuickBooks pre-live evidence checklist (operator soak, reconciliation workflows, PCI checklist alignment) is not present in code; ROADMAP marks the phase paused pending external approvals and production WP-CLI availability.
+  - CI test coverage for end-to-end RSVP/waitlist/attendee flows and QuickBooks pre-live reconciliation evidence: limited evidence of automated end-to-end CI tests in repo scan.
+
+8) Summary / actionable gap list (evidence-only)
+- Implemented or present (evidence files):
+  - Ticket model (`includes/Domain/Meta.php`)
+  - Woo mapping & snapshot meta (`includes/Commerce/Woo/Product_Sync.php`)
+  - Waitlist store & schema (`includes/Waitlist_Store.php`)
+  - RSVP surfaces and API (`includes/Frontend/Event_RSVP.php`, `includes/Api/Rsvp.php`)
+  - Ticket print controller (`includes/Frontend/Ticket_Print_Controller.php`)
+  - Speaker CPT (`includes/Admin/Speaker_CPT.php`)
+  - QuickBooks integration code present but pre-live (`src/Integrations/QuickBooks/*`)
+
+- Not implemented / missing evidence (roadmap items requiring work):
+  - Phase 6 features (QR tickets, tier transitions, seat reservations)
+  - Phase 7–9 expansions (speaker history indexing, virtual Zoom integration, My RSVPs, invoice engine)
+  - Phase 10 advanced financial analytics and board KPI data layer
+  - CI end-to-end tests for RSVP/waitlist/attendee flows and QuickBooks pre-live reconciliation evidence
+
+---
+
+Notes: This PASS 2 file strictly records roadmap-to-code gaps using explicit code references where present. No recommendations or remediation steps are included in this PASS 2 output.
 # ROADMAP GAP ANALYSIS
 
 ## Authority Used

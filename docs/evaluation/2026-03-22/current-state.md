@@ -1,259 +1,194 @@
-# CURRENT STATE
+---
+CURRENT STATE — PASS 1 (exact evidence)
 
-## Authority
-- Runtime truth for this report is the code in `oras-tickets/`.
-- Roadmap truth used to frame the current-state summary: `docs/CURRENT_STATE.md`, `docs/MASTER_EXECUTION_TRACKER.md`, `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`, and `docs/PHASE_COMPLETION_SWEEP_2026-03-02.md`.
-- Locked phase docs were identifiable with sufficient certainty for Phase 0-5 governance state:
-  - `docs/PHASE0_5_LOCK_REVIEW_PACKET_2026-03-02.md`
-  - `docs/PHASE_COMPLETION_SWEEP_2026-03-02.md`
-  - `docs/PHASE5_OPERATOR_SOAK_2026-03-02.md`
-  - `docs/PHASE53_PRELIVE_PACKET_2026-03-02.md`
+This document is the PASS 1 output required by docs/evaluation/2026-03-22/EVAL_CONTROLLER.md.
+It records exact code evidence for the current runtime shape of the plugin. No recommendations
+or roadmap analysis are included — evidence only.
 
-## Architecture Boundaries
+1) Plugin bootstrap path
+- File: oras-tickets/oras-tickets.php
+  - Evidence:
+    - Registers `plugins_loaded` handler that calls `Bootstrap::instance()->init()`:
+      `add_action('plugins_loaded', static function () { Bootstrap::instance()->init(); }, 20)` (oras-tickets/oras-tickets.php).
+    - Registers activation hook calling `\ORAS\Tickets\Capabilities::add_caps()` and `Waitlist_Store::install_schema()`:
+      `register_activation_hook(ORAS_TICKETS_FILE, static function (): void { \ORAS\Tickets\Capabilities::add_caps(); Waitlist_Store::install_schema(); })` (oras-tickets/oras-tickets.php).
 
-### Core domain
-- Event-owned ticket definitions live in the versioned post-meta envelope `ORAS\Tickets\Domain\Meta::META_KEY_TICKETS` / `_oras_tickets_v1`; the aggregate and value object are `ORAS\Tickets\Domain\Ticket_Collection` and `ORAS\Tickets\Domain\Ticket` in `oras-tickets/includes/Domain/Ticket_Collection.php`, `oras-tickets/includes/Domain/Ticket.php`, and `oras-tickets/includes/Domain/Meta.php`.
-- Ticket price-phase resolution lives in `ORAS\Tickets\Domain\Pricing\Price_Resolver` in `oras-tickets/includes/Domain/Pricing/Price_Resolver.php`.
-- RSVP settings live in `_oras_rsvp_v1`, per-user RSVP state lives in usermeta `_oras_rsvp_event_<event_id>`, and waitlist lifecycle lives in the custom table created by `ORAS\Tickets\Waitlist_Store` in `oras-tickets/includes/Waitlist_Store.php`.
-- Concurrency control for event/order mutations is centralized in `ORAS\Tickets\Support\DbLock` in `oras-tickets/includes/Support/DbLock.php`.
+- Bootstrap class (bootstrap wiring)
+  - File: oras-tickets/includes/Bootstrap.php
+  - Evidence:
+    - `final class Bootstrap` declared (oras-tickets/includes/Bootstrap.php).
+    - `require_once` of many modules inside Bootstrap, e.g. `includes/Admin/Metaboxes/Event_RSVP_Metabox.php`,
+      `includes/Frontend/Tickets_Display.php`, `includes/Frontend/Ticket_Print_Controller.php`,
+      `includes/Frontend/Virtual_Access.php`, `includes/Frontend/Event_RSVP.php`, `includes/Waitlist_Store.php`,
+      `includes/Api/Member_Hub_Tickets.php`, `includes/Api/Checkin.php` (oras-tickets/includes/Bootstrap.php lines with require_once).
+    - Registers init hook to call `register_phase1`: `add_action('init', array($this, 'register_phase1'), 20)` (oras-tickets/includes/Bootstrap.php).
 
-### Commerce layer
-- Woo product mapping is created and maintained by `ORAS\Tickets\Commerce\Woo\Product_Sync` via `save_post_tribe_events` and `woocommerce_checkout_create_order_line_item` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
-- Cart-time price resolution and hold expiration are enforced by `ORAS\Tickets\Frontend\Tickets_Display` via `woocommerce_add_to_cart_validation`, `woocommerce_add_cart_item_data`, `woocommerce_check_cart_items`, `woocommerce_before_checkout_process`, and `woocommerce_checkout_process` in `oras-tickets/includes/Frontend/Tickets_Display.php`.
-- Capacity mutation is tied to Woo order-status transitions in `ORAS\Tickets\Commerce\Woo\Capacity_Consumption` via `woocommerce_order_status_processing`, `woocommerce_order_status_completed`, `woocommerce_order_status_cancelled`, and `woocommerce_order_status_refunded` in `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`.
-- Ticket-only auto-complete lives in `ORAS\Tickets\Commerce\Woo\Order_Autocomplete` via `woocommerce_order_status_processing` and `woocommerce_payment_complete` in `oras-tickets/includes/Commerce/Woo/Order_Autocomplete.php`.
-- Stripe-specific description metadata is injected by `ORAS\Tickets\Commerce\Woo\Stripe_Intent_Description` via `wc_stripe_generate_create_intent_request` in `oras-tickets/includes/Commerce/Woo/Stripe_Intent_Description.php`.
+2) Modules / services (file path + class + registration hook/evidence)
+- Commerce / Product Sync
+  - File: oras-tickets/includes/Commerce/Woo/Product_Sync.php
+  - Class: `ORAS\Tickets\Commerce\Woo\Product_Sync` (final class Product_Sync)
+  - Evidence:
+    - `add_action('save_post_tribe_events', array($this, 'on_save_event'), 30, 3)` (Product_Sync.php).
+    - `add_action('woocommerce_checkout_create_order_line_item', array($this, 'snapshot_order_item_ticket_meta'), 10, 4)` (Product_Sync.php).
+    - Snapshot writes item meta keys: `_oras_ticket_event_id`, `_oras_ticket_index`, `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_*` (Product_Sync.php).
 
-### Admin operations
-- Admin entrypoints are registered from `ORAS\Tickets\Admin\Admin_Menu` in `oras-tickets/includes/Admin/Admin_Menu.php`.
-- The event editor uses one unified add-on panel from `ORAS\Tickets\Admin\Event_Addon_Metabox`, which embeds `Tickets_Metabox`, `Event_Agenda_Metabox`, `Event_RSVP_Metabox`, `Event_Speakers_Metabox`, and `Event_Door_Prizes_Metabox` in `oras-tickets/includes/Admin/Event_Addon_Metabox.php`.
-- Dashboard/operator flows are split across `Dashboard_Page`, `Reports_Page`, `Settings_Page`, `Speaker_Obligations_Page`, `Speaker_Reports_Page`, and `CheckinPage` in `oras-tickets/includes/Admin/Pages/`.
-- A large amount of admin AJAX/admin-post behavior is still implemented directly on `ORAS\Tickets\Bootstrap` in `oras-tickets/includes/Bootstrap.php`.
+- Cart pricing
+  - File: oras-tickets/includes/Commerce/Woo/Cart_Pricing.php
+  - Class: `ORAS\Tickets\Commerce\Woo\Cart_Pricing`
+  - Evidence: `add_action('woocommerce_before_calculate_totals', array(__CLASS__, 'apply_cart_pricing'), 20, 1)` and usage of product meta `_oras_ticket_event_id`/_`oras_ticket_index` (Cart_Pricing.php).
 
-### Frontend rendering
-- Ticket sales UI is injected into event content by `ORAS\Tickets\Frontend\Tickets_Display::the_content_filter()` via `the_content` in `oras-tickets/includes/Frontend/Tickets_Display.php`.
-- Agenda UI is appended by `ORAS\Tickets\Frontend\Event_Agenda_Render::append_to_content()` via `the_content` in `oras-tickets/includes/Frontend/Event_Agenda_Render.php`.
-- RSVP UI is appended by `ORAS\Tickets\Frontend\Event_RSVP::render_rsvp_block()` via `the_content` in `oras-tickets/includes/Frontend/Event_RSVP.php`.
-- Door prizes are appended by `ORAS\Tickets\Frontend\Door_Prizes::append_to_content()` via `the_content` in `oras-tickets/includes/Frontend/Door_Prizes.php`.
-- Ticket print routing is handled by `ORAS\Tickets\Frontend\Ticket_Print_Controller` through `query_vars`, a rewrite rule for `/oras-ticket/print`, and `template_redirect` in `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`.
-- Virtual event access is enforced by `ORAS\Tickets\Frontend\Virtual_Access` through multiple `tribe_template_pre_html:*` filters plus `tribe_events_virtual_show_virtual_content` in `oras-tickets/includes/Frontend/Virtual_Access.php`.
-- The board dashboard is a shortcode surface registered by `ORAS\Tickets\Frontend\Board_Dashboard` with `[oras_board_dashboard]` in `oras-tickets/includes/Frontend/Board_Dashboard.php`.
+- Capacity consumption
+  - File: oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php
+  - Class: `ORAS\Tickets\Commerce\Woo\Capacity_Consumption`
+  - Evidence: hooks `woocommerce_order_status_processing`, `woocommerce_order_status_completed`,
+    `woocommerce_order_status_cancelled`, `woocommerce_order_status_refunded` mapped to `handle_paid_order` / `handle_restore_order` (Capacity_Consumption.php) and uses order meta `_oras_capacity_consumed`.
 
-### API / REST
-- Member Hub ticket routes are registered by `ORAS\Tickets\Api\Member_Hub_Tickets`:
-  - `oras-tickets/v1/me/tickets`
-  - `oras-tickets/v1/me/tickets/summary`
-  in `oras-tickets/includes/Api/Member_Hub_Tickets.php`.
-- RSVP routes are registered by `ORAS\Tickets\Api\Rsvp`:
-  - `oras/v1/rsvp/my`
-  - `oras/v1/rsvp/event/(?P<id>\d+)`
-  in `oras-tickets/includes/Api/Rsvp.php`.
-- Check-in routes are registered by `ORAS\Tickets\Api\Checkin`:
-  - `oras-tickets/v1/checkin/verify`
-  - `oras-tickets/v1/checkin/mark`
-  - `oras-tickets/v1/checkin/unmark`
-  in `oras-tickets/includes/Api/Checkin.php`.
+- Order auto-complete
+  - File: oras-tickets/includes/Commerce/Woo/Order_Autocomplete.php
+  - Class: `ORAS\Tickets\Commerce\Woo\Order_Autocomplete`
+  - Evidence: hooks `woocommerce_order_status_processing` and `woocommerce_payment_complete` to `maybe_autocomplete`, sets order meta `_oras_autocompleted` (Order_Autocomplete.php).
 
-### Reporting
-- Event sales reporting is rendered by `ORAS\Tickets\Admin\Pages\Reports_Page` and computed by `ORAS\Tickets\Admin\Reports_Aggregator` in `oras-tickets/includes/Admin/Pages/Reports_Page.php` and `oras-tickets/includes/Admin/Reports_Aggregator.php`.
-- Speaker obligation/reporting surfaces live in `Speaker_Obligations_Page` and `Speaker_Reports_Page` in `oras-tickets/includes/Admin/Pages/Speaker_Obligations_Page.php` and `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php`.
-- Board-facing executive reporting is computed on the frontend by `ORAS\Tickets\Frontend\Board_Dashboard` in `oras-tickets/includes/Frontend/Board_Dashboard.php`.
+- Stripe intent description
+  - File: oras-tickets/includes/Commerce/Woo/Stripe_Intent_Description.php
+  - Class: `ORAS\Tickets\Commerce\Woo\Stripe_Intent_Description`
+  - Evidence: hooks into `wc_stripe_generate_create_intent_request` and reads item meta `_oras_ticket_event_id`, `_oras_ticket_name` (Stripe_Intent_Description.php).
 
-### QuickBooks adapter layer
-- QuickBooks integration is bounded under `oras-tickets/src/Integrations/QuickBooks/` and registered from `ORAS\Tickets\Integrations\QuickBooks\Module` in `oras-tickets/src/Integrations/QuickBooks/Module.php`.
-- Storage for QuickBooks settings stays inside the shared option `oras_tickets_settings_v1` through `ORAS\Tickets\Integrations\QuickBooks\Settings` in `oras-tickets/src/Integrations/QuickBooks/Settings.php`.
-- Runtime work is delegated to `OAuth_Client`, `Api_Client`, `Split_Calculator`, `Journal_Entry_Creator`, `Retry_Handler`, `Sync_Orchestrator`, and `Cli_Command` in `oras-tickets/src/Integrations/QuickBooks/`.
+- QuickBooks integration (module + hooks)
+  - Files: oras-tickets/src/Integrations/QuickBooks/Module.php and src/Integrations/QuickBooks/*
+  - Evidence:
+    - Module registers admin_post hooks: `admin_post_oras_tickets_qbo_oauth_start`, `admin_post_oras_tickets_qbo_oauth_callback`,
+      `admin_post_oras_tickets_qbo_test_connection`, `admin_post_oras_tickets_qbo_test_journal_entry`, `admin_post_oras_tickets_qbo_process_waiting_queue`,
+      `admin_post_oras_tickets_qbo_sync_order_now`, `admin_post_oras_tickets_qbo_approve_order`, `admin_post_oras_tickets_qbo_reverse_order`, `admin_post_oras_tickets_qbo_resync_order`, `admin_post_oras_tickets_qbo_auto_map_event_accounts` (src/Integrations/QuickBooks/Module.php lines adding add_action).
+    - `Sync_Orchestrator` hooks `woocommerce_order_status_completed` to `enqueue_order_sync` and registers internal ACTION_HOOK for async processing (src/Integrations/QuickBooks/Sync_Orchestrator.php).
 
-## Textual Architecture Diagram
-```text
-oras-tickets/oras-tickets.php
-  -> plugins_loaded
-    -> ORAS\Tickets\Bootstrap::init()
-      -> dependency guard for TEC + Woo
-      -> init hook -> Bootstrap::register_phase1()
-        -> Core domain loaded from includes/Domain/*
-        -> Woo module registration
-          -> Product_Sync
-          -> Cart_Pricing
-          -> Capacity_Consumption
-          -> Order_Autocomplete
-          -> Stripe_Intent_Description
-        -> REST registration
-          -> Member_Hub_Tickets
-          -> Rsvp
-          -> Checkin
-        -> Frontend registration
-          -> Tickets_Display
-          -> Ticket_Print_Controller
-          -> Event_Agenda_Render
-          -> Event_RSVP
-          -> Virtual_Access
-          -> Door_Prizes
-          -> Board_Dashboard
-        -> Admin registration
-          -> Event_Addon_Metabox + embedded feature metaboxes
-          -> Admin_Menu + Dashboard/Reports/Settings/Speaker/Checkin pages
-          -> AJAX/admin-post handlers on Bootstrap
-        -> Integration registration
-          -> QuickBooks Module
+- Frontend renderers / controllers
+  - Tickets display
+    - File: oras-tickets/includes/Frontend/Tickets_Display.php
+    - Class: `ORAS\Tickets\Frontend\Tickets_Display`
+    - Evidence: `add_filter('the_content', array($this, 'the_content_filter'), 20)` and `add_action('template_redirect', array($this, 'handle_post'), 10)` (Tickets_Display.php).
+  - Event Agenda render
+    - File: oras-tickets/includes/Frontend/Event_Agenda_Render.php
+    - Evidence: `add_filter('the_content', array(self::class, 'append_to_content'), 20)` (Event_Agenda_Render.php).
+  - Event RSVP frontend
+    - File: oras-tickets/includes/Frontend/Event_RSVP.php
+    - Evidence: `add_filter('the_content', array(self::class, 'render_rsvp_block'), 21)` and `render_rsvp_block` (Event_RSVP.php).
+  - Door prizes
+    - File: oras-tickets/includes/Frontend/Door_Prizes.php
+    - Evidence: `add_filter('the_content', array(self::class, 'append_to_content'), 30)` and `append_to_content` (Door_Prizes.php).
+  - Ticket print controller
+    - File: oras-tickets/includes/Frontend/Ticket_Print_Controller.php
+    - Evidence: `add_filter('query_vars', array($this, 'register_query_vars'))`, `add_action('template_redirect', array($this, 'maybe_render_print_page'), 1)`, `add_rewrite_rule('^oras-ticket/print/?$', 'index.php?oras_ticket_print=1', 'top')` (Ticket_Print_Controller.php).
 
-Data stores
-  -> Event post meta: _oras_tickets_v1, _oras_rsvp_v1, _oras_agenda_v1, _oras_speakers_v1, _oras_door_prizes_v1, _oras_attendee_notes_v1, _oras_virtual_access_v1
-  -> User meta: _oras_rsvp_event_<event_id>, _oras_rsvp_event_<event_id>_ts
-  -> Woo product/order/item meta: _oras_tickets_woo_map_v1, _oras_ticket_event_id, _oras_ticket_index, _oras_ticket_name, _oras_ticket_unit_price, _oras_ticket_price_phase_*, _oras_capacity_*, _oras_autocompleted, _oras_checkin_units_v1
-  -> Custom DB table: wp_oras_ticket_waitlist
-  -> Options: oras_tickets_settings_v1, oras_tickets_waitlist_schema_version, oras_tickets_board_login_daily_v1, oras_tickets_speaker_notify_emails
-  -> QBO order meta: _oras_qbo_*
-```
+- Admin wiring and AJAX
+  - File: oras-tickets/includes/Admin/Admin_Menu.php and includes/Admin/Pages/*
+  - Evidence: `Admin_Menu::register` registers `admin_menu`, `admin_enqueue_scripts`, admin_post handlers (`admin_post_oras_tickets_export_csv`, `admin_post_oras_tickets_repair_caps`) and `add_menu_page` / `add_submenu_page` entries (Admin_Menu.php).
 
-## Custom Post Types, Taxonomies, Meta, Tables, and Options
+- Security / support services
+  - File: oras-tickets/includes/Security/Ticket_Checkin_Token.php
+  - Evidence: referenced by Checkin API (Ticket_Checkin_Token.php usage lines).
 
-### CPTs and taxonomies
-- Registered CPTs:
-  - `oras_speaker` via `ORAS\Tickets\Admin\Speaker_CPT::register_post_type()` in `oras-tickets/includes/Admin/Speaker_CPT.php`
-- Registered taxonomies:
-  - No plugin-owned taxonomy registration was found in `oras-tickets/includes/` or `oras-tickets/src/`.
+3) Custom Post Types (CPTs), taxonomies, meta keys (exact evidence)
+- CPT: `oras_speaker`
+  - File: oras-tickets/includes/Admin/Speaker_CPT.php
+  - Evidence: `register_post_type` called with POST_TYPE = 'oras_speaker' in `Speaker_CPT::register_post_type()`; class constants exposing meta keys:
+    - `_oras_speaker_email`, `_oras_speaker_affiliation`, `_oras_speaker_website_url`, `_oras_speaker_wp_user_id`, `_oras_speaker_status`, `_oras_speaker_internal_notes`, `_oras_speakers_v1` (Speaker_CPT.php).
 
-### Event-owned envelopes
-| Store | Purpose | Evidence |
-|---|---|---|
-| `_oras_tickets_v1` | Ticket definitions per event | `oras-tickets/includes/Domain/Meta.php`, `oras-tickets/includes/Domain/Ticket_Collection.php` |
-| `_oras_tickets_woo_map_v1` | Event ticket index to Woo product map | `oras-tickets/includes/Commerce/Woo/Product_Sync.php`, `oras-tickets/includes/Admin/Pages/Dashboard_Page.php` |
-| `_oras_rsvp_v1` | RSVP settings envelope | `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`, `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php` |
-| `_oras_agenda_v1` | Agenda days/settings/resources | `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`, `oras-tickets/includes/Frontend/Event_Agenda_Render.php` |
-| `_oras_speakers_v1` | Speaker assignment envelope on events | `oras-tickets/includes/Admin/Event_Speakers_Metabox.php`, `oras-tickets/includes/Admin/Speaker_CPT.php`, `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php` |
-| `_oras_door_prizes_v1` | Door prize envelope | `oras-tickets/includes/Domain/Meta.php`, `oras-tickets/includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php`, `oras-tickets/includes/Frontend/Door_Prizes.php` |
-| `_oras_attendee_notes_v1` | Per-event attendee notes | `oras-tickets/includes/Bootstrap.php` |
-| `_oras_virtual_access_v1` | Virtual-content visibility envelope | `oras-tickets/includes/Frontend/Virtual_Access.php` |
+- Tickets envelope meta key
+  - File: oras-tickets/includes/Domain/Meta.php
+  - Evidence: `public const META_KEY_TICKETS = '_oras_tickets_v1'` (Domain/Meta.php).
 
-### Speaker CPT meta
-| Meta key | Purpose | Evidence |
-|---|---|---|
-| `_oras_speaker_email` | Speaker contact | `oras-tickets/includes/Admin/Speaker_CPT.php` |
-| `_oras_speaker_affiliation` | Speaker affiliation | `oras-tickets/includes/Admin/Speaker_CPT.php` |
-| `_oras_speaker_website_url` | Speaker website | `oras-tickets/includes/Admin/Speaker_CPT.php` |
-| `_oras_speaker_wp_user_id` | Linked WP user | `oras-tickets/includes/Admin/Speaker_CPT.php`, `oras-tickets/includes/Admin/Pages/Speaker_Obligations_Page.php` |
-| `_oras_speaker_status` | Active/inactive flag | `oras-tickets/includes/Admin/Speaker_CPT.php` |
-| `_oras_speaker_internal_notes` | Internal notes | `oras-tickets/includes/Admin/Speaker_CPT.php` |
-| `_oras_speaker_headshot_id` | Headshot attachment | `oras-tickets/includes/Admin/Speaker_CPT.php`, `oras-tickets/includes/Frontend/Event_Agenda_Render.php` |
+- Other event-owned envelopes / meta keys
+  - `_oras_rsvp_v1` (Event RSVP envelope) — evidence: includes/Admin/Metaboxes/Event_RSVP_Metabox.php defines `META_KEY = '_oras_rsvp_v1'` and includes/Api/Rsvp.php reads `get_post_meta($event_id, '_oras_rsvp_v1', true)`.
+  - `_oras_agenda_v1` — evidence: includes/Admin/Metaboxes/Event_Agenda_Metabox.php and includes/Frontend/Event_Agenda_Render.php.
+  - `_oras_speakers_v1` — evidence: Event_Speakers_Metabox and templates reference `_oras_speakers_v1`.
+  - `_oras_door_prizes_v1` — evidence: includes/Domain/Meta.php `META_KEY_DOOR_PRIZES = '_oras_door_prizes_v1'` and Door_Prizes.php reads it.
+  - `_oras_attendee_notes_v1` — evidence: read/updated in Bootstrap (Bootstrap.php lines referencing `_oras_attendee_notes_v1`).
+  - `_oras_virtual_access_v1` — evidence: includes/Frontend/Virtual_Access.php `META_KEY = '_oras_virtual_access_v1'`.
 
-### Attendance and commerce meta
-| Store | Purpose | Evidence |
-|---|---|---|
-| `_oras_rsvp_event_<event_id>` | Per-user RSVP state | `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php`, `oras-tickets/includes/Bootstrap.php`, `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` |
-| `_oras_rsvp_event_<event_id>_ts` | Waitlist join timestamp in usermeta | `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Bootstrap.php` |
-| `wp_oras_ticket_waitlist` | Waitlist lifecycle/audit table | `oras-tickets/includes/Waitlist_Store.php` |
-| `_oras_ticket_event_id` / `_oras_ticket_index` | Woo product/order-item linkage to event ticket row | `oras-tickets/includes/Commerce/Woo/Product_Sync.php`, `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`, `oras-tickets/includes/Admin/Reports_Aggregator.php`, `oras-tickets/includes/Frontend/Ticket_Print_Controller.php` |
-| `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_*` | Immutable order-item reporting/print/QBO snapshot | `oras-tickets/includes/Commerce/Woo/Product_Sync.php`, `oras-tickets/includes/Admin/Reports_Aggregator.php`, `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`, `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php` |
-| `_oras_capacity_consumed` / `_oras_capacity_restored` | Order-level capacity idempotency flags | `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php` |
-| `_oras_autocompleted` | Ticket-only order auto-complete marker | `oras-tickets/includes/Commerce/Woo/Order_Autocomplete.php` |
-| `_oras_checkin_units_v1` | Per-order-item check-in state | `oras-tickets/includes/Security/Ticket_Checkin_Token.php` |
+- Order/item snapshot meta keys (exact evidence)
+  - `_oras_ticket_event_id`, `_oras_ticket_index`, `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_key`, `_oras_ticket_price_phase_label`, `_oras_ticket_price_phase_price` — added by `Product_Sync::snapshot_order_item_ticket_meta` and consumed across `Member_Hub_Tickets`, `Ticket_Print_Controller`, `Reports_Aggregator`, `Capacity_Consumption`, `Board_Dashboard`, and QuickBooks sync code (Product_Sync.php, Member_Hub_Tickets.php, Ticket_Print_Controller.php, Reports_Aggregator.php, Capacity_Consumption.php, src/Integrations/QuickBooks/*).
+  - `_oras_capacity_consumed` — order meta used by `Capacity_Consumption` (Capacity_Consumption.php).
+  - `_oras_autocompleted` — order meta used by `Order_Autocomplete` (Order_Autocomplete.php).
+  - `_oras_checkin_units_v1` — referenced by Ticket_Checkin_Token and checkin flows (Ticket_Checkin_Token.php evidence lines).
 
-### Options
-| Option key | Purpose | Evidence |
-|---|---|---|
-| `oras_tickets_settings_v1` | Plugin settings + QuickBooks branch | `oras-tickets/includes/Admin/Pages/Settings_Page.php`, `oras-tickets/src/Integrations/QuickBooks/Settings.php` |
-| `oras_tickets_waitlist_schema_version` | Waitlist table schema version | `oras-tickets/includes/Waitlist_Store.php` |
-| `oras_tickets_board_login_daily_v1` | Board dashboard activity counters | `oras-tickets/includes/Frontend/Board_Dashboard.php` |
-| `oras_tickets_speaker_notify_emails` | Speaker obligations notification recipients | `oras-tickets/includes/Admin/Pages/Speaker_Obligations_Page.php` |
+4) WooCommerce hooks and order/item meta (exact evidence)
+- Hooks and mapping (evidence examples):
+  - `woocommerce_checkout_create_order_line_item` → `Product_Sync::snapshot_order_item_ticket_meta` (Product_Sync.php).
+  - `woocommerce_before_calculate_totals` → `Cart_Pricing::apply_cart_pricing` (Cart_Pricing.php).
+  - `woocommerce_order_status_processing` / `woocommerce_order_status_completed` → `Capacity_Consumption::handle_paid_order` (Capacity_Consumption.php).
+  - `woocommerce_order_status_cancelled` / `woocommerce_order_status_refunded` → `Capacity_Consumption::handle_restore_order` (Capacity_Consumption.php).
+  - `woocommerce_order_status_processing` / `woocommerce_payment_complete` → `Order_Autocomplete::maybe_autocomplete` (Order_Autocomplete.php).
+  - QuickBooks: `woocommerce_order_status_completed` → `Sync_Orchestrator::enqueue_order_sync` (src/Integrations/QuickBooks/Sync_Orchestrator.php).
 
-## Data Flow
+5) REST routes (exact routes, methods, file/class/method evidence)
+- Member Hub tickets
+  - File: oras-tickets/includes/Api/Member_Hub_Tickets.php
+  - Evidence / routes:
+    - `register_rest_route('oras-tickets/v1', '/me/tickets', ...)` → `Member_Hub_Tickets::get_my_tickets` (Member_Hub_Tickets.php).
+    - `register_rest_route('oras-tickets/v1', '/me/tickets/summary', ...)` → `Member_Hub_Tickets::get_my_tickets_summary` (Member_Hub_Tickets.php).
 
-### Ticket authoring to Woo sale
-- Event editing writes `_oras_tickets_v1` through `Tickets_Metabox::save_post()` and `Ticket_Collection::save_for_event()` in `oras-tickets/includes/Admin/Tickets_Metabox.php` and `oras-tickets/includes/Domain/Ticket_Collection.php`.
-- `Product_Sync::on_save_event()` reads `_oras_tickets_v1`, creates/updates hidden `WC_Product_Simple` products, and persists `_oras_tickets_woo_map_v1`, `_oras_ticket_event_id`, and `_oras_ticket_index` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
-- `Tickets_Display` reads ticket envelopes and Woo product meta to render sales UI, validate add-to-cart, stamp `_oras_hold_started_at`, and revalidate cart contents in `oras-tickets/includes/Frontend/Tickets_Display.php`.
+- RSVP API
+  - File: oras-tickets/includes/Api/Rsvp.php
+  - Evidence / routes:
+    - `register_rest_route('oras/v1', '/rsvp/my', ...)` → `Rsvp::get_my_rsvps` (Api/Rsvp.php).
+    - `register_rest_route('oras/v1', '/rsvp/event/(?P<id>\\d+)', ...)` → `Rsvp::get_event_rsvp` (Api/Rsvp.php).
 
-### Woo checkout to reporting / print / QBO
-- `Product_Sync::snapshot_order_item_ticket_meta()` snapshots order-item metadata during `woocommerce_checkout_create_order_line_item` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
-- `Capacity_Consumption` mutates event ticket capacity on paid/cancelled/refunded order transitions in `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`.
-- `Order_Autocomplete` auto-completes qualifying orders in `oras-tickets/includes/Commerce/Woo/Order_Autocomplete.php`.
-- `Reports_Aggregator`, `Ticket_Print_Controller`, `Member_Hub_Tickets`, `Board_Dashboard`, and QuickBooks classes all consume the same `_oras_ticket_*` order-item snapshot metadata in:
-  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
-  - `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`
-  - `oras-tickets/includes/Api/Member_Hub_Tickets.php`
-  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Split_Calculator.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`
+- Check-in API
+  - File: oras-tickets/includes/Api/Checkin.php
+  - Evidence / routes:
+    - `register_rest_route('oras-tickets/v1', '/checkin/verify', ...)` → `Checkin::verifyToken` (Api/Checkin.php).
+    - `register_rest_route('oras-tickets/v1', '/checkin/mark', ...)` → `Checkin::markCheckedIn` (Api/Checkin.php).
+    - `register_rest_route('oras-tickets/v1', '/checkin/unmark', ...)` → `Checkin::unmarkCheckedIn` (Api/Checkin.php).
+    - Permission callback uses `current_user_can('oras_tickets_checkin')` (Api/Checkin.php).
 
-### RSVP / waitlist lifecycle
-- RSVP configuration is edited in `Event_RSVP_Metabox::save()` and rendered in `Event_RSVP::render_rsvp_block()` in `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php` and `oras-tickets/includes/Frontend/Event_RSVP.php`.
-- RSVP writes happen in `Event_RSVP::handle_post()`, which updates usermeta and `Waitlist_Store` under `DbLock::forEvent()` in `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Waitlist_Store.php`, and `oras-tickets/includes/Support/DbLock.php`.
-- Admin queue operations happen through `Bootstrap::handle_waitlist_*` and `Event_RSVP_Attendees_Metabox::handle_promote()` in `oras-tickets/includes/Bootstrap.php` and `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`.
-- API read surfaces consume the same stores in `oras-tickets/includes/Api/Rsvp.php`.
+6) Admin pages (file/class/method/hook evidence)
+- Admin menu wiring
+  - File: oras-tickets/includes/Admin/Admin_Menu.php
+  - Evidence: `Admin_Menu::register` registers `admin_menu`, `admin_enqueue_scripts`, admin_post handlers and calls `Settings_Page::register_settings`.
+  - `Admin_Menu::register_menu` calls `add_menu_page` and `add_submenu_page` entries for Dashboard (`oras_tickets_manage_events`), Reports (`oras_tickets_view_reports`), Check-In (`oras_tickets_checkin`), Speakers (`edit.php?post_type=oras_speaker`), Speaker Obligations, Speaker Reports, QuickBooks (`oras_tickets_manage_settings`), and Settings (`oras_tickets_manage_settings`) (Admin_Menu.php).
 
-## Admin vs Frontend Responsibilities
-- Admin-only responsibilities are concentrated in event editing, reports, settings, speaker operations, check-in UI, RSVP dashboard exports, queue promotion/removal, and attendee messaging in:
-  - `oras-tickets/includes/Admin/*`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Module.php`
-- Frontend responsibilities are concentrated in content rendering, checkout validation, print rendering, virtual-access filtering, RSVP form handling, and Member Hub/board shortcode/API read models in:
-  - `oras-tickets/includes/Frontend/*`
-  - `oras-tickets/includes/Api/*`
-- The boundary is not clean for attendance operations because `Bootstrap` still owns attendee AJAX, RSVP dashboard JSON, CSV exports, and outbound email logic in `oras-tickets/includes/Bootstrap.php`.
+7) Frontend entry points (hooks/filters/actions evidence)
+- Tickets render and POST handling
+  - File: oras-tickets/includes/Frontend/Tickets_Display.php
+  - Evidence: `add_filter('the_content', array($this, 'the_content_filter'), 20)` and `add_action('template_redirect', array($this, 'handle_post'), 10)` (Tickets_Display.php).
 
-## Global State and Tight Coupling
-- `ORAS\Tickets\Bootstrap` is a central service locator and handler container. It directly `require_once`s most modules, constructs services, and contains admin AJAX/admin-post business logic in `oras-tickets/includes/Bootstrap.php`.
-- Static singletons and static guards are used in several runtime paths:
-  - `Bootstrap::$instance` in `oras-tickets/includes/Bootstrap.php`
-  - `Tickets_Display::$instance` in `oras-tickets/includes/Frontend/Tickets_Display.php`
-  - `Ticket_Print_Controller::$instance` in `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`
-  - `Product_Sync::$running` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-  - `Event_RSVP` static methods in `oras-tickets/includes/Frontend/Event_RSVP.php`
-- Frontend composition depends on `the_content` filter ordering:
-  - agenda at priority `20` in `Event_Agenda_Render`
-  - tickets at priority `20` in `Tickets_Display`
-  - RSVP at priority `21` in `Event_RSVP`
-  - door prizes at priority `30` in `Door_Prizes`
-  This creates ordering coupling across separate modules in:
-  - `oras-tickets/includes/Frontend/Event_Agenda_Render.php`
-  - `oras-tickets/includes/Frontend/Tickets_Display.php`
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Frontend/Door_Prizes.php`
+- Agenda render: `Event_Agenda_Render::append_to_content` via `the_content` (Event_Agenda_Render.php).
+- RSVP block render: `Event_RSVP::render_rsvp_block` via `the_content` (Event_RSVP.php).
+- Door prizes: `Door_Prizes::append_to_content` via `the_content` (Door_Prizes.php).
+- Ticket print routing: rewrite `^oras-ticket/print/?$` and `template_redirect` handler `maybe_render_print_page` (Ticket_Print_Controller.php).
+- Board dashboard shortcode: implemented in `includes/Frontend/Board_Dashboard.php` (Board_Dashboard.php).
 
-## Code Smells, Technical Debt, Best-Practice Drift, Security Risks, and Performance Concerns
+8) Storage surfaces (post meta, user meta, options, custom tables) — exact evidence
+- Post meta keys:
+  - `_oras_tickets_v1` — `includes/Domain/Meta.php` `META_KEY_TICKETS = '_oras_tickets_v1'` (Domain/Meta.php).
+  - `_oras_rsvp_v1` — `includes/Admin/Metaboxes/Event_RSVP_Metabox.php` and `includes/Api/Rsvp.php` (Event_RSVP_Metabox.php, Api/Rsvp.php).
+  - `_oras_agenda_v1` — `includes/Admin/Metaboxes/Event_Agenda_Metabox.php` and `Event_Agenda_Render.php`.
+  - `_oras_speakers_v1` — speaker assignments use `_oras_speakers_v1` (Event_Speakers_Metabox, templates).
+  - `_oras_door_prizes_v1` — Domain/Meta.php and Door_Prizes.php.
+  - `_oras_attendee_notes_v1` — read/updated in `Bootstrap` (Bootstrap.php lines referencing `_oras_attendee_notes_v1`).
+  - `_oras_virtual_access_v1` — `Virtual_Access.php` `META_KEY = '_oras_virtual_access_v1'`.
 
-### Code smells / technical debt
-- `ORAS\Tickets\Bootstrap` combines bootstrap wiring, RSVP queue logic, attendee querying, attendee note persistence, CSV export routing, and outbound email sending in one class; evidence: `register_phase1()`, `handle_rsvp_dashboard_data()`, `handle_waitlist_*()`, `handle_attendees_dashboard_data()`, `handle_attendees_send_email()`, and `handle_attendees_save_note()` in `oras-tickets/includes/Bootstrap.php`.
-- QuickBooks settings storage has split ownership between the general admin settings page and the integration adapter:
-  - `ORAS\Tickets\Admin\Pages\Settings_Page::sanitize_settings()` and `get_default_settings()` in `oras-tickets/includes/Admin/Pages/Settings_Page.php`
-  - `ORAS\Tickets\Integrations\QuickBooks\Settings` in `oras-tickets/src/Integrations/QuickBooks/Settings.php`
-- Speaker access control is partly menu-level only. `Capabilities::CAPS` defines `oras_tickets_manage_speakers`, but `Speaker_CPT::register_post_type()` uses `capability_type => 'post'`, not custom post-type capabilities, in `oras-tickets/includes/Capabilities.php` and `oras-tickets/includes/Admin/Speaker_CPT.php`.
+- User meta keys:
+  - `_oras_rsvp_event_<event_id>` and `_oras_rsvp_event_<event_id>_ts` — used across `Event_RSVP`, `Waitlist_Store`, `Bootstrap`, `Api/Rsvp` (Event_RSVP.php, Waitlist_Store.php, Bootstrap.php, Api/Rsvp.php).
 
-### WordPress best-practice drift
-- The plugin still relies on manual `require_once` loading instead of autoloaded modules across `oras-tickets/oras-tickets.php`, `oras-tickets/includes/Bootstrap.php`, and `oras-tickets/includes/Admin/Admin_Menu.php`.
-- Large inline `<style>` blocks are embedded directly in admin/frontend render methods instead of dedicated assets in:
-  - `oras-tickets/includes/Admin/Pages/Reports_Page.php`
-  - `oras-tickets/includes/Admin/Pages/Settings_Page.php`
-  - `oras-tickets/includes/Frontend/Board_Dashboard.php`
+- Options:
+  - `oras_tickets_settings_v1` — Settings_Page::OPTION_KEY and QuickBooks Settings::OPTION_KEY (includes/Admin/Pages/Settings_Page.php, src/Integrations/QuickBooks/Settings.php).
+  - `oras_tickets_waitlist_schema_version` — Waitlist_Store::OPTION_SCHEMA_VERSION (Waitlist_Store.php).
+  - `oras_tickets_board_login_daily_v1` — Board_Dashboard::LOGIN_DAILY_OPTION (Board_Dashboard.php).
+  - `oras_tickets_speaker_notify_emails` — Speaker_Obligations_Page::OPTION_NOTIFY_EMAILS (Speaker_Obligations_Page.php).
 
-### Security and capability findings
-- `Event_RSVP_Attendees_Metabox::handle_export()` and `Event_RSVP_Attendees_Metabox::handle_promote()` gate with `current_user_can( 'edit_posts' )`, not the plugin’s attendee/RSVP capabilities. Evidence:
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-  - `oras-tickets/includes/Capabilities.php`
-- Speaker-management entrypoints use the custom `oras_tickets_manage_speakers` capability at page level, but speaker post editing still inherits the generic post capability model because `Speaker_CPT` uses `capability_type => 'post'`. Evidence:
-  - `oras-tickets/includes/Admin/Admin_Menu.php`
-  - `oras-tickets/includes/Admin/Pages/Speaker_Reports_Page.php`
-  - `oras-tickets/includes/Admin/Pages/Speaker_Obligations_Page.php`
-  - `oras-tickets/includes/Admin/Speaker_CPT.php`
-- Check-in REST endpoints are correctly capability-gated with `oras_tickets_checkin`, and the admin page is nonce-protected. Evidence:
-  - `oras-tickets/includes/Api/Checkin.php`
-  - `oras-tickets/includes/Admin/Pages/Checkin_Page.php`
-  - `oras-tickets/includes/Capabilities.php`
+- Custom DB table:
+  - Table: `{$wpdb->prefix}oras_ticket_waitlist` — created by `Waitlist_Store::install_schema()` with SQL `CREATE_TABLE {$table} (...)` and `table_name()` returns `$wpdb->prefix . 'oras_ticket_waitlist'` (Waitlist_Store.php).
 
-### Performance and determinism concerns
-- `Door_Prizes::resolve_thumbnail_url()` performs `wp_safe_remote_get()` during frontend rendering when `image_url` is empty and `external_link` is set. This adds network I/O to page render and weakens deterministic/self-hosted behavior. Evidence: `oras-tickets/includes/Frontend/Door_Prizes.php`.
-- `Board_Dashboard::render_shortcode()` builds many live aggregates in one frontend request by calling `build_woo_cashflow_summary()`, `build_pmpro_cashflow_summary()`, `resolve_financials()`, `build_pmpro_lifecycle_summary()`, `build_website_activity_summary()`, `build_operations_health_summary()`, `build_waitlist_conversion_summary()`, and `build_engagement_funnel_summary()` in `oras-tickets/includes/Frontend/Board_Dashboard.php`.
-- RSVP counts are computed repeatedly with `get_users()` / `WP_User_Query` against dynamic usermeta keys in:
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-  This is acceptable for small volume but not a normalized read model.
+9) Global registration points (evidence of wiring)
+- `Bootstrap` registers `register_phase1` on `init` (Bootstrap.php).
+- Admin menu pages registered in `Admin_Menu::register` via `admin_menu` hook (Admin_Menu.php).
+- REST controllers register via `rest_api_init` inside each controller's `register()`/`register_routes()` methods (Member_Hub_Tickets::register, Rsvp::register, Checkin::register in includes/Api/*).
 
-### Runtime inconsistencies with implementation impact
-- RSVP window fields `open_at` and `close_at` are captured and persisted in `Event_RSVP_Metabox::save()`, but no runtime enforcement path was found in `Event_RSVP`, `Bootstrap`, or `Api\Rsvp`. Evidence:
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-- Ticket sale-window timezone handling is internally inconsistent. `Ticket` documents `sale_start` / `sale_end` as site-timezone values in `oras-tickets/includes/Domain/Ticket.php`, the admin UI captures them with `datetime-local` in `oras-tickets/includes/Admin/Tickets_Metabox.php`, but `Tickets_Display` validates them with `strtotime( $sale_start . ' UTC' )` / `strtotime( $sale_end . ' UTC' )` in `oras-tickets/includes/Frontend/Tickets_Display.php`.
+10) Evidence-not-found statements (explicit)
+- Additional plugin-owned CPTs or taxonomies beyond `oras_speaker`: NO EVIDENCE FOUND (search of plugin includes shows only `oras_speaker` registration in includes/Admin/Speaker_CPT.php; other `register_post_type` occurrences are in tooling scripts, not plugin includes).
+- Plugin telemetry or external SaaS enforcement hooks: NO EVIDENCE FOUND in plugin code for telemetry or SaaS checks (no external telemetry registrations found in includes/ or src/).
+
+---
+
+Document prepared strictly under PASS 1 rules: evidence-only, exact-file/class/method/hook/meta/table/option references. No recommendations, no roadmap analysis, no next steps.

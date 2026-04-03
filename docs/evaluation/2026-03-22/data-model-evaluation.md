@@ -1,179 +1,97 @@
-# DATA MODEL EVALUATION
+# DATA MODEL EVALUATION — PASS 3 (DATA MODEL ONLY)
 
-## Summary
-- The current model is event-centric and mostly deterministic.
-- Ticketing and agenda data are stored in versioned event post-meta envelopes, which is acceptable for event-scoped authoring and rendering.
-- Reporting and downstream accounting are anchored on Woo order-item snapshots, which is the strongest part of the current model.
-- Attendance is the weakest part of the model because RSVP, waitlist, and attendee notes are split across different stores with duplicated semantics.
+Scope: analyze concrete data structures only for the following domains: events, tickets, attendees, RSVP/waitlist, Woo order + order-item linkage, pricing and capacity data surfaces. Evidence-only. No recommendations except to explain a BLOCKER where required.
 
-## Storage Map
+1) Event
+- Primary store: event postmeta envelopes.
+  - Meta keys and files:
+    - `_oras_tickets_v1` — `oras-tickets/includes/Domain/Meta.php` (public const META_KEY_TICKETS).
+    - `_oras_rsvp_v1` — `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php` (META_KEY constant) and read by `oras-tickets/includes/Api/Rsvp.php`.
+    - `_oras_agenda_v1` — `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php` and `oras-tickets/includes/Frontend/Event_Agenda_Render.php` (private const META_KEY = '_oras_agenda_v1').
+    - `_oras_speakers_v1` — event assignment envelope (templates and `Event_Speakers_Metabox.php`).
+    - `_oras_door_prizes_v1` — `oras-tickets/includes/Domain/Meta.php` (META_KEY_DOOR_PRIZES).
+    - `_oras_attendee_notes_v1` — read/updated in `oras-tickets/includes/Bootstrap.php`.
+  - Option keys (global/settings related to events): `oras_tickets_settings_v1` (settings page: `oras-tickets/includes/Admin/Pages/Settings_Page.php`).
 
-| Entity | Primary store | Evidence | Assessment |
-|---|---|---|---|
-| Ticket definitions | Event post meta `_oras_tickets_v1` | `oras-tickets/includes/Domain/Meta.php`, `oras-tickets/includes/Domain/Ticket_Collection.php`, `oras-tickets/includes/Admin/Tickets_Metabox.php` | Deterministic, versioned, event-scoped, and appropriate for current ticket authoring. |
-| Ticket-to-product map | Event post meta `_oras_tickets_woo_map_v1` plus Woo product meta `_oras_ticket_event_id` / `_oras_ticket_index` | `oras-tickets/includes/Commerce/Woo/Product_Sync.php` | Good minimal-diff mapping pattern; it keeps Woo as commerce engine while preserving ORAS event ownership. |
-| Ticket order snapshots | Woo order-item meta `_oras_ticket_event_id`, `_oras_ticket_index`, `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_*` | `oras-tickets/includes/Commerce/Woo/Product_Sync.php`, `oras-tickets/includes/Admin/Reports_Aggregator.php`, `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`, `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php` | Strongest reporting surface in the plugin; good for historical reporting and downstream accounting. |
-| RSVP settings | Event post meta `_oras_rsvp_v1` | `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`, `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php` | Event-scoped settings envelope is appropriate; `open_at` / `close_at` are stored but not enforced. |
-| RSVP attendee status | Usermeta `_oras_rsvp_event_<event_id>` and `_oras_rsvp_event_<event_id>_ts` | `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php`, `oras-tickets/includes/Bootstrap.php`, `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` | Functional but not normalized; cross-event queries depend on dynamic meta keys and repeated usermeta scans. |
-| Waitlist lifecycle | Custom table `wp_oras_ticket_waitlist` | `oras-tickets/includes/Waitlist_Store.php` | Better normalized than RSVP state; queue order and audit fields are explicit and deterministic. |
-| Attendee notes | Event post meta `_oras_attendee_notes_v1` | `oras-tickets/includes/Bootstrap.php` | Acceptable for event-scoped notes, but it creates another attendance-related store with its own keys. |
-| Agenda | Event post meta `_oras_agenda_v1` | `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`, `oras-tickets/includes/Frontend/Event_Agenda_Render.php` | Appropriate for event-scoped authoring; supports multi-day agenda content. |
-| Speakers | CPT `oras_speaker` + event envelope `_oras_speakers_v1` + speaker meta `_oras_speaker_*` | `oras-tickets/includes/Admin/Speaker_CPT.php`, `oras-tickets/includes/Admin/Event_Speakers_Metabox.php` | Mixed but coherent: reusable speaker entity plus event assignment envelope. |
-| Door prizes | Event post meta `_oras_door_prizes_v1` | `oras-tickets/includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php`, `oras-tickets/includes/Frontend/Door_Prizes.php` | Event-scoped envelope is fine; frontend remote fetch behavior is the issue, not the storage shape. |
-| QuickBooks settings | Option `oras_tickets_settings_v1` | `oras-tickets/includes/Admin/Pages/Settings_Page.php`, `oras-tickets/src/Integrations/QuickBooks/Settings.php` | Shared option works, but admin/settings ownership is split across two layers. |
-| QuickBooks sync state | Woo order meta `_oras_qbo_*` | `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`, `oras-tickets/src/Integrations/QuickBooks/Cli_Command.php`, `oras-tickets/includes/Admin/Pages/Settings_Page.php` | Appropriate for downstream accounting because the sync state is tied to the order lifecycle. |
+2) Tickets
+- Primary store: ticket definitions live inside event envelope `_oras_tickets_v1` (array rows).
+  - Evidence:
+    - `oras-tickets/includes/Domain/Ticket.php` and `oras-tickets/includes/Domain/Ticket_Collection.php` implement ticket row logic and parsing of `_oras_tickets_v1`.
+  - Ticket ↔ Product mapping (commerce linkage): Woo product postmeta keys added/updated by Product_Sync:
+    - Product meta keys: `_oras_ticket_event_id`, `_oras_ticket_index` — set in `oras-tickets/includes/Commerce/Woo/Product_Sync.php` (update_post_meta calls and checkout snapshot logic).
+  - Order-item snapshot meta (set when creating order line items): `_oras_ticket_event_id`, `_oras_ticket_index`, `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_key`, `_oras_ticket_price_phase_label`, `_oras_ticket_price_phase_price` — evidence: `Product_Sync::snapshot_order_item_ticket_meta` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
 
-## Event Structure
-- The event remains the root aggregate for tickets, RSVP settings, agenda, speakers, door prizes, attendee notes, and virtual-access rules. Evidence:
-  - `oras-tickets/includes/Domain/Ticket_Collection.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`
-  - `oras-tickets/includes/Admin/Event_Speakers_Metabox.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php`
-  - `oras-tickets/includes/Frontend/Virtual_Access.php`
-- This event-centric model is consistent with the repo’s add-on architecture and The Events Calendar dependency in `oras-tickets/includes/Bootstrap.php` and `oras-tickets/includes/Domain/Meta.php`.
-- The tradeoff is that non-event-wide concepts are still forced into event-level storage:
-  - attendee notes by event
-  - RSVP status as per-event usermeta keys
-  - waitlist as event-level queue with no ticket-key dimension
+3) Attendees (how plugin models an attendee)
+- There is no single normalized attendee table or dedicated `Attendee` class evident.
+  - Evidence of NO normalized attendee entity: NO EVIDENCE FOUND for a dedicated `Attendee` table/class; attendee rows are derived at read-time from multiple surfaces.
+- Surfaces that collectively define an attendee read-model:
+  - Ticket-attendees (paid): derived from Woo orders/order-items using `_oras_ticket_*` order-item meta and order IDs. Evidence: `oras-tickets/includes/Frontend/Ticket_Print_Controller.php` (reads order-item meta), `oras-tickets/includes/Admin/Reports_Aggregator.php`, `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
+  - RSVP attendees (YES): stored per-event in usermeta keys named `_oras_rsvp_event_<event_id>` and `_oras_rsvp_event_<event_id>_ts`. Evidence: `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php` (reads `get_post_meta($event_id, '_oras_rsvp_v1', true)` and writes usermeta), and tooling in `tools/phase5-integration-checks.php` referencing these keys.
+  - Waitlist entries: stored in a normalized custom table `{$wpdb->prefix}oras_ticket_waitlist`. Evidence: `oras-tickets/includes/Waitlist_Store.php` (table_name() returns `$wpdb->prefix . 'oras_ticket_waitlist'`; install_schema creates the table).
+  - Attendee notes: event postmeta `_oras_attendee_notes_v1` (read/updated in `oras-tickets/includes/Bootstrap.php`).
+  - Attendee dashboard aggregation: `Bootstrap::get_filtered_attendees()` composes attendees from the above sources (`oras-tickets/includes/Bootstrap.php`), and `Event_RSVP_Attendees_Metabox::get_attendees()` provides admin listing (`includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`).
 
-## Ticket Types and Capacity
-- Ticket rows are not normalized into a separate table; they are array items inside `_oras_tickets_v1`. Evidence:
-  - `oras-tickets/includes/Domain/Ticket_Collection.php`
-  - `oras-tickets/includes/Domain/Ticket.php`
-- Capacity is stored directly on the ticket row and mirrored into Woo product stock. Evidence:
-  - `oras-tickets/includes/Domain/Ticket.php`
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-  - `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`
-- This supports the current Phase 0-5 baseline well because:
-  - ticket definitions remain event-scoped
-  - Woo stock and order-item metadata provide transactional durability
-  - reporting reads immutable order-item snapshots instead of mutable ticket definitions
-- The model does not support ticket-key-specific waitlists today because `Waitlist_Store` keys on `(event_id, user_id)` and does not include `ticket_key` or `ticket_index`. Evidence: unique key `event_user` and all read/write methods in `oras-tickets/includes/Waitlist_Store.php`.
+4) RSVP / Waitlist
+- RSVP settings (event-scoped): key `_oras_rsvp_v1` stored in postmeta. Evidence: `includes/Admin/Metaboxes/Event_RSVP_Metabox.php` (META_KEY), `includes/Api/Rsvp.php` (reads meta), `tools/phase5-integration-checks.php` (test scripts referencing `_oras_rsvp_v1`).
+- Per-user RSVP YES state: usermeta keys of the form `_oras_rsvp_event_<event_id>` and timestamp suffix. Evidence: `includes/Frontend/Event_RSVP.php` (writes/reads usermeta), `includes/Api/Rsvp.php`.
+- Waitlist (FIFO, audited): normalized table `wp_oras_ticket_waitlist`. Evidence:
+  - `oras-tickets/includes/Waitlist_Store.php` class with methods `mark_waiting`, `mark_promoted`, `remove_waiting`, `get_waiting_users`, `count_waiting`, `promote_next_waiting`, and `table_name()` returns `$wpdb->prefix . 'oras_ticket_waitlist'`.
+  - `oras-tickets/includes/Bootstrap.php` and admin/dashboard pages interact with `Waitlist_Store` (calls to `Waitlist_Store::get_waiting_users`, `->promote_user`, `->bulk_promote_waiting`).
+- Ticket-tier dimension in waitlist: NO EVIDENCE FOUND — `Waitlist_Store` records are keyed by event and user (`event_user` unique key), and the schema and methods do not include `ticket_index` or `ticket_key` by default. Evidence: inspection of `Waitlist_Store.php` methods and tests in `tools/phase5-integration-checks.php` showing waitlist operations operate at event-level.
 
-## Orders and Attendee Linkage
-- Paid attendance linkage is derived from Woo order items, not from a separate attendee table. Evidence:
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
-  - `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Split_Calculator.php`
-- RSVP attendance linkage is derived from usermeta plus the waitlist table. Evidence:
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-- This means “attendee” is not one normalized entity in the plugin. It is a composite read model stitched together differently in:
-  - `Bootstrap::get_filtered_attendees()` in `oras-tickets/includes/Bootstrap.php`
-  - `Event_RSVP_Attendees_Metabox::get_attendees()` in `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-  - `Api\Rsvp::get_my_rsvps()` in `oras-tickets/includes/Api/Rsvp.php`
+5) WooCommerce order + order-item linkage
+- Ticket → product mapping: product postmeta `_oras_ticket_event_id` and `_oras_ticket_index` are set on hidden Woo products representing ticket rows. Evidence: `Product_Sync.php` (`update_post_meta($pid, '_oras_ticket_event_id', (int) $post_id)` and `_oras_ticket_index`).
+- Order-item snapshots: when line items are created, `snapshot_order_item_ticket_meta` adds `_oras_ticket_*` meta to order items. Evidence: `add_action('woocommerce_checkout_create_order_line_item', array($this, 'snapshot_order_item_ticket_meta'), 10, 4)` and the method body in `oras-tickets/includes/Commerce/Woo/Product_Sync.php` which uses `$item->add_meta_data(... '_oras_ticket_event_id', ...)`.
+- Order-level markers and capacity flags: order meta `_oras_capacity_consumed` (set/read by `Capacity_Consumption` class to avoid double-counting) and `_oras_autocompleted` (used by Order_Autocomplete). Evidence: `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php` and `oras-tickets/includes/Commerce/Woo/Order_Autocomplete.php` (`$order->update_meta_data('_oras_capacity_consumed','1')`).
+- QuickBooks linkage uses order items: QuickBooks sync code reads order-item meta `_oras_ticket_event_id` etc. Evidence: `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php` and `Split_Calculator.php` (accesses `$item->get_meta('_oras_ticket_event_id', true)`).
 
-## Metadata Design Quality
+6) Pricing and capacity data surfaces
+- Pricing snapshots (immutable at purchase): order-item meta set at checkout — `_oras_ticket_unit_price`, `_oras_ticket_currency`, and `_oras_ticket_price_phase_*` keys. Evidence: `Product_Sync::snapshot_order_item_ticket_meta` in `oras-tickets/includes/Commerce/Woo/Product_Sync.php`.
+- Ticket-level capacity: capacity is stored on ticket row inside `_oras_tickets_v1` (ticket data parsed by `Domain/Ticket.php`) and mirrored to Woo product stock by Product_Sync. Evidence: `oras-tickets/includes/Domain/Ticket.php` and `oras-tickets/includes/Commerce/Woo/Product_Sync.php` (stock sync), and capacity consumption logic in `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php` (reads product meta and marks order meta `_oras_capacity_consumed`).
 
-### Strengths
-- Versioned envelopes exist for ORAS-owned event data:
-  - `_oras_tickets_v1`
-  - `_oras_rsvp_v1`
-  - `_oras_agenda_v1`
-  - `_oras_door_prizes_v1`
-  - `_oras_virtual_access_v1`
-  Evidence: `oras-tickets/includes/Domain/Meta.php`, `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`, `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`, `oras-tickets/includes/Frontend/Virtual_Access.php`.
-- Order-item snapshots are explicit and downstream-friendly. Evidence:
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`
-- Waitlist persistence is not a serialized blob; it is a dedicated table with explicit queue and audit fields. Evidence:
-  - `oras-tickets/includes/Waitlist_Store.php`
+7) Relationships (evidence-cited)
+- event → tickets:
+  - Event postmeta `_oras_tickets_v1` contains ticket rows. Evidence: `includes/Domain/Ticket_Collection.php`, `includes/Domain/Ticket.php`.
+- ticket → product:
+  - Each ticket row maps to a Woo product post which stores `_oras_ticket_event_id` and `_oras_ticket_index`. Evidence: `includes/Commerce/Woo/Product_Sync.php` (`update_post_meta` calls and mapping logic).
+- product → order_item (snapshot):
+  - At checkout, order-item meta `_oras_ticket_*` is recorded (snapshot). Evidence: `includes/Commerce/Woo/Product_Sync.php` (`snapshot_order_item_ticket_meta`) and `add_action('woocommerce_checkout_create_order_line_item', ...)` registration.
+- order_item → attendee (paid attendee):
+  - Attendee rows for paid tickets are derived by scanning orders/order-items and reading `_oras_ticket_*` meta, producing `order_id`, `user_id`, `name`, `email`, `order_status`. Evidence: `includes/Bootstrap.php` (`get_ticket_attendees_for_event()`), `includes/Frontend/Ticket_Print_Controller.php` (reads order-item meta), `tools/phase5-integration-checks.php` (test assertions linking attendee rows to `order_id`).
+- RSVP/waitlist attendee linkage:
+  - RSVP YES entries produce usermeta `_oras_rsvp_event_<id>`; waitlist entries are rows in `wp_oras_ticket_waitlist`. Admin/dashboard code composes attendee lists by merging RSVP attendees, ticket-attendees, and notes: `Bootstrap::get_filtered_attendees()` uses `Waitlist_Store` and usermeta to build a unified list (file: `oras-tickets/includes/Bootstrap.php`).
 
-### Weaknesses
-- RSVP state is not normalized. Dynamic usermeta keys force repeated `get_users()` and `WP_User_Query` scans. Evidence:
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-- Waitlist state duplicates one branch of RSVP state instead of replacing it. Evidence:
-  - `Event_RSVP::handle_post()` updates both usermeta and `Waitlist_Store` in `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `Bootstrap::handle_waitlist_*()` updates both usermeta and `Waitlist_Store` in `oras-tickets/includes/Bootstrap.php`
-  - `Event_RSVP_Attendees_Metabox::handle_promote()` updates both usermeta and `Waitlist_Store` in `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-- RSVP window fields are metadata without behavior. Evidence:
-  - write path: `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`
-  - missing read path: `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Api/Rsvp.php`
-- Ticket sale-window semantics are stored as naive strings and interpreted inconsistently. Evidence:
-  - `oras-tickets/includes/Domain/Ticket.php`
-  - `oras-tickets/includes/Admin/Tickets_Metabox.php`
-  - `oras-tickets/includes/Frontend/Tickets_Display.php`
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
+8) BLOCKER statement (evidence-only)
+- Attendance state is duplicated across multiple stores and read paths, creating a technical BLOCKER for having a single authoritative attendance source. Evidence:
+  - RSVP usermeta: `oras-tickets/includes/Frontend/Event_RSVP.php` (writes usermeta `_oras_rsvp_event_<id>`).
+  - Waitlist table: `oras-tickets/includes/Waitlist_Store.php` (normalized table `wp_oras_ticket_waitlist`).
+  - Attendee notes: event postmeta `_oras_attendee_notes_v1` (`oras-tickets/includes/Bootstrap.php`).
+  - Admin/dashboard attendee composition: `oras-tickets/includes/Bootstrap.php` (methods `get_filtered_attendees`, `get_ticket_attendees_for_event`) and `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` (`get_attendees`).
+  - Reports/exports rely on order-item snapshots and the admin aggregator: `oras-tickets/includes/Admin/Reports_Aggregator.php`.
 
-## Scalability Assessment
-- Event-scoped envelopes are scalable enough for ORAS-sized editorial use because each event owns a bounded set of tickets, agenda slots, speaker assignments, and RSVP settings. Evidence:
-  - `oras-tickets/includes/Domain/Ticket_Collection.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`
-  - `oras-tickets/includes/Admin/Event_Speakers_Metabox.php`
-- Reporting and accounting scale better than attendance because immutable order-item snapshots avoid re-deriving historical ticket state. Evidence:
-  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
-  - `oras-tickets/includes/Frontend/Ticket_Print_Controller.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Split_Calculator.php`
-  - `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`
-- RSVP scaling is the main concern because attendee counts, current-user RSVP lists, and dashboard reads all depend on dynamic usermeta and repeated joins back to users/posts. Evidence:
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
+9) Explicit NO EVIDENCE FOUND statements
+- Normalized `Attendee` table/class: NO EVIDENCE FOUND (no dedicated attendees DB table or namespaced `Attendee` class discovered).
+- Ticket-tier-specific waitlist records in `Waitlist_Store` schema: NO EVIDENCE FOUND (schema and methods operate at event-user level; no `ticket_index` column read/written in primary methods).
+- Enforced `open_at`/`close_at` runtime enforcement for RSVP in `Event_RSVP` handler (strict enforcement): evidence shows `open_at`/`close_at` are stored in `_oras_rsvp_v1` but runtime enforcement is not present or inconsistent — treated as metadata without strict runtime gating (see `includes/Admin/Metaboxes/Event_RSVP_Metabox.php` and `includes/Frontend/Event_RSVP.php`).
 
-## Support For Approved/Future Needs
+10) Minimal citations (quick reference)
+- Meta keys: `_oras_tickets_v1`, `_oras_rsvp_v1`, `_oras_agenda_v1`, `_oras_speakers_v1`, `_oras_door_prizes_v1`, `_oras_attendee_notes_v1`, `_oras_virtual_access_v1`, `_oras_ticket_event_id`, `_oras_ticket_index`, `_oras_ticket_name`, `_oras_ticket_unit_price`, `_oras_ticket_currency`, `_oras_ticket_price_phase_key`, `_oras_ticket_price_phase_label`, `_oras_ticket_price_phase_price`, `_oras_capacity_consumed`, `_oras_autocompleted`, usermeta `_oras_rsvp_event_<event_id>`.
+- Option keys: `oras_tickets_settings_v1`, `oras_tickets_waitlist_schema_version`, `oras_tickets_board_login_daily_v1`, `oras_tickets_speaker_notify_emails` (evidence in settings and code paths).
+- Tables: `{$wpdb->prefix}oras_ticket_waitlist` (returned by `Waitlist_Store::table_name()` in `oras-tickets/includes/Waitlist_Store.php`).
+- Primary files / classes / functions referenced:
+  - `oras-tickets/includes/Domain/Meta.php` (meta constants)
+  - `oras-tickets/includes/Domain/Ticket.php`, `Ticket_Collection.php` (ticket row parsing)
+  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php` (`snapshot_order_item_ticket_meta`, product mapping)
+  - `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php` (capacity consumption, `_oras_capacity_consumed`)
+  - `oras-tickets/includes/Frontend/Event_RSVP.php` (RSVP handler, usermeta writes)
+  - `oras-tickets/includes/Waitlist_Store.php` (waitlist table and APIs)
+  - `oras-tickets/includes/Bootstrap.php` (`get_filtered_attendees`, attendees dashboard handlers)
+  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php` (admin attendee listing)
+  - `oras-tickets/includes/Api/Rsvp.php` (REST RSVP endpoints)
+  - `oras-tickets/includes/Frontend/Ticket_Print_Controller.php` (reads order-item snapshots for print)
+  - `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php` (reads order-item meta)
 
-| Need | Supported now? | Evidence | Evaluation |
-|---|---|---|---|
-| RSVP / waitlist | Yes, event-level only | `oras-tickets/includes/Frontend/Event_RSVP.php`, `oras-tickets/includes/Waitlist_Store.php`, `oras-tickets/includes/Bootstrap.php` | Current event-level RSVP and FIFO waitlist are supported. |
-| Capacity limits | Yes | `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`, `oras-tickets/includes/Commerce/Woo/Capacity_Consumption.php`, `oras-tickets/includes/Frontend/Event_RSVP.php` | Separate ticket-capacity and RSVP-capacity paths exist. |
-| Multi-day events | Yes for agenda; no ticket/day partitioning | `oras-tickets/includes/Admin/Metaboxes/Event_Agenda_Metabox.php`, `oras-tickets/includes/Frontend/Event_Agenda_Render.php` | Agenda supports multi-day schedules; ticket inventory remains event-level. |
-| QuickBooks reconciliation | Yes | `oras-tickets/includes/Admin/Reports_Aggregator.php`, `oras-tickets/src/Integrations/QuickBooks/Split_Calculator.php`, `oras-tickets/src/Integrations/QuickBooks/Sync_Orchestrator.php`, `oras-tickets/includes/Admin/Pages/Settings_Page.php` | Order snapshots and `_oras_qbo_*` order meta support downstream reconciliation. |
-| Ticket-tier waitlist | No | `oras-tickets/includes/Waitlist_Store.php`, `oras-tickets/includes/Frontend/Event_RSVP.php` | The current waitlist schema has no ticket dimension. |
-| Per-unit check-in | Partially | `oras-tickets/includes/Security/Ticket_Checkin_Token.php` | The order-item/unit model exists, but it is outside the currently authorized phase path. |
+---
 
-## Minimal-Diff Schema Improvements
+End of PASS 3 evidence-only data model evaluation. File contains only data-structure evidence and relationships; no recommendations except the explicit BLOCKER statement above.
 
-### 1. Keep the current event envelopes and Woo order-item snapshots
-- Reason: these are already deterministic and are the least disruptive storage surfaces in the plugin.
-- Evidence:
-  - `oras-tickets/includes/Domain/Ticket_Collection.php`
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-  - `oras-tickets/includes/Admin/Reports_Aggregator.php`
-- Recommendation: do not replace `_oras_tickets_v1`, `_oras_agenda_v1`, `_oras_speakers_v1`, or the `_oras_ticket_*` order-item snapshot set.
-
-### 2. Do not replace the waitlist table; add a shared attendance service first
-- Reason: the schema problem is duplicated ownership, not the existence of `wp_oras_ticket_waitlist`.
-- Evidence:
-  - `oras-tickets/includes/Waitlist_Store.php`
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Bootstrap.php`
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php`
-- Recommendation: add one attendance service layer that reads/writes the existing usermeta and waitlist table consistently before considering any table changes.
-
-### 3. Either enforce or remove RSVP window fields
-- Reason: `_oras_rsvp_v1` already contains `open_at` and `close_at`, but they are not part of runtime behavior.
-- Evidence:
-  - `oras-tickets/includes/Admin/Metaboxes/Event_RSVP_Metabox.php`
-  - `oras-tickets/includes/Frontend/Event_RSVP.php`
-  - `oras-tickets/includes/Api/Rsvp.php`
-- Recommendation: reuse the current envelope and make `open_at` / `close_at` meaningful; do not add a new store.
-
-### 4. Normalize sale-window semantics without changing the envelope shape
-- Reason: the issue is inconsistent interpretation, not missing fields.
-- Evidence:
-  - `oras-tickets/includes/Domain/Ticket.php`
-  - `oras-tickets/includes/Admin/Tickets_Metabox.php`
-  - `oras-tickets/includes/Frontend/Tickets_Display.php`
-  - `oras-tickets/includes/Commerce/Woo/Product_Sync.php`
-- Recommendation: keep `sale_start` / `sale_end`, but standardize one timezone convention and migrate only parsing/validation behavior.
-
-## Overall Judgment
-- The data model is scalable enough for the locked Phase 0-5 baseline.
-- It is not cleanly normalized for attendance-centric growth because RSVP status, waitlist status, attendee notes, and ticket attendance are split across different stores.
-- The plugin does not need a schema rewrite now.
-- The minimal-diff path is:
-  - preserve event envelopes
-  - preserve order-item snapshots
-  - preserve the waitlist table
-  - centralize attendance logic
-  - fix orphaned RSVP window fields
-  - normalize ticket sale-window semantics
