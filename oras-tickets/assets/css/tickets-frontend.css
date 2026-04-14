@@ -24,9 +24,18 @@
 	--oras-rsvp-notice-error-bg: #fdecea;
 	--oras-rsvp-notice-error-text: #7a1d1d;
 	--oras-rsvp-status-yes: #0b5132;
+	--oras-rsvp-status-no: #4b5563;
+	--oras-rsvp-status-waitlist: #8a5a00;
 	--oras-rsvp-badge-bg: #e6ffed;
 	--oras-rsvp-badge-border: #bdeccf;
 	--oras-rsvp-badge-text: #114b2b;
+	--oras-rsvp-field-bg: #f8fafc;
+	--oras-rsvp-field-border: #d0d7de;
+	--oras-rsvp-button-primary-bg: #1d4ed8;
+	--oras-rsvp-button-primary-text: #ffffff;
+	--oras-rsvp-button-secondary-bg: #e5e7eb;
+	--oras-rsvp-button-secondary-text: #111827;
+	--oras-rsvp-button-secondary-border: #cbd5e1;
 }
 
 .oras-tickets-display,
@@ -204,6 +213,122 @@
 	color: var(--oras-rsvp-status-yes);
 }
 
+.oras-rsvp-status-no {
+	color: var(--oras-rsvp-status-no);
+}
+
+.oras-rsvp-status-waitlist {
+	color: var(--oras-rsvp-status-waitlist);
+}
+
+.oras-rsvp-capacity {
+	margin: 0.75em 0 0;
+}
+
+.oras-rsvp-form {
+	margin-top: 1rem;
+}
+
+.oras-rsvp-attendance-mode {
+	margin: 1rem 0 0;
+	padding: 1rem 1.125rem;
+	border: 1px solid var(--oras-rsvp-field-border);
+	border-radius: 8px;
+	background: var(--oras-rsvp-field-bg);
+	min-width: 0;
+}
+
+.oras-rsvp-attendance-mode legend {
+	padding: 0 0.35rem;
+	font-weight: 700;
+	color: inherit;
+}
+
+.oras-rsvp-attendance-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	margin-top: 0.5rem;
+}
+
+.oras-rsvp-choice {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-weight: 600;
+	cursor: pointer;
+	color: inherit;
+}
+
+.oras-rsvp-choice input {
+	margin: 0;
+	accent-color: var(--oras-rsvp-button-primary-bg);
+}
+
+.oras-rsvp-description {
+	margin: 0.75rem 0 0;
+	color: var(--oras-ticket-muted);
+}
+
+.oras-rsvp-actions {
+	margin: 1rem 0 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: center;
+}
+
+.oras-rsvp-button {
+	appearance: none;
+	border-radius: 8px;
+	padding: 0.75rem 1.15rem;
+	font-weight: 700;
+	line-height: 1.2;
+	border: 1px solid transparent;
+	box-shadow: none;
+	transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+	cursor: pointer;
+}
+
+.oras-rsvp-button:hover,
+.oras-rsvp-button:focus-visible {
+	transform: translateY(-1px);
+}
+
+.oras-rsvp-button:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.oras-rsvp-button-primary {
+	background: var(--oras-rsvp-button-primary-bg);
+	color: var(--oras-rsvp-button-primary-text);
+}
+
+.oras-rsvp-button-primary:hover,
+.oras-rsvp-button-primary:focus-visible {
+	background: #1e40af;
+	color: var(--oras-rsvp-button-primary-text);
+}
+
+.oras-rsvp-button-secondary {
+	background: var(--oras-rsvp-button-secondary-bg);
+	color: var(--oras-rsvp-button-secondary-text);
+	border-color: var(--oras-rsvp-button-secondary-border);
+}
+
+.oras-rsvp-button-secondary:hover,
+.oras-rsvp-button-secondary:focus-visible {
+	background: #dbe1e8;
+	color: var(--oras-rsvp-button-secondary-text);
+}
+
+.oras-rsvp-button[disabled] {
+	opacity: 0.65;
+	cursor: not-allowed;
+	transform: none;
+}
+
 .oras-rsvp-badge {
 	display: inline-block;
 	margin-left: 8px;
@@ -249,7 +374,27 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-notice-error-bg: rgba(248, 113, 113, 0.16);
 	--oras-rsvp-notice-error-text: #fecaca;
 	--oras-rsvp-status-yes: #86efac;
+	--oras-rsvp-status-no: #cbd5e1;
+	--oras-rsvp-status-waitlist: #fde68a;
 	--oras-rsvp-badge-bg: rgba(74, 222, 128, 0.16);
 	--oras-rsvp-badge-border: rgba(74, 222, 128, 0.4);
 	--oras-rsvp-badge-text: #bbf7d0;
+	--oras-rsvp-field-bg: rgba(15, 23, 42, 0.3);
+	--oras-rsvp-field-border: rgba(255, 255, 255, 0.14);
+	--oras-rsvp-button-primary-bg: #2563eb;
+	--oras-rsvp-button-primary-text: #eff6ff;
+	--oras-rsvp-button-secondary-bg: rgba(148, 163, 184, 0.18);
+	--oras-rsvp-button-secondary-text: #e2e8f0;
+	--oras-rsvp-button-secondary-border: rgba(148, 163, 184, 0.32);
+}
+
+@media (max-width: 640px) {
+	.oras-rsvp-actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.oras-rsvp-button {
+		width: 100%;
+	}
 }

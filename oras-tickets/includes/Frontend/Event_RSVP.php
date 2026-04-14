@@ -49,6 +49,15 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $user_id = get_current_user_id();
 
         // Enqueue frontend RSVP script only on pages where RSVP block is rendered.
+        if ( function_exists( 'wp_enqueue_style' ) ) {
+            wp_enqueue_style(
+                'oras-tickets-frontend',
+                ORAS_TICKETS_URL . 'assets/css/tickets-frontend.css',
+                array(),
+                ORAS_TICKETS_VERSION
+            );
+        }
+
         if ( function_exists( 'wp_enqueue_script' ) ) {
             wp_enqueue_script( 'oras-rsvp-frontend', ORAS_TICKETS_URL . 'assets/js/oras-rsvp-frontend.js', array(), ORAS_TICKETS_VERSION, true );
         }
@@ -63,9 +72,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $flash = '';
         $oras_rsvp = isset( $_GET['oras_rsvp'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_rsvp'] ) ) : '';
         $oras_msg = isset( $_GET['msg'] ) ? sanitize_text_field( wp_unslash( $_GET['msg'] ) ) : '';
-        if ( 'updated' === $oras_rsvp ) {
-            $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-success">' . esc_html__( 'Your RSVP was updated.', 'oras-tickets' ) . '</div>';
-        } elseif ( 'error' === $oras_rsvp ) {
+        if ( 'error' === $oras_rsvp ) {
             $text = 'error' === $oras_msg ? esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) : esc_html( $oras_msg );
             $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . $text . '</div>';
         }
@@ -102,38 +109,40 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         if ( 0 === $capacity ) {
-            printf( '<p>%s: <strong>%s</strong></p>', esc_html__( 'Capacity', 'oras-tickets' ), esc_html__( 'Unlimited', 'oras-tickets' ) );
+            printf( '<p class="oras-rsvp-capacity">%s: <strong>%s</strong></p>', esc_html__( 'Capacity', 'oras-tickets' ), esc_html__( 'Unlimited', 'oras-tickets' ) );
         } else {
-            printf( '<p>%s: <strong>%d</strong> / <strong>%d</strong></p>', esc_html__( 'Attending', 'oras-tickets' ), absint( $yes_count ), absint( $capacity ) );
+            printf( '<p class="oras-rsvp-capacity">%s: <strong>%d</strong> / <strong>%d</strong></p>', esc_html__( 'Attending', 'oras-tickets' ), absint( $yes_count ), absint( $capacity ) );
         }
 
         // Form
         $nonce = wp_create_nonce( 'oras_rsvp_' . $event_id );
         $action_url = admin_url( 'admin-post.php' );
 
-        echo '<form method="post" action="' . esc_url( $action_url ) . '">';
+        echo '<form method="post" action="' . esc_url( $action_url ) . '" class="oras-rsvp-form">';
         printf( '<input type="hidden" name="action" value="%s"/>', esc_attr( self::ACTION ) );
         printf( '<input type="hidden" name="event_id" value="%s"/>', esc_attr( (string) $event_id ) );
         printf( '<input type="hidden" name="oras_rsvp_nonce" value="%s"/>', esc_attr( $nonce ) );
 
         echo '<fieldset class="oras-rsvp-attendance-mode">';
         echo '<legend>' . esc_html__( 'Attendance Type', 'oras-tickets' ) . '</legend>';
-        echo '<label><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ) . '" ' . checked( Ticket::ATTENDANCE_MODE_ONSITE, $selected_mode, false ) . ' /> ' . esc_html__( 'On-site', 'oras-tickets' ) . '</label> ';
-        echo '<label><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ) . '" ' . checked( Ticket::ATTENDANCE_MODE_VIRTUAL, $selected_mode, false ) . ' /> ' . esc_html__( 'Virtual', 'oras-tickets' ) . '</label>';
-        echo '<p class="description">' . esc_html__( 'Choose whether your RSVP is for attending on-site or joining virtually.', 'oras-tickets' ) . '</p>';
+        echo '<div class="oras-rsvp-attendance-options">';
+        echo '<label class="oras-rsvp-choice"><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ) . '" ' . checked( Ticket::ATTENDANCE_MODE_ONSITE, $selected_mode, false ) . ' /> <span>' . esc_html__( 'On-site', 'oras-tickets' ) . '</span></label>';
+        echo '<label class="oras-rsvp-choice"><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ) . '" ' . checked( Ticket::ATTENDANCE_MODE_VIRTUAL, $selected_mode, false ) . ' /> <span>' . esc_html__( 'Virtual', 'oras-tickets' ) . '</span></label>';
+        echo '</div>';
+        echo '<p class="description oras-rsvp-description">' . esc_html__( 'Choose whether your RSVP is for attending on-site or joining virtually.', 'oras-tickets' ) . '</p>';
         echo '</fieldset>';
 
         // Buttons
-        echo '<p>';
-        echo '<button type="submit" name="intent" value="yes">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button> ';
-        echo '<button type="submit" name="intent" value="no">' . esc_html__( 'RSVP No', 'oras-tickets' ) . '</button> ';
+        echo '<p class="oras-rsvp-actions">';
+        echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button>';
+        echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'RSVP No', 'oras-tickets' ) . '</button>';
 
         $is_full = ( $capacity > 0 && $yes_count >= $capacity );
         if ( $is_full && $waitlist_enabled ) {
             if ( 'waitlist' === $status ) {
-                echo '<button type="submit" name="intent" value="leave_waitlist">' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button> ';
+                echo '<button type="submit" name="intent" value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button>';
             } else {
-                echo '<button type="submit" name="intent" value="waitlist">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button> ';
+                echo '<button type="submit" name="intent" value="waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button>';
             }
         }
 
