@@ -27,7 +27,7 @@ final class Cart_Pricing { // NOSONAR legacy WP class naming
             return;
         }
 
-        if ( is_admin() && ! ( defined( 'DOING_AJAX' ) && DOING_AJAX ) ) {
+        if ( is_admin() && ! wp_doing_ajax() ) {
             return;
         }
 
