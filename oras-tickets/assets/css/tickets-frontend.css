@@ -26,6 +26,9 @@
 	--oras-rsvp-status-yes: #0b5132;
 	--oras-rsvp-status-no: #4b5563;
 	--oras-rsvp-status-waitlist: #8a5a00;
+	--oras-rsvp-label-text: #e5e7eb;
+	--oras-rsvp-legend-text: #cbd5e1;
+	--oras-rsvp-description-text: rgba(229, 231, 235, 0.9);
 	--oras-rsvp-badge-bg: #e6ffed;
 	--oras-rsvp-badge-border: #bdeccf;
 	--oras-rsvp-badge-text: #114b2b;
@@ -236,12 +239,19 @@
 	border-radius: 8px;
 	background: var(--oras-rsvp-field-bg);
 	min-width: 0;
+	color: var(--oras-rsvp-label-text);
 }
 
 .oras-rsvp-attendance-mode legend {
 	padding: 0 0.35rem;
 	font-weight: 700;
-	color: inherit;
+	color: var(--oras-rsvp-legend-text) !important;
+}
+
+.oras-rsvp-attendance-mode,
+.oras-rsvp-attendance-mode label,
+.oras-rsvp-attendance-mode span {
+	color: var(--oras-rsvp-label-text) !important;
 }
 
 .oras-rsvp-attendance-options {
@@ -257,7 +267,7 @@
 	gap: 0.5rem;
 	font-weight: 600;
 	cursor: pointer;
-	color: inherit;
+	color: var(--oras-rsvp-label-text) !important;
 }
 
 .oras-rsvp-choice input {
@@ -267,7 +277,7 @@
 
 .oras-rsvp-description {
 	margin: 0.75rem 0 0;
-	color: var(--oras-ticket-muted);
+	color: var(--oras-rsvp-description-text) !important;
 }
 
 .oras-rsvp-actions {
@@ -376,6 +386,9 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-status-yes: #86efac;
 	--oras-rsvp-status-no: #cbd5e1;
 	--oras-rsvp-status-waitlist: #fde68a;
+	--oras-rsvp-label-text: #e5e7eb;
+	--oras-rsvp-legend-text: #cbd5e1;
+	--oras-rsvp-description-text: rgba(226, 232, 240, 0.86);
 	--oras-rsvp-badge-bg: rgba(74, 222, 128, 0.16);
 	--oras-rsvp-badge-border: rgba(74, 222, 128, 0.4);
 	--oras-rsvp-badge-text: #bbf7d0;
