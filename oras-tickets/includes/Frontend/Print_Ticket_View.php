@@ -104,6 +104,7 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
     <?php foreach ( $items as $item ) : ?>
         <?php
         $ticket_name = isset( $item['ticket_name'] ) ? (string) $item['ticket_name'] : '';
+        $item_id     = isset( $item['item_id'] ) ? (int) $item['item_id'] : 0;
         $quantity    = isset( $item['quantity'] ) ? max( 1, (int) $item['quantity'] ) : 1;
         $price       = isset( $item['unit_price'] ) ? (float) $item['unit_price'] : 0.0;
         $currency    = isset( $item['currency'] ) ? (string) $item['currency'] : '';
@@ -118,6 +119,14 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
                 $i + 1,
                 $quantity
             );
+
+            $checkin_token = '';
+            $verify_url    = '';
+            if ( $event_id > 0 && $order_id > 0 && $item_id > 0 && class_exists( '\\ORAS\\Tickets\\Security\\TicketCheckinToken' ) ) {
+                $issued        = \ORAS\Tickets\Security\TicketCheckinToken::issue( $order_id, $event_id, $item_id, $i + 1 );
+                $checkin_token = isset( $issued['token'] ) ? (string) $issued['token'] : '';
+                $verify_url    = isset( $issued['verify_url'] ) ? (string) $issued['verify_url'] : '';
+            }
             ?>
             <article class="oras-ticket-card">
                 <header class="oras-ticket-header">
@@ -160,6 +169,12 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
                             <div class="oras-ticket-label"><?php echo esc_html__( 'Pricing phase', 'oras-tickets' ); ?></div>
                             <div class="oras-ticket-value"><?php echo esc_html( $phase_label ); ?></div>
                         </div>
+                        <?php if ( $checkin_token !== '' ) : ?>
+                            <div class="oras-ticket-row">
+                                <div class="oras-ticket-label"><?php echo esc_html__( 'Check-in token', 'oras-tickets' ); ?></div>
+                                <div class="oras-ticket-value"><?php echo esc_html( $checkin_token ); ?></div>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <div class="oras-ticket-stub">
@@ -168,6 +183,10 @@ $printed_name          = $purchaser_name !== '' ? $purchaser_name : __( 'Guest',
                         <div class="oras-ticket-stub-barcode" aria-hidden="true"></div>
                         <div class="oras-ticket-stub-order">#<?php echo esc_html( (string) $order_id ); ?></div>
                         <div class="oras-ticket-stub-event"><?php echo esc_html( $event_title ); ?></div>
+                        <?php if ( $verify_url !== '' ) : ?>
+                            <div class="oras-ticket-stub-order"><?php echo esc_html__( 'Verify URL', 'oras-tickets' ); ?></div>
+                            <div class="oras-ticket-stub-event"><?php echo esc_html( $verify_url ); ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
 

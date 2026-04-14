@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -13,6 +14,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
     private const META_KEY = '_oras_rsvp_v1';
     private const USERMETA_PREFIX = '_oras_rsvp_event_';
+    private const USERMETA_ATTENDANCE_SUFFIX = '_attendance_mode';
     private const ACTION = 'oras_rsvp_update';
 
     public static function register(): void {
@@ -47,6 +49,15 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $user_id = get_current_user_id();
 
         // Enqueue frontend RSVP script only on pages where RSVP block is rendered.
+        if ( function_exists( 'wp_enqueue_style' ) ) {
+            wp_enqueue_style(
+                'oras-tickets-frontend',
+                ORAS_TICKETS_URL . 'assets/css/tickets-frontend.css',
+                array(),
+                ORAS_TICKETS_VERSION
+            );
+        }
+
         if ( function_exists( 'wp_enqueue_script' ) ) {
             wp_enqueue_script( 'oras-rsvp-frontend', ORAS_TICKETS_URL . 'assets/js/oras-rsvp-frontend.js', array(), ORAS_TICKETS_VERSION, true );
         }
@@ -61,9 +72,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $flash = '';
         $oras_rsvp = isset( $_GET['oras_rsvp'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_rsvp'] ) ) : '';
         $oras_msg = isset( $_GET['msg'] ) ? sanitize_text_field( wp_unslash( $_GET['msg'] ) ) : '';
-        if ( 'updated' === $oras_rsvp ) {
-            $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-success">' . esc_html__( 'Your RSVP was updated.', 'oras-tickets' ) . '</div>';
-        } elseif ( 'error' === $oras_rsvp ) {
+        if ( 'error' === $oras_rsvp ) {
             $text = 'error' === $oras_msg ? esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) : esc_html( $oras_msg );
             $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . $text . '</div>';
         }
@@ -84,13 +93,15 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         $status = self::get_user_status( $event_id, $user_id );
+        $attendance_mode = self::get_user_attendance_mode( $event_id, $user_id );
         $yes_count = self::yes_count( $event_id );
+        $selected_mode = '' !== $attendance_mode ? $attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE;
 
         if ( 'yes' === $status ) {
-            echo '<p class="oras-rsvp-status oras-rsvp-status-yes"><strong>' . esc_html__( "You have RSVP'ed to the event. If you wish to revoke the RSVP click \"RSVP No\".", 'oras-tickets' ) . '</strong></p>';
-            echo '<span class="oras-rsvp-badge">' . esc_html__( 'Status: You are RSVPed ✅', 'oras-tickets' ) . '</span>';
+            echo '<p class="oras-rsvp-status oras-rsvp-status-yes"><strong>' . esc_html( self::get_status_message( 'yes', $attendance_mode ) ) . '</strong></p>';
+            echo '<span class="oras-rsvp-badge">' . esc_html( self::get_badge_text( $attendance_mode ) ) . '</span>';
         } elseif ( 'waitlist' === $status ) {
-            echo '<p class="oras-rsvp-status oras-rsvp-status-waitlist"><strong>' . esc_html__( 'You are on the waitlist for this event.', 'oras-tickets' ) . '</strong></p>';
+            echo '<p class="oras-rsvp-status oras-rsvp-status-waitlist"><strong>' . esc_html( self::get_status_message( 'waitlist', $attendance_mode ) ) . '</strong></p>';
         } elseif ( 'no' === $status ) {
             echo '<p class="oras-rsvp-status oras-rsvp-status-no">' . esc_html__( 'You are not attending this event.', 'oras-tickets' ) . '</p>';
         } else {
@@ -98,31 +109,40 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         if ( 0 === $capacity ) {
-            printf( '<p>%s: <strong>%s</strong></p>', esc_html__( 'Capacity', 'oras-tickets' ), esc_html__( 'Unlimited', 'oras-tickets' ) );
+            printf( '<p class="oras-rsvp-capacity">%s: <strong>%s</strong></p>', esc_html__( 'Capacity', 'oras-tickets' ), esc_html__( 'Unlimited', 'oras-tickets' ) );
         } else {
-            printf( '<p>%s: <strong>%d</strong> / <strong>%d</strong></p>', esc_html__( 'Attending', 'oras-tickets' ), absint( $yes_count ), absint( $capacity ) );
+            printf( '<p class="oras-rsvp-capacity">%s: <strong>%d</strong> / <strong>%d</strong></p>', esc_html__( 'Attending', 'oras-tickets' ), absint( $yes_count ), absint( $capacity ) );
         }
 
         // Form
         $nonce = wp_create_nonce( 'oras_rsvp_' . $event_id );
         $action_url = admin_url( 'admin-post.php' );
 
-        echo '<form method="post" action="' . esc_url( $action_url ) . '">';
+        echo '<form method="post" action="' . esc_url( $action_url ) . '" class="oras-rsvp-form">';
         printf( '<input type="hidden" name="action" value="%s"/>', esc_attr( self::ACTION ) );
         printf( '<input type="hidden" name="event_id" value="%s"/>', esc_attr( (string) $event_id ) );
         printf( '<input type="hidden" name="oras_rsvp_nonce" value="%s"/>', esc_attr( $nonce ) );
 
+        echo '<fieldset class="oras-rsvp-attendance-mode">';
+        echo '<legend>' . esc_html__( 'Attendance Type', 'oras-tickets' ) . '</legend>';
+        echo '<div class="oras-rsvp-attendance-options">';
+        echo '<label class="oras-rsvp-choice"><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ) . '" ' . checked( Ticket::ATTENDANCE_MODE_ONSITE, $selected_mode, false ) . ' /> <span>' . esc_html__( 'On-site', 'oras-tickets' ) . '</span></label>';
+        echo '<label class="oras-rsvp-choice"><input type="radio" name="attendance_mode" value="' . esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ) . '" ' . checked( Ticket::ATTENDANCE_MODE_VIRTUAL, $selected_mode, false ) . ' /> <span>' . esc_html__( 'Virtual', 'oras-tickets' ) . '</span></label>';
+        echo '</div>';
+        echo '<p class="description oras-rsvp-description">' . esc_html__( 'Choose whether your RSVP is for attending on-site or joining virtually.', 'oras-tickets' ) . '</p>';
+        echo '</fieldset>';
+
         // Buttons
-        echo '<p>';
-        echo '<button type="submit" name="intent" value="yes">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button> ';
-        echo '<button type="submit" name="intent" value="no">' . esc_html__( 'RSVP No', 'oras-tickets' ) . '</button> ';
+        echo '<p class="oras-rsvp-actions">';
+        echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button>';
+        echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'RSVP No', 'oras-tickets' ) . '</button>';
 
         $is_full = ( $capacity > 0 && $yes_count >= $capacity );
         if ( $is_full && $waitlist_enabled ) {
             if ( 'waitlist' === $status ) {
-                echo '<button type="submit" name="intent" value="leave_waitlist">' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button> ';
+                echo '<button type="submit" name="intent" value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button>';
             } else {
-                echo '<button type="submit" name="intent" value="waitlist">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button> ';
+                echo '<button type="submit" name="intent" value="waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button>';
             }
         }
 
@@ -147,6 +167,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
         $nonce = isset( $_POST['oras_rsvp_nonce'] ) && is_scalar( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
         $raw_intent = isset( $_POST['intent'] ) && is_scalar( $_POST['intent'] ) ? sanitize_text_field( wp_unslash( $_POST['intent'] ) ) : '';
+        $posted_attendance_mode = isset( $_POST['attendance_mode'] ) && is_scalar( $_POST['attendance_mode'] ) ? sanitize_text_field( wp_unslash( $_POST['attendance_mode'] ) ) : '';
         $redirect = get_permalink( $event_id ) ?: home_url();
 
         $intent = self::normalize_intent( $raw_intent );
@@ -191,11 +212,16 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         $operation = DbLock::forEvent(
             $event_id,
-            static function () use ( $event_id, $user_id, $intent, $meta ): array {
+            static function () use ( $event_id, $user_id, $intent, $meta, $posted_attendance_mode ): array {
                 $capacity = absint( $meta['capacity'] ?? 0 );
                 $waitlist_enabled = ! empty( $meta['waitlist_enabled'] );
 
                 $current = self::get_user_status( $event_id, $user_id );
+                $current_attendance_mode = self::get_user_attendance_mode( $event_id, $user_id );
+                $attendance_mode = Ticket::normalizeAttendanceMode(
+                    $posted_attendance_mode,
+                    '' !== $current_attendance_mode ? $current_attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE
+                );
                 $yes_count = self::yes_count( $event_id );
                 $waitlist_lifecycle = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
                 $was_waitlisted = ( 'waitlist' === $current || 'waiting' === $waitlist_lifecycle );
@@ -263,15 +289,18 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX );
 
                     return array(
                         'ok'      => true,
                         'status'  => 'none',
                         'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ),
+                        'attendance_mode' => '',
                     );
                 }
 
                 update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
+                update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX, $attendance_mode );
 
                 if ( $new_status === 'waitlist' ) {
                     $joined_ts = time();
@@ -290,9 +319,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 return array(
                     'ok'      => true,
                     'status'  => $new_status,
-                    'message' => 'yes' === $new_status
-                        ? esc_html__( 'You are RSVPed.', 'oras-tickets' )
-                        : esc_html__( 'Your RSVP was updated.', 'oras-tickets' ),
+                    'attendance_mode' => $attendance_mode,
+                    'message' => self::get_status_message( $new_status, $attendance_mode ),
                 );
             }
         );
@@ -323,6 +351,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 array(
                     'message' => (string) ( $operation['message'] ?? esc_html__( 'Your RSVP was updated.', 'oras-tickets' ) ),
                     'status'  => (string) ( $operation['status'] ?? '' ),
+                    'attendance_mode' => (string) ( $operation['attendance_mode'] ?? '' ),
                 )
             );
         }
@@ -383,5 +412,70 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         return count( $users );
+    }
+
+    public static function get_user_attendance_mode( int $event_id, int $user_id ): string {
+        if ( $user_id <= 0 ) {
+            return '';
+        }
+
+        $mode = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX, true );
+        if ( ! is_string( $mode ) || '' === $mode ) {
+            return '';
+        }
+
+        return Ticket::normalizeAttendanceMode( $mode, Ticket::ATTENDANCE_MODE_ONSITE );
+    }
+
+    public static function get_attendance_mode_label( string $attendance_mode ): string {
+        if ( Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode ) {
+            return __( 'Virtual', 'oras-tickets' );
+        }
+
+        if ( Ticket::ATTENDANCE_MODE_ONSITE === $attendance_mode ) {
+            return __( 'On-site', 'oras-tickets' );
+        }
+
+        return __( 'Not specified', 'oras-tickets' );
+    }
+
+    private static function get_status_message( string $status, string $attendance_mode ): string {
+        $attendance_label = self::get_attendance_mode_label( $attendance_mode );
+
+        if ( __( 'Not specified', 'oras-tickets' ) === $attendance_label ) {
+            if ( 'waitlist' === $status ) {
+                return __( 'You are on the waitlist for this event.', 'oras-tickets' );
+            }
+
+            if ( 'yes' === $status ) {
+                return __( 'You are RSVPed for this event.', 'oras-tickets' );
+            }
+
+            return __( 'Your RSVP was updated.', 'oras-tickets' );
+        }
+
+        $attendance_label = strtolower( $attendance_label );
+
+        switch ( $status ) {
+            case 'yes':
+                /* translators: %s: attendance mode label. */
+                return sprintf( __( 'You are RSVPed for %s attendance.', 'oras-tickets' ), $attendance_label );
+
+            case 'waitlist':
+                /* translators: %s: attendance mode label. */
+                return sprintf( __( 'You are on the waitlist for %s attendance.', 'oras-tickets' ), $attendance_label );
+
+            default:
+                return __( 'Your RSVP was updated.', 'oras-tickets' );
+        }
+    }
+
+    private static function get_badge_text( string $attendance_mode ): string {
+        if ( __( 'Not specified', 'oras-tickets' ) === self::get_attendance_mode_label( $attendance_mode ) ) {
+            return __( 'Status: You are RSVPed ✅', 'oras-tickets' );
+        }
+
+        /* translators: %s: attendance mode label. */
+        return sprintf( __( 'Status: RSVPed for %s ✅', 'oras-tickets' ), self::get_attendance_mode_label( $attendance_mode ) );
     }
 }

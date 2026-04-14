@@ -1,0 +1,841 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation "Main menu":
+      - link "Skip to main content" [ref=e3] [cursor=pointer]:
+        - /url: "#wpbody-content"
+      - link "Skip to toolbar" [ref=e4] [cursor=pointer]:
+        - /url: "#wp-toolbar"
+      - list [ref=e7]:
+        - listitem [ref=e8]:
+          - link "Dashboard" [ref=e9] [cursor=pointer]:
+            - /url: index.php
+            - generic [ref=e10]: 
+            - generic [ref=e11]: Dashboard
+          - list [ref=e12]:
+            - listitem [ref=e13]:
+              - link "Home" [ref=e14] [cursor=pointer]:
+                - /url: index.php
+            - listitem [ref=e15]:
+              - link "Updates 2" [ref=e16] [cursor=pointer]:
+                - /url: update-core.php
+                - text: Updates
+                - generic [ref=e17]: "2"
+        - listitem [ref=e18]
+        - listitem [ref=e20]:
+          - link "Posts" [ref=e21] [cursor=pointer]:
+            - /url: edit.php
+            - generic [ref=e22]: 
+            - generic [ref=e23]: Posts
+          - list [ref=e24]:
+            - listitem [ref=e25]:
+              - link "All Posts" [ref=e26] [cursor=pointer]:
+                - /url: edit.php
+            - listitem [ref=e27]:
+              - link "Add Post" [ref=e28] [cursor=pointer]:
+                - /url: post-new.php
+            - listitem [ref=e29]:
+              - link "Categories" [ref=e30] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=category
+            - listitem [ref=e31]:
+              - link "Tags" [ref=e32] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=post_tag
+        - listitem [ref=e33]:
+          - link "Events" [ref=e34] [cursor=pointer]:
+            - /url: edit.php?post_type=tribe_events
+            - generic [ref=e36]: Events
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - link "Events" [ref=e39] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events
+            - listitem [ref=e40]:
+              - link "Add New Event" [ref=e41] [cursor=pointer]:
+                - /url: post-new.php?post_type=tribe_events
+            - listitem [ref=e42]:
+              - link "Tags" [ref=e43] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=post_tag&post_type=tribe_events
+            - listitem [ref=e44]:
+              - link "Event Categories" [ref=e45] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=tribe_events_cat&post_type=tribe_events
+            - listitem [ref=e46]:
+              - link "Venues" [ref=e47] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_venue
+            - listitem [ref=e48]:
+              - link "Organizers" [ref=e49] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_organizer
+            - listitem [ref=e50]:
+              - link "Import" [ref=e51] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=aggregator
+            - listitem [ref=e52]:
+              - link "Calendar Embeds" [ref=e53] [cursor=pointer]:
+                - /url: edit.php?post_type=tec_calendar_embed
+            - listitem [ref=e54]:
+              - link "Settings" [ref=e55] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=tec-events-settings
+            - listitem [ref=e56]:
+              - link "Help" [ref=e57] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=tec-events-help-hub
+            - listitem [ref=e58]:
+              - link "Troubleshooting" [ref=e59] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=tec-troubleshooting
+            - listitem [ref=e60]:
+              - link "Event Add-Ons" [ref=e61] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=tribe-app-shop
+            - listitem [ref=e62]:
+              - link "Setup Guide" [ref=e63] [cursor=pointer]:
+                - /url: edit.php?post_type=tribe_events&page=first-time-setup
+        - listitem [ref=e64]:
+          - link "Media" [ref=e65] [cursor=pointer]:
+            - /url: upload.php
+            - generic [ref=e66]: 
+            - generic [ref=e67]: Media
+          - list [ref=e68]:
+            - listitem [ref=e69]:
+              - link "Library" [ref=e70] [cursor=pointer]:
+                - /url: upload.php
+            - listitem [ref=e71]:
+              - link "Add Media File" [ref=e72] [cursor=pointer]:
+                - /url: media-new.php
+        - listitem [ref=e73]:
+          - link "Pages" [ref=e74] [cursor=pointer]:
+            - /url: edit.php?post_type=page
+            - generic [ref=e75]: 
+            - generic [ref=e76]: Pages
+          - list [ref=e77]:
+            - listitem [ref=e78]:
+              - link "All Pages" [ref=e79] [cursor=pointer]:
+                - /url: edit.php?post_type=page
+            - listitem [ref=e80]:
+              - link "Add Page" [ref=e81] [cursor=pointer]:
+                - /url: post-new.php?post_type=page
+        - listitem [ref=e82]:
+          - link "Comments" [ref=e83] [cursor=pointer]:
+            - /url: edit-comments.php
+            - generic [ref=e84]: 
+            - generic [ref=e85]: Comments
+        - listitem [ref=e86]
+        - listitem [ref=e88]:
+          - link "WooCommerce" [ref=e89] [cursor=pointer]:
+            - /url: admin.php?page=wc-admin
+            - generic [ref=e91]: WooCommerce
+          - list [ref=e92]:
+            - listitem [ref=e93]:
+              - link "Home 5" [ref=e94] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin
+                - text: Home
+                - generic [ref=e95]: "5"
+            - listitem [ref=e96]:
+              - link "Orders" [ref=e97] [cursor=pointer]:
+                - /url: admin.php?page=wc-orders
+            - listitem [ref=e98]:
+              - link "Customers" [ref=e99] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/customers
+            - listitem [ref=e100]:
+              - link "Coupons" [ref=e101] [cursor=pointer]:
+                - /url: admin.php?page=coupons-moved
+            - listitem [ref=e102]:
+              - link "Reports" [ref=e103] [cursor=pointer]:
+                - /url: admin.php?page=wc-reports
+            - listitem [ref=e104]:
+              - link "Settings" [ref=e105] [cursor=pointer]:
+                - /url: admin.php?page=wc-settings
+            - listitem [ref=e106]:
+              - link "Status" [ref=e107] [cursor=pointer]:
+                - /url: admin.php?page=wc-status
+            - listitem [ref=e108]:
+              - link "Extensions" [ref=e109] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/extensions
+        - listitem [ref=e110]:
+          - link "Products" [ref=e111] [cursor=pointer]:
+            - /url: edit.php?post_type=product
+            - generic [ref=e112]: 
+            - generic [ref=e113]: Products
+          - list [ref=e114]:
+            - listitem [ref=e115]:
+              - link "All Products" [ref=e116] [cursor=pointer]:
+                - /url: edit.php?post_type=product
+            - listitem [ref=e117]:
+              - link "Add new product" [ref=e118] [cursor=pointer]:
+                - /url: post-new.php?post_type=product
+            - listitem [ref=e119]:
+              - link "Brands" [ref=e120] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=product_brand&post_type=product
+            - listitem [ref=e121]:
+              - link "Categories" [ref=e122] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=product_cat&post_type=product
+            - listitem [ref=e123]:
+              - link "Tags" [ref=e124] [cursor=pointer]:
+                - /url: edit-tags.php?taxonomy=product_tag&post_type=product
+            - listitem [ref=e125]:
+              - link "Attributes" [ref=e126] [cursor=pointer]:
+                - /url: edit.php?post_type=product&page=product_attributes
+            - listitem [ref=e127]:
+              - link "Reviews" [ref=e128] [cursor=pointer]:
+                - /url: edit.php?post_type=product&page=product-reviews
+        - listitem [ref=e129]:
+          - link "Payments 1" [ref=e130] [cursor=pointer]:
+            - /url: admin.php?page=wc-settings&tab=checkout&from=PAYMENTS_MENU_ITEM
+            - generic [ref=e132]:
+              - text: Payments
+              - generic [ref=e133]: "1"
+        - listitem [ref=e134]:
+          - link "ORAS Tickets" [ref=e135] [cursor=pointer]:
+            - /url: admin.php?page=oras-tickets
+            - generic [ref=e136]: 
+            - generic [ref=e137]: ORAS Tickets
+          - list [ref=e138]:
+            - listitem [ref=e139]:
+              - link "Dashboard" [ref=e140] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets
+            - listitem [ref=e141]:
+              - link "Reports" [ref=e142] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-reports
+            - listitem [ref=e143]:
+              - link "Check-In" [ref=e144] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-checkin
+            - listitem [ref=e145]:
+              - link "Speakers" [ref=e146] [cursor=pointer]:
+                - /url: edit.php?post_type=oras_speaker
+            - listitem [ref=e147]:
+              - link "Speaker Obligations" [ref=e148] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-speaker-obligations
+            - listitem [ref=e149]:
+              - link "Speaker Reports" [ref=e150] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-speaker-reports
+            - listitem [ref=e151]:
+              - link "QuickBooks" [ref=e152] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-quickbooks
+            - listitem [ref=e153]:
+              - link "Settings" [ref=e154] [cursor=pointer]:
+                - /url: admin.php?page=oras-tickets-settings
+        - listitem [ref=e155]:
+          - link "Analytics" [ref=e156] [cursor=pointer]:
+            - /url: admin.php?page=wc-admin&path=/analytics/overview
+            - generic [ref=e157]: 
+            - generic [ref=e158]: Analytics
+          - list [ref=e159]:
+            - listitem [ref=e160]:
+              - link "Overview" [ref=e161] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/overview
+            - listitem [ref=e162]:
+              - link "Products" [ref=e163] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/products
+            - listitem [ref=e164]:
+              - link "Revenue" [ref=e165] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/revenue
+            - listitem [ref=e166]:
+              - link "Orders" [ref=e167] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/orders
+            - listitem [ref=e168]:
+              - link "Variations" [ref=e169] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/variations
+            - listitem [ref=e170]:
+              - link "Categories" [ref=e171] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/categories
+            - listitem [ref=e172]:
+              - link "Coupons" [ref=e173] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/coupons
+            - listitem [ref=e174]:
+              - link "Taxes" [ref=e175] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/taxes
+            - listitem [ref=e176]:
+              - link "Downloads" [ref=e177] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/downloads
+            - listitem [ref=e178]:
+              - link "Stock" [ref=e179] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/stock
+            - listitem [ref=e180]:
+              - link "Settings" [ref=e181] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/analytics/settings
+        - listitem [ref=e182]:
+          - link "Marketing" [ref=e183] [cursor=pointer]:
+            - /url: admin.php?page=wc-admin&path=/marketing
+            - generic [ref=e184]: 
+            - generic [ref=e185]: Marketing
+          - list [ref=e186]:
+            - listitem [ref=e187]:
+              - link "Overview" [ref=e188] [cursor=pointer]:
+                - /url: admin.php?page=wc-admin&path=/marketing
+            - listitem [ref=e189]:
+              - link "Coupons" [ref=e190] [cursor=pointer]:
+                - /url: edit.php?post_type=shop_coupon
+        - listitem [ref=e191]
+        - listitem [ref=e193]:
+          - link "Appearance" [ref=e194] [cursor=pointer]:
+            - /url: themes.php
+            - generic [ref=e195]: 
+            - generic [ref=e196]: Appearance
+          - list [ref=e197]:
+            - listitem [ref=e198]:
+              - link "Themes" [ref=e199] [cursor=pointer]:
+                - /url: themes.php
+            - listitem [ref=e200]:
+              - link "Editor" [ref=e201] [cursor=pointer]:
+                - /url: site-editor.php
+            - listitem [ref=e202]:
+              - link "Customize" [ref=e203] [cursor=pointer]:
+                - /url: customize.php?return=%2Fwp-admin%2Fpost.php%3Fpost%3D27%26action%3Dedit
+        - listitem [ref=e204]:
+          - link "Plugins 2" [ref=e205] [cursor=pointer]:
+            - /url: plugins.php
+            - generic [ref=e206]: 
+            - generic [ref=e207]:
+              - text: Plugins
+              - generic [ref=e208]: "2"
+          - list [ref=e209]:
+            - listitem [ref=e210]:
+              - link "Installed Plugins" [ref=e211] [cursor=pointer]:
+                - /url: plugins.php
+            - listitem [ref=e212]:
+              - link "Add Plugin" [ref=e213] [cursor=pointer]:
+                - /url: plugin-install.php
+        - listitem [ref=e214]:
+          - link "Users" [ref=e215] [cursor=pointer]:
+            - /url: users.php
+            - generic [ref=e216]: 
+            - generic [ref=e217]: Users
+          - list [ref=e218]:
+            - listitem [ref=e219]:
+              - link "All Users" [ref=e220] [cursor=pointer]:
+                - /url: users.php
+            - listitem [ref=e221]:
+              - link "Add User" [ref=e222] [cursor=pointer]:
+                - /url: user-new.php
+            - listitem [ref=e223]:
+              - link "Profile" [ref=e224] [cursor=pointer]:
+                - /url: profile.php
+        - listitem [ref=e225]:
+          - link "Tools" [ref=e226] [cursor=pointer]:
+            - /url: tools.php
+            - generic [ref=e227]: 
+            - generic [ref=e228]: Tools
+          - list [ref=e229]:
+            - listitem [ref=e230]:
+              - link "Available Tools" [ref=e231] [cursor=pointer]:
+                - /url: tools.php
+            - listitem [ref=e232]:
+              - link "Import" [ref=e233] [cursor=pointer]:
+                - /url: import.php
+            - listitem [ref=e234]:
+              - link "Export" [ref=e235] [cursor=pointer]:
+                - /url: export.php
+            - listitem [ref=e236]:
+              - link "Site Health" [ref=e237] [cursor=pointer]:
+                - /url: site-health.php
+            - listitem [ref=e238]:
+              - link "Export Personal Data" [ref=e239] [cursor=pointer]:
+                - /url: export-personal-data.php
+            - listitem [ref=e240]:
+              - link "Erase Personal Data" [ref=e241] [cursor=pointer]:
+                - /url: erase-personal-data.php
+            - listitem [ref=e242]:
+              - link "Scheduled Actions" [ref=e243] [cursor=pointer]:
+                - /url: tools.php?page=action-scheduler
+            - listitem [ref=e244]:
+              - link "Theme File Editor" [ref=e245] [cursor=pointer]:
+                - /url: theme-editor.php
+            - listitem [ref=e246]:
+              - link "Plugin File Editor" [ref=e247] [cursor=pointer]:
+                - /url: plugin-editor.php
+        - listitem [ref=e248]:
+          - link "Settings" [ref=e249] [cursor=pointer]:
+            - /url: options-general.php
+            - generic [ref=e250]: 
+            - generic [ref=e251]: Settings
+          - list [ref=e252]:
+            - listitem [ref=e253]:
+              - link "General" [ref=e254] [cursor=pointer]:
+                - /url: options-general.php
+            - listitem [ref=e255]:
+              - link "Writing" [ref=e256] [cursor=pointer]:
+                - /url: options-writing.php
+            - listitem [ref=e257]:
+              - link "Reading" [ref=e258] [cursor=pointer]:
+                - /url: options-reading.php
+            - listitem [ref=e259]:
+              - link "Discussion" [ref=e260] [cursor=pointer]:
+                - /url: options-discussion.php
+            - listitem [ref=e261]:
+              - link "Media" [ref=e262] [cursor=pointer]:
+                - /url: options-media.php
+            - listitem [ref=e263]:
+              - link "Permalinks" [ref=e264] [cursor=pointer]:
+                - /url: options-permalink.php
+            - listitem [ref=e265]:
+              - link "Privacy" [ref=e266] [cursor=pointer]:
+                - /url: options-privacy.php
+        - listitem [ref=e267]:
+          - button "Collapse Main menu" [expanded] [ref=e268] [cursor=pointer]:
+            - generic [ref=e270]: Collapse Menu
+    - generic [ref=e271]:
+      - generic [ref=e272]:
+        - navigation "Toolbar":
+          - menu:
+            - group [ref=e273]:
+              - menuitem "About WordPress" [ref=e274] [cursor=pointer]:
+                - generic [ref=e276]: About WordPress
+            - group [ref=e277]:
+              - menuitem "ORAS-Tickets" [ref=e278] [cursor=pointer]
+            - group [ref=e279]:
+              - menuitem "Store coming soon" [ref=e280] [cursor=pointer]
+            - group [ref=e281]:
+              - menuitem "2 updates available" [ref=e282] [cursor=pointer]:
+                - generic [ref=e284]: "2"
+                - generic [ref=e285]: 2 updates available
+            - group [ref=e286]:
+              - menuitem "0 Comments in moderation" [ref=e287] [cursor=pointer]:
+                - generic [ref=e289]: "0"
+                - generic [ref=e290]: 0 Comments in moderation
+            - group [ref=e291]:
+              - menuitem "New" [ref=e292] [cursor=pointer]:
+                - generic [ref=e294]: New
+            - group [ref=e295]:
+              - menuitem "View Event" [ref=e296] [cursor=pointer]
+            - group [ref=e297]:
+              - menuitem "Events" [ref=e298] [cursor=pointer]: Events
+          - menu [ref=e300]:
+            - group [ref=e301]:
+              - menuitem "Howdy, admin" [ref=e302] [cursor=pointer]
+      - main [ref=e303]:
+        - generic [ref=e304]:
+          - button "Screen Options" [ref=e307] [cursor=pointer]
+          - generic [ref=e308]:
+            - generic [ref=e310]:
+              - heading "Edit Event" [level=1] [ref=e311]
+              - link "Add New Event" [ref=e312] [cursor=pointer]:
+                - /url: http://localhost:8888/wp-admin/post-new.php?post_type=tribe_events
+            - paragraph [ref=e315]:
+              - strong [ref=e316]: "Action Scheduler:"
+              - text: "14"
+              - link "past-due actions" [ref=e317] [cursor=pointer]:
+                - /url: http://localhost:8888/wp-admin/tools.php?page=action-scheduler&status=past-due&order=asc
+              - text: found; something may be wrong.
+              - link "Read documentation »" [ref=e318] [cursor=pointer]:
+                - /url: https://actionscheduler.org/faq/#my-site-has-past-due-actions-what-can-i-do
+            - generic [ref=e320]:
+              - generic:
+                - generic [ref=e321]:
+                  - generic [ref=e322]:
+                    - generic [ref=e323]:
+                      - generic: Add title
+                      - textbox "Add title" [ref=e324]: Scroll Test Event
+                      - link "Skip to Editor" [ref=e325] [cursor=pointer]:
+                        - /url: "#content"
+                    - generic [ref=e327]:
+                      - strong [ref=e328]: "Permalink:"
+                      - link "http://localhost:8888/?tribe_events=scroll-test-event" [ref=e329] [cursor=pointer]:
+                        - /url: http://localhost:8888/?tribe_events=scroll-test-event
+                      - link "Change Permalink Structure" [ref=e331] [cursor=pointer]:
+                        - /url: options-permalink.php
+                  - generic [ref=e332]:
+                    - generic [ref=e333]:
+                      - generic [ref=e334]:
+                        - button "Add Media" [ref=e336] [cursor=pointer]: Add Media
+                        - generic [ref=e338]:
+                          - button "Visual" [pressed] [ref=e339] [cursor=pointer]
+                          - button "Code" [ref=e340] [cursor=pointer]
+                      - application [ref=e342]:
+                        - generic [ref=e343]:
+                          - group [ref=e344]:
+                            - generic [ref=e345]:
+                              - toolbar [ref=e346]:
+                                - group [ref=e348]:
+                                  - generic [ref=e349]:
+                                    - button "Paragraph" [ref=e350] [cursor=pointer]:
+                                      - button "Paragraph" [ref=e351]:
+                                        - generic [ref=e352]: Paragraph
+                                    - button "Bold (Ctrl+B)" [ref=e354] [cursor=pointer]:
+                                      - button [ref=e355]
+                                    - button "Italic (Ctrl+I)" [ref=e357] [cursor=pointer]:
+                                      - button [ref=e358]
+                                    - button "Bulleted list (Shift+Alt+U)" [ref=e360] [cursor=pointer]:
+                                      - button [ref=e361]
+                                    - button "Numbered list (Shift+Alt+O)" [ref=e363] [cursor=pointer]:
+                                      - button [ref=e364]
+                                    - button "Blockquote (Shift+Alt+Q)" [ref=e366] [cursor=pointer]:
+                                      - button [ref=e367]
+                                    - button "Align left (Shift+Alt+L)" [ref=e369] [cursor=pointer]:
+                                      - button [ref=e370]
+                                    - button "Align center (Shift+Alt+C)" [ref=e372] [cursor=pointer]:
+                                      - button [ref=e373]
+                                    - button "Align right (Shift+Alt+R)" [ref=e375] [cursor=pointer]:
+                                      - button [ref=e376]
+                                    - button "Insert/edit link (Ctrl+K)" [ref=e378] [cursor=pointer]:
+                                      - button [ref=e379]
+                                    - button "Insert Read More tag (Shift+Alt+T)" [ref=e381] [cursor=pointer]:
+                                      - button [ref=e382]
+                                    - button "Toolbar Toggle (Shift+Alt+Z)" [pressed] [ref=e384] [cursor=pointer]:
+                                      - button [ref=e385]
+                                    - button "Distraction-free writing mode (Shift+Alt+W)" [ref=e387] [cursor=pointer]:
+                                      - button [ref=e388]
+                              - toolbar [ref=e390]:
+                                - group [ref=e392]:
+                                  - generic [ref=e393]:
+                                    - button "Strikethrough (Shift+Alt+D)" [ref=e394] [cursor=pointer]:
+                                      - button [ref=e395]
+                                    - button "Horizontal line" [ref=e397] [cursor=pointer]:
+                                      - button [ref=e398]
+                                    - button "Text color" [ref=e400] [cursor=pointer]:
+                                      - button [ref=e401]
+                                      - button [ref=e404]
+                                    - button "Paste as text" [ref=e406] [cursor=pointer]:
+                                      - button [ref=e407]
+                                    - button "Clear formatting" [ref=e409] [cursor=pointer]:
+                                      - button [ref=e410]
+                                    - button "Special character" [ref=e412] [cursor=pointer]:
+                                      - button [ref=e413]
+                                    - button "Decrease indent" [ref=e415] [cursor=pointer]:
+                                      - button [ref=e416]
+                                    - button "Increase indent" [ref=e418] [cursor=pointer]:
+                                      - button [ref=e419]
+                                    - button "Undo (Ctrl+Z)" [disabled] [ref=e421] [cursor=pointer]:
+                                      - button [disabled] [ref=e422]
+                                    - button "Redo (Ctrl+Y)" [disabled] [ref=e424] [cursor=pointer]:
+                                      - button [disabled] [ref=e425]
+                                    - button "Keyboard Shortcuts (Shift+Alt+H)" [ref=e427] [cursor=pointer]:
+                                      - button [ref=e428]
+                          - group [ref=e430]:
+                            - iframe [ref=e431]:
+                              - paragraph [ref=f3e2]
+                          - group [ref=e432]
+                    - text: "Word count: 0 Last edited on April 14, 2026 at 1:34 am"
+                - generic [ref=e437]:
+                  - generic [ref=e438]:
+                    - generic [ref=e439]:
+                      - heading "Publish" [level=2] [ref=e440]
+                      - generic [ref=e441]:
+                        - button "Move up" [disabled] [ref=e442]:
+                          - generic [ref=e443]: Move up
+                        - button "Move down" [ref=e445] [cursor=pointer]:
+                          - generic [ref=e446]: Move down
+                        - 'button "Toggle panel: Publish" [expanded] [ref=e448] [cursor=pointer]':
+                          - generic [ref=e449]: "Toggle panel: Publish"
+                    - generic [ref=e452]:
+                      - generic [ref=e453]:
+                        - link "Preview Changes (opens in a new tab)" [ref=e455] [cursor=pointer]:
+                          - /url: http://localhost:8888/?tribe_events=scroll-test-event&preview=true
+                          - text: Preview Changes
+                          - generic [ref=e456]: (opens in a new tab)
+                        - generic [ref=e457]:
+                          - generic [ref=e458]:
+                            - text: "Status: Published"
+                            - button "Edit status" [ref=e459] [cursor=pointer]:
+                              - text: Edit
+                              - generic [ref=e460]: Edit status
+                          - generic [ref=e461]:
+                            - text: "Visibility: Public"
+                            - button "Edit visibility" [ref=e462] [cursor=pointer]:
+                              - text: Edit
+                              - generic [ref=e463]: Edit visibility
+                          - generic [ref=e464]:
+                            - generic [ref=e465]: "Published on: Apr 14, 2026 at 01:34"
+                            - button "Edit date and time" [ref=e466] [cursor=pointer]:
+                              - text: Edit
+                              - generic [ref=e467]: Edit date and time
+                      - generic [ref=e468]:
+                        - link "Move to Trash" [ref=e470] [cursor=pointer]:
+                          - /url: http://localhost:8888/wp-admin/post.php?post=27&action=trash&_wpnonce=672a36f67e
+                        - button "Update" [ref=e472] [cursor=pointer]
+                  - generic [ref=e473]:
+                    - generic [ref=e474]:
+                      - heading "Tags" [level=2] [ref=e475]
+                      - generic [ref=e476]:
+                        - button "Move up" [ref=e477] [cursor=pointer]:
+                          - generic [ref=e478]: Move up
+                        - button "Move down" [ref=e480] [cursor=pointer]:
+                          - generic [ref=e481]: Move down
+                        - 'button "Toggle panel: Tags" [expanded] [ref=e483] [cursor=pointer]':
+                          - generic [ref=e484]: "Toggle panel: Tags"
+                    - generic [ref=e486]:
+                      - generic [ref=e487]:
+                        - generic [ref=e488]:
+                          - generic [ref=e489]:
+                            - generic [ref=e490]: Add Tag
+                            - combobox "Add Tag" [ref=e491]
+                            - button "Add" [ref=e492] [cursor=pointer]
+                          - paragraph [ref=e493]: Separate tags with commas
+                        - list
+                      - paragraph [ref=e494]:
+                        - button "Choose from the most used tags" [ref=e495] [cursor=pointer]
+                  - generic [ref=e496]:
+                    - generic [ref=e497]:
+                      - heading "Event Categories" [level=2] [ref=e498]
+                      - generic [ref=e499]:
+                        - button "Move up" [ref=e500] [cursor=pointer]:
+                          - generic [ref=e501]: Move up
+                        - button "Move down" [ref=e503] [cursor=pointer]:
+                          - generic [ref=e504]: Move down
+                        - 'button "Toggle panel: Event Categories" [expanded] [ref=e506] [cursor=pointer]':
+                          - generic [ref=e507]: "Toggle panel: Event Categories"
+                    - generic [ref=e510]:
+                      - list [ref=e511]:
+                        - listitem [ref=e512]:
+                          - link "All Event Categories" [ref=e513] [cursor=pointer]:
+                            - /url: "#tribe_events_cat-all"
+                        - listitem [ref=e514]:
+                          - link "Most Used" [ref=e515] [cursor=pointer]:
+                            - /url: "#tribe_events_cat-pop"
+                      - generic [ref=e516]:
+                        - list
+                      - link "+ Add New Event Category" [ref=e518] [cursor=pointer]:
+                        - /url: "#tribe_events_cat-add"
+                  - generic [ref=e519]:
+                    - generic [ref=e520]:
+                      - heading "Post Attributes" [level=2] [ref=e521]
+                      - generic [ref=e522]:
+                        - button "Move up" [ref=e523] [cursor=pointer]:
+                          - generic [ref=e524]: Move up
+                        - button "Move down" [ref=e526] [cursor=pointer]:
+                          - generic [ref=e527]: Move down
+                        - 'button "Toggle panel: Post Attributes" [expanded] [ref=e529] [cursor=pointer]':
+                          - generic [ref=e530]: "Toggle panel: Post Attributes"
+                    - generic [ref=e532]:
+                      - paragraph [ref=e533]: Template
+                      - combobox "Template" [ref=e534] [cursor=pointer]:
+                        - option "Default template" [selected]
+                        - option "Calendar Views (Event Archive)"
+                        - option "Single Event"
+                  - generic [ref=e535]:
+                    - generic [ref=e536]:
+                      - heading "Event Options" [level=2] [ref=e537]
+                      - generic [ref=e538]:
+                        - button "Move up" [ref=e539] [cursor=pointer]:
+                          - generic [ref=e540]: Move up
+                        - button "Move down" [ref=e542] [cursor=pointer]:
+                          - generic [ref=e543]: Move down
+                        - 'button "Toggle panel: Event Options" [expanded] [ref=e545] [cursor=pointer]':
+                          - generic [ref=e546]: "Toggle panel: Event Options"
+                    - generic [ref=e548]:
+                      - paragraph [ref=e549]:
+                        - generic [ref=e550]:
+                          - checkbox "Hide From Event Listings" [ref=e551] [cursor=pointer]
+                          - text: Hide From Event Listings
+                      - paragraph [ref=e552]:
+                        - generic [ref=e553]:
+                          - checkbox "Sticky in Month View" [ref=e554] [cursor=pointer]
+                          - text: Sticky in Month View
+                        - generic "When events are sticky in month view, they'll display first in the list of events shown within a given day block." [ref=e555]: 
+                      - paragraph [ref=e556]:
+                        - generic [ref=e557]:
+                          - checkbox "Feature Event" [ref=e558] [cursor=pointer]
+                          - text: Feature Event
+                        - generic "Featured events are highlighted on the front end in views, archives, and widgets." [ref=e559]: 
+                  - generic [ref=e560]:
+                    - generic [ref=e561]:
+                      - heading "QR Code" [level=2] [ref=e562]
+                      - generic [ref=e563]:
+                        - button "Move up" [ref=e564] [cursor=pointer]:
+                          - generic [ref=e565]: Move up
+                        - button "Move down" [ref=e567] [cursor=pointer]:
+                          - generic [ref=e568]: Move down
+                        - 'button "Toggle panel: QR Code" [expanded] [ref=e570] [cursor=pointer]':
+                          - generic [ref=e571]: "Toggle panel: QR Code"
+                    - paragraph [ref=e574]:
+                      - link "Generate QR Code" [ref=e575] [cursor=pointer]:
+                        - /url: http://localhost:8888/wp-admin/admin-ajax.php?action=tec_qr_code_modal&post_id=27&width=572&height=350&_wpnonce=cbb02d0d77
+                  - generic [ref=e576]:
+                    - generic [ref=e577]:
+                      - heading "Events Status" [level=2] [ref=e578]
+                      - generic [ref=e579]:
+                        - button "Move up" [ref=e580] [cursor=pointer]:
+                          - generic [ref=e581]: Move up
+                        - button "Move down" [ref=e583] [cursor=pointer]:
+                          - generic [ref=e584]: Move down
+                        - 'button "Toggle panel: Events Status" [expanded] [ref=e586] [cursor=pointer]':
+                          - generic [ref=e587]: "Toggle panel: Events Status"
+                    - generic [ref=e590]:
+                      - text: "Set status:"
+                      - generic [ref=e591]:
+                        - generic [ref=e592]: "Set status:"
+                        - combobox [ref=e593] [cursor=pointer]
+                        - combobox "Scheduled" [ref=e596] [cursor=pointer]:
+                          - textbox "Scheduled" [ref=e597]
+                  - generic [ref=e598]:
+                    - generic [ref=e599]:
+                      - heading "Featured image" [level=2] [ref=e600]
+                      - generic [ref=e601]:
+                        - button "Move up" [ref=e602] [cursor=pointer]:
+                          - generic [ref=e603]: Move up
+                        - button "Move down" [ref=e605] [cursor=pointer]:
+                          - generic [ref=e606]: Move down
+                        - 'button "Toggle panel: Featured image" [expanded] [ref=e608] [cursor=pointer]':
+                          - generic [ref=e609]: "Toggle panel: Featured image"
+                    - generic [ref=e611]:
+                      - paragraph [ref=e612]:
+                        - link "Set featured image" [ref=e613] [cursor=pointer]:
+                          - /url: http://localhost:8888/wp-admin/media-upload.php?post_id=27&type=image&TB_iframe=1
+                      - paragraph [ref=e614]: We recommend a 16:9 aspect ratio for featured images.
+                - generic [ref=e616]:
+                  - generic [ref=e617]:
+                    - generic [ref=e618]:
+                      - heading "The Events Calendar" [level=2] [ref=e619]
+                      - generic [ref=e620]:
+                        - button "Move up" [ref=e621] [cursor=pointer]:
+                          - generic [ref=e622]: Move up
+                        - button "Move down" [ref=e624] [cursor=pointer]:
+                          - generic [ref=e625]: Move down
+                        - 'button "Toggle panel: The Events Calendar" [ref=e627] [cursor=pointer]':
+                          - generic [ref=e628]: "Toggle panel: The Events Calendar"
+                    - text:    
+                  - generic [ref=e630]:
+                    - generic [ref=e631]:
+                      - heading "Excerpt" [level=2] [ref=e632]
+                      - generic [ref=e633]:
+                        - button "Move up" [ref=e634] [cursor=pointer]:
+                          - generic [ref=e635]: Move up
+                        - button "Move down" [ref=e637] [cursor=pointer]:
+                          - generic [ref=e638]: Move down
+                        - 'button "Toggle panel: Excerpt" [expanded] [ref=e640] [cursor=pointer]':
+                          - generic [ref=e641]: "Toggle panel: Excerpt"
+                    - generic [ref=e643]:
+                      - generic [ref=e644]: Excerpt
+                      - textbox "Excerpt" [ref=e645]
+                      - paragraph [ref=e646]:
+                        - text: Excerpts are optional hand-crafted summaries of your content that can be used in your theme.
+                        - link "Learn more about manual excerpts" [ref=e647] [cursor=pointer]:
+                          - /url: https://wordpress.org/documentation/article/what-is-an-excerpt-classic-editor/
+                        - text: .
+                  - generic [ref=e648]:
+                    - generic [ref=e649]:
+                      - heading "Custom Fields" [level=2] [ref=e650]
+                      - generic [ref=e651]:
+                        - button "Move up" [ref=e652] [cursor=pointer]:
+                          - generic [ref=e653]: Move up
+                        - button "Move down" [ref=e655] [cursor=pointer]:
+                          - generic [ref=e656]: Move down
+                        - 'button "Toggle panel: Custom Fields" [expanded] [ref=e658] [cursor=pointer]':
+                          - generic [ref=e659]: "Toggle panel: Custom Fields"
+                    - generic [ref=e661]:
+                      - generic [ref=e662]:
+                        - paragraph [ref=e663]:
+                          - strong [ref=e664]: "Add Custom Field:"
+                        - table [ref=e665]:
+                          - rowgroup [ref=e666]:
+                            - row "Name Value" [ref=e667]:
+                              - columnheader "Name" [ref=e668]
+                              - columnheader "Value" [ref=e669]
+                          - rowgroup [ref=e670]:
+                            - row "— Select — Enter new" [ref=e671]:
+                              - cell "— Select — Enter new" [ref=e672]:
+                                - combobox "Name" [ref=e673] [cursor=pointer]:
+                                  - option "— Select —" [selected]
+                                  - option "total_sales"
+                                - button "Enter new" [ref=e674] [cursor=pointer]
+                              - cell [ref=e675]:
+                                - textbox "Value" [ref=e676]
+                        - button "Add Custom Field" [ref=e678] [cursor=pointer]
+                      - paragraph [ref=e679]:
+                        - text: Custom fields can be used to add extra metadata to a post that you can
+                        - link "use in your theme" [ref=e680] [cursor=pointer]:
+                          - /url: https://wordpress.org/documentation/article/assign-custom-fields/
+                        - text: .
+                  - generic [ref=e681]:
+                    - generic [ref=e682]:
+                      - heading "Author" [level=2] [ref=e683]
+                      - generic [ref=e684]:
+                        - button "Move up" [ref=e685] [cursor=pointer]:
+                          - generic [ref=e686]: Move up
+                        - button "Move down" [ref=e688] [cursor=pointer]:
+                          - generic [ref=e689]: Move down
+                        - 'button "Toggle panel: Author" [expanded] [ref=e691] [cursor=pointer]':
+                          - generic [ref=e692]: "Toggle panel: Author"
+                    - generic [ref=e694]:
+                      - generic [ref=e695]: Author
+                      - combobox "Author" [ref=e696] [cursor=pointer]:
+                        - option "admin (admin)" [selected]
+                  - generic [ref=e697]:
+                    - generic [ref=e698]:
+                      - heading "ORAS EVENTS ADDON" [level=2] [ref=e699]
+                      - generic [ref=e700]:
+                        - button "Move up" [ref=e701] [cursor=pointer]:
+                          - generic [ref=e702]: Move up
+                        - button "Move down" [ref=e704] [cursor=pointer]:
+                          - generic [ref=e705]: Move down
+                        - 'button "Toggle panel: ORAS EVENTS ADDON" [expanded] [ref=e707] [cursor=pointer]':
+                          - generic [ref=e708]: "Toggle panel: ORAS EVENTS ADDON"
+                    - generic [ref=e711]:
+                      - generic [ref=e712]:
+                        - generic [ref=e713]:
+                          - heading "ORAS Events Addon" [level=2] [ref=e714]
+                          - paragraph [ref=e715]: Manage tickets, agenda, RSVP, and speakers from one admin panel.
+                        - generic "Event addon status" [ref=e716]:
+                          - generic [ref=e717]: 1 Tickets
+                          - generic [ref=e718]: 0 Days
+                          - generic [ref=e719]: 0 Speakers
+                          - generic [ref=e720]: 0 Door Prizes
+                          - generic [ref=e721]: RSVP Disabled
+                          - button "Save Event" [ref=e722] [cursor=pointer]
+                      - tablist "ORAS events sections" [ref=e723]:
+                        - tab "Tickets" [selected] [ref=e724] [cursor=pointer]
+                        - tab "Agenda" [ref=e725] [cursor=pointer]
+                        - tab "RSVP" [ref=e726] [cursor=pointer]
+                        - tab "Speakers" [ref=e727] [cursor=pointer]
+                        - tab "Door Prizes" [ref=e728] [cursor=pointer]
+                      - generic [ref=e729]:
+                        - tabpanel "Tickets" [ref=e730]:
+                          - generic [ref=e732]:
+                            - button "Add Ticket" [ref=e734] [cursor=pointer]:
+                              - generic [ref=e735]: 
+                              - generic [ref=e736]: Add Ticket
+                            - table [ref=e739]:
+                              - rowgroup [ref=e740]:
+                                - row "VIP Ticket $125.00 · Scheduled Close Remove Name VIP Ticket Description Scroll verification seed Stock 50 0 = unlimited Hide sold out Hide when sold out Sale start 2026-04-20T09:00 Sale end 2026-04-21T17:00 Price 125.00 Pricing phases Use phases to set time-based prices (UTC). Add phase Phase Advanced Key early_bird Label Early Bird Price 99.00" [ref=e741]:
+                                  - cell "VIP Ticket $125.00 · Scheduled Close Remove Name VIP Ticket Description Scroll verification seed Stock 50 0 = unlimited Hide sold out Hide when sold out Sale start 2026-04-20T09:00 Sale end 2026-04-21T17:00 Price 125.00 Pricing phases Use phases to set time-based prices (UTC). Add phase Phase Advanced Key early_bird Label Early Bird Price 99.00" [ref=e742]:
+                                    - generic [ref=e743]:
+                                      - generic [ref=e744]:
+                                        - generic [ref=e745]
+                                        - generic [ref=e748]
+                                      - generic [ref=e752]:
+                                        - generic [ref=e753]
+                                        - generic [ref=e762]
+                                        - generic [ref=e772]
+                                        - generic [ref=e781]
+                                        - generic [ref=e786]
+                            - generic [ref=e806]:
+                              - heading "Tickets" [level=4] [ref=e807]
+                              - table [ref=e808]:
+                                - rowgroup [ref=e809]:
+                                  - row "Name Price Inventory Sale Window Status Actions" [ref=e810]:
+                                    - columnheader "Name" [ref=e811]
+                                    - columnheader "Price" [ref=e812]
+                                    - columnheader "Inventory" [ref=e813]
+                                    - columnheader "Sale Window" [ref=e814]
+                                    - columnheader "Status" [ref=e815]
+                                    - columnheader "Actions" [ref=e816]
+                                - rowgroup [ref=e817]:
+                                  - row "VIP Ticket $125.00 50 2026-04-20 09:00 → 2026-04-21 17:00 Scheduled Edit Remove" [ref=e818]:
+                                    - cell "VIP Ticket" [ref=e819]
+                                    - cell "$125.00" [ref=e820]
+                                    - cell "50" [ref=e821]
+                                    - cell "2026-04-20 09:00 → 2026-04-21 17:00" [ref=e822]
+                                    - cell "Scheduled" [ref=e823]
+                                    - cell "Edit Remove" [ref=e824]:
+                                      - button "Edit" [ref=e825] [cursor=pointer]
+                                      - button "Remove" [ref=e826] [cursor=pointer]
+                        - text: 
+                      - button "Save Event" [ref=e828] [cursor=pointer]
+    - contentinfo [ref=e830]:
+      - paragraph [ref=e831]:
+        - text: Rate
+        - strong [ref=e832]: The Events Calendar
+        - link "★★★★★" [ref=e833] [cursor=pointer]:
+          - /url: https://wordpress.org/support/plugin/the-events-calendar/reviews/?filter=5
+      - paragraph [ref=e834]: Version 6.9.4
+    - generic [ref=e835]:
+      - generic [ref=e836]:
+        - generic [ref=e837]: Notifications
+        - img "Close icon" [ref=e839] [cursor=pointer]
+      - generic [ref=e841]:
+        - img "Notifications icon" [ref=e843]
+        - generic [ref=e844]: There are no notifications
+        - generic [ref=e845]:
+          - paragraph [ref=e846]: Be up to date with the latest updates, fixes and features for The Events Calendar.
+          - paragraph [ref=e847]:
+            - text: To receive notifications you need to agree to our
+            - link "data sharing agreement" [ref=e848] [cursor=pointer]:
+              - /url: https://evnt.is/1bcl
+            - text: .
+        - generic [ref=e849]: Opt-in to notifications
+  - status [ref=e852]
+  - text:          
+  - status [ref=e853]
+  - text:  

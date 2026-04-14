@@ -3,12 +3,14 @@
 namespace ORAS\Tickets\Admin;
 
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Checkin_Page.php'; // NOSONAR include: check-in operations page
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Speaker_Obligations_Page.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Speaker_Reports_Page.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php'; // NOSONAR legacy include
 
 use ORAS\Tickets\Admin\Pages\Dashboard_Page;
+use ORAS\Tickets\Admin\Pages\CheckinPage;
 use ORAS\Tickets\Admin\Pages\Reports_Page;
 use ORAS\Tickets\Admin\Pages\Speaker_Obligations_Page;
 use ORAS\Tickets\Admin\Pages\Speaker_Reports_Page;
@@ -37,7 +39,7 @@ final class Admin_Menu
     {
         $capability = 'oras_tickets_manage_events';
 
-        add_menu_page(
+        \add_menu_page(
             __('ORAS Tickets', 'oras-tickets'),
             __('ORAS Tickets', 'oras-tickets'),
             $capability,
@@ -48,7 +50,7 @@ final class Admin_Menu
         );
 
         // Dashboard should be the default/top submenu.
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Dashboard', 'oras-tickets'),
             __('Dashboard', 'oras-tickets'),
@@ -58,7 +60,7 @@ final class Admin_Menu
         );
 
         // Reports
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Reports', 'oras-tickets'),
             __('Reports', 'oras-tickets'),
@@ -67,12 +69,22 @@ final class Admin_Menu
             array($this, 'render_reports')
         );
 
+        // Check-In
+        \add_submenu_page(
+            'oras-tickets',
+            __('Check-In', 'oras-tickets'),
+            __('Check-In', 'oras-tickets'),
+            'oras_tickets_checkin',
+            'oras-tickets-checkin',
+            array($this, 'render_checkin')
+        );
+
         // If the Speaker CPT added its own submenu (via show_in_menu), remove it
         // so we can re-insert in the desired position (directly after Dashboard).
-        remove_submenu_page('oras-tickets', 'edit.php?post_type=oras_speaker');
+        \remove_submenu_page('oras-tickets', 'edit.php?post_type=oras_speaker');
 
         // Speakers (links to the CPT list screen).
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Speakers', 'oras-tickets'),
             __('Speakers', 'oras-tickets'),
@@ -81,7 +93,7 @@ final class Admin_Menu
         );
 
         // Speaker Obligations
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Speaker Obligations', 'oras-tickets'),
             __('Speaker Obligations', 'oras-tickets'),
@@ -91,7 +103,7 @@ final class Admin_Menu
         );
 
         // Speaker Reports
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Speaker Reports', 'oras-tickets'),
             __('Speaker Reports', 'oras-tickets'),
@@ -101,7 +113,7 @@ final class Admin_Menu
         );
 
         // QuickBooks
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('QuickBooks', 'oras-tickets'),
             __('QuickBooks', 'oras-tickets'),
@@ -111,7 +123,7 @@ final class Admin_Menu
         );
 
         // Settings
-        add_submenu_page(
+        \add_submenu_page(
             'oras-tickets',
             __('Settings', 'oras-tickets'),
             __('Settings', 'oras-tickets'),
@@ -129,6 +141,11 @@ final class Admin_Menu
     public function render_reports(): void
     {
         (new Reports_Page())->render();
+    }
+
+    public function render_checkin(): void
+    {
+        (new CheckinPage())->render();
     }
 
     public function render_settings(): void

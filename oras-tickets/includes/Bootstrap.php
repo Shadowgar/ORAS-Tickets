@@ -36,9 +36,11 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR 
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
+require_once ORAS_TICKETS_DIR . 'includes/Security/Ticket_Checkin_Token.php'; // NOSONAR include: signed check-in token service
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Api/Checkin.php'; // NOSONAR include: check-in REST routes
 require_once ORAS_TICKETS_DIR . 'src/Integrations/QuickBooks/Module.php'; // NOSONAR legacy include
 
 if (! defined('ABSPATH')) {
@@ -129,6 +131,9 @@ final class Bootstrap
 
         $api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
         $api->register();
+
+        $checkin_api = new \ORAS\Tickets\Api\Checkin();
+        $checkin_api->register();
 
         require_once ORAS_TICKETS_DIR . 'includes/Api/Rsvp.php'; // NOSONAR legacy include
         $rsvp_api = new \ORAS\Tickets\Api\Rsvp();

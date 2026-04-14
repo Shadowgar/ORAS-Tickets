@@ -5,6 +5,54 @@
 		return Array.prototype.slice.call(nodeList || []);
 	}
 
+	function focusElement(element, preventScroll) {
+		if (!element || typeof element.focus !== 'function') {
+			return;
+		}
+
+		if (preventScroll) {
+			try {
+				element.focus({ preventScroll: true });
+				return;
+			} catch (error) {
+				// Fallback for browsers without focus options support.
+			}
+		}
+
+		element.focus();
+	}
+
+	function getWindowScrollPosition() {
+		return {
+			x: window.pageXOffset || window.scrollX || 0,
+			y: window.pageYOffset || window.scrollY || 0,
+		};
+	}
+
+	function restoreWindowScroll(position) {
+		if (!position) {
+			return;
+		}
+
+		var currentX = window.pageXOffset || window.scrollX || 0;
+		var currentY = window.pageYOffset || window.scrollY || 0;
+		if (Math.abs(currentX - position.x) < 1 && Math.abs(currentY - position.y) < 1) {
+			return;
+		}
+
+		window.scrollTo(position.x, position.y);
+	}
+
+	function preserveWindowScroll(callback) {
+		var position = getWindowScrollPosition();
+		callback();
+		window.requestAnimationFrame(function () {
+			window.requestAnimationFrame(function () {
+				restoreWindowScroll(position);
+			});
+		});
+	}
+
 	function parseLocalDateTime(value) {
 		if (!value) {
 			return null;
@@ -98,6 +146,21 @@
 		return value !== '' ? value : 'Ticket #' + idx;
 	}
 
+	function getAttendanceMode(row) {
+		var input = getInput(row, 'attendance_mode');
+		return input ? String(input.value || '').trim() : '';
+	}
+
+	function attendanceModeLabel(mode) {
+		if (mode === 'virtual') {
+			return 'Virtual';
+		}
+		if (mode === 'onsite') {
+			return 'On-site';
+		}
+		return 'Choose type';
+	}
+
 	function normalizePrice(value) {
 		var parsed = Number.parseFloat(String(value || '').replace(',', '.'));
 		if (Number.isNaN(parsed) || parsed < 0) {
@@ -188,12 +251,18 @@
 		var capacityInput = getInput(row, 'capacity');
 		var startInput = getInput(row, 'sale_start');
 		var endInput = getInput(row, 'sale_end');
+		var attendanceModeInput = getInput(row, 'attendance_mode');
 
-		[nameInput, priceInput, capacityInput, startInput, endInput].forEach(clearFieldError);
+		[nameInput, priceInput, capacityInput, startInput, endInput, attendanceModeInput].forEach(clearFieldError);
 
 		if (hasContent && nameInput && nameInput.value.trim() === '') {
 			setFieldError(nameInput, 'Ticket name is required.');
 			issues.push('Ticket name is required.');
+		}
+
+		if (hasContent && attendanceModeInput && attendanceModeInput.value === '') {
+			setFieldError(attendanceModeInput, 'Ticket type is required.');
+			issues.push('Ticket type is required.');
 		}
 
 		if (priceInput) {
@@ -299,10 +368,11 @@
 		var startInput = getInput(row, 'sale_start');
 		var endInput = getInput(row, 'sale_end');
 		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var attendanceMode = attendanceModeLabel(getAttendanceMode(row));
 		var status = saleStatus(startInput ? startInput.value : '', endInput ? endInput.value : '');
 
 		nameEl.textContent = name;
-		metaEl.textContent = '$' + price + ' · ' + status;
+		metaEl.textContent = '$' + price + ' · ' + attendanceMode + ' · ' + status;
 	}
 
 	function summaryDataForRow(row) {
@@ -310,6 +380,7 @@
 		var name = currentName(row);
 		var priceInput = getInput(row, 'price');
 		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var type = attendanceModeLabel(getAttendanceMode(row));
 		var capacityInput = getInput(row, 'capacity');
 		var capacityNum = capacityInput ? Number.parseInt(capacityInput.value || '0', 10) : 0;
 		var inventory = capacityNum > 0 ? String(capacityNum) : 'Unlimited';
@@ -322,6 +393,7 @@
 			index: idx,
 			name: name,
 			price: '$' + price,
+			type: type,
 			inventory: inventory,
 			saleWindow: saleWindow(startValue, endValue),
 			status: saleStatus(startValue, endValue),
@@ -348,7 +420,7 @@
 		if (rows.length === 0) {
 			var emptyRow = document.createElement('tr');
 			emptyRow.className = 'oras-ticket-summary-empty';
-			emptyRow.innerHTML = '<td colspan="6">No tickets yet.</td>';
+			emptyRow.innerHTML = '<td colspan="7">No tickets yet.</td>';
 			summaryBody.appendChild(emptyRow);
 			return;
 		}
@@ -360,6 +432,7 @@
 			summaryRow.innerHTML = '' +
 				'<td>' + escapeHtml(data.name) + '</td>' +
 				'<td>' + escapeHtml(data.price) + '</td>' +
+				'<td>' + escapeHtml(data.type) + '</td>' +
 				'<td>' + escapeHtml(data.inventory) + '</td>' +
 				'<td>' + escapeHtml(data.saleWindow) + '</td>' +
 				'<td>' + escapeHtml(data.status) + '</td>' +
@@ -374,7 +447,7 @@
 	function focusTicketName(row) {
 		var nameInput = getInput(row, 'name');
 		if (nameInput) {
-			nameInput.focus();
+			focusElement(nameInput, true);
 		}
 	}
 
@@ -523,7 +596,10 @@
 					return;
 				}
 				var href = ticketTabLink.getAttribute('href') || '';
-				activateTicketInnerTab(tabRow, href);
+				preserveWindowScroll(function () {
+					activateTicketInnerTab(tabRow, href);
+					focusElement(ticketTabLink, true);
+				});
 				return;
 			}
 
@@ -542,7 +618,10 @@
 					return;
 				}
 				var expanded = toggleButton.getAttribute('aria-expanded') === 'true';
-				setRowExpanded(row, !expanded);
+				preserveWindowScroll(function () {
+					setRowExpanded(row, !expanded);
+					focusElement(toggleButton, true);
+				});
 				return;
 			}
 
@@ -566,7 +645,9 @@
 				var row = removeButton.closest('tr.oras-ticket-row');
 				var index = row ? getRowIndex(row) : removeButton.getAttribute('data-index');
 				if (index) {
-					removeTicket(root, index);
+					preserveWindowScroll(function () {
+						removeTicket(root, index);
+					});
 				}
 				return;
 			}
@@ -578,15 +659,21 @@
 				if (!phaseItem) {
 					return;
 				}
-				phaseItem.classList.toggle('is-collapsed');
-				syncPhaseToggle(phaseItem);
+				preserveWindowScroll(function () {
+					phaseItem.classList.toggle('is-collapsed');
+					syncPhaseToggle(phaseItem);
+					focusElement(phaseToggle, true);
+				});
 				return;
 			}
 
 			var phaseAddButton = event.target.closest('.oras-phase-add');
 			if (phaseAddButton) {
 				event.preventDefault();
-				addPhase(phaseAddButton);
+				preserveWindowScroll(function () {
+					addPhase(phaseAddButton);
+					focusElement(phaseAddButton, true);
+				});
 				return;
 			}
 
@@ -600,7 +687,9 @@
 				if (hasPhaseInputData(phase) && !window.confirm('Remove this pricing phase?')) {
 					return;
 				}
-				phase.remove();
+				preserveWindowScroll(function () {
+					phase.remove();
+				});
 			}
 		});
 

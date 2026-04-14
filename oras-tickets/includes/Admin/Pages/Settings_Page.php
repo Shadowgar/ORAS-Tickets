@@ -645,6 +645,7 @@ final class Settings_Page
                     'logged_in'   => __('Logged In Users', 'oras-tickets'),
                     'rsvp'        => __('RSVP Attendees', 'oras-tickets'),
                     'ticket'      => __('Ticket Holders', 'oras-tickets'),
+                    'virtual_ticket' => __('Virtual Ticket Holders', 'oras-tickets'),
                     'free_ticket' => __('Free Ticket Holders', 'oras-tickets'),
                 ),
             )
@@ -666,6 +667,20 @@ final class Settings_Page
             array(
                 'field' => 'tickets.auto_complete_ticket_only_orders',
                 'label' => __('Automatically complete orders containing only tickets (no physical products)', 'oras-tickets'),
+            )
+        );
+
+        add_settings_field(
+            'tickets_cart_hold_minutes',
+            __('Cart Hold Minutes', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
+            self::PAGE_GENERAL,
+            'oras_tickets_defaults',
+            array(
+                'field' => 'tickets.cart_hold_minutes',
+                'label' => __('Minutes to hold ORAS ticket items in cart before automatic expiration', 'oras-tickets'),
+                'help'  => __('Default is 15 minutes. Expired ticket holds are removed during cart and checkout validation.', 'oras-tickets'),
+                'min'   => 1,
             )
         );
 
@@ -1049,6 +1064,7 @@ final class Settings_Page
             ),
             'tickets'        => array(
                 'auto_complete_ticket_only_orders' => ! empty($input_tickets['auto_complete_ticket_only_orders']),
+                'cart_hold_minutes'                => max(1, min(240, absint($input_tickets['cart_hold_minutes'] ?? 15))),
             ),
             'quickbooks'     => array(
                 'enabled'                    => $has_qbo ? ! empty($input_qbo['enabled']) : ! empty($current_qbo['enabled']),
@@ -1101,7 +1117,7 @@ final class Settings_Page
 
     private static function sanitize_show_to(string $value): string
     {
-        $allowed = array('everyone', 'logged_in', 'rsvp', 'ticket', 'free_ticket');
+        $allowed = array('everyone', 'logged_in', 'rsvp', 'ticket', 'virtual_ticket', 'free_ticket');
         $sanitized = sanitize_key($value);
         return in_array($sanitized, $allowed, true) ? $sanitized : 'logged_in';
     }
@@ -1120,6 +1136,7 @@ final class Settings_Page
             ),
             'tickets'        => array(
                 'auto_complete_ticket_only_orders' => true,
+                'cart_hold_minutes'                => 15,
             ),
             'quickbooks'     => array(
                 'enabled'                    => false,
@@ -1191,6 +1208,7 @@ final class Settings_Page
     public static function render_tickets_section(): void
     {
         echo '<p>' . esc_html__('Configure default ticket settings.', 'oras-tickets') . '</p>';
+        echo '<p class="description">' . esc_html__('Cart Hold Minutes controls how long ORAS ticket items can remain in cart before they are automatically removed.', 'oras-tickets') . '</p>';
     }
 
     public static function render_quickbooks_section(): void

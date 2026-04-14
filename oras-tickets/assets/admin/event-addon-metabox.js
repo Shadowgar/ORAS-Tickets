@@ -5,6 +5,107 @@
 		return Array.prototype.slice.call(nodeList || []);
 	}
 
+	function logViewportError(message, error) {
+		if (globalThis.console && typeof globalThis.console.debug === 'function') {
+			globalThis.console.debug(message, error);
+		}
+	}
+
+	function viewportStorageKey(container) {
+		const postId = container?.dataset?.postId || '';
+		return postId ? 'orasEventsAddonViewport:' + postId : '';
+	}
+
+	function findFieldByName(container, fieldName) {
+		if (!container || !fieldName) {
+			return null;
+		}
+
+		const fields = container.querySelectorAll('[name]');
+		for (const field of fields) {
+			if (field.name === fieldName) {
+				return field;
+			}
+		}
+
+		return null;
+	}
+
+	function rememberViewport(container) {
+		const storageKey = viewportStorageKey(container);
+		if (!storageKey) {
+			return;
+		}
+
+		const activeElement = document.activeElement;
+		const state = {
+			x: globalThis.pageXOffset || globalThis.scrollX || 0,
+			y: globalThis.pageYOffset || globalThis.scrollY || 0,
+			fieldName: '',
+			rowIndex: '',
+		};
+
+		if (activeElement && container.contains(activeElement)) {
+			if (typeof activeElement.name === 'string') {
+				state.fieldName = activeElement.name;
+			}
+
+			const activeRow = activeElement.closest('tr.oras-ticket-row');
+			if (activeRow?.dataset?.index) {
+				state.rowIndex = activeRow.dataset.index;
+			}
+		}
+
+		try {
+			globalThis.sessionStorage.setItem(storageKey, JSON.stringify(state));
+		} catch (storageError) {
+			logViewportError('ORAS addon viewport state could not be saved.', storageError);
+		}
+	}
+
+	function restoreViewport(container) {
+		const storageKey = viewportStorageKey(container);
+		if (!storageKey) {
+			return;
+		}
+
+		let rawState;
+		try {
+			rawState = globalThis.sessionStorage.getItem(storageKey);
+			globalThis.sessionStorage.removeItem(storageKey);
+		} catch (storageError) {
+			logViewportError('ORAS addon viewport state could not be restored.', storageError);
+			return;
+		}
+
+		if (!rawState) {
+			return;
+		}
+
+		let state;
+		try {
+			state = JSON.parse(rawState);
+		} catch (parseError) {
+			logViewportError('ORAS addon viewport state was invalid JSON.', parseError);
+			return;
+		}
+
+		globalThis.requestAnimationFrame(function () {
+			globalThis.requestAnimationFrame(function () {
+				globalThis.scrollTo(state.x || 0, state.y || 0);
+
+				let focusTarget = findFieldByName(container, state.fieldName);
+				if (!focusTarget && state.rowIndex) {
+					focusTarget = container.querySelector('.oras-ticket-row[data-index="' + state.rowIndex + '"] .oras-card-toggle');
+				}
+
+				if (focusTarget && typeof focusTarget.focus === 'function') {
+					focusTarget.focus();
+				}
+			});
+		});
+	}
+
 	function tabButtons(container) {
 		return toArray(container.querySelectorAll('.oras-events-addon__tab[role="tab"]'));
 	}
@@ -103,6 +204,7 @@
 	}
 
 	function triggerEventSave(container) {
+		rememberViewport(container);
 		setSaveButtonsSaving(container, true);
 
 		if (globalThis.tinyMCE && typeof globalThis.tinyMCE.triggerSave === 'function') {
@@ -113,13 +215,21 @@
 		if (postForm) {
 			const publish = postForm.querySelector('#publish');
 			if (publish && !publish.disabled) {
-				publish.click();
+				if (typeof postForm.requestSubmit === 'function') {
+					postForm.requestSubmit(publish);
+				} else {
+					publish.click();
+				}
 				return;
 			}
 
 			const saveDraft = postForm.querySelector('#save-post');
 			if (saveDraft && !saveDraft.disabled) {
-				saveDraft.click();
+				if (typeof postForm.requestSubmit === 'function') {
+					postForm.requestSubmit(saveDraft);
+				} else {
+					saveDraft.click();
+				}
 				return;
 			}
 		}
@@ -410,5 +520,6 @@
 		activateTab(container, defaultTab, false);
 		enhanceAgenda(container);
 		enhanceRsvp(container);
+		restoreViewport(container);
 	});
 })();

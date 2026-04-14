@@ -64,7 +64,7 @@ final class Event_RSVP_Metabox { // NOSONAR legacy WP class naming
                             <input type="checkbox" id="oras_rsvp_enabled" name="oras_rsvp[enabled]" value="1" <?php checked( $envelope['enabled'] ); ?> />
                             <?php echo esc_html__( 'Enable RSVP', 'oras-tickets' ); ?>
                         </label>
-                        <p class="description"><?php echo esc_html__( 'Allow members to register without purchasing a ticket.', 'oras-tickets' ); ?></p>
+                        <p class="description"><?php echo esc_html__( 'Allow members to register without purchasing a ticket. RSVP attendees can choose on-site or virtual attendance on the event page.', 'oras-tickets' ); ?></p>
                     </div>
 
                     <div class="oras-rsvp-field oras-rsvp-field--capacity">

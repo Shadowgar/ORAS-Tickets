@@ -17,6 +17,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Ticket {
 
+    public const ATTENDANCE_MODE_ONSITE  = 'onsite';
+    public const ATTENDANCE_MODE_VIRTUAL = 'virtual';
+
     /**
      * Stable internal ID for ticket row; never changes once created.
      *
@@ -74,6 +77,13 @@ final class Ticket {
     public string $description;
 
     /**
+     * Attendance mode granted by this ticket.
+     *
+     * @var string
+     */
+    public string $attendanceMode;
+
+    /**
      * Optional explicit SKU.
      *
      * @var string
@@ -120,6 +130,10 @@ final class Ticket {
         $this->sale_start    = (string) ( $data['sale_start'] ?? '' );
         $this->sale_end      = (string) ( $data['sale_end'] ?? '' );
         $this->description   = (string) ( $data['description'] ?? '' );
+        $this->attendanceMode = self::normalizeAttendanceMode(
+            (string) ( $data['attendance_mode'] ?? '' ),
+            self::ATTENDANCE_MODE_VIRTUAL
+        );
         $this->sku           = (string) ( $data['sku'] ?? '' );
         $this->hide_sold_out = (bool) ( $data['hide_sold_out'] ?? false );
         $this->product_id    = (int) ( $data['product_id'] ?? 0 );
@@ -140,9 +154,29 @@ final class Ticket {
             'sale_start'    => $this->sale_start,
             'sale_end'      => $this->sale_end,
             'description'   => $this->description,
+            'attendance_mode' => $this->attendanceMode,
             'sku'           => $this->sku,
             'hide_sold_out' => $this->hide_sold_out,
             'product_id'    => $this->product_id,
         );
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function attendanceModes(): array {
+        return array(
+            self::ATTENDANCE_MODE_ONSITE,
+            self::ATTENDANCE_MODE_VIRTUAL,
+        );
+    }
+
+    public static function normalizeAttendanceMode(
+        string $value,
+        string $default = self::ATTENDANCE_MODE_ONSITE
+    ): string {
+        $normalized = sanitize_key( $value );
+
+        return in_array( $normalized, self::attendanceModes(), true ) ? $normalized : $default;
     }
 }

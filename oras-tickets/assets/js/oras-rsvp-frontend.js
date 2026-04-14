@@ -2,6 +2,97 @@
 (function () {
     'use strict';
 
+    function attendanceModeLabel(mode) {
+        if (mode === 'virtual') {
+            return 'Virtual';
+        }
+        if (mode === 'onsite') {
+            return 'On-site';
+        }
+        return '';
+    }
+
+    function statusClassName(status) {
+        if (status === 'yes') {
+            return 'oras-rsvp-status oras-rsvp-status-yes';
+        }
+        if (status === 'waitlist') {
+            return 'oras-rsvp-status oras-rsvp-status-waitlist';
+        }
+        if (status === 'no' || status === 'none') {
+            return 'oras-rsvp-status oras-rsvp-status-no';
+        }
+
+        return 'oras-rsvp-status';
+    }
+
+    function updateStatus(block, statusValue, message) {
+        var status = block.querySelector('.oras-rsvp-status');
+        if (!status) {
+            return;
+        }
+
+        status.className = statusClassName(statusValue);
+        if (statusValue === 'yes' || statusValue === 'waitlist') {
+            status.innerHTML = '<strong>' + message + '</strong>';
+            return;
+        }
+
+        status.textContent = message;
+    }
+
+    function findVirtualAccessElement() {
+        var button = document.querySelector('.tribe-events-virtual-link-button');
+        if (button) {
+            return button;
+        }
+
+        return document.querySelector('.tribe-events-virtual-single-zoom-details, .tribe-events-virtual-single-api-details');
+    }
+
+    function moveVirtualAccessBlock(block) {
+        if (!block || block.getAttribute('data-oras-virtual-moved') === '1') {
+            return;
+        }
+
+        var ticketsSection = document.querySelector('.oras-tickets-section');
+        var rsvpBlock = document.querySelector('.oras-rsvp-block');
+        if (!rsvpBlock) {
+            return;
+        }
+
+        var targetParent = rsvpBlock.parentNode;
+        if (!targetParent) {
+            return;
+        }
+
+        var movedBlock = block;
+        if (block.classList && block.classList.contains('tribe-events-virtual-link-button')) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'oras-virtual-access-primary';
+            wrapper.setAttribute('data-oras-virtual-moved', '1');
+            wrapper.appendChild(block);
+            movedBlock = wrapper;
+        }
+
+        if (ticketsSection && ticketsSection.parentNode === targetParent) {
+            ticketsSection.insertAdjacentElement('afterend', movedBlock);
+        } else {
+            targetParent.insertBefore(movedBlock, rsvpBlock);
+        }
+
+        block.setAttribute('data-oras-virtual-moved', '1');
+    }
+
+    function initVirtualAccessPlacement() {
+        var virtualBlock = findVirtualAccessElement();
+        if (!virtualBlock) {
+            return;
+        }
+
+        moveVirtualAccessBlock(virtualBlock);
+    }
+
     function initBlock(block) {
         if (!block) return;
         var form = block.querySelector('form');
@@ -55,12 +146,12 @@
                 notice.innerHTML = '';
                 if (data && data.success) {
                     var msg = (data.data && data.data.message) ? data.data.message : 'RSVP updated.';
+                    var noticeMessage = (data.data && data.data.notice) ? data.data.notice : 'Your RSVP was updated.';
                     var el = document.createElement('div');
                     el.className = 'oras-rsvp-notice oras-rsvp-notice-success';
-                    el.textContent = msg;
+                    el.textContent = noticeMessage;
                     notice.appendChild(el);
 
-                    var status = block.querySelector('.oras-rsvp-status');
                     var badge = block.querySelector('.oras-rsvp-badge');
                     var yes = form.querySelector('button[name="intent"][value="yes"]');
                     var no = form.querySelector('button[name="intent"][value="no"]');
@@ -68,9 +159,7 @@
                     var s = data.data && data.data.status ? data.data.status : null;
                     if (s === 'none' || s === null && msg.toLowerCase().indexOf('removed') !== -1) {
                         // Show not attending state
-                        if (status) {
-                            status.innerHTML = '<p class="oras-rsvp-status oras-rsvp-status-no">' + 'You are not attending this event.' + '</p>';
-                        }
+                        updateStatus(block, 'no', 'You are not attending this event.');
                         if (badge && badge.parentNode) {
                             badge.parentNode.removeChild(badge);
                         }
@@ -79,36 +168,36 @@
                             yes.removeAttribute('aria-pressed');
                         }
                     } else if (s === 'yes') {
-                        if (status) {
-                            status.innerHTML = '';
-                            var p = document.createElement('p');
-                            p.className = 'oras-rsvp-status oras-rsvp-status-yes';
-                            p.innerHTML = '<strong>' + msg + '</strong>';
-                            status.appendChild(p);
-                        }
+                        var attendanceMode = data.data && data.data.attendance_mode ? attendanceModeLabel(data.data.attendance_mode) : '';
+                        updateStatus(block, 'yes', msg);
                         if (yes) {
                             yes.disabled = true;
                             yes.setAttribute('aria-pressed', 'true');
+                        }
+                        if (no) {
+                            no.disabled = false;
+                            no.removeAttribute('aria-pressed');
                         }
                         // add badge if missing
                         if (!badge) {
                             var span = document.createElement('span');
                             span.className = 'oras-rsvp-badge';
-                            span.style.cssText = 'display:inline-block;margin-left:8px;padding:2px 6px;background:#e6ffed;border:1px solid #bdeccf;border-radius:4px;font-size:90%';
-                            span.textContent = 'Status: You are RSVPed ✅';
+                            span.textContent = attendanceMode ? 'Status: RSVPed for ' + attendanceMode + ' ✅' : 'Status: You are RSVPed ✅';
+                            var status = block.querySelector('.oras-rsvp-status');
                             if (status && status.parentNode) {
                                 status.parentNode.insertBefore(span, status.nextSibling);
                             }
+                        } else if (attendanceMode) {
+                            badge.textContent = 'Status: RSVPed for ' + attendanceMode + ' ✅';
                         }
                     } else if (s === 'waitlist') {
-                        if (status) {
-                            status.innerHTML = '<p class="oras-rsvp-status oras-rsvp-status-waitlist"><strong>' + msg + '</strong></p>';
+                        updateStatus(block, 'waitlist', msg);
+                        if (yes) {
+                            yes.disabled = false;
+                            yes.removeAttribute('aria-pressed');
                         }
                     } else {
-                        // fallback: show message in status
-                        if (status) {
-                            status.innerHTML = '<p class="oras-rsvp-status">' + msg + '</p>';
-                        }
+                        updateStatus(block, s, msg);
                     }
                 } else {
                     var err = (data && data.data && data.data.message) ? data.data.message : 'Unable to update RSVP.';
@@ -128,6 +217,8 @@
     }
 
     function init() {
+        initVirtualAccessPlacement();
+
         var blocks = document.querySelectorAll('.oras-rsvp-block');
         for (var i = 0; i < blocks.length; i++) {
             initBlock(blocks[i]);

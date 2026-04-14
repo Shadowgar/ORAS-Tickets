@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Commerce\Woo;
 
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -64,7 +65,11 @@ final class Product_Sync { // NOSONAR legacy WP class naming
             $ticket_data = $ticket_obj->to_array();
         }
 
-        $resolved    = ! empty( $ticket_data ) ? Price_Resolver::resolve_ticket_price( $ticket_data ) : array();
+        $resolved        = ! empty( $ticket_data ) ? Price_Resolver::resolve_ticket_price( $ticket_data ) : array();
+        $attendance_mode = Ticket::normalizeAttendanceMode(
+            isset( $ticket_data['attendance_mode'] ) ? (string) $ticket_data['attendance_mode'] : (string) get_post_meta( $product_id, '_oras_ticket_attendance_mode', true ),
+            Ticket::ATTENDANCE_MODE_VIRTUAL
+        );
         $phase_key   = isset( $resolved['phase_key'] ) && is_string( $resolved['phase_key'] ) ? $resolved['phase_key'] : '';
         $phase_label = isset( $resolved['phase_label'] ) && is_string( $resolved['phase_label'] ) ? $resolved['phase_label'] : '';
         $phase_price = isset( $resolved['price'] ) ? $resolved['price'] : '';
@@ -90,6 +95,7 @@ final class Product_Sync { // NOSONAR legacy WP class naming
         $item->add_meta_data( '_oras_ticket_name', $ticket_name, true );
         $item->add_meta_data( '_oras_ticket_unit_price', wc_format_decimal( $unit_price, wc_get_price_decimals() ), true );
         $item->add_meta_data( '_oras_ticket_currency', get_woocommerce_currency(), true );
+        $item->add_meta_data( '_oras_ticket_attendance_mode', $attendance_mode, true );
         $item->add_meta_data( '_oras_ticket_schema', '1', true );
 
         if ( $has_phase ) {
@@ -291,9 +297,15 @@ final class Product_Sync { // NOSONAR legacy WP class naming
                     continue;
                 }
 
+                $attendance_mode = Ticket::normalizeAttendanceMode(
+                    isset( $ticket['attendance_mode'] ) ? (string) $ticket['attendance_mode'] : '',
+                    Ticket::ATTENDANCE_MODE_VIRTUAL
+                );
+
                 // Link meta
                 update_post_meta( $pid, '_oras_ticket_event_id', (int) $post_id );
                 update_post_meta( $pid, '_oras_ticket_index', (int) $index );
+                update_post_meta( $pid, '_oras_ticket_attendance_mode', $attendance_mode );
 
                 $new_map[ $idx ] = (int) $pid;
             }

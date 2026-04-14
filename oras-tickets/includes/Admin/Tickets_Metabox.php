@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Admin;
 
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
 use ORAS\Tickets\Support\Logger;
 
@@ -116,6 +117,8 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
                             $tab_name   = isset( $data['name'] ) ? (string) $data['name'] : '';
                             $tab_label  = $tab_name !== '' ? $tab_name : sprintf( 'Ticket #%d', (int) $index );
                             $price      = isset( $data['price'] ) ? (string) $data['price'] : '0.00';
+                            $attendance_mode  = $this->get_ticket_attendance_mode( is_array( $data ) ? $data : array() );
+                            $attendance_label = $this->get_ticket_attendance_label( $attendance_mode );
                             $sale_start = isset( $data['sale_start'] ) ? (string) $data['sale_start'] : '';
                             $sale_end   = isset( $data['sale_end'] ) ? (string) $data['sale_end'] : '';
                             $now_ts     = current_time( 'timestamp' );
@@ -146,7 +149,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                             <li class="oras-ticket-tab-item">
                                 <button type="button" class="button oras-ticket-tab" data-index="<?php echo esc_attr( (string) $index ); ?>">
                                     <span class="oras-ticket-tab-title"><?php echo esc_html( $tab_label ); ?></span>
-                                    <span class="oras-ticket-tab-meta"><?php echo esc_html( $price . ' · ' . $sale_status ); ?></span>
+                                    <span class="oras-ticket-tab-meta"><?php echo esc_html( $price . ' · ' . $attendance_label . ' · ' . $sale_status ); ?></span>
                                 </button>
                             </li>
                         <?php endforeach; ?>
@@ -173,6 +176,8 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 $sale_start     = isset( $data['sale_start'] ) ? $data['sale_start'] : '';
                                 $sale_end       = isset( $data['sale_end'] ) ? $data['sale_end'] : '';
                                 $description    = isset( $data['description'] ) ? $data['description'] : '';
+                                $attendance_mode  = $this->get_ticket_attendance_mode( is_array( $data ) ? $data : array() );
+                                $attendance_label = $this->get_ticket_attendance_label( $attendance_mode );
                                 $hide_sold_out  = ! empty( $data['hide_sold_out'] );
                                 $idx            = esc_attr( (string) $index );
                                 $sale_start_val = $sale_start !== '' ? str_replace( ' ', 'T', $sale_start ) : '';
@@ -213,7 +218,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                             <div class="oras-card__header">
                                                 <div class="oras-card__title">
                                                     <span class="oras-card__name"><?php echo esc_html( $name !== '' ? $name : sprintf( __( 'Ticket #%d', 'oras-tickets' ), (int) $idx ) ); ?></span>
-                                                    <span class="oras-card__meta"><?php echo esc_html( '$' . $price . ' · ' . $sale_status ); ?></span>
+                                                    <span class="oras-card__meta"><?php echo esc_html( '$' . $price . ' · ' . $attendance_label . ' · ' . $sale_status ); ?></span>
                                                 </div>
                                                 <div class="oras-card__actions">
                                                     <button type="button" class="button oras-card-toggle" data-index="<?php echo $idx; ?>" aria-expanded="<?php echo $is_first_panel ? 'true' : 'false'; ?>"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
@@ -238,6 +243,14 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                     <div>
                                                         <span class="oras-field-label"><strong>Description</strong></span><br />
                                                         <textarea class="oras-textarea-full" name="oras_tickets_tickets[<?php echo $idx; ?>][description]" rows="3"><?php echo esc_textarea( $description ); ?></textarea>
+                                                    </div>
+                                                    <div class="oras-field-block oras-field-block-spaced">
+                                                        <span class="oras-field-label"><strong><?php echo esc_html__( 'Ticket Type', 'oras-tickets' ); ?></strong></span><br />
+                                                        <select class="oras-input-full oras-ticket-attendance-mode" name="oras_tickets_tickets[<?php echo $idx; ?>][attendance_mode]">
+                                                            <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ); ?>" <?php selected( Ticket::ATTENDANCE_MODE_ONSITE, $attendance_mode ); ?>><?php echo esc_html__( 'On-site', 'oras-tickets' ); ?></option>
+                                                            <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ); ?>" <?php selected( Ticket::ATTENDANCE_MODE_VIRTUAL, $attendance_mode ); ?>><?php echo esc_html__( 'Virtual', 'oras-tickets' ); ?></option>
+                                                        </select>
+                                                        <p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
                                                     </div>
                                                 </div>
                                                 <div id="oras_ticket_<?php echo $idx; ?>_inventory" class="panel woocommerce_options_panel oras-panel-hidden">
@@ -386,6 +399,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                         <tr>
                             <th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
                             <th><?php echo esc_html__( 'Price', 'oras-tickets' ); ?></th>
+                            <th><?php echo esc_html__( 'Type', 'oras-tickets' ); ?></th>
                             <th><?php echo esc_html__( 'Inventory', 'oras-tickets' ); ?></th>
                             <th><?php echo esc_html__( 'Sale Window', 'oras-tickets' ); ?></th>
                             <th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
@@ -395,7 +409,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                     <tbody>
                         <?php if ( empty( $tickets ) ) : ?>
                             <tr class="oras-ticket-summary-empty">
-                                <td colspan="6"><?php echo esc_html__( 'No tickets yet.', 'oras-tickets' ); ?></td>
+                                <td colspan="7"><?php echo esc_html__( 'No tickets yet.', 'oras-tickets' ); ?></td>
                             </tr>
                         <?php else : ?>
                             <?php
@@ -406,6 +420,8 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 }
 
                                 $price      = isset( $data['price'] ) ? (string) $data['price'] : '0.00';
+                                $attendance_mode  = $this->get_ticket_attendance_mode( is_array( $data ) ? $data : array() );
+                                $attendance_label = $this->get_ticket_attendance_label( $attendance_mode );
                                 $capacity   = isset( $data['capacity'] ) ? absint( $data['capacity'] ) : 0;
                                 $inventory  = $capacity > 0 ? (string) $capacity : __( 'Unlimited', 'oras-tickets' );
                                 $sale_start = isset( $data['sale_start'] ) ? (string) $data['sale_start'] : '';
@@ -436,6 +452,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 <tr data-ticket-index="<?php echo esc_attr( (string) $index ); ?>">
                                     <td><?php echo esc_html( $name ); ?></td>
                                     <td><?php echo esc_html( '$' . $price ); ?></td>
+                                    <td><?php echo esc_html( $attendance_label ); ?></td>
                                     <td><?php echo esc_html( $inventory ); ?></td>
                                     <td><?php echo esc_html( $sale_window ); ?></td>
                                     <td><?php echo esc_html( $status ); ?></td>
@@ -458,7 +475,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                             <div class="oras-card__header">
                                 <div class="oras-card__title">
                                     <span class="oras-card__name"><?php echo esc_html__( 'New Ticket', 'oras-tickets' ); ?></span>
-                                    <span class="oras-card__meta">$0.00 · <?php echo esc_html__( 'Always', 'oras-tickets' ); ?></span>
+                                    <span class="oras-card__meta">$0.00 · <?php echo esc_html__( 'Choose type', 'oras-tickets' ); ?> · <?php echo esc_html__( 'Always', 'oras-tickets' ); ?></span>
                                 </div>
                                 <div class="oras-card__actions">
                                     <button type="button" class="button oras-card-toggle" data-index="__INDEX__" aria-expanded="true"><?php echo esc_html__( 'Edit', 'oras-tickets' ); ?></button>
@@ -482,6 +499,15 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                     <div>
                                         <span class="oras-field-label"><strong>Description</strong></span><br />
                                         <textarea class="oras-textarea-full" name="oras_tickets_tickets[__INDEX__][description]" rows="3"></textarea>
+                                    </div>
+                                    <div class="oras-field-block oras-field-block-spaced">
+                                        <span class="oras-field-label"><strong><?php echo esc_html__( 'Ticket Type', 'oras-tickets' ); ?></strong></span><br />
+                                        <select class="oras-input-full oras-ticket-attendance-mode" name="oras_tickets_tickets[__INDEX__][attendance_mode]">
+                                            <option value=""><?php echo esc_html__( 'Select ticket type', 'oras-tickets' ); ?></option>
+                                            <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ); ?>"><?php echo esc_html__( 'On-site', 'oras-tickets' ); ?></option>
+                                            <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ); ?>"><?php echo esc_html__( 'Virtual', 'oras-tickets' ); ?></option>
+                                        </select>
+                                        <p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
                                     </div>
                                 </div>
                                 <div id="oras_ticket___INDEX___inventory" class="panel woocommerce_options_panel oras-panel-hidden">
@@ -753,8 +779,10 @@ $sale_end   = $tmp;
                         }
                     }
                 }
-                $description   = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
-                $hide_sold_out = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
+                $description     = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
+                $existing_ticket  = isset( $existing_tickets[ $idx ] ) && is_array( $existing_tickets[ $idx ] ) ? $existing_tickets[ $idx ] : array();
+                $attendance_mode = $this->sanitize_ticket_attendance_mode( $fields, $existing_ticket );
+                $hide_sold_out   = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
 
                 // Skip empty-default rows: name empty, description empty, sale dates empty, hide_sold_out false, capacity <=0, price <=0
                 if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 ) {
@@ -802,6 +830,7 @@ $sale_end   = $tmp;
                     'sale_start'       => $sale_start,
                     'sale_end'         => $sale_end,
                     'description'      => $description,
+                    'attendance_mode'  => $attendance_mode,
                     'hide_sold_out'    => $hide_sold_out,
                 );
 
@@ -860,8 +889,10 @@ $sale_end   = $tmp;
 }
                     }
                 }
-                $description   = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
-                $hide_sold_out = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
+                $description     = isset( $fields['description'] ) ? sanitize_textarea_field( $fields['description'] ) : '';
+                $existing_ticket  = isset( $existing_tickets[ $position ] ) && is_array( $existing_tickets[ $position ] ) ? $existing_tickets[ $position ] : array();
+                $attendance_mode = $this->sanitize_ticket_attendance_mode( $fields, $existing_ticket );
+                $hide_sold_out   = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
 
                 // Skip empty-default rows
                 if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 ) {
@@ -909,6 +940,7 @@ $sale_end   = $tmp;
                     'sale_start'       => $sale_start,
                     'sale_end'         => $sale_end,
                     'description'      => $description,
+                    'attendance_mode'  => $attendance_mode,
                     'hide_sold_out'    => $hide_sold_out,
                 );
 
@@ -962,6 +994,30 @@ $sale_end   = $tmp;
 
         Ticket_Collection::save_for_event( $post_id, $envelope );
         Logger::instance()->log( "Saved tickets from metabox for event {$post_id} (count=" . count( $clean_tickets ) . ')' );
+    }
+
+    private function get_ticket_attendance_mode( array $ticket ): string {
+        if ( array_key_exists( 'attendance_mode', $ticket ) ) {
+            return Ticket::normalizeAttendanceMode( (string) $ticket['attendance_mode'], Ticket::ATTENDANCE_MODE_VIRTUAL );
+        }
+
+        return Ticket::ATTENDANCE_MODE_VIRTUAL;
+    }
+
+    private function get_ticket_attendance_label( string $attendance_mode ): string {
+        return Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode
+            ? __( 'Virtual', 'oras-tickets' )
+            : __( 'On-site', 'oras-tickets' );
+    }
+
+    private function sanitize_ticket_attendance_mode( array $fields, array $existing_ticket ): string {
+        $default = ! empty( $existing_ticket )
+            ? $this->get_ticket_attendance_mode( $existing_ticket )
+            : Ticket::ATTENDANCE_MODE_ONSITE;
+
+        $raw = isset( $fields['attendance_mode'] ) ? (string) $fields['attendance_mode'] : '';
+
+        return Ticket::normalizeAttendanceMode( $raw, $default );
     }
 
     public function maybe_show_admin_notices(): void {
