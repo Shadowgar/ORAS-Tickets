@@ -85,12 +85,51 @@
     }
 
     function initVirtualAccessPlacement() {
-        var virtualBlock = findVirtualAccessElement();
-        if (!virtualBlock) {
+        function tryMoveVirtualAccess() {
+            var virtualBlock = findVirtualAccessElement();
+
+            if (!virtualBlock || !document.querySelector('.oras-rsvp-block')) {
+                return false;
+            }
+
+            moveVirtualAccessBlock(virtualBlock);
+            return virtualBlock.getAttribute('data-oras-virtual-moved') === '1';
+        }
+
+        if (tryMoveVirtualAccess()) {
             return;
         }
 
-        moveVirtualAccessBlock(virtualBlock);
+        var attempts = 0;
+        var maxAttempts = 20;
+        var interval = window.setInterval(function () {
+            attempts += 1;
+
+            if (tryMoveVirtualAccess() || attempts >= maxAttempts) {
+                window.clearInterval(interval);
+            }
+        }, 300);
+
+        if (!window.MutationObserver || !document.body) {
+            return;
+        }
+
+        var observer = new MutationObserver(function () {
+            if (tryMoveVirtualAccess()) {
+                observer.disconnect();
+                window.clearInterval(interval);
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        window.setTimeout(function () {
+            observer.disconnect();
+            window.clearInterval(interval);
+        }, 10000);
     }
 
     function initBlock(block) {
