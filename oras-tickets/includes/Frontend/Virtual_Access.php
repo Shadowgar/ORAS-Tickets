@@ -2,6 +2,9 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Domain\Ticket;
+use ORAS\Tickets\Domain\Ticket_Collection;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -15,6 +18,7 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
     private const SHOW_TO_LOGGED_IN  = 'logged_in';
     private const SHOW_TO_RSVP       = 'rsvp';
     private const SHOW_TO_TICKET     = 'ticket';
+    private const SHOW_TO_VIRTUAL_TICKET = 'virtual_ticket';
     private const SHOW_TO_FREE_TICKET = 'free_ticket';
 
     public static function register(): void {
@@ -118,6 +122,19 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
                                 <?php echo esc_html__( 'People who purchased tickets', 'oras-tickets' ); ?>
                             </label>
                             <p class="description"><?php echo esc_html__( 'Visible to users who have purchased tickets for this event.', 'oras-tickets' ); ?></p>
+                        </li>
+                        <li>
+                            <label for="<?php echo esc_attr( $metabox_id . '-oras-show-to-virtual-ticket' ); ?>">
+                                <input
+                                    id="<?php echo esc_attr( $metabox_id . '-oras-show-to-virtual-ticket' ); ?>"
+                                    name="oras_virtual_access[show_to]"
+                                    type="radio"
+                                    value="<?php echo esc_attr( self::SHOW_TO_VIRTUAL_TICKET ); ?>"
+                                    <?php checked( self::SHOW_TO_VIRTUAL_TICKET, $show_to ); ?>
+                                />
+                                <?php echo esc_html__( 'Virtual ticket purchasers only', 'oras-tickets' ); ?>
+                            </label>
+                            <p class="description"><?php echo esc_html__( 'Visible only to attendees who purchased tickets marked as virtual.', 'oras-tickets' ); ?></p>
                         </li>
                         <li>
                             <label for="<?php echo esc_attr( $metabox_id . '-oras-show-to-free-ticket' ); ?>">
@@ -225,7 +242,7 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
 
         $message = apply_filters(
             'oras_tickets_virtual_access_denied_message',
-            __( 'This link is available to attendees. Please RSVP or purchase a ticket.', 'oras-tickets' ),
+            self::get_access_denied_message( self::get_show_to_for_event( $event_id ) ),
             $event_id,
             self::get_show_to_for_event( $event_id )
         );
@@ -263,6 +280,12 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
                 }
                 return self::user_has_event_ticket_purchase( $event_id, $user_id, false );
 
+            case self::SHOW_TO_VIRTUAL_TICKET:
+                if ( $user_id <= 0 || ! is_user_logged_in() ) {
+                    return false;
+                }
+                return self::user_has_event_ticket_purchase( $event_id, $user_id, false, Ticket::ATTENDANCE_MODE_VIRTUAL );
+
             case self::SHOW_TO_FREE_TICKET:
                 if ( $user_id <= 0 || ! is_user_logged_in() ) {
                     return false;
@@ -274,9 +297,13 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         }
     }
 
-    private static function user_has_event_ticket_purchase( int $event_id, int $user_id, bool $free_only ): bool {
+    private static function user_has_event_ticket_purchase( int $event_id, int $user_id, bool $free_only, ?string $attendance_mode = null ): bool {
         if ( ! function_exists( 'wc_get_orders' ) ) {
             return false;
+        }
+
+        if ( null !== $attendance_mode ) {
+            $attendance_mode = Ticket::normalizeAttendanceMode( $attendance_mode, Ticket::ATTENDANCE_MODE_VIRTUAL );
         }
 
         $product_ids = self::event_ticket_product_ids( $event_id );
@@ -311,6 +338,10 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
                     continue;
                 }
 
+                if ( null !== $attendance_mode && self::get_item_attendance_mode( $item, $product_id, $event_id ) !== $attendance_mode ) {
+                    continue;
+                }
+
                 if ( ! $free_only ) {
                     return true;
                 }
@@ -323,6 +354,34 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         }
 
         return false;
+    }
+
+    private static function get_item_attendance_mode( $item, int $product_id, int $event_id ): string {
+        if ( is_object( $item ) && method_exists( $item, 'get_meta' ) ) {
+            $item_mode = (string) $item->get_meta( '_oras_ticket_attendance_mode', true );
+            if ( '' !== $item_mode ) {
+                return Ticket::normalizeAttendanceMode( $item_mode, Ticket::ATTENDANCE_MODE_VIRTUAL );
+            }
+        }
+
+        $product_mode = (string) get_post_meta( $product_id, '_oras_ticket_attendance_mode', true );
+        if ( '' !== $product_mode ) {
+            return Ticket::normalizeAttendanceMode( $product_mode, Ticket::ATTENDANCE_MODE_VIRTUAL );
+        }
+
+        $ticket_index = (string) get_post_meta( $product_id, '_oras_ticket_index', true );
+        if ( '' !== $ticket_index && $event_id > 0 ) {
+            $envelope = Ticket_Collection::load_envelope_for_event( $event_id );
+            $tickets  = isset( $envelope['tickets'] ) && is_array( $envelope['tickets'] ) ? $envelope['tickets'] : array();
+            if ( isset( $tickets[ $ticket_index ] ) && is_array( $tickets[ $ticket_index ] ) ) {
+                return Ticket::normalizeAttendanceMode(
+                    (string) ( $tickets[ $ticket_index ]['attendance_mode'] ?? '' ),
+                    Ticket::ATTENDANCE_MODE_VIRTUAL
+                );
+            }
+        }
+
+        return Ticket::ATTENDANCE_MODE_VIRTUAL;
     }
 
     private static function event_ticket_product_ids( int $event_id ): array {
@@ -387,6 +446,7 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
 
         if ( self::event_has_oras_tickets( $event_id ) ) {
             $values[] = self::SHOW_TO_TICKET;
+            $values[] = self::SHOW_TO_VIRTUAL_TICKET;
             $values[] = self::SHOW_TO_FREE_TICKET;
         }
 
@@ -419,5 +479,18 @@ final class Virtual_Access { // NOSONAR legacy WP class naming
         }
 
         return 0;
+    }
+
+    private static function get_access_denied_message( string $show_to ): string {
+        switch ( $show_to ) {
+            case self::SHOW_TO_VIRTUAL_TICKET:
+                return __( 'This link is available to virtual ticket purchasers only.', 'oras-tickets' );
+
+            case self::SHOW_TO_FREE_TICKET:
+                return __( 'This link is available to attendees with free ticket registrations only.', 'oras-tickets' );
+
+            default:
+                return __( 'This link is available to attendees. Please RSVP or purchase a ticket.', 'oras-tickets' );
+        }
     }
 }

@@ -5,6 +5,7 @@ namespace ORAS\Tickets\Frontend;
 use ORAS\Tickets\Admin\Pages\Settings_Page;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -601,6 +602,13 @@ if ( $product_id <= 0 ) {
             $price_raw     = $resolved['price'];
             $price_display = $price_raw !== '' && is_numeric( $price_raw ) ? '$' . number_format( (float) $price_raw, 2, '.', '' ) : esc_html( (string) $price_raw );
             $description   = isset( $ticket['description'] ) ? esc_html( $ticket['description'] ) : '';
+            $attendance_mode = Ticket::normalizeAttendanceMode(
+                isset( $ticket['attendance_mode'] ) ? (string) $ticket['attendance_mode'] : '',
+                Ticket::ATTENDANCE_MODE_VIRTUAL
+            );
+            $attendance_label = Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode
+                ? __( 'Virtual Access', 'oras-tickets' )
+                : __( 'On-site Access', 'oras-tickets' );
 
             $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
             $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
@@ -658,6 +666,7 @@ if ( $product_id <= 0 ) {
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 echo '<div class="oras-ticket-desc">' . $description . '</div>';
             }
+            echo '<div class="oras-ticket-mode">' . esc_html( $attendance_label ) . '</div>';
             if ( ! empty( $resolved['phase_label'] ) && is_string( $resolved['phase_label'] ) ) {
                 $phase_label = (string) $resolved['phase_label'];
                 if ( strtolower( $phase_label ) !== 'standard' ) {

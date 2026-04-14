@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Admin\Metaboxes;
 
+use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Security\CsvSafety;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
@@ -52,6 +53,8 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         // Get counts
         $yes_count = self::get_count( $event_id, 'yes' );
         $waitlist_count = self::get_count( $event_id, 'waitlist' );
+        $onsite_yes_count = self::get_yes_count_for_attendance_mode( $event_id, 'onsite' );
+        $virtual_yes_count = self::get_yes_count_for_attendance_mode( $event_id, 'virtual' );
         $is_full = $capacity > 0 && $yes_count >= $capacity;
 
         // Get attendees
@@ -62,6 +65,8 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
             <h4><?php esc_html_e( 'RSVP Stats', 'oras-tickets' ); ?></h4>
             <p>
                 <strong><?php esc_html_e( 'Yes Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $yes_count ); ?><br>
+                <strong><?php esc_html_e( 'On-site RSVPs:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $onsite_yes_count ); ?><br>
+                <strong><?php esc_html_e( 'Virtual RSVPs:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $virtual_yes_count ); ?><br>
                 <strong><?php esc_html_e( 'Waitlist Count:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $waitlist_count ); ?><br>
                 <strong><?php esc_html_e( 'Capacity:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $capacity ); ?><br>
                 <strong><?php esc_html_e( 'Is Full:', 'oras-tickets' ); ?></strong> <?php echo $is_full ? esc_html__( 'Yes', 'oras-tickets' ) : esc_html__( 'No', 'oras-tickets' ); ?>
@@ -74,12 +79,13 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
                         <th><?php esc_html_e( 'Name', 'oras-tickets' ); ?></th>
                         <th><?php esc_html_e( 'Email', 'oras-tickets' ); ?></th>
                         <th><?php esc_html_e( 'Status', 'oras-tickets' ); ?></th>
+                        <th><?php esc_html_e( 'Attendance Type', 'oras-tickets' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ( empty( $attendees ) ) : ?>
                         <tr>
-                            <td colspan="3"><?php esc_html_e( 'No attendees yet.', 'oras-tickets' ); ?></td>
+                            <td colspan="4"><?php esc_html_e( 'No attendees yet.', 'oras-tickets' ); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ( $attendees as $attendee ) : ?>
@@ -87,6 +93,7 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
                                 <td><?php echo esc_html( $attendee['name'] ); ?></td>
                                 <td><?php echo esc_html( $attendee['email'] ); ?></td>
                                 <td><?php echo esc_html( ucfirst( $attendee['status'] ) ); ?></td>
+                                <td><?php echo esc_html( Event_RSVP::get_attendance_mode_label( (string) ( $attendee['attendance_mode'] ?? '' ) ) ); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -138,6 +145,7 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
                     'name'   => $user->display_name,
                     'email'  => $user->user_email,
                     'status' => (string) $status,
+                    'attendance_mode' => Event_RSVP::get_user_attendance_mode( $event_id, $user->ID ),
                 );
             }
         }
@@ -153,10 +161,31 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
                 'name'   => $user->display_name,
                 'email'  => $user->user_email,
                 'status' => 'waitlist',
+                'attendance_mode' => Event_RSVP::get_user_attendance_mode( $event_id, $user->ID ),
             );
         }
 
         return $attendees;
+    }
+
+    private static function get_yes_count_for_attendance_mode( int $event_id, string $attendance_mode ): int {
+        $query = new \WP_User_Query( array(
+            'meta_query' => array(
+                'relation' => 'AND',
+                array(
+                    'key'   => '_oras_rsvp_event_' . $event_id,
+                    'value' => 'yes',
+                ),
+                array(
+                    'key'   => '_oras_rsvp_event_' . $event_id . '_attendance_mode',
+                    'value' => $attendance_mode,
+                ),
+            ),
+            'count_total' => true,
+            'number'      => 1,
+        ) );
+
+        return $query->get_total();
     }
 
     public static function handle_export(): void {
@@ -183,9 +212,10 @@ final class Event_RSVP_Attendees_Metabox { // NOSONAR legacy WP class naming
         header( 'Content-Disposition: attachment; filename="rsvp-yes-attendees-event-' . $event_id . '.csv"' );
 
         $fp = fopen( 'php://output', 'w' );
-        fputcsv( $fp, CsvSafety::row( array( 'Name', 'Email', 'Status' ) ) );
+        fputcsv( $fp, CsvSafety::row( array( 'Name', 'Email', 'Status', 'Attendance Type' ) ) );
         foreach ( $users as $user ) {
-            fputcsv( $fp, CsvSafety::row( array( $user->display_name, $user->user_email, 'yes' ) ) );
+            $attendance_mode = Event_RSVP::get_user_attendance_mode( $event_id, $user->ID );
+            fputcsv( $fp, CsvSafety::row( array( $user->display_name, $user->user_email, 'yes', Event_RSVP::get_attendance_mode_label( $attendance_mode ) ) ) );
         }
         fclose( $fp );
         exit;

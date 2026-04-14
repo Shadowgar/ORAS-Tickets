@@ -2,6 +2,68 @@
 (function () {
     'use strict';
 
+    function attendanceModeLabel(mode) {
+        if (mode === 'virtual') {
+            return 'Virtual';
+        }
+        if (mode === 'onsite') {
+            return 'On-site';
+        }
+        return '';
+    }
+
+    function findVirtualAccessElement() {
+        var button = document.querySelector('.tribe-events-virtual-link-button');
+        if (button) {
+            return button;
+        }
+
+        return document.querySelector('.tribe-events-virtual-single-zoom-details, .tribe-events-virtual-single-api-details');
+    }
+
+    function moveVirtualAccessBlock(block) {
+        if (!block || block.getAttribute('data-oras-virtual-moved') === '1') {
+            return;
+        }
+
+        var ticketsSection = document.querySelector('.oras-tickets-section');
+        var rsvpBlock = document.querySelector('.oras-rsvp-block');
+        if (!rsvpBlock) {
+            return;
+        }
+
+        var targetParent = rsvpBlock.parentNode;
+        if (!targetParent) {
+            return;
+        }
+
+        var movedBlock = block;
+        if (block.classList && block.classList.contains('tribe-events-virtual-link-button')) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'oras-virtual-access-primary';
+            wrapper.setAttribute('data-oras-virtual-moved', '1');
+            wrapper.appendChild(block);
+            movedBlock = wrapper;
+        }
+
+        if (ticketsSection && ticketsSection.parentNode === targetParent) {
+            ticketsSection.insertAdjacentElement('afterend', movedBlock);
+        } else {
+            targetParent.insertBefore(movedBlock, rsvpBlock);
+        }
+
+        block.setAttribute('data-oras-virtual-moved', '1');
+    }
+
+    function initVirtualAccessPlacement() {
+        var virtualBlock = findVirtualAccessElement();
+        if (!virtualBlock) {
+            return;
+        }
+
+        moveVirtualAccessBlock(virtualBlock);
+    }
+
     function initBlock(block) {
         if (!block) return;
         var form = block.querySelector('form');
@@ -79,6 +141,7 @@
                             yes.removeAttribute('aria-pressed');
                         }
                     } else if (s === 'yes') {
+                        var attendanceMode = data.data && data.data.attendance_mode ? attendanceModeLabel(data.data.attendance_mode) : '';
                         if (status) {
                             status.innerHTML = '';
                             var p = document.createElement('p');
@@ -95,10 +158,12 @@
                             var span = document.createElement('span');
                             span.className = 'oras-rsvp-badge';
                             span.style.cssText = 'display:inline-block;margin-left:8px;padding:2px 6px;background:#e6ffed;border:1px solid #bdeccf;border-radius:4px;font-size:90%';
-                            span.textContent = 'Status: You are RSVPed ✅';
+                            span.textContent = attendanceMode ? 'Status: RSVPed for ' + attendanceMode + ' ✅' : 'Status: You are RSVPed ✅';
                             if (status && status.parentNode) {
                                 status.parentNode.insertBefore(span, status.nextSibling);
                             }
+                        } else if (attendanceMode) {
+                            badge.textContent = 'Status: RSVPed for ' + attendanceMode + ' ✅';
                         }
                     } else if (s === 'waitlist') {
                         if (status) {
@@ -128,6 +193,8 @@
     }
 
     function init() {
+        initVirtualAccessPlacement();
+
         var blocks = document.querySelectorAll('.oras-rsvp-block');
         for (var i = 0; i < blocks.length; i++) {
             initBlock(blocks[i]);

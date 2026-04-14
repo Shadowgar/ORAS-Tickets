@@ -146,6 +146,21 @@
 		return value !== '' ? value : 'Ticket #' + idx;
 	}
 
+	function getAttendanceMode(row) {
+		var input = getInput(row, 'attendance_mode');
+		return input ? String(input.value || '').trim() : '';
+	}
+
+	function attendanceModeLabel(mode) {
+		if (mode === 'virtual') {
+			return 'Virtual';
+		}
+		if (mode === 'onsite') {
+			return 'On-site';
+		}
+		return 'Choose type';
+	}
+
 	function normalizePrice(value) {
 		var parsed = Number.parseFloat(String(value || '').replace(',', '.'));
 		if (Number.isNaN(parsed) || parsed < 0) {
@@ -236,12 +251,18 @@
 		var capacityInput = getInput(row, 'capacity');
 		var startInput = getInput(row, 'sale_start');
 		var endInput = getInput(row, 'sale_end');
+		var attendanceModeInput = getInput(row, 'attendance_mode');
 
-		[nameInput, priceInput, capacityInput, startInput, endInput].forEach(clearFieldError);
+		[nameInput, priceInput, capacityInput, startInput, endInput, attendanceModeInput].forEach(clearFieldError);
 
 		if (hasContent && nameInput && nameInput.value.trim() === '') {
 			setFieldError(nameInput, 'Ticket name is required.');
 			issues.push('Ticket name is required.');
+		}
+
+		if (hasContent && attendanceModeInput && attendanceModeInput.value === '') {
+			setFieldError(attendanceModeInput, 'Ticket type is required.');
+			issues.push('Ticket type is required.');
 		}
 
 		if (priceInput) {
@@ -347,10 +368,11 @@
 		var startInput = getInput(row, 'sale_start');
 		var endInput = getInput(row, 'sale_end');
 		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var attendanceMode = attendanceModeLabel(getAttendanceMode(row));
 		var status = saleStatus(startInput ? startInput.value : '', endInput ? endInput.value : '');
 
 		nameEl.textContent = name;
-		metaEl.textContent = '$' + price + ' · ' + status;
+		metaEl.textContent = '$' + price + ' · ' + attendanceMode + ' · ' + status;
 	}
 
 	function summaryDataForRow(row) {
@@ -358,6 +380,7 @@
 		var name = currentName(row);
 		var priceInput = getInput(row, 'price');
 		var price = priceInput ? normalizePrice(priceInput.value).toFixed(2) : '0.00';
+		var type = attendanceModeLabel(getAttendanceMode(row));
 		var capacityInput = getInput(row, 'capacity');
 		var capacityNum = capacityInput ? Number.parseInt(capacityInput.value || '0', 10) : 0;
 		var inventory = capacityNum > 0 ? String(capacityNum) : 'Unlimited';
@@ -370,6 +393,7 @@
 			index: idx,
 			name: name,
 			price: '$' + price,
+			type: type,
 			inventory: inventory,
 			saleWindow: saleWindow(startValue, endValue),
 			status: saleStatus(startValue, endValue),
@@ -396,7 +420,7 @@
 		if (rows.length === 0) {
 			var emptyRow = document.createElement('tr');
 			emptyRow.className = 'oras-ticket-summary-empty';
-			emptyRow.innerHTML = '<td colspan="6">No tickets yet.</td>';
+			emptyRow.innerHTML = '<td colspan="7">No tickets yet.</td>';
 			summaryBody.appendChild(emptyRow);
 			return;
 		}
@@ -408,6 +432,7 @@
 			summaryRow.innerHTML = '' +
 				'<td>' + escapeHtml(data.name) + '</td>' +
 				'<td>' + escapeHtml(data.price) + '</td>' +
+				'<td>' + escapeHtml(data.type) + '</td>' +
 				'<td>' + escapeHtml(data.inventory) + '</td>' +
 				'<td>' + escapeHtml(data.saleWindow) + '</td>' +
 				'<td>' + escapeHtml(data.status) + '</td>' +

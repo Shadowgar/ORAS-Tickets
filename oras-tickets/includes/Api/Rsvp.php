@@ -79,9 +79,11 @@ final class Rsvp {
             }
 
             $event_start = get_post_meta( $event_id, '_EventStartDate', true );
+            $attendance_mode = Event_RSVP::get_user_attendance_mode( $event_id, $user_id );
             $rsvps[] = array(
                 'event_id'    => $event_id,
                 'status'      => sanitize_text_field( $status ),
+                'attendance_mode' => '' !== $attendance_mode ? $attendance_mode : null,
                 'event_title' => sanitize_text_field( get_the_title( $event_id ) ),
                 'event_start' => sanitize_text_field( $event_start ),
                 'event_url'   => esc_url_raw( get_permalink( $event_id ) ),
@@ -119,6 +121,7 @@ final class Rsvp {
         if ( '' === $current_user_status ) {
             $current_user_status = null;
         }
+        $current_user_attendance_mode = Event_RSVP::get_user_attendance_mode( $event_id, $user_id );
 
         $data = array(
             'event_id'           => $event_id,
@@ -128,6 +131,7 @@ final class Rsvp {
             'yes_count'          => $yes_count,
             'is_full'            => $is_full,
             'current_user_status' => $current_user_status,
+            'current_user_attendance_mode' => '' !== $current_user_attendance_mode ? $current_user_attendance_mode : null,
         );
 
         return new \WP_REST_Response( $data, 200 );
