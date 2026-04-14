@@ -5,6 +5,54 @@
 		return Array.prototype.slice.call(nodeList || []);
 	}
 
+	function focusElement(element, preventScroll) {
+		if (!element || typeof element.focus !== 'function') {
+			return;
+		}
+
+		if (preventScroll) {
+			try {
+				element.focus({ preventScroll: true });
+				return;
+			} catch (error) {
+				// Fallback for browsers without focus options support.
+			}
+		}
+
+		element.focus();
+	}
+
+	function getWindowScrollPosition() {
+		return {
+			x: window.pageXOffset || window.scrollX || 0,
+			y: window.pageYOffset || window.scrollY || 0,
+		};
+	}
+
+	function restoreWindowScroll(position) {
+		if (!position) {
+			return;
+		}
+
+		var currentX = window.pageXOffset || window.scrollX || 0;
+		var currentY = window.pageYOffset || window.scrollY || 0;
+		if (Math.abs(currentX - position.x) < 1 && Math.abs(currentY - position.y) < 1) {
+			return;
+		}
+
+		window.scrollTo(position.x, position.y);
+	}
+
+	function preserveWindowScroll(callback) {
+		var position = getWindowScrollPosition();
+		callback();
+		window.requestAnimationFrame(function () {
+			window.requestAnimationFrame(function () {
+				restoreWindowScroll(position);
+			});
+		});
+	}
+
 	function parseLocalDateTime(value) {
 		if (!value) {
 			return null;
@@ -374,7 +422,7 @@
 	function focusTicketName(row) {
 		var nameInput = getInput(row, 'name');
 		if (nameInput) {
-			nameInput.focus();
+			focusElement(nameInput, true);
 		}
 	}
 
@@ -523,7 +571,10 @@
 					return;
 				}
 				var href = ticketTabLink.getAttribute('href') || '';
-				activateTicketInnerTab(tabRow, href);
+				preserveWindowScroll(function () {
+					activateTicketInnerTab(tabRow, href);
+					focusElement(ticketTabLink, true);
+				});
 				return;
 			}
 
@@ -542,7 +593,10 @@
 					return;
 				}
 				var expanded = toggleButton.getAttribute('aria-expanded') === 'true';
-				setRowExpanded(row, !expanded);
+				preserveWindowScroll(function () {
+					setRowExpanded(row, !expanded);
+					focusElement(toggleButton, true);
+				});
 				return;
 			}
 
@@ -566,7 +620,9 @@
 				var row = removeButton.closest('tr.oras-ticket-row');
 				var index = row ? getRowIndex(row) : removeButton.getAttribute('data-index');
 				if (index) {
-					removeTicket(root, index);
+					preserveWindowScroll(function () {
+						removeTicket(root, index);
+					});
 				}
 				return;
 			}
@@ -578,15 +634,21 @@
 				if (!phaseItem) {
 					return;
 				}
-				phaseItem.classList.toggle('is-collapsed');
-				syncPhaseToggle(phaseItem);
+				preserveWindowScroll(function () {
+					phaseItem.classList.toggle('is-collapsed');
+					syncPhaseToggle(phaseItem);
+					focusElement(phaseToggle, true);
+				});
 				return;
 			}
 
 			var phaseAddButton = event.target.closest('.oras-phase-add');
 			if (phaseAddButton) {
 				event.preventDefault();
-				addPhase(phaseAddButton);
+				preserveWindowScroll(function () {
+					addPhase(phaseAddButton);
+					focusElement(phaseAddButton, true);
+				});
 				return;
 			}
 
@@ -600,7 +662,9 @@
 				if (hasPhaseInputData(phase) && !window.confirm('Remove this pricing phase?')) {
 					return;
 				}
-				phase.remove();
+				preserveWindowScroll(function () {
+					phase.remove();
+				});
 			}
 		});
 

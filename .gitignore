@@ -6,6 +6,7 @@
 # Build / artifacts
 plugin.zip
 *.log
+*.png
 
 # OS / editor
 .DS_Store
@@ -16,6 +17,7 @@ Thumbs.db
 # WP env / local
 .env
 .env.*
+.playwright-mcp/
 wp-env.json
 wp-env.override.json
 
