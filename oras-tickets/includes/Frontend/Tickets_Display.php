@@ -409,6 +409,44 @@ WC()->cart->remove_cart_item( $cart_item_key );
         return true;
     }
 
+    private function get_ticket_sale_state( array $ticket, int $now ): string {
+        $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
+        $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
+
+        if ( $sale_start !== '' ) {
+            $start_ts = strtotime( $sale_start . ' UTC' );
+            if ( $start_ts && $start_ts > $now ) {
+                return 'upcoming';
+            }
+        }
+
+        if ( $sale_end !== '' ) {
+            $end_ts = strtotime( $sale_end . ' UTC' );
+            if ( $end_ts && $end_ts < $now ) {
+                return 'ended';
+            }
+        }
+
+        return 'on_sale';
+    }
+
+    private function format_ticket_datetime( string $value ): string {
+        if ( '' === $value ) {
+            return '';
+        }
+
+        $datetime = \DateTime::createFromFormat( 'Y-m-d H:i', $value, wp_timezone() );
+        if ( ! $datetime ) {
+            return $value;
+        }
+
+        return wp_date(
+            trim( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) ),
+            $datetime->getTimestamp(),
+            wp_timezone()
+        );
+    }
+
     private function get_mapped_product_id( array $map, int $index ): int {
         $string_key = (string) $index;
         if ( isset( $map[ $string_key ] ) ) {
@@ -537,23 +575,40 @@ WC()->cart->remove_cart_item( $cart_item_key );
     private function render_form_html( int $event_id ): string {
         $collection = Ticket_Collection::load_for_event( $event_id );
         if ( $collection->count() === 0 ) {
-            return '<p>Tickets not available</p>';
+            return '';
         }
 
         $map = get_post_meta( $event_id, '_oras_tickets_woo_map_v1', true );
-        if ( ! is_array( $map ) || empty( $map ) ) {
-            return '<p>Tickets not available</p>';
+        if ( ! is_array( $map ) ) {
+            $map = array();
         }
 
         // All sale window comparisons are done in UTC.
-        $now             = (int) time();
-        $tickets         = $collection->all();
-        $tickets_on_sale = array();
+        $now                   = (int) time();
+        $tickets               = $collection->all();
+        $tickets_on_sale       = array();
+        $has_ended_ticket      = false;
+        $next_sale_start_ts    = 0;
+        $next_sale_start_label = '';
         foreach ( $tickets as $index => $ticket_obj ) {
             $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : array() );
-            if ( ! $this->is_ticket_on_sale_now( $ticket, $now ) ) {
+
+            $sale_state = $this->get_ticket_sale_state( $ticket, $now );
+            if ( 'upcoming' === $sale_state ) {
+                $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
+                $start_ts   = $sale_start !== '' ? strtotime( $sale_start . ' UTC' ) : false;
+                if ( $start_ts && ( 0 === $next_sale_start_ts || $start_ts < $next_sale_start_ts ) ) {
+                    $next_sale_start_ts    = (int) $start_ts;
+                    $next_sale_start_label = $this->format_ticket_datetime( $sale_start );
+                }
                 continue;
-}
+            }
+
+            if ( 'ended' === $sale_state ) {
+                $has_ended_ticket = true;
+                continue;
+            }
+
             $tickets_on_sale[ $index ] = $ticket_obj;
         }
 
@@ -568,7 +623,14 @@ WC()->cart->remove_cart_item( $cart_item_key );
         }
 
         if ( empty( $tickets_on_sale ) ) {
-            echo '<p>Tickets are not currently on sale.</p>';
+            if ( $next_sale_start_label !== '' ) {
+                /* translators: %s: ticket sale start date/time */
+                echo '<p>' . esc_html( sprintf( __( 'Tickets will go on sale on %s.', 'oras-tickets' ), $next_sale_start_label ) ) . '</p>';
+            } elseif ( $has_ended_ticket ) {
+                echo '<p>' . esc_html__( 'Ticket sales have ended.', 'oras-tickets' ) . '</p>';
+            } else {
+                echo '<p>' . esc_html__( 'Tickets are currently unavailable.', 'oras-tickets' ) . '</p>';
+            }
             echo '</div>';
             echo '</section>';
             return (string) ob_get_clean();
