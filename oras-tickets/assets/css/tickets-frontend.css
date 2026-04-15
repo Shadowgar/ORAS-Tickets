@@ -339,6 +339,71 @@
 	transform: none;
 }
 
+.oras-rsvp-email-modal {
+	position: fixed;
+	inset: 0;
+	display: none;
+	z-index: 99999;
+}
+
+.oras-rsvp-email-modal[aria-hidden="false"] {
+	display: block;
+}
+
+.oras-rsvp-email-modal__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(17, 24, 39, 0.72);
+}
+
+.oras-rsvp-email-modal__dialog {
+	position: relative;
+	max-width: 460px;
+	margin: 8vh auto 0;
+	background: #fff;
+	color: #111827;
+	border-radius: 10px;
+	padding: 1rem 1.125rem;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+	z-index: 1;
+}
+
+.oras-rsvp-email-modal__dialog h3 {
+	margin: 0 0 0.5rem;
+}
+
+.oras-rsvp-email-modal__dialog p {
+	margin: 0 0 0.75rem;
+}
+
+.oras-rsvp-email-modal__dialog label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.25rem;
+}
+
+.oras-rsvp-email-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.625rem 0.7rem;
+	border-radius: 8px;
+	border: 1px solid #cbd5e1;
+}
+
+.oras-rsvp-email-error {
+	min-height: 1.2rem;
+	margin-top: 0.35rem;
+	color: #b91c1c;
+	font-size: 0.9rem;
+}
+
+.oras-rsvp-email-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.625rem;
+	margin-top: 0.8rem;
+}
+
 .oras-rsvp-badge {
 	display: inline-block;
 	margin-left: 8px;

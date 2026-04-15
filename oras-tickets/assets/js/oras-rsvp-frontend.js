@@ -2,6 +2,50 @@
 (function () {
     'use strict';
 
+    function ensureVirtualEmailModal(block) {
+        var existing = block.querySelector('.oras-rsvp-email-modal');
+        if (existing) {
+            return existing;
+        }
+
+        var modal = document.createElement('div');
+        modal.className = 'oras-rsvp-email-modal';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML = '' +
+            '<div class="oras-rsvp-email-modal__backdrop" data-oras-email-modal-close="1"></div>' +
+            '<div class="oras-rsvp-email-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="oras-rsvp-email-title">' +
+                '<h3 id="oras-rsvp-email-title">Enter Email for Virtual Access</h3>' +
+                '<p>Please provide an email address. We will send event details and the Zoom link.</p>' +
+                '<label for="oras-rsvp-virtual-email-input">Email address</label>' +
+                '<input id="oras-rsvp-virtual-email-input" type="email" class="oras-rsvp-email-input" autocomplete="email" required />' +
+                '<div class="oras-rsvp-email-error" aria-live="polite"></div>' +
+                '<div class="oras-rsvp-email-actions">' +
+                    '<button type="button" class="oras-rsvp-button oras-rsvp-button-secondary" data-oras-email-cancel="1">Cancel</button>' +
+                    '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary" data-oras-email-submit="1">Submit</button>' +
+                '</div>' +
+            '</div>';
+
+        block.appendChild(modal);
+        return modal;
+    }
+
+    function openVirtualEmailModal(modal) {
+        modal.setAttribute('aria-hidden', 'false');
+        var input = modal.querySelector('.oras-rsvp-email-input');
+        var error = modal.querySelector('.oras-rsvp-email-error');
+        if (error) {
+            error.textContent = '';
+        }
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    function closeVirtualEmailModal(modal) {
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
     function attendanceModeLabel(mode) {
         if (mode === 'virtual') {
             return 'Virtual';
@@ -136,19 +180,15 @@
         if (!block) return;
         var form = block.querySelector('form');
         var notice = block.querySelector('.oras-rsvp-ajax-notice');
+        var virtualEmailModal = ensureVirtualEmailModal(block);
+        var lastIntentButton = null;
         if (!form) return;
 
-        form.addEventListener('submit', function (ev) {
-            // Allow normal submission for non-JS or when user holds modifier keys
-            if (ev.shiftKey || ev.altKey || ev.ctrlKey || ev.metaKey) return;
-            ev.preventDefault();
-
-            // Ensure we capture which submit button was used (intent)
-            var submitter = ev.submitter || document.activeElement;
+        function submitRsvpAjax(submitter) {
             var fd = new FormData();
-            // copy form fields
             var elts = form.elements;
-            for (var i = 0; i < elts.length; i++) {
+            var i;
+            for (i = 0; i < elts.length; i++) {
                 var e = elts[i];
                 if (!e.name) continue;
                 if (e.type === 'checkbox' || e.type === 'radio') {
@@ -156,7 +196,7 @@
                 }
                 fd.append(e.name, e.value);
             }
-            // ensure intent is present (from the clicked button)
+
             try {
                 if (submitter && submitter.name && submitter.value) {
                     fd.set(submitter.name, submitter.value);
@@ -197,7 +237,6 @@
 
                     var s = data.data && data.data.status ? data.data.status : null;
                     if (s === 'none' || s === null && msg.toLowerCase().indexOf('removed') !== -1) {
-                        // Show not attending state
                         updateStatus(block, 'no', 'You are not attending this event.');
                         if (badge && badge.parentNode) {
                             badge.parentNode.removeChild(badge);
@@ -217,7 +256,6 @@
                             no.disabled = false;
                             no.removeAttribute('aria-pressed');
                         }
-                        // add badge if missing
                         if (!badge) {
                             var span = document.createElement('span');
                             span.className = 'oras-rsvp-badge';
@@ -228,6 +266,11 @@
                             }
                         } else if (attendanceMode) {
                             badge.textContent = 'Status: RSVPed for ' + attendanceMode + ' ✅';
+                        }
+
+                        if (attendanceMode === 'Virtual') {
+                            window.location.reload();
+                            return;
                         }
                     } else if (s === 'waitlist') {
                         updateStatus(block, 'waitlist', msg);
@@ -240,6 +283,10 @@
                     }
                 } else {
                     var err = (data && data.data && data.data.message) ? data.data.message : 'Unable to update RSVP.';
+                    if (err.indexOf('Please enter a valid email address to receive virtual event access.') !== -1) {
+                        openVirtualEmailModal(virtualEmailModal);
+                        return;
+                    }
                     var el = document.createElement('div');
                     el.className = 'oras-rsvp-notice oras-rsvp-notice-error';
                     el.textContent = err;
@@ -252,7 +299,71 @@
                 el.textContent = 'Unable to update RSVP.';
                 notice.appendChild(el);
             });
+        }
+
+        form.addEventListener('submit', function (ev) {
+            // Allow normal submission for non-JS or when user holds modifier keys
+            if (ev.shiftKey || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+            ev.preventDefault();
+
+            var submitter = ev.submitter || lastIntentButton || document.activeElement;
+            var checkedAttendance = form.querySelector('input[name="attendance_mode"]:checked');
+            var attendanceMode = checkedAttendance ? checkedAttendance.value : '';
+            var intent = submitter && submitter.name === 'intent' ? submitter.value : '';
+
+            if (intent === 'yes' && attendanceMode === 'virtual') {
+                openVirtualEmailModal(virtualEmailModal);
+                return;
+            }
+
+            submitRsvpAjax(submitter);
         }, false);
+
+        var intentButtons = form.querySelectorAll('button[name="intent"]');
+        for (var idx = 0; idx < intentButtons.length; idx++) {
+            intentButtons[idx].addEventListener('click', function (ev) {
+                lastIntentButton = ev.currentTarget;
+            });
+        }
+
+        virtualEmailModal.addEventListener('click', function (ev) {
+            var target = ev.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            if (target.getAttribute('data-oras-email-modal-close') === '1' || target.getAttribute('data-oras-email-cancel') === '1') {
+                closeVirtualEmailModal(virtualEmailModal);
+            }
+        });
+
+        var virtualSubmit = virtualEmailModal.querySelector('[data-oras-email-submit="1"]');
+        if (virtualSubmit) {
+            virtualSubmit.addEventListener('click', function () {
+                var input = virtualEmailModal.querySelector('.oras-rsvp-email-input');
+                var error = virtualEmailModal.querySelector('.oras-rsvp-email-error');
+                var email = input && typeof input.value === 'string' ? input.value.trim() : '';
+                var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailPattern.test(email)) {
+                    if (error) {
+                        error.textContent = 'Please enter a valid email address.';
+                    }
+                    return;
+                }
+
+                var hiddenEmail = form.querySelector('input[name="virtual_email"]');
+                if (!hiddenEmail) {
+                    hiddenEmail = document.createElement('input');
+                    hiddenEmail.type = 'hidden';
+                    hiddenEmail.name = 'virtual_email';
+                    form.appendChild(hiddenEmail);
+                }
+                hiddenEmail.value = email;
+
+                closeVirtualEmailModal(virtualEmailModal);
+                submitRsvpAjax(form.querySelector('button[name="intent"][value="yes"]'));
+            });
+        }
     }
 
     function init() {

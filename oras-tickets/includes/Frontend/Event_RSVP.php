@@ -16,6 +16,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const USERMETA_PREFIX = '_oras_rsvp_event_';
     private const USERMETA_ATTENDANCE_SUFFIX = '_attendance_mode';
     private const ACTION = 'oras_rsvp_update';
+    private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
 
     public static function register(): void {
         // Render after tickets display (tickets appended at priority 20).
@@ -73,7 +74,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $oras_rsvp = isset( $_GET['oras_rsvp'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_rsvp'] ) ) : '';
         $oras_msg = isset( $_GET['msg'] ) ? sanitize_text_field( wp_unslash( $_GET['msg'] ) ) : '';
         if ( 'error' === $oras_rsvp ) {
-            $text = 'error' === $oras_msg ? esc_html__( 'Unable to update RSVP.', 'oras-tickets' ) : esc_html( $oras_msg );
+            $text = self::humanize_error_message( $oras_msg );
             $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . $text . '</div>';
         }
 
@@ -168,6 +169,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $nonce = isset( $_POST['oras_rsvp_nonce'] ) && is_scalar( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
         $raw_intent = isset( $_POST['intent'] ) && is_scalar( $_POST['intent'] ) ? sanitize_text_field( wp_unslash( $_POST['intent'] ) ) : '';
         $posted_attendance_mode = isset( $_POST['attendance_mode'] ) && is_scalar( $_POST['attendance_mode'] ) ? sanitize_text_field( wp_unslash( $_POST['attendance_mode'] ) ) : '';
+        $virtual_email = isset( $_POST['virtual_email'] ) && is_scalar( $_POST['virtual_email'] ) ? sanitize_email( wp_unslash( $_POST['virtual_email'] ) ) : '';
         $redirect = get_permalink( $event_id ) ?: home_url();
 
         $intent = self::normalize_intent( $raw_intent );
@@ -191,6 +193,19 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid' ) ), $redirect );
             wp_safe_redirect( $redirect );
             exit;
+        }
+
+        $request_attendance_mode = Ticket::normalizeAttendanceMode( $posted_attendance_mode, Ticket::ATTENDANCE_MODE_ONSITE );
+        if ( 'yes' === $intent && Ticket::ATTENDANCE_MODE_VIRTUAL === $request_attendance_mode ) {
+            if ( '' === $virtual_email || ! is_email( $virtual_email ) ) {
+                if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                    wp_send_json_error( array( 'message' => esc_html__( 'Please enter a valid email address to receive virtual event access.', 'oras-tickets' ) ) );
+                }
+
+                $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'valid_email_required' ) ), $redirect );
+                wp_safe_redirect( $redirect );
+                exit;
+            }
         }
 
         $post = get_post( $event_id );
@@ -347,6 +362,20 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+            if (
+                'yes' === (string) ( $operation['status'] ?? '' )
+                && Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $operation['attendance_mode'] ?? '' )
+            ) {
+                $sent = self::send_virtual_rsvp_email( $event_id, $virtual_email );
+                if ( ! $sent ) {
+                    wp_send_json_error(
+                        array(
+                            'message' => esc_html__( 'RSVP saved, but we could not send the virtual access email. Please try again.', 'oras-tickets' ),
+                        )
+                    );
+                }
+            }
+
             wp_send_json_success(
                 array(
                     'message' => (string) ( $operation['message'] ?? esc_html__( 'Your RSVP was updated.', 'oras-tickets' ) ),
@@ -356,10 +385,177 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             );
         }
 
+        if (
+            'yes' === (string) ( $operation['status'] ?? '' )
+            && Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $operation['attendance_mode'] ?? '' )
+        ) {
+            $sent = self::send_virtual_rsvp_email( $event_id, $virtual_email );
+            if ( ! $sent ) {
+                $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'virtual_email_send_failed' ) ), $redirect );
+                wp_safe_redirect( $redirect );
+                exit;
+            }
+        }
+
         $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
 
         wp_safe_redirect( $redirect );
         exit;
+    }
+
+    private static function send_virtual_rsvp_email( int $event_id, string $recipient_email ): bool {
+        if ( $event_id <= 0 || '' === $recipient_email || ! is_email( $recipient_email ) ) {
+            return false;
+        }
+
+        $event_title = get_the_title( $event_id );
+        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
+            $event_title = __( 'ORAS Event', 'oras-tickets' );
+        }
+
+        $event_url = get_permalink( $event_id );
+        if ( ! is_string( $event_url ) || '' === $event_url ) {
+            $event_url = home_url();
+        }
+
+        $event_datetime = self::get_event_datetime_text( $event_id );
+        $event_details = self::get_event_description_text( $event_id );
+        $virtual_link = self::get_virtual_join_link( $event_id );
+
+        $subject = sprintf(
+            /* translators: %s: event title */
+            __( 'Your virtual RSVP details for %s', 'oras-tickets' ),
+            $event_title
+        );
+
+        $lines = array(
+            sprintf( __( 'Thank you for RSVPing yes to this virtual event.', 'oras-tickets' ) ),
+            '',
+            sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            sprintf( __( 'Date & Time: %s', 'oras-tickets' ), $event_datetime ),
+            '',
+            __( 'Event Details:', 'oras-tickets' ),
+            $event_details,
+            '',
+            __( 'Zoom Link:', 'oras-tickets' ),
+            '' !== $virtual_link ? $virtual_link : __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+            '',
+            __( 'View this event on ORAS.org:', 'oras-tickets' ),
+            $event_url,
+        );
+
+        return (bool) wp_mail(
+            $recipient_email,
+            $subject,
+            implode( "\n", $lines ),
+            self::VIRTUAL_EMAIL_HEADERS
+        );
+    }
+
+    private static function get_event_datetime_text( int $event_id ): string {
+        if ( function_exists( 'tribe_get_start_date' ) && function_exists( 'tribe_get_end_date' ) ) {
+            $start = tribe_get_start_date( $event_id, true, 'F j, Y g:i A' );
+            $end = tribe_get_end_date( $event_id, true, 'F j, Y g:i A T' );
+            if ( is_string( $start ) && '' !== $start ) {
+                if ( is_string( $end ) && '' !== $end ) {
+                    return $start . ' - ' . $end;
+                }
+
+                return $start;
+            }
+        }
+
+        $start_raw = get_post_meta( $event_id, '_EventStartDate', true );
+        if ( is_string( $start_raw ) && '' !== $start_raw ) {
+            return $start_raw;
+        }
+
+        return __( 'See event page for schedule details.', 'oras-tickets' );
+    }
+
+    private static function get_event_description_text( int $event_id ): string {
+        $post = get_post( $event_id );
+        if ( ! $post instanceof \WP_Post ) {
+            return __( 'Event details are available on the event page.', 'oras-tickets' );
+        }
+
+        $raw = is_string( $post->post_excerpt ) && '' !== trim( $post->post_excerpt )
+            ? $post->post_excerpt
+            : $post->post_content;
+        if ( ! is_string( $raw ) || '' === trim( $raw ) ) {
+            return __( 'Event details are available on the event page.', 'oras-tickets' );
+        }
+
+        $text = trim( wp_strip_all_tags( (string) $raw ) );
+        if ( '' === $text ) {
+            return __( 'Event details are available on the event page.', 'oras-tickets' );
+        }
+
+        if ( strlen( $text ) > 1200 ) {
+            return substr( $text, 0, 1197 ) . '...';
+        }
+
+        return $text;
+    }
+
+    private static function get_virtual_join_link( int $event_id ): string {
+        $candidate_keys = array(
+            '_tribe_events_zoom_join_url',
+            '_EventZoomJoinURL',
+            '_EventVirtualURL',
+            '_EventVideoSource',
+            '_EventGoogleMeetURL',
+            '_EventWebexURL',
+            '_EventMicrosoftTeamsURL',
+        );
+
+        foreach ( $candidate_keys as $key ) {
+            $value = get_post_meta( $event_id, $key, true );
+            if ( ! is_string( $value ) || '' === $value ) {
+                continue;
+            }
+
+            $url = esc_url_raw( trim( $value ) );
+            if ( '' !== $url && filter_var( $url, FILTER_VALIDATE_URL ) ) {
+                return $url;
+            }
+        }
+
+        $all_meta = get_post_meta( $event_id );
+        if ( ! is_array( $all_meta ) ) {
+            return '';
+        }
+
+        foreach ( $all_meta as $key => $values ) {
+            if ( ! is_string( $key ) ) {
+                continue;
+            }
+
+            $is_virtual_key = false !== stripos( $key, 'zoom' )
+                || false !== stripos( $key, 'join' )
+                || false !== stripos( $key, 'virtual' )
+                || false !== stripos( $key, 'google' )
+                || false !== stripos( $key, 'webex' )
+                || false !== stripos( $key, 'microsoft' )
+                || false !== stripos( $key, 'teams' );
+
+            if ( ! $is_virtual_key || ! is_array( $values ) ) {
+                continue;
+            }
+
+            foreach ( $values as $value ) {
+                if ( ! is_string( $value ) || '' === $value ) {
+                    continue;
+                }
+
+                $url = esc_url_raw( trim( $value ) );
+                if ( '' !== $url && filter_var( $url, FILTER_VALIDATE_URL ) ) {
+                    return $url;
+                }
+            }
+        }
+
+        return '';
     }
 
     private static function normalize_intent( string $raw_intent ): string {
@@ -477,5 +673,28 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         /* translators: %s: attendance mode label. */
         return sprintf( __( 'Status: RSVPed for %s ✅', 'oras-tickets' ), self::get_attendance_mode_label( $attendance_mode ) );
+    }
+
+    private static function humanize_error_message( string $message_code ): string {
+        $code = strtolower( trim( (string) $message_code ) );
+        switch ( $code ) {
+            case 'valid_email_required':
+                return esc_html__( 'Please provide a valid email address to receive virtual event access.', 'oras-tickets' );
+            case 'virtual_email_send_failed':
+                return esc_html__( 'RSVP saved, but we could not send your virtual event email. Please try again.', 'oras-tickets' );
+            case 'invalid_value':
+                return esc_html__( 'Invalid RSVP value.', 'oras-tickets' );
+            case 'invalid':
+                return esc_html__( 'Security check failed.', 'oras-tickets' );
+            case 'capacity':
+                return esc_html__( 'Unable to update RSVP due to event capacity.', 'oras-tickets' );
+            case 'locked':
+                return esc_html__( 'Could not update RSVP right now. Please try again.', 'oras-tickets' );
+            case 'error':
+            case '':
+                return esc_html__( 'Unable to update RSVP.', 'oras-tickets' );
+            default:
+                return esc_html__( 'Unable to update RSVP.', 'oras-tickets' );
+        }
     }
 }
