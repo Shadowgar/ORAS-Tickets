@@ -12,7 +12,7 @@
         modal.className = 'oras-rsvp-email-modal';
         modal.setAttribute('aria-hidden', 'true');
         modal.innerHTML = '' +
-            '<div class="oras-rsvp-email-modal__backdrop" data-oras-email-modal-close="1"></div>' +
+            '<div class="oras-rsvp-email-modal__backdrop"></div>' +
             '<div class="oras-rsvp-email-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="oras-rsvp-email-title">' +
                 '<h3 id="oras-rsvp-email-title">Enter Email for RSVP Confirmation</h3>' +
                 '<p>Please provide an email address. We will send event details for your selected attendance type.</p>' +
@@ -20,7 +20,7 @@
                 '<input id="oras-rsvp-virtual-email-input" type="email" class="oras-rsvp-email-input" autocomplete="email" required />' +
                 '<div class="oras-rsvp-email-error" aria-live="polite"></div>' +
                 '<div class="oras-rsvp-email-actions">' +
-                    '<button type="button" class="oras-rsvp-button oras-rsvp-button-secondary" data-oras-email-cancel="1">Cancel</button>' +
+                    '<button type="button" class="oras-rsvp-button oras-rsvp-button-secondary" data-oras-email-close="1">Close</button>' +
                     '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary" data-oras-email-submit="1">Submit</button>' +
                 '</div>' +
             '</div>';
@@ -332,7 +332,7 @@
                 return;
             }
 
-            if (target.getAttribute('data-oras-email-modal-close') === '1' || target.getAttribute('data-oras-email-cancel') === '1') {
+            if (target.getAttribute('data-oras-email-close') === '1') {
                 closeVirtualEmailModal(virtualEmailModal);
             }
         });
