@@ -50,6 +50,22 @@ final class Event_List_View
             array(),
             ORAS_TICKETS_VERSION
         );
+
+        wp_enqueue_script(
+            'oras-event-list-view',
+            ORAS_TICKETS_URL . 'assets/js/event-list-view.js',
+            array(),
+            ORAS_TICKETS_VERSION,
+            true
+        );
+
+        wp_localize_script(
+            'oras-event-list-view',
+            'orasEventListView',
+            array(
+                'ctaText' => __( '(View Event Details)', 'oras-tickets' ),
+            )
+        );
     }
 
     /**
@@ -97,7 +113,7 @@ final class Event_List_View
         $cta = sprintf(
             ' <a href="%1$s" class="tribe-common-anchor-thin oras-event-list-view-link">%2$s</a>',
             esc_url( $permalink ),
-            esc_html__( 'View Event Details', 'oras-tickets')
+            esc_html__( '(View Event Details)', 'oras-tickets')
         );
 
         $updated_html = preg_replace( '/<\/h4>\s*$/', $cta . '</h4>', $html, 1 );
