@@ -197,6 +197,13 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         $request_attendance_mode = Ticket::normalizeAttendanceMode( $posted_attendance_mode, Ticket::ATTENDANCE_MODE_ONSITE );
         if ( 'yes' === $intent ) {
+            if ( '' === $virtual_email ) {
+                $current_user = wp_get_current_user();
+                if ( $current_user instanceof \WP_User && is_string( $current_user->user_email ) ) {
+                    $virtual_email = sanitize_email( $current_user->user_email );
+                }
+            }
+
             if ( '' === $virtual_email || ! is_email( $virtual_email ) ) {
                 if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
                     wp_send_json_error( array( 'message' => esc_html__( 'Please enter a valid email address to receive event details.', 'oras-tickets' ) ) );
