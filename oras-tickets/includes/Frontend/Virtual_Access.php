@@ -37,6 +37,42 @@ final class Virtual_Access
         add_filter('tribe_template_pre_html:events-pro/google/single/google-details', array(self::class, 'filter_virtual_details_html'), 20, 5);
         add_filter('tribe_template_pre_html:events-pro/webex/single/webex-details', array(self::class, 'filter_virtual_details_html'), 20, 5);
         add_filter('tribe_template_pre_html:events-pro/microsoft/single/microsoft-details', array(self::class, 'filter_virtual_details_html'), 20, 5);
+        add_filter(
+            'tribe_hybrid_event_label_singular',
+            array(self::class, 'filterHybridEventLabel')
+        );
+        add_filter(
+            'tribe_virtual_event_label_singular',
+            array(self::class, 'filterVirtualEventLabel')
+        );
+    }
+
+    /**
+     * Clarify the single-event hybrid marker shown by TEC.
+     *
+        * @param string $label  Existing TEC label.
+        *
+        * @return string Clarified label.
+     */
+    public static function filterHybridEventLabel(string $label): string
+    {
+        unset($label);
+
+        return __('Hybrid (Onsite and Zoom Meetings)', 'oras-tickets');
+    }
+
+    /**
+     * Clarify the single-event virtual marker shown by TEC.
+     *
+        * @param string $label  Existing TEC label.
+        *
+        * @return string Clarified label.
+     */
+    public static function filterVirtualEventLabel(string $label): string
+    {
+        unset($label);
+
+        return __('Virtual (Zoom Meetings)', 'oras-tickets');
     }
 
     public static function filter_admin_show_to_html($html, $file, $name, $template)

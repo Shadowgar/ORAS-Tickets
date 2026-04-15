@@ -11,6 +11,8 @@ use ORAS\Tickets\Capabilities;
 use ORAS\Tickets\Commerce\Woo\Capacity_Consumption;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Frontend\Event_RSVP;
+use ORAS\Tickets\Frontend\Event_List_View;
+use ORAS\Tickets\Frontend\Virtual_Access;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -469,6 +471,33 @@ function oras_phase5_run_checks(): void {
 		$created_posts[] = $on_hold_order_id;
 
 		$bootstrap = Bootstrap::instance();
+		Event_List_View::register();
+		Virtual_Access::register();
+		$list_title_html = '<h4 class="tribe-events-calendar-list__event-title"><a href="' . esc_url( get_permalink( $event_id ) ) . '">Fixture Event</a></h4>';
+		$list_title_html = apply_filters(
+			'tribe_template_pre_html:events/v2/list/event/title',
+			$list_title_html,
+			'events/v2/list/event/title',
+			'list/event/title',
+			null,
+			array( 'event' => get_post( $event_id ) )
+		);
+		$has_list_cta = is_string( $list_title_html )
+			&& false !== strpos( $list_title_html, 'View Event Details');
+		oras_phase5_assert(
+			$has_list_cta,
+			'List view event title includes explicit click-through CTA'
+		);
+		oras_phase5_assert_same(
+			apply_filters( 'tribe_hybrid_event_label_singular', 'Hybrid Event' ),
+			'Hybrid (Onsite and Zoom Meetings)',
+			'Hybrid event label is customized for single event pages'
+		);
+		oras_phase5_assert_same(
+			apply_filters( 'tribe_virtual_event_label_singular', 'Virtual Event' ),
+			'Virtual (Zoom Meetings)',
+			'Virtual event label is customized for single event pages'
+		);
 		$attendees = oras_phase5_get_filtered_attendees( $bootstrap, $event_id, 'tickets', 'completed', false, '', false );
 		oras_phase5_assert_same( count( $attendees ), 3, 'Ticket attendee list expands quantity to 3 rows' );
 		foreach ( $attendees as $row ) {

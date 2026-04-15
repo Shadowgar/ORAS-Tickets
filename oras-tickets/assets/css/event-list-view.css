@@ -1,0 +1,19 @@
+.oras-event-list-view-link {
+	margin-left: 0.6rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.tribe-events-calendar-list__event-title .oras-event-list-view-link {
+	display: inline-block;
+	vertical-align: baseline;
+}
+
+@media (max-width: 767px) {
+	.oras-event-list-view-link {
+		display: block;
+		margin-left: 0;
+		margin-top: 0.35rem;
+	}
+}

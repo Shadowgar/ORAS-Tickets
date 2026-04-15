@@ -28,6 +28,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Settings_Page.php'; // NOS
 // Frontend tickets display (Phase 1.3 - read-only)
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Tickets_Display.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_Agenda_Render.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_List_View.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
@@ -143,6 +144,7 @@ final class Bootstrap
         $speaker_cpt->register();
 
         \ORAS\Tickets\Frontend\Event_Agenda_Render::register();
+    \ORAS\Tickets\Frontend\Event_List_View::register();
         \ORAS\Tickets\Frontend\Virtual_Access::register();
         \ORAS\Tickets\Frontend\Event_RSVP::register();
         \ORAS\Tickets\Frontend\Board_Dashboard::register();
