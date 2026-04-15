@@ -568,6 +568,38 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert( count( $queue_rows ) >= 1, 'Waitlist queue data contains waiting users' );
 		oras_phase5_assert_same( (int) ( $queue_rows[0]['user_id'] ?? 0 ), $user_1, 'Waitlist queue preserves FIFO ordering for first waiting user' );
 
+		$rsvp_dashboard_response = oras_phase5_call_json_handler(
+			array( $bootstrap, 'handle_rsvp_dashboard_data' ),
+			array(
+				'event_id' => (string) $event_id,
+			),
+			$admin_id,
+			'oras_rsvp_dashboard',
+			'nonce'
+		);
+		oras_phase5_assert_same( ! empty( $rsvp_dashboard_response['success'] ), true, 'RSVP dashboard data handler returns success' );
+		$rsvp_dashboard_rows = isset( $rsvp_dashboard_response['data']['attendees'] ) && is_array( $rsvp_dashboard_response['data']['attendees'] ) ? $rsvp_dashboard_response['data']['attendees'] : array();
+		oras_phase5_assert( count( $rsvp_dashboard_rows ) >= 2, 'RSVP dashboard data includes confirmed and waitlist attendees' );
+		oras_phase5_assert_same( (string) ( $rsvp_dashboard_rows[0]['status_key'] ?? '' ), 'yes', 'RSVP dashboard labels confirmed attendees with the expected status key' );
+
+		$attendees_dashboard_response = oras_phase5_call_json_handler(
+			array( $bootstrap, 'handle_attendees_dashboard_data' ),
+			array(
+				'event_id'      => (string) $event_id,
+				'source_filter' => 'tickets',
+				'ticket_status' => 'completed',
+				'guests_only'   => '0',
+				'has_note_only' => '0',
+				'search'        => '',
+			),
+			$admin_id,
+			'oras_rsvp_dashboard',
+			'nonce'
+		);
+		oras_phase5_assert_same( ! empty( $attendees_dashboard_response['success'] ), true, 'Attendees dashboard data handler returns success' );
+		oras_phase5_assert_same( (int) ( $attendees_dashboard_response['data']['summary']['total_orders'] ?? 0 ), 1, 'Attendees dashboard summary reports distinct visible orders' );
+		oras_phase5_assert_same( (int) ( $attendees_dashboard_response['data']['summary']['total_tickets'] ?? 0 ), 3, 'Attendees dashboard summary reports visible ticket count' );
+
 		$remove_response = oras_phase5_call_json_handler(
 			array( $bootstrap, 'handle_waitlist_remove_user' ),
 			array(
@@ -581,6 +613,19 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert_same( ! empty( $remove_response['success'] ), true, 'Manual waitlist remove handler returns success' );
 		oras_phase5_assert_same( Waitlist_Store::get_current_waitlist_status( $event_id, $user_1 ), 'left', 'Manual waitlist remove updates lifecycle to left' );
 		oras_phase5_assert_same( get_user_meta( $user_1, '_oras_rsvp_event_' . $event_id, true ), 'no', 'Manual waitlist remove updates RSVP status to no' );
+
+		$remove_yes_response = oras_phase5_call_json_handler(
+			array( $bootstrap, 'handle_rsvp_remove_attendee' ),
+			array(
+				'event_id' => (string) $event_id,
+				'user_id'  => (string) $user_3,
+			),
+			$admin_id,
+			'oras_rsvp_dashboard',
+			'nonce'
+		);
+		oras_phase5_assert_same( ! empty( $remove_yes_response['success'] ), true, 'Manual RSVP remove handler returns success for confirmed attendee' );
+		oras_phase5_assert_same( get_user_meta( $user_3, '_oras_rsvp_event_' . $event_id, true ), 'no', 'Manual RSVP remove updates confirmed attendee status to no' );
 
 		$response = oras_phase5_call_json_handler(
 			array( Event_RSVP::class, 'handle_post' ),
@@ -708,6 +753,7 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert( has_action( 'wp_ajax_oras_waitlist_queue_data' ) > 0, 'Waitlist queue AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_waitlist_bulk_promote' ) > 0, 'Waitlist bulk promote AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_waitlist_promote_user' ) > 0, 'Waitlist manual promote AJAX action is registered' );
+		oras_phase5_assert( has_action( 'wp_ajax_oras_rsvp_remove_attendee' ) > 0, 'RSVP remove AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_waitlist_remove_user' ) > 0, 'Waitlist remove AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_attendees_send_email' ) > 0, 'Attendees messaging AJAX action is registered' );
 		oras_phase5_assert( has_action( 'wp_ajax_oras_attendees_save_note' ) > 0, 'Attendees note AJAX action is registered' );

@@ -165,6 +165,7 @@ final class Bootstrap
 
             // RSVP Dashboard handlers
             add_action('wp_ajax_oras_rsvp_dashboard_data', array($this, 'handle_rsvp_dashboard_data'));
+            add_action('wp_ajax_oras_rsvp_remove_attendee', array($this, 'handle_rsvp_remove_attendee'));
             add_action('wp_ajax_oras_waitlist_queue_data', array($this, 'handle_waitlist_queue_data'));
             add_action('wp_ajax_oras_waitlist_bulk_promote', array($this, 'handle_waitlist_bulk_promote'));
             add_action('wp_ajax_oras_waitlist_promote_user', array($this, 'handle_waitlist_promote_user'));
@@ -218,20 +219,27 @@ final class Bootstrap
             )
         );
         $waitlist_users = \ORAS\Tickets\Waitlist_Store::get_waiting_users($event_id);
+        $can_manage_rsvps = $this->can_manage_rsvp_dashboard();
 
         $attendees = array();
         foreach ($yes_users as $user) {
             $attendees[] = array(
-                'name'   => $user->display_name,
-                'email'  => $user->user_email,
-                'status' => 'Yes',
+                'user_id'    => (int) $user->ID,
+                'name'       => $user->display_name,
+                'email'      => $user->user_email,
+                'status'     => 'Confirmed',
+                'status_key' => 'yes',
+                'can_remove' => $can_manage_rsvps,
             );
         }
         foreach ($waitlist_users as $user) {
             $attendees[] = array(
-                'name'   => $user->display_name,
-                'email'  => $user->user_email,
-                'status' => 'Waitlist',
+                'user_id'    => (int) $user->ID,
+                'name'       => $user->display_name,
+                'email'      => $user->user_email,
+                'status'     => 'Waitlist',
+                'status_key' => 'waitlist',
+                'can_remove' => $can_manage_rsvps,
             );
         }
 
@@ -247,7 +255,7 @@ final class Bootstrap
     {
         check_ajax_referer('oras_rsvp_dashboard', 'nonce');
 
-        if (! current_user_can('oras_tickets_manage_rsvps')) {
+        if (! $this->can_manage_rsvp_dashboard()) {
             wp_die('Insufficient permissions');
         }
 
@@ -289,7 +297,7 @@ final class Bootstrap
     {
         check_ajax_referer('oras_rsvp_dashboard', 'nonce');
 
-        if (! current_user_can('oras_tickets_manage_rsvps')) {
+        if (! $this->can_manage_rsvp_dashboard()) {
             wp_die('Insufficient permissions');
         }
 
@@ -367,7 +375,7 @@ final class Bootstrap
     {
         check_ajax_referer('oras_rsvp_dashboard', 'nonce');
 
-        if (! current_user_can('oras_tickets_manage_rsvps')) {
+        if (! $this->can_manage_rsvp_dashboard()) {
             wp_die('Insufficient permissions');
         }
 
@@ -423,11 +431,11 @@ final class Bootstrap
         );
     }
 
-    public function handle_waitlist_remove_user(): void
+    public function handle_rsvp_remove_attendee(): void
     {
         check_ajax_referer('oras_rsvp_dashboard', 'nonce');
 
-        if (! current_user_can('oras_tickets_manage_rsvps')) {
+        if (! $this->can_manage_rsvp_dashboard()) {
             wp_die('Insufficient permissions');
         }
 
@@ -438,12 +446,41 @@ final class Bootstrap
             wp_send_json_error('Invalid event or user');
         }
 
-        if (! \ORAS\Tickets\Waitlist_Store::remove_waiting_user($event_id, $user_id, get_current_user_id(), 'dashboard-remove')) {
-            wp_send_json_error('Unable to remove selected user from waitlist');
+        $this->send_rsvp_removal_response($event_id, $user_id, 'dashboard-remove');
+    }
+
+    public function handle_waitlist_remove_user(): void
+    {
+        check_ajax_referer('oras_rsvp_dashboard', 'nonce');
+
+        if (! $this->can_manage_rsvp_dashboard()) {
+            wp_die('Insufficient permissions');
         }
 
-        update_user_meta($user_id, '_oras_rsvp_event_' . $event_id, 'no');
-        delete_user_meta($user_id, '_oras_rsvp_event_' . $event_id . '_ts');
+        $event_id = isset($_POST['event_id']) ? absint($_POST['event_id']) : 0;
+        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
+
+        if (! $event_id || ! $user_id) {
+            wp_send_json_error('Invalid event or user');
+        }
+
+        $this->send_rsvp_removal_response(
+            $event_id,
+            $user_id,
+            'dashboard-waitlist-remove'
+        );
+    }
+
+    private function send_rsvp_removal_response(
+        int $event_id,
+        int $user_id,
+        string $source
+    ): void
+    {
+        $removed = $this->remove_rsvp_attendee($event_id, $user_id, $source);
+        if (is_wp_error($removed)) {
+            wp_send_json_error($removed->get_error_message());
+        }
 
         $rsvp_settings = $this->get_rsvp_settings($event_id);
         $stats = is_array($rsvp_settings)
@@ -544,7 +581,12 @@ final class Bootstrap
 
         $attendees = $this->get_filtered_attendees($event_id, $source_filter, $ticket_status, $guests_only, $search, $has_note_only);
 
-        wp_send_json_success(array('attendees' => $attendees));
+        wp_send_json_success(
+            array(
+                'attendees' => $attendees,
+                'summary'   => $this->build_attendee_summary($attendees),
+            )
+        );
     }
 
     public function handle_attendees_send_email(): void
@@ -808,6 +850,63 @@ final class Bootstrap
         }
 
         return $attendees;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $attendees
+     * @return array<string, int>
+     */
+    private function build_attendee_summary(array $attendees): array
+    {
+        $order_ids = array();
+        $total_tickets = 0;
+
+        foreach ($attendees as $attendee) {
+            $order_id = isset($attendee['order_id']) ? absint($attendee['order_id']) : 0;
+            if ($order_id <= 0) {
+                continue;
+            }
+
+            $order_ids[$order_id] = true;
+            $total_tickets++;
+        }
+
+        return array(
+            'total_rows'    => count($attendees),
+            'total_orders'  => count($order_ids),
+            'total_tickets' => $total_tickets,
+        );
+    }
+
+    /**
+     * @return true|\WP_Error
+     */
+    private function remove_rsvp_attendee(int $event_id, int $user_id, string $source)
+    {
+        $meta_key = '_oras_rsvp_event_' . $event_id;
+        $current_status = sanitize_key((string) get_user_meta($user_id, $meta_key, true));
+        $waitlist_status = \ORAS\Tickets\Waitlist_Store::get_current_waitlist_status($event_id, $user_id);
+
+        if ('waiting' === $waitlist_status) {
+            if (! \ORAS\Tickets\Waitlist_Store::remove_waiting_user($event_id, $user_id, get_current_user_id(), $source)) {
+                return new \WP_Error('oras_rsvp_remove_waitlist_failed', 'Unable to remove selected user from waitlist');
+            }
+        } elseif ('yes' !== $current_status && 'waitlist' !== $current_status) {
+            return new \WP_Error('oras_rsvp_remove_invalid_state', 'Selected attendee does not have an active RSVP');
+        }
+
+        update_user_meta($user_id, $meta_key, 'no');
+        delete_user_meta($user_id, $meta_key . '_ts');
+        delete_user_meta($user_id, $meta_key . '_attendance_mode');
+
+        return true;
+    }
+
+    private function can_manage_rsvp_dashboard(): bool
+    {
+        return current_user_can('oras_tickets_manage_rsvps')
+            || current_user_can('oras_tickets_manage_events')
+            || current_user_can('manage_options');
     }
 
     private function get_ticket_attendees_for_event(int $event_id): array

@@ -146,12 +146,38 @@ final class Dashboard_Page
 
                 <div id="oras-rsvp-list" style="display:none;">
                     <h3><?php echo esc_html__('Attendee List', 'oras-tickets'); ?></h3>
+                    <p>
+                        <?php
+                        echo esc_html__(
+                            'RSVP Status shows whether the attendee currently '
+                            . 'has a confirmed seat or is still waiting in the '
+                            . 'queue. Removing an RSVP marks that attendee as '
+                            . 'not attending for this event.',
+                            'oras-tickets'
+                        );
+                        ?>
+                    </p>
                     <table class="widefat striped" id="oras-rsvp-attendees-table">
                         <thead>
                             <tr>
-                                <th><?php echo esc_html__('Name', 'oras-tickets'); ?></th>
-                                <th><?php echo esc_html__('Email', 'oras-tickets'); ?></th>
-                                <th><?php echo esc_html__('Status', 'oras-tickets'); ?></th>
+                                <th>
+                                    <?php echo esc_html__('Name', 'oras-tickets'); ?>
+                                </th>
+                                <th>
+                                    <?php
+                                    echo esc_html__('Email', 'oras-tickets');
+                                    ?>
+                                </th>
+                                <th>
+                                    <?php
+                                    echo esc_html__('RSVP Status', 'oras-tickets');
+                                    ?>
+                                </th>
+                                <th>
+                                    <?php
+                                    echo esc_html__('Actions', 'oras-tickets');
+                                    ?>
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="oras-rsvp-attendees-body">
@@ -222,6 +248,18 @@ final class Dashboard_Page
                     </p>
 
                     <button id="oras-attendees-send-email" class="button button-primary"><?php echo esc_html__('Send Email', 'oras-tickets'); ?></button>
+                </div>
+
+                <div id="oras-attendees-summary" style="display:none; margin-bottom: 15px; padding: 12px 15px; background: #f6f7f7; border: 1px solid #dcdcde;">
+                    <strong><?php echo esc_html__('Current View Totals:', 'oras-tickets'); ?></strong>
+                    <span style="margin-left: 12px;"><?php echo esc_html__('Attendee Rows:', 'oras-tickets'); ?> <span id="oras-attendees-total-rows">0</span></span>
+                    <span style="margin-left: 12px;"><?php echo esc_html__('Orders:', 'oras-tickets'); ?> <span id="oras-attendees-total-orders">0</span></span>
+                    <span style="margin-left: 12px;"><?php echo esc_html__('Tickets:', 'oras-tickets'); ?> <span id="oras-attendees-total-tickets">0</span></span>
+                </div>
+
+                <div id="oras-attendees-loading" style="display:none; margin-bottom: 15px; padding: 12px 15px; background: #fff; border: 1px solid #dcdcde;">
+                    <span class="spinner is-active" style="float:none; margin: 0 8px 0 0;"></span>
+                    <span><?php echo esc_html__('Loading attendees...', 'oras-tickets'); ?></span>
                 </div>
 
                 <div id="oras-attendees-table-container" style="display:none;">

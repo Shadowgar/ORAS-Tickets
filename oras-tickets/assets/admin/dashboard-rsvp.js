@@ -156,6 +156,11 @@ jQuery( document ).ready( function( $ ) {
 	var $waitlistOperationMessage = $( '#oras-waitlist-operation-message' );
 	var $attendeesEventSelector = $( '#oras-attendees-event-selector' );
 	var $attendeesFilters = $( '#oras-attendees-filters' );
+	var $attendeesSummary = $( '#oras-attendees-summary' );
+	var $attendeesTotalRows = $( '#oras-attendees-total-rows' );
+	var $attendeesTotalOrders = $( '#oras-attendees-total-orders' );
+	var $attendeesTotalTickets = $( '#oras-attendees-total-tickets' );
+	var $attendeesLoading = $( '#oras-attendees-loading' );
 	var $attendeesTableContainer = $( '#oras-attendees-table-container' );
 	var $attendeesBodyTable = $( '#oras-attendees-body' );
 	var $attendeesSourceFilter = $( '#oras-attendees-source-filter' );
@@ -178,6 +183,7 @@ jQuery( document ).ready( function( $ ) {
 			$actions.hide();
 			$list.hide();
 			$waitlistOps.hide();
+			setWaitlistMessage( '', false );
 			return;
 		}
 
@@ -503,24 +509,90 @@ jQuery( document ).ready( function( $ ) {
 		if ( attendees.length === 0 ) {
 			$attendeesBody
 				.append( $( '<tr/>' )
-					.append( $( '<td/>' ).attr( 'colspan', 3 ).text( 'No attendees found.' ) ) );
+					.append( $( '<td/>' ).attr( 'colspan', 4 ).text( 'No attendees found.' ) ) );
 			return;
 		}
 
 		$.each( attendees, function( index, attendee ) {
+			var userId = normalizeInt( attendee.user_id );
+			var statusKey = String( attendee.status_key ?? '' );
+			var canRemove = Boolean( attendee.can_remove ) && userId > 0;
+			var $actions = $( '<td/>' );
+
+			if ( canRemove ) {
+				$actions.append(
+					$( '<button/>' )
+						.attr( {
+							type: 'button',
+							'class': 'button button-small oras-rsvp-remove-user'
+						} )
+						.attr( 'data-user-id', String( userId ) )
+						.attr( 'data-status-key', statusKey )
+						.text( statusKey === 'waitlist' ? 'Remove from Waitlist' : 'Remove RSVP' )
+				);
+			}
+
 			$attendeesBody.append(
 				$( '<tr/>' )
 					.append( $( '<td/>' ).text( String( attendee.name ?? '' ) ) )
 					.append( $( '<td/>' ).text( String( attendee.email ?? '' ) ) )
 					.append( $( '<td/>' ).text( String( attendee.status ?? '' ) ) )
+					.append( $actions )
 			);
 		} );
 	}
+
+	$( document ).on( 'click', '.oras-rsvp-remove-user', function() {
+		var eventId = sanitizeEventId( $selector.val() );
+		var userId = normalizeInt( $( this ).data( 'user-id' ) );
+		var statusKey = String( $( this ).data( 'status-key' ) || '' );
+		var $button = $( this );
+		var confirmMessage = statusKey === 'waitlist'
+			? 'Remove this attendee from the waitlist and mark them as not attending?'
+			: 'Remove this attendee from the RSVP list and mark them as not attending?';
+
+		if ( ! eventId || userId <= 0 ) {
+			return;
+		}
+
+		if ( ! globalThis.confirm( confirmMessage ) ) {
+			return;
+		}
+
+		$button.prop( 'disabled', true );
+		setWaitlistMessage( 'Updating RSVP status...', false );
+
+		$.ajax( {
+			url: orasDashboardRsvp.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'oras_rsvp_remove_attendee',
+				event_id: eventId,
+				user_id: String( userId ),
+				nonce: orasDashboardRsvp.nonce
+			},
+			success: function( response ) {
+				$button.prop( 'disabled', false );
+				if ( response.success ) {
+					setWaitlistMessage( 'Attendee removed from RSVP.', false );
+					loadRsvpData( eventId );
+				} else {
+					setWaitlistMessage( String( response.data || 'Unable to update RSVP.' ), true );
+				}
+			},
+			error: function() {
+				$button.prop( 'disabled', false );
+				setWaitlistMessage( 'Network error updating RSVP.', true );
+			}
+		} );
+	} );
 
 	$attendeesEventSelector.on( 'change', function() {
 		var eventId = $( this ).val();
 		if ( ! eventId ) {
 			$attendeesFilters.hide();
+			$attendeesSummary.hide();
+			$attendeesLoading.hide();
 			$attendeesMessagePanel.hide();
 			$attendeesTableContainer.hide();
 			return;
@@ -659,6 +731,8 @@ jQuery( document ).ready( function( $ ) {
 		var hasNoteOnly = $attendeesHasNoteOnly.is( ':checked' ) ? '1' : '0';
 		var search = $attendeesSearch.val().trim();
 
+		setAttendeesLoading( true );
+
 		$.ajax( {
 			url: orasDashboardRsvp.ajaxUrl,
 			type: 'POST',
@@ -675,6 +749,7 @@ jQuery( document ).ready( function( $ ) {
 			success: function( response ) {
 				if ( response.success ) {
 					populateAttendeesTable( response.data.attendees );
+					populateAttendeesSummary( response.data.summary || null );
 					$attendeesTableContainer.show();
 				} else {
 					alert( 'Error loading attendees: ' + ( response.data || 'Unknown error' ) );
@@ -682,8 +757,30 @@ jQuery( document ).ready( function( $ ) {
 			},
 			error: function() {
 				alert( 'Network error loading attendees.' );
+			},
+			complete: function() {
+				setAttendeesLoading( false );
 			}
 		} );
+	}
+
+	function setAttendeesLoading( isLoading ) {
+		if ( isLoading ) {
+			$attendeesLoading.show();
+			$attendeesTableContainer.hide();
+			$attendeesSummary.hide();
+			return;
+		}
+
+		$attendeesLoading.hide();
+	}
+
+	function populateAttendeesSummary( summary ) {
+		var data = summary && typeof summary === 'object' ? summary : {};
+		$attendeesTotalRows.text( String( normalizeInt( data.total_rows ) ) );
+		$attendeesTotalOrders.text( String( normalizeInt( data.total_orders ) ) );
+		$attendeesTotalTickets.text( String( normalizeInt( data.total_tickets ) ) );
+		$attendeesSummary.show();
 	}
 
 	function populateAttendeesTable( attendees ) {
