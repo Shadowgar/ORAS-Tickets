@@ -3,7 +3,7 @@
 /**
  * Plugin Name: ORAS Tickets
  * Description: Internal Event Tickets add-on for ORAS (Phase 1 MVP).
- * Version: 0.3.1
+ * Version: 0.3.3
  * Author: ORAS
  * Requires at least: 6.0
  * Requires PHP: 8.0
