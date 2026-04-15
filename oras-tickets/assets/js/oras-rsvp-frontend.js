@@ -14,8 +14,8 @@
         modal.innerHTML = '' +
             '<div class="oras-rsvp-email-modal__backdrop" data-oras-email-modal-close="1"></div>' +
             '<div class="oras-rsvp-email-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="oras-rsvp-email-title">' +
-                '<h3 id="oras-rsvp-email-title">Enter Email for Virtual Access</h3>' +
-                '<p>Please provide an email address. We will send event details and the Zoom link.</p>' +
+                '<h3 id="oras-rsvp-email-title">Enter Email for RSVP Confirmation</h3>' +
+                '<p>Please provide an email address. We will send event details for your selected attendance type.</p>' +
                 '<label for="oras-rsvp-virtual-email-input">Email address</label>' +
                 '<input id="oras-rsvp-virtual-email-input" type="email" class="oras-rsvp-email-input" autocomplete="email" required />' +
                 '<div class="oras-rsvp-email-error" aria-live="polite"></div>' +
@@ -283,7 +283,7 @@
                     }
                 } else {
                     var err = (data && data.data && data.data.message) ? data.data.message : 'Unable to update RSVP.';
-                    if (err.indexOf('Please enter a valid email address to receive virtual event access.') !== -1) {
+                    if (err.indexOf('Please enter a valid email address to receive event details.') !== -1) {
                         openVirtualEmailModal(virtualEmailModal);
                         return;
                     }
@@ -311,7 +311,7 @@
             var attendanceMode = checkedAttendance ? checkedAttendance.value : '';
             var intent = submitter && submitter.name === 'intent' ? submitter.value : '';
 
-            if (intent === 'yes' && attendanceMode === 'virtual') {
+            if (intent === 'yes') {
                 openVirtualEmailModal(virtualEmailModal);
                 return;
             }
