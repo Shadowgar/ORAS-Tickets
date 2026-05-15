@@ -36,7 +36,7 @@ final class Reports_Page
         $date_range['before_raw'] = $range_data['before'];
         $view                     = isset($_GET['view']) ? sanitize_text_field(wp_unslash($_GET['view'])) : 'overview';
         $view                     = in_array($view, array('overview', 'detail'), true) ? $view : 'overview';
-        $overview_scope           = isset($_GET['oras_tickets_scope']) ? sanitize_text_field(wp_unslash($_GET['oras_tickets_scope'])) : '';
+        $overview_scope           = isset($_GET['oras_tickets_scope']) ? sanitize_text_field(wp_unslash($_GET['oras_tickets_scope'])) : 'refunds';
         $selected_statuses        = $view === 'overview'
             ? $this->get_overview_statuses($overview_scope)
             : $this->get_selected_statuses();
@@ -512,6 +512,7 @@ final class Reports_Page
                                     <th scope="col"><?php echo esc_html__('First phase', 'oras-tickets'); ?></th>
                                     <th scope="col"><?php echo esc_html__('After first phase', 'oras-tickets'); ?></th>
                                     <th scope="col" class="is-right"><?php echo esc_html__('Gross', 'oras-tickets'); ?></th>
+                                    <th scope="col"><?php echo esc_html__('Refunded tickets', 'oras-tickets'); ?></th>
                                     <th scope="col" class="is-right"><?php echo esc_html__('Refunded', 'oras-tickets'); ?></th>
                                     <th scope="col" class="is-right"><?php echo esc_html__('Net', 'oras-tickets'); ?></th>
                                     <th scope="col"><?php echo esc_html__('Last sale', 'oras-tickets'); ?></th>
@@ -531,6 +532,7 @@ final class Reports_Page
                                             <td><?php echo esc_html((string) $row['presale_tickets_sold']); ?></td>
                                             <td><?php echo esc_html((string) $row['after_presale_tickets_sold']); ?></td>
                                             <td class="is-right"><?php echo esc_html($this->format_money($row['gross_sales'])); ?></td>
+                                            <td><?php echo esc_html((string) $row['refunded_qty']); ?></td>
                                             <td class="is-right"><?php echo esc_html($this->format_money($row['refunded_amount'])); ?></td>
                                             <td class="is-right"><?php echo esc_html($this->format_money($row['net_sales'])); ?></td>
                                             <td><?php echo esc_html($row['last_sale']); ?></td>
@@ -923,6 +925,7 @@ final class Reports_Page
                         'event_date',
                         'orders',
                         'tickets_sold',
+                        'refunded_qty',
                         'first_phase',
                         'after_first_phase',
                         'gross',
@@ -953,6 +956,7 @@ final class Reports_Page
                             $row['event_date'],
                             $row['orders'],
                             $row['tickets_sold'],
+                            $row['refunded_qty'],
                             $row['presale_tickets_sold'],
                             $row['after_presale_tickets_sold'],
                             $row['gross_sales'],
@@ -1338,6 +1342,7 @@ final class Reports_Page
                     if (! isset($event_rows[$line_event_id])) {
                         $event_rows[$line_event_id] = array(
                             'gross_sales'     => 0.0,
+                            'refunded_qty'    => 0,
                             'refunded_amount' => 0.0,
                             'tickets_sold'    => 0,
                             'orders'          => 0,
@@ -1361,6 +1366,7 @@ final class Reports_Page
                         if (! isset($event_rows[$order_event_id])) {
                             $event_rows[$order_event_id] = array(
                                 'gross_sales'     => 0.0,
+                                'refunded_qty'    => 0,
                                 'refunded_amount' => 0.0,
                                 'tickets_sold'    => 0,
                                 'orders'          => 0,
@@ -1400,13 +1406,16 @@ final class Reports_Page
                         if (! isset($event_rows[$line_event_id])) {
                             $event_rows[$line_event_id] = array(
                                 'gross_sales'     => 0.0,
+                                'refunded_qty'    => 0,
                                 'refunded_amount' => 0.0,
                                 'tickets_sold'    => 0,
                                 'orders'          => 0,
                                 'phase_qty'       => array(),
                             );
                         }
+                        $ref_qty                                          = method_exists($ref_item, 'get_quantity') ? abs((int) $ref_item->get_quantity()) : 0;
                         $ref_total                                        = method_exists($ref_item, 'get_total') ? (float) $ref_item->get_total() : 0.0;
+                        $event_rows[$line_event_id]['refunded_qty']    += $ref_qty;
                         $event_rows[$line_event_id]['refunded_amount'] += abs($ref_total);
                     }
                 }
@@ -1441,6 +1450,7 @@ final class Reports_Page
             $last_sale   = isset($event_last_sale_ts[$event_id]) ? wp_date('Y-m-d', $event_last_sale_ts[$event_id]) : '—';
 
             $gross_sales     = (float) $data['gross_sales'];
+            $refunded_qty    = (int) $data['refunded_qty'];
             $refunded_amount = (float) $data['refunded_amount'];
 
             $rows[] = array(
@@ -1449,6 +1459,7 @@ final class Reports_Page
                 'event_date'                 => $event_date !== '' ? $event_date : '—',
                 'orders'                     => (int) $data['orders'],
                 'tickets_sold'               => $tickets_sold,
+                'refunded_qty'               => $refunded_qty,
                 'presale_tickets_sold'       => $first_phase_qty,
                 'after_presale_tickets_sold' => max(0, $after_qty),
                 'gross_sales'                => $gross_sales,
@@ -1569,8 +1580,9 @@ final class Reports_Page
             case 'all':
                 return array('processing', 'completed', 'refunded', 'cancelled');
             case 'paid':
-            default:
                 return array('processing', 'completed');
+            default:
+                return array('processing', 'completed', 'refunded');
         }
     }
 

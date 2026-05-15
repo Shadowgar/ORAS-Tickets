@@ -8,6 +8,7 @@
 
 use ORAS\Tickets\Admin\Admin_Menu;
 use ORAS\Tickets\Admin\Pages\Speaker_Reports_Page;
+use ORAS\Tickets\Admin\Pages\Reports_Page;
 use ORAS\Tickets\Capabilities;
 
 if (! defined('ABSPATH')) {
@@ -80,6 +81,17 @@ function oras_reports_create_user(string $prefix, string $suffix, string $role =
 }
 
 /**
+ * @return mixed
+ */
+function oras_reports_call_private(object $object, string $method, array $args = array())
+{
+    $reflection = new ReflectionMethod($object, $method);
+    $reflection->setAccessible(true);
+
+    return $reflection->invokeArgs($object, $args);
+}
+
+/**
  * @param callable $callback
  * @param array<string,mixed> $post_data
  * @return array{message:string,response:int}
@@ -141,6 +153,7 @@ function oras_reports_run_checks(): void
 
     require_once ORAS_TICKETS_DIR . 'includes/Capabilities.php';
     require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php';
+    require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php';
 
     Capabilities::add_caps();
 
@@ -170,6 +183,7 @@ function oras_reports_run_checks(): void
     $suffix   = gmdate('YmdHis') . '_' . wp_rand(1000, 9999);
 
     $subscriber_id = oras_reports_create_user('oras_reports_sub', $suffix, 'subscriber');
+    $created_posts = array();
 
     try {
         $result = oras_reports_call_wp_die_handler(
@@ -229,9 +243,94 @@ function oras_reports_run_checks(): void
         );
         oras_reports_assert_same($result['response'], 0, 'Speaker export invalid nonce returns default wp_die response');
         oras_reports_assert(stripos($result['message'], 'Invalid request') !== false, 'Speaker export invalid nonce message is returned');
+
+        oras_reports_assert(function_exists('wc_create_order'), 'WooCommerce function wc_create_order is available');
+        oras_reports_assert(function_exists('wc_create_refund'), 'WooCommerce function wc_create_refund is available');
+
+        $event_id = wp_insert_post(
+            array(
+                'post_type'   => 'tribe_events',
+                'post_status' => 'publish',
+                'post_title'  => 'Reports Refund Check ' . $suffix,
+            )
+        );
+        oras_reports_assert(is_int($event_id) && $event_id > 0, 'Fixture report event created');
+        $created_posts[] = (int) $event_id;
+
+        $product = new WC_Product_Simple();
+        $product->set_name('Reports Refund Ticket ' . $suffix);
+        $product->set_status('publish');
+        $product->set_catalog_visibility('hidden');
+        $product->set_regular_price('10.00');
+        $product->set_price('10.00');
+        $product_id = $product->save();
+        oras_reports_assert(is_int($product_id) && $product_id > 0, 'Fixture report product created');
+        $created_posts[] = (int) $product_id;
+
+        $order = wc_create_order();
+        oras_reports_assert($order instanceof WC_Order, 'Fixture report order created');
+        $item_id = $order->add_product(wc_get_product($product_id), 19);
+        $item = $order->get_item($item_id);
+        oras_reports_assert($item instanceof WC_Order_Item_Product, 'Fixture report line item created');
+        $item->update_meta_data('_oras_ticket_event_id', (int) $event_id);
+        $item->update_meta_data('_oras_ticket_index', '0');
+        $item->update_meta_data('_oras_ticket_name', 'General Admission');
+        $item->update_meta_data('_oras_ticket_price_phase_key', 'standard');
+        $item->save();
+        $order->calculate_totals();
+        $order->update_status('completed');
+        $order_id = (int) $order->get_id();
+        oras_reports_assert($order_id > 0, 'Fixture report order persisted');
+        $created_posts[] = $order_id;
+
+        $refund = wc_create_refund(
+            array(
+                'amount'     => 10.0,
+                'reason'     => 'Reports integration fixture',
+                'order_id'   => $order_id,
+                'line_items' => array(
+                    $item_id => array(
+                        'qty'          => 1,
+                        'refund_total' => 10.0,
+                    ),
+                ),
+            )
+        );
+        oras_reports_assert($refund instanceof WC_Order_Refund, 'Fixture report refund created');
+        $created_posts[] = (int) $refund->get_id();
+
+        $reports_page      = new Reports_Page();
+        $default_statuses  = oras_reports_call_private($reports_page, 'get_overview_statuses', array(''));
+        $default_scope     = oras_reports_call_private($reports_page, 'get_overview_scope_from_statuses', array($default_statuses));
+        $summary_rows      = oras_reports_call_private($reports_page, 'get_event_summary_rows', array($default_statuses, array(), array(
+            'range'      => 'all',
+            'after'      => '',
+            'before'     => '',
+            'date_range' => array(),
+            'label'      => 'All dates',
+        )));
+        $fixture_row       = null;
+        foreach ($summary_rows as $row) {
+            if ((int) ($row['event_id'] ?? 0) === (int) $event_id) {
+                $fixture_row = $row;
+                break;
+            }
+        }
+
+        oras_reports_assert_same($default_scope, 'refunds', 'Default overview scope includes refunds');
+        oras_reports_assert(is_array($fixture_row), 'Default overview includes fixture event row');
+        if (is_array($fixture_row)) {
+            oras_reports_assert_same((int) $fixture_row['tickets_sold'], 19, 'Default overview keeps gross tickets sold');
+            oras_reports_assert_same((int) $fixture_row['refunded_qty'], 1, 'Default overview includes refunded ticket quantity');
+            oras_reports_assert_same((float) $fixture_row['refunded_amount'], 10.0, 'Default overview includes refunded amount');
+            oras_reports_assert_same((float) $fixture_row['net_sales'], 180.0, 'Default overview derives net sales after refund');
+        }
     } finally {
         if ($subscriber_id > 0) {
             wp_delete_user($subscriber_id);
+        }
+        foreach ($created_posts as $post_id) {
+            wp_delete_post((int) $post_id, true);
         }
     }
 }

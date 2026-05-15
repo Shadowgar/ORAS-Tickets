@@ -111,6 +111,8 @@
 	}
 
 	function activateTab(container, tabName, shouldFocus) {
+		var previousScrollX = globalThis.pageXOffset || globalThis.scrollX || 0;
+		var previousScrollY = globalThis.pageYOffset || globalThis.scrollY || 0;
 		var tabs = tabButtons(container);
 		var panels = toArray(container.querySelectorAll('.oras-events-addon__panel[data-panel]'));
 
@@ -138,6 +140,10 @@
 				// ignore
 			}
 		}
+
+		globalThis.requestAnimationFrame(function () {
+			globalThis.scrollTo(previousScrollX, previousScrollY);
+		});
 	}
 
 	function setupTabs(container) {

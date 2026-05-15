@@ -185,7 +185,7 @@ try {
 
     oras_qbo_api_assert_same( 'validation queue drained', count( $queue ), 0 );
     oras_qbo_api_assert_same( 'validation call count', count( $calls ), 1 );
-    oras_qbo_api_assert_url_contains( 'validation endpoint', (string) $calls[0]['url'], array( '/v3/company/', 'companyinfo/' ) );
+    oras_qbo_api_assert_url_contains( 'validation endpoint', (string) $calls[0]['url'], array( '/v3/company/', 'companyinfo/', 'minorversion=75' ) );
 
     // Scenario 2: Syntax-like API fault uses same 400 code path and captures intuit_tid.
     \ORAS\Tickets\Integrations\QuickBooks\Settings::update_quickbooks_settings( oras_qbo_api_base_settings() );
@@ -224,6 +224,30 @@ try {
             oras_qbo_api_assert_same( 'syntax intuit_tid', (string) ( $data['intuit_tid'] ?? '' ), 'tid-syntax-400' );
         }
     }
+    oras_qbo_api_assert_url_contains( 'syntax endpoint', (string) $calls[0]['url'], array( '/query', 'minorversion=75' ) );
+
+    // Scenario 2b: JournalEntry writes use the shared supported minor version.
+    \ORAS\Tickets\Integrations\QuickBooks\Settings::update_quickbooks_settings( oras_qbo_api_base_settings() );
+    $queue = array(
+        array(
+            'contains' => '/journalentry',
+            'response' => oras_qbo_api_mock_response(
+                200,
+                array(
+                    'JournalEntry' => array(
+                        'Id' => 'JE-1',
+                    ),
+                )
+            ),
+        ),
+    );
+    $calls    = array();
+    $callback = oras_qbo_api_register_http_queue( $queue, $calls );
+    $result   = $api_client->create_journal_entry(array('Line' => array()));
+    remove_filter( 'pre_http_request', $callback, 10 );
+
+    oras_qbo_api_assert_true( 'journal entry create returns array', is_array( $result ) );
+    oras_qbo_api_assert_url_contains( 'journal entry endpoint', (string) $calls[0]['url'], array( '/journalentry', 'minorversion=75' ) );
 
     // Scenario 3: 429 is marked retriable.
     \ORAS\Tickets\Integrations\QuickBooks\Settings::update_quickbooks_settings( oras_qbo_api_base_settings() );

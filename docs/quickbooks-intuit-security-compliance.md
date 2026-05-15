@@ -1,9 +1,14 @@
 # QuickBooks Intuit Security Compliance Notes
 
-Last updated: 2026-02-28
+Last updated: 2026-05-15
 
 ## Scope
 This document maps ORAS Tickets QuickBooks integration controls to Intuit security requirements for OAuth and token handling.
+
+## 2026 API Notice Applicability
+- Webhooks CloudEvents migration: not currently applicable in this repository. ORAS Tickets has no inbound QuickBooks webhook handler; the QuickBooks integration is outbound-only from WooCommerce order events.
+- Reports API modernization: not currently applicable in this repository. ORAS Tickets uses entity/query endpoints and JournalEntry writes, not QuickBooks Reports API endpoints.
+- Accounting API minor versions: applicable. The API client uses one supported minor-version constant instead of relying on discontinued pre-75 versions.
 
 Primary source:
 - https://developer.intuit.com/app/developer/qbo/docs/go-live/publish-app/security-requirements

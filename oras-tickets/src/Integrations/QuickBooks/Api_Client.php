@@ -8,6 +8,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Api_Client {
 
+    private const MINOR_VERSION = 75;
+
     private OAuth_Client $oauth_client;
     private QuickBooks_Logger $logger;
 
@@ -27,7 +29,7 @@ final class Api_Client {
             'GET',
             'companyinfo/' . rawurlencode( $realm_id ),
             array(
-                'minorversion' => 65,
+                'minorversion' => self::MINOR_VERSION,
             )
         );
     }
@@ -39,7 +41,7 @@ final class Api_Client {
             'query',
             array(
                 'query'        => $query,
-                'minorversion' => 65,
+                'minorversion' => self::MINOR_VERSION,
             )
         );
     }
@@ -60,7 +62,7 @@ final class Api_Client {
             'query',
             array(
                 'query'        => $query,
-                'minorversion' => 65,
+                'minorversion' => self::MINOR_VERSION,
             )
         );
     }
@@ -85,7 +87,7 @@ final class Api_Client {
             'query',
             array(
                 'query'        => $query,
-                'minorversion' => 65,
+                'minorversion' => self::MINOR_VERSION,
             )
         );
         if ( is_wp_error( $response ) ) {
@@ -111,7 +113,7 @@ final class Api_Client {
             'POST',
             'journalentry',
             array(
-                'minorversion' => 65,
+                'minorversion' => self::MINOR_VERSION,
             ),
             $payload
         );
