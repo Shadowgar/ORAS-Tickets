@@ -6,6 +6,7 @@ require_once __DIR__ . '/Settings.php'; // NOSONAR
 require_once __DIR__ . '/QuickBooks_Logger.php'; // NOSONAR
 require_once __DIR__ . '/OAuth_Client.php'; // NOSONAR
 require_once __DIR__ . '/Api_Client.php'; // NOSONAR
+require_once dirname( __DIR__, 3 ) . '/includes/Commerce/Woo/Order_Item_Classifier.php'; // NOSONAR
 require_once __DIR__ . '/Split_Calculator.php'; // NOSONAR
 require_once __DIR__ . '/Journal_Entry_Creator.php'; // NOSONAR
 require_once __DIR__ . '/Retry_Handler.php'; // NOSONAR

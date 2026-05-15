@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Integrations\QuickBooks;
 
+use ORAS\Tickets\Commerce\Woo\Order_Item_Classifier;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
@@ -9,9 +11,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Split_Calculator {
 
     private QuickBooks_Logger $logger;
+    private Order_Item_Classifier $item_classifier;
 
-    public function __construct( ?QuickBooks_Logger $logger = null ) {
-        $this->logger = $logger ?: new QuickBooks_Logger();
+    public function __construct( ?QuickBooks_Logger $logger = null, ?Order_Item_Classifier $item_classifier = null ) {
+        $this->logger          = $logger ?: new QuickBooks_Logger();
+        $this->item_classifier = $item_classifier ?: new Order_Item_Classifier();
     }
 
     /**
@@ -55,7 +59,7 @@ final class Split_Calculator {
                 continue;
             }
 
-            $classification = $this->classify_item( $item, $observer_slugs, $merch_slugs, $printful_slugs, $donation_slugs );
+            $classification = $this->item_classifier->classify_product_item( $item, $qbo_settings );
             $bucket_key     = (string) $classification['bucket_key'];
             $bucket_label   = (string) $classification['bucket_label'];
             $account_id     = $this->resolve_account_id( $classification, $event_account_map, $qbo_settings );
@@ -241,126 +245,6 @@ final class Split_Calculator {
             'split_total'    => round( $split_total, 2 ),
             'line_total_sum' => round( $line_total_sum, 2 ),
             'discount_total' => round( max( 0, $line_subtotal_sum - $line_total_sum ), 2 ),
-        );
-    }
-
-    /**
-     * @param \WC_Order_Item_Product $item
-     * @param string[] $observer_slugs
-     * @param string[] $merch_slugs
-     * @param string[] $printful_slugs
-     * @param string[] $donation_slugs
-     * @return array<string,string>
-     */
-    private function classify_item( $item, array $observer_slugs, array $merch_slugs, array $printful_slugs, array $donation_slugs ): array {
-        $event_id    = (int) $item->get_meta( '_oras_ticket_event_id', true );
-        $ticket_name = trim( (string) $item->get_meta( '_oras_ticket_name', true ) );
-
-        if ( $event_id > 0 || $ticket_name !== '' ) {
-            $slug = '';
-            if ( $event_id > 0 ) {
-                $event_post = get_post( $event_id );
-                if ( $event_post && isset( $event_post->post_name ) ) {
-                    $slug = sanitize_title( (string) $event_post->post_name );
-                }
-            }
-            if ( $slug === '' ) {
-                $slug = $event_id > 0 ? 'event-' . $event_id : 'event-ticket';
-            }
-
-            $event_title = $event_id > 0 ? get_the_title( $event_id ) : '';
-            $label_base  = $event_title !== '' ? $event_title : ucwords( str_replace( '-', ' ', $slug ) );
-
-            return array(
-                'type'       => 'ticket_event',
-                'event_slug' => $slug,
-                'bucket_key' => 'event:' . $slug,
-                'bucket_label' => $label_base . ' Registration Fees',
-            );
-        }
-
-        $product_id = method_exists( $item, 'get_product_id' ) ? (int) $item->get_product_id() : 0;
-        $bucket_meta = $product_id > 0 ? sanitize_key( (string) get_post_meta( $product_id, '_oras_qbo_bucket', true ) ) : '';
-        if ( $bucket_meta === 'observer_pass' || $bucket_meta === 'observer' ) {
-            return array(
-                'type'         => 'observer_pass',
-                'bucket_key'   => 'observer_pass',
-                'bucket_label' => 'Observer Pass Income',
-            );
-        }
-
-        if ( $bucket_meta === 'donation' || $bucket_meta === 'donations' ) {
-            return array(
-                'type'         => 'donation',
-                'bucket_key'   => 'donation',
-                'bucket_label' => 'Donations Income',
-            );
-        }
-
-        if ( $bucket_meta === 'printful' || $bucket_meta === 'pod' ) {
-            return array(
-                'type'         => 'printful',
-                'bucket_key'   => 'printful',
-                'bucket_label' => 'Printful Merchandise Income',
-            );
-        }
-
-        if ( $bucket_meta === 'merchandise' || $bucket_meta === 'merch' ) {
-            return array(
-                'type'         => 'merchandise',
-                'bucket_key'   => 'merchandise',
-                'bucket_label' => 'Merchandise Income',
-            );
-        }
-
-        $product_slugs = array();
-        if ( $product_id > 0 ) {
-            $terms = get_the_terms( $product_id, 'product_cat' );
-            if ( is_array( $terms ) ) {
-                foreach ( $terms as $term ) {
-                    if ( is_object( $term ) ) {
-                        $product_slugs[] = sanitize_title( (string) $term->slug );
-                    }
-                }
-            }
-        }
-
-        if ( ! empty( array_intersect( $product_slugs, $observer_slugs ) ) ) {
-            return array(
-                'type'         => 'observer_pass',
-                'bucket_key'   => 'observer_pass',
-                'bucket_label' => 'Observer Pass Income',
-            );
-        }
-
-        if ( ! empty( array_intersect( $product_slugs, $donation_slugs ) ) ) {
-            return array(
-                'type'         => 'donation',
-                'bucket_key'   => 'donation',
-                'bucket_label' => 'Donations Income',
-            );
-        }
-
-        if ( ! empty( array_intersect( $product_slugs, $printful_slugs ) ) ) {
-            return array(
-                'type'         => 'printful',
-                'bucket_key'   => 'printful',
-                'bucket_label' => 'Printful Merchandise Income',
-            );
-        }
-
-        if ( ! empty( array_intersect( $product_slugs, $merch_slugs ) ) ) {
-            return array(
-                'type'         => 'merchandise',
-                'bucket_key'   => 'merchandise',
-                'bucket_label' => 'Merchandise Income',
-            );
-        }
-
-        return array(
-            'type'         => 'unmapped',
-            'bucket_key'   => 'unmapped',
-            'bucket_label' => 'Unmapped Woo Revenue',
         );
     }
 

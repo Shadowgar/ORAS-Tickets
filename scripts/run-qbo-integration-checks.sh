@@ -7,6 +7,7 @@ PLUGIN_TOOLS_DIR="$ROOT_DIR/oras-tickets/tools"
 CHECK_FILES=(
 	"$ROOT_DIR/scripts/qbo-sync-safeguard-tests.php"
 	"$ROOT_DIR/scripts/qbo-split-calculator-tests.php"
+	"$ROOT_DIR/scripts/stripe-metadata-tests.php"
 	"$ROOT_DIR/scripts/qbo-safety-controls-tests.php"
 	"$ROOT_DIR/scripts/qbo-reconciliation-tests.php"
 	"$ROOT_DIR/scripts/qbo-api-error-matrix-tests.php"

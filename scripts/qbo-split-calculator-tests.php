@@ -31,6 +31,10 @@ if ( ! class_exists( '\ORAS\Tickets\Integrations\QuickBooks\OAuth_Client' ) ) {
     return;
 }
 
+if ( ! function_exists( 'wc_create_order' ) ) {
+    throw new RuntimeException( 'WooCommerce is required for split calculator tests.' );
+}
+
 /**
  * @param mixed $actual
  * @param mixed $expected
@@ -244,5 +248,41 @@ $printful_fallback_account = $resolve_method->invoke(
     )
 );
 oras_qbo_assert_equals( 'printful account fallback to merchandise', (string) $printful_fallback_account, '3040' );
+
+$observer_product = new \WC_Product_Simple();
+$observer_product->set_name( 'Observer Pass Fixture' );
+$observer_product->set_regular_price( '50.00' );
+$observer_product->set_price( '50.00' );
+$observer_product->save();
+$observer_product_id = (int) $observer_product->get_id();
+update_post_meta( $observer_product_id, '_oras_qbo_bucket', 'observer_pass' );
+
+$merch_product = new \WC_Product_Simple();
+$merch_product->set_name( 'Merch Fixture' );
+$merch_product->set_regular_price( '25.00' );
+$merch_product->set_price( '25.00' );
+$merch_product->save();
+$merch_product_id = (int) $merch_product->get_id();
+update_post_meta( $merch_product_id, '_oras_qbo_bucket', 'merchandise' );
+
+$mixed_order = wc_create_order();
+$mixed_order->add_product( wc_get_product( $observer_product_id ), 1 );
+$mixed_order->add_product( wc_get_product( $merch_product_id ), 1 );
+$mixed_order->calculate_totals();
+
+$mixed_split = $split_calculator->calculate(
+    $mixed_order,
+    array(
+        'observer_account_id'    => '3030',
+        'merchandise_account_id' => '3040',
+    )
+);
+if ( is_wp_error( $mixed_split ) ) {
+    throw new RuntimeException( 'mixed order split failed: ' . $mixed_split->get_error_message() );
+}
+oras_qbo_assert_close( 'mixed order calculate split total', (float) $mixed_split['split_total'], 75.00 );
+oras_qbo_assert_equals( 'mixed order calculate line count', count( $mixed_split['lines'] ), 2 );
+oras_qbo_assert_equals( 'mixed order merchandise bucket', (string) $mixed_split['lines'][0]['bucket_key'], 'merchandise' );
+oras_qbo_assert_equals( 'mixed order observer bucket', (string) $mixed_split['lines'][1]['bucket_key'], 'observer_pass' );
 
 echo "QBO split calculator tests passed.\n";
