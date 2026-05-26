@@ -778,6 +778,10 @@ final class Bootstrap
                     'name'         => $name,
                     'email'        => $email,
                     'source'       => 'RSVP',
+                    'phone'        => (string) get_user_meta((int) $user->ID, 'billing_phone', true),
+                    'address'      => '',
+                    'item_label'   => __('RSVP', 'oras-tickets'),
+                    'quantity'     => 1,
                     'user_id'      => (int) $user->ID,
                     'order_id'     => 0,
                     'order_status' => '',
@@ -792,8 +796,14 @@ final class Bootstrap
             foreach ($ticket_list as $attendee) {
                 $name = $attendee['name'];
                 $email = $attendee['email'];
+                $item_label = isset($attendee['item_label']) ? (string) $attendee['item_label'] : '';
 
-                if ($search !== '' && stripos($name, $search) === false && stripos($email, $search) === false) {
+                if (
+                    $search !== ''
+                    && stripos($name, $search) === false
+                    && stripos($email, $search) === false
+                    && stripos($item_label, $search) === false
+                ) {
                     continue;
                 }
 
@@ -922,93 +932,110 @@ final class Bootstrap
             return array();
         }
 
-        $map = get_post_meta($event_id, '_oras_tickets_woo_map_v1', true);
-        if (! is_array($map) || empty($map)) {
-            return array();
-        }
-
-        $product_ids = array();
-        foreach ($map as $pid) {
-            $pid = absint($pid);
-            if ($pid > 0) {
-                $product_ids[] = $pid;
-            }
-        }
-        if (empty($product_ids)) {
-            return array();
-        }
-        $product_lookup = array_fill_keys($product_ids, true);
-
-        $orders = array();
-        foreach ($product_ids as $pid) {
-            $ords = wc_get_orders(array(
-                // Keep this aligned with attendee dashboard ticket status filters.
-                'status'  => array('completed', 'processing', 'on-hold', 'pending', 'refunded', 'cancelled', 'failed'),
-                'product_id' => $pid,
-                'limit'   => -1,
-            ));
-            $orders = array_merge($orders, $ords);
-        }
-
-        $unique_orders = array();
-        foreach ($orders as $order) {
-            $unique_orders[$order->get_id()] = $order;
-        }
-
         $attendees = array();
-        foreach ($unique_orders as $order) {
-            $user_id = (int) $order->get_user_id();
-            $order_id = $order->get_id();
-            $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
-            $email = $order->get_billing_email();
-            $order_status = $order->get_status();
-            $ticket_count = 0;
+        $page = 1;
+        $limit = 100;
+        $statuses = array('completed', 'processing', 'on-hold', 'pending', 'refunded', 'cancelled', 'failed');
 
-            foreach ($order->get_items() as $item) {
-                if (! is_object($item) || ! method_exists($item, 'get_product_id')) {
+        do {
+            $orders = wc_get_orders(
+                array(
+                    'status'  => $statuses,
+                    'limit'   => $limit,
+                    'page'    => $page,
+                    'orderby' => 'date',
+                    'order'   => 'DESC',
+                )
+            );
+            if (empty($orders)) {
+                break;
+            }
+
+            foreach ($orders as $order) {
+                if (! $order instanceof \WC_Order) {
                     continue;
                 }
+                $user_id = (int) $order->get_user_id();
+                $order_id = $order->get_id();
+                $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                $email = $order->get_billing_email();
+                $phone = (string) $order->get_billing_phone();
+                $address = trim(
+                    implode(
+                        ', ',
+                        array_filter(
+                            array(
+                                (string) $order->get_billing_address_1(),
+                                (string) $order->get_billing_address_2(),
+                                (string) $order->get_billing_city(),
+                                (string) $order->get_billing_state(),
+                                (string) $order->get_billing_postcode(),
+                                (string) $order->get_billing_country(),
+                            ),
+                            static function (string $value): bool {
+                                return trim($value) !== '';
+                            }
+                        )
+                    )
+                );
+                $order_status = $order->get_status();
 
-                $product_id = (int) $item->get_product_id();
-                if ($product_id <= 0 || ! isset($product_lookup[$product_id])) {
-                    continue;
+                foreach ($order->get_items() as $item) {
+                    if (! $item instanceof \WC_Order_Item_Product) {
+                        continue;
+                    }
+
+                    $linked_event = (int) $item->get_meta('_oras_ticket_event_id', true);
+                    if ($linked_event !== $event_id) {
+                        continue;
+                    }
+
+                    $qty = (int) $item->get_quantity();
+                    $ticket_count = max(1, $qty);
+                    $ticket_name = trim((string) $item->get_meta('_oras_ticket_name', true));
+                    if ($ticket_name === '') {
+                        $ticket_name = (string) $item->get_name();
+                    }
+
+                    for ($idx = 1; $idx <= $ticket_count; $idx++) {
+                        if ($user_id > 0) {
+                            $attendees[] = array(
+                                'name'         => $name,
+                                'email'        => $email,
+                                'phone'        => $phone,
+                                'address'      => $address,
+                                'source'       => 'Ticket',
+                                'item_label'   => $ticket_name,
+                                'quantity'     => 1,
+                                'user_id'      => $user_id,
+                                'order_id'     => $order_id,
+                                'order_status' => $order_status,
+                                'ticket_index' => $idx,
+                                'ticket_total' => $ticket_count,
+                            );
+                        } else {
+                            $attendees[] = array(
+                                'name'         => $name,
+                                'email'        => $email,
+                                'phone'        => $phone,
+                                'address'      => $address,
+                                'source'       => 'Ticket (Guest)',
+                                'item_label'   => $ticket_name,
+                                'quantity'     => 1,
+                                'user_id'      => 0,
+                                'order_id'     => $order_id,
+                                'order_status' => $order_status,
+                                'ticket_index' => $idx,
+                                'ticket_total' => $ticket_count,
+                            );
+                        }
+                    }
                 }
-
-                $qty = method_exists($item, 'get_quantity') ? (int) $item->get_quantity() : 1;
-                $ticket_count += max(1, $qty);
             }
 
-            if ($ticket_count <= 0) {
-                continue;
-            }
-
-            for ($idx = 1; $idx <= $ticket_count; $idx++) {
-                if ($user_id > 0) {
-                    $attendees[] = array(
-                        'name'         => $name,
-                        'email'        => $email,
-                        'source'       => 'Ticket',
-                        'user_id'      => $user_id,
-                        'order_id'     => $order_id,
-                        'order_status' => $order_status,
-                        'ticket_index' => $idx,
-                        'ticket_total' => $ticket_count,
-                    );
-                } else {
-                    // Guest
-                    $attendees[] = array(
-                        'name'         => $name,
-                        'email'        => $email,
-                        'source'       => 'Ticket (Guest)',
-                        'user_id'      => 0,
-                        'order_id'     => $order_id,
-                        'order_status' => $order_status,
-                        'ticket_index' => $idx,
-                        'ticket_total' => $ticket_count,
-                    );
-                }
-            }
-        }
+            ++$page;
+            $count = count($orders);
+        } while ($count === $limit);
 
         return $attendees;
     }

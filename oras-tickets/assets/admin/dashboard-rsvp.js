@@ -169,6 +169,7 @@ jQuery( document ).ready( function( $ ) {
 	var $attendeesHasNoteOnly = $( '#oras-attendees-has-note-only' );
 	var $attendeesSearch = $( '#oras-attendees-search' );
 	var $attendeesExportCsv = $( '#oras-attendees-export-csv' );
+	var $attendeesPrint = $( '#oras-attendees-print' );
 	var $attendeesMessagePanel = $( '#oras-attendees-message-panel' );
 	var $attendeesMessageSubject = $( '#oras-attendees-message-subject' );
 	var $attendeesMessageBody = $( '#oras-attendees-message-body' );
@@ -637,6 +638,10 @@ jQuery( document ).ready( function( $ ) {
 		}
 	} );
 
+	$attendeesPrint.on( 'click', function() {
+		globalThis.print();
+	} );
+
 	$attendeesExportCsv.on( 'click', function() {
 		var eventId = sanitizeEventId( $attendeesEventSelector.val() );
 		if ( ! eventId ) {
@@ -751,12 +756,20 @@ jQuery( document ).ready( function( $ ) {
 					populateAttendeesTable( response.data.attendees );
 					populateAttendeesSummary( response.data.summary || null );
 					$attendeesTableContainer.show();
+					if ( globalThis.ORAS_ATTENDEES_AUTO_PRINT === true ) {
+						globalThis.ORAS_ATTENDEES_AUTO_PRINT = false;
+						globalThis.setTimeout( function() { globalThis.print(); }, 150 );
+					}
 				} else {
 					alert( 'Error loading attendees: ' + ( response.data || 'Unknown error' ) );
 				}
 			},
-			error: function() {
-				alert( 'Network error loading attendees.' );
+			error: function( xhr ) {
+				var detail = '';
+				if ( xhr && typeof xhr.responseText === 'string' ) {
+					detail = xhr.responseText.slice( 0, 220 );
+				}
+				alert( 'Network error loading attendees.' + ( detail ? '\n\n' + detail : '' ) );
 			},
 			complete: function() {
 				setAttendeesLoading( false );
@@ -788,7 +801,7 @@ jQuery( document ).ready( function( $ ) {
 		if ( attendees.length === 0 ) {
 			$attendeesBodyTable
 				.append( $( '<tr/>' )
-					.append( $( '<td/>' ).attr( 'colspan', 8 ).text( 'No attendees found.' ) ) );
+					.append( $( '<td/>' ).attr( 'colspan', 12 ).text( 'No attendees found.' ) ) );
 			return;
 		}
 
@@ -899,6 +912,10 @@ jQuery( document ).ready( function( $ ) {
 				.append( $( '<td/>' ).text( String( attendee.name ?? '' ) ) )
 				.append( $( '<td/>' ).text( String( emailValue ) ) )
 				.append( $( '<td/>' ).text( String( attendee.source ?? '' ) ) )
+				.append( $( '<td/>' ).text( String( attendee.phone ?? '' ) ) )
+				.append( $( '<td/>' ).text( String( attendee.address ?? '' ) ) )
+				.append( $( '<td/>' ).text( String( attendee.item_label ?? '' ) ) )
+				.append( $( '<td/>' ).text( String( attendee.quantity ?? '' ) ) )
 				.append( $( '<td/>' ).text( userIdLabel ) )
 				.append( $( '<td/>' ).text( orderIdLabel ) )
 				.append( $( '<td/>' ).text( String( attendee.order_status ?? '' ) ) )
@@ -911,7 +928,7 @@ jQuery( document ).ready( function( $ ) {
 
 	$( document ).on( 'click', '.oras-edit-note', function( e ) {
 		e.preventDefault();
-		var $cell = $( this ).closest( 'tr' ).find( 'td' ).eq( 6 );
+		var $cell = $( this ).closest( 'tr' ).find( 'td' ).eq( 10 );
 		$cell.find( '.oras-note-preview' ).hide();
 		$cell.find( '.oras-note-editor' ).show();
 	} );
@@ -950,4 +967,11 @@ jQuery( document ).ready( function( $ ) {
 			}
 		} );
 	} );
+
+	var initialEventId = sanitizeEventId( $attendeesEventSelector.val() );
+	if ( initialEventId ) {
+		$attendeesFilters.show();
+		$attendeesMessagePanel.show();
+		loadAttendeesData( initialEventId );
+	}
 } );

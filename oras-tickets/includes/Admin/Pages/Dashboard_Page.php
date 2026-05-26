@@ -18,6 +18,11 @@ final class Dashboard_Page
         $events = $this->get_events_with_tickets();
         $rsvp_events = $this->get_events_with_rsvp();
         $all_events = $this->get_all_events();
+        $prefill_event_id = isset($_GET['event_id']) ? absint($_GET['event_id']) : 0;
+        $prefill_source = isset($_GET['source_filter']) ? sanitize_key((string) wp_unslash($_GET['source_filter'])) : 'all';
+        $prefill_ticket_status = isset($_GET['ticket_status']) ? sanitize_key((string) wp_unslash($_GET['ticket_status'])) : 'all';
+        $prefill_search = isset($_GET['search']) ? sanitize_text_field((string) wp_unslash($_GET['search'])) : '';
+        $prefill_print = isset($_GET['print']) && (string) wp_unslash($_GET['print']) === '1';
 
         $current_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'overview';
 
@@ -66,7 +71,15 @@ final class Dashboard_Page
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo esc_html((string) $type_count); ?></td>
-                                    <td><?php echo esc_html((string) $sold_count); ?></td>
+                                    <td>
+                                        <?php if ($sold_count > 0) : ?>
+                                            <a href="<?php echo esc_url($this->build_attendees_tab_url($event_id, 'tickets', 'all', '')); ?>">
+                                                <?php echo esc_html((string) $sold_count); ?>
+                                            </a>
+                                        <?php else : ?>
+                                            <?php echo esc_html((string) $sold_count); ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo esc_html($sold_out ? __('Yes', 'oras-tickets') : __('No', 'oras-tickets')); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -193,7 +206,7 @@ final class Dashboard_Page
                     <select id="oras-attendees-event-selector" style="margin-left: 10px;">
                         <option value=""><?php echo esc_html__('Select Event', 'oras-tickets'); ?></option>
                         <?php foreach ($all_events as $event_id) : ?>
-                            <option value="<?php echo esc_attr((string) $event_id); ?>"><?php echo esc_html(get_the_title($event_id)); ?></option>
+                            <option value="<?php echo esc_attr((string) $event_id); ?>" <?php selected($prefill_event_id, (int) $event_id); ?>><?php echo esc_html(get_the_title($event_id)); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -201,21 +214,21 @@ final class Dashboard_Page
                 <div id="oras-attendees-filters" style="display:none; margin-bottom: 20px;">
                     <label for="oras-attendees-source-filter"><?php echo esc_html__('Source:', 'oras-tickets'); ?></label>
                     <select id="oras-attendees-source-filter" style="margin-left: 10px; margin-right: 20px;">
-                        <option value="all"><?php echo esc_html__('All', 'oras-tickets'); ?></option>
-                        <option value="tickets"><?php echo esc_html__('Tickets', 'oras-tickets'); ?></option>
-                        <option value="rsvp"><?php echo esc_html__('RSVP', 'oras-tickets'); ?></option>
-                        <option value="both"><?php echo esc_html__('Both', 'oras-tickets'); ?></option>
+                        <option value="all" <?php selected($prefill_source, 'all'); ?>><?php echo esc_html__('All', 'oras-tickets'); ?></option>
+                        <option value="tickets" <?php selected($prefill_source, 'tickets'); ?>><?php echo esc_html__('Tickets', 'oras-tickets'); ?></option>
+                        <option value="rsvp" <?php selected($prefill_source, 'rsvp'); ?>><?php echo esc_html__('RSVP', 'oras-tickets'); ?></option>
+                        <option value="both" <?php selected($prefill_source, 'both'); ?>><?php echo esc_html__('Both', 'oras-tickets'); ?></option>
                     </select>
 
                     <label for="oras-attendees-ticket-status-filter"><?php echo esc_html__('Ticket Status:', 'oras-tickets'); ?></label>
                     <select id="oras-attendees-ticket-status-filter" style="margin-left: 10px; margin-right: 20px;">
-                        <option value="all"><?php echo esc_html__('All', 'oras-tickets'); ?></option>
-                        <option value="completed"><?php echo esc_html__('Completed', 'oras-tickets'); ?></option>
-                        <option value="processing"><?php echo esc_html__('Processing', 'oras-tickets'); ?></option>
-                        <option value="on-hold"><?php echo esc_html__('On Hold', 'oras-tickets'); ?></option>
-                        <option value="refunded"><?php echo esc_html__('Refunded', 'oras-tickets'); ?></option>
-                        <option value="cancelled"><?php echo esc_html__('Cancelled', 'oras-tickets'); ?></option>
-                        <option value="failed"><?php echo esc_html__('Failed', 'oras-tickets'); ?></option>
+                        <option value="all" <?php selected($prefill_ticket_status, 'all'); ?>><?php echo esc_html__('All', 'oras-tickets'); ?></option>
+                        <option value="completed" <?php selected($prefill_ticket_status, 'completed'); ?>><?php echo esc_html__('Completed', 'oras-tickets'); ?></option>
+                        <option value="processing" <?php selected($prefill_ticket_status, 'processing'); ?>><?php echo esc_html__('Processing', 'oras-tickets'); ?></option>
+                        <option value="on-hold" <?php selected($prefill_ticket_status, 'on-hold'); ?>><?php echo esc_html__('On Hold', 'oras-tickets'); ?></option>
+                        <option value="refunded" <?php selected($prefill_ticket_status, 'refunded'); ?>><?php echo esc_html__('Refunded', 'oras-tickets'); ?></option>
+                        <option value="cancelled" <?php selected($prefill_ticket_status, 'cancelled'); ?>><?php echo esc_html__('Cancelled', 'oras-tickets'); ?></option>
+                        <option value="failed" <?php selected($prefill_ticket_status, 'failed'); ?>><?php echo esc_html__('Failed', 'oras-tickets'); ?></option>
                     </select>
 
                     <label for="oras-attendees-guests-only">
@@ -229,9 +242,10 @@ final class Dashboard_Page
                     </label>
 
                     <label for="oras-attendees-search"><?php echo esc_html__('Search:', 'oras-tickets'); ?></label>
-                    <input type="text" id="oras-attendees-search" placeholder="<?php echo esc_attr__('Name or email...', 'oras-tickets'); ?>" style="margin-left: 10px;" />
+                    <input type="text" id="oras-attendees-search" value="<?php echo esc_attr($prefill_search); ?>" placeholder="<?php echo esc_attr__('Name, email, ticket, order...', 'oras-tickets'); ?>" style="margin-left: 10px;" />
 
                     <button id="oras-attendees-export-csv" class="button" style="margin-left: 20px;"><?php echo esc_html__('Export CSV', 'oras-tickets'); ?></button>
+                    <button id="oras-attendees-print" class="button" type="button" style="margin-left: 8px;"><?php echo esc_html__('Print List', 'oras-tickets'); ?></button>
                 </div>
 
                 <div id="oras-attendees-message-panel" style="display:none; margin-top: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">
@@ -269,6 +283,10 @@ final class Dashboard_Page
                                 <th><?php echo esc_html__('Name', 'oras-tickets'); ?></th>
                                 <th><?php echo esc_html__('Email', 'oras-tickets'); ?></th>
                                 <th><?php echo esc_html__('Source', 'oras-tickets'); ?></th>
+                                <th><?php echo esc_html__('Phone', 'oras-tickets'); ?></th>
+                                <th><?php echo esc_html__('Address', 'oras-tickets'); ?></th>
+                                <th><?php echo esc_html__('Purchased', 'oras-tickets'); ?></th>
+                                <th><?php echo esc_html__('Qty', 'oras-tickets'); ?></th>
                                 <th><?php echo esc_html__('User ID', 'oras-tickets'); ?></th>
                                 <th><?php echo esc_html__('Order ID', 'oras-tickets'); ?></th>
                                 <th><?php echo esc_html__('Order Status', 'oras-tickets'); ?></th>
@@ -280,6 +298,9 @@ final class Dashboard_Page
                         </tbody>
                     </table>
                 </div>
+                <?php if ($prefill_print) : ?>
+                    <script>window.ORAS_ATTENDEES_AUTO_PRINT = true;</script>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 <?php
@@ -454,5 +475,21 @@ final class Dashboard_Page
         }
 
         return $ticket_units;
+    }
+
+    private function build_attendees_tab_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'all', string $search = ''): string
+    {
+        $args = array(
+            'page' => 'oras-tickets',
+            'tab' => 'attendees',
+            'event_id' => $event_id,
+            'source_filter' => $source_filter,
+            'ticket_status' => $ticket_status,
+        );
+        if ($search !== '') {
+            $args['search'] = $search;
+        }
+
+        return add_query_arg($args, admin_url('admin.php'));
     }
 }

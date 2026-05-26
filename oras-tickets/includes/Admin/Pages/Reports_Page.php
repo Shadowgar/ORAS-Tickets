@@ -528,7 +528,15 @@ final class Reports_Page
                                             </td>
                                             <td><?php echo esc_html($row['event_date']); ?></td>
                                             <td><?php echo esc_html((string) $row['orders']); ?></td>
-                                            <td><?php echo esc_html((string) $row['tickets_sold']); ?></td>
+                                            <td>
+                                                <?php if ((int) $row['tickets_sold'] > 0) : ?>
+                                                    <a href="<?php echo esc_url($this->build_attendees_dashboard_url((int) $row['event_id'], 'tickets', 'all', '')); ?>">
+                                                        <?php echo esc_html((string) $row['tickets_sold']); ?>
+                                                    </a>
+                                                <?php else : ?>
+                                                    <?php echo esc_html((string) $row['tickets_sold']); ?>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo esc_html((string) $row['presale_tickets_sold']); ?></td>
                                             <td><?php echo esc_html((string) $row['after_presale_tickets_sold']); ?></td>
                                             <td class="is-right"><?php echo esc_html($this->format_money($row['gross_sales'])); ?></td>
@@ -717,7 +725,15 @@ final class Reports_Page
                                         <?php foreach ($aggregates['by_ticket'] as $row) : ?>
                                             <tr>
                                                 <td><?php echo esc_html($row['ticket_name']); ?></td>
-                                                <td><?php echo esc_html((string) $row['sold_qty']); ?></td>
+                                                <td>
+                                                    <?php if ((int) $row['sold_qty'] > 0) : ?>
+                                                        <a href="<?php echo esc_url($this->build_attendees_dashboard_url($selected_event_id, 'tickets', 'all', (string) $row['ticket_name'])); ?>">
+                                                            <?php echo esc_html((string) $row['sold_qty']); ?>
+                                                        </a>
+                                                    <?php else : ?>
+                                                        <?php echo esc_html((string) $row['sold_qty']); ?>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="is-right"><?php echo esc_html($this->format_money($row['gross'])); ?></td>
                                                 <td><?php echo esc_html((string) $row['refunded_qty']); ?></td>
                                                 <td class="is-right"><?php echo esc_html($this->format_money($row['refunded_amount'])); ?></td>
@@ -730,7 +746,15 @@ final class Reports_Page
                                     <tfoot>
                                         <tr>
                                             <th scope="col"><?php echo esc_html__('Totals', 'oras-tickets'); ?></th>
-                                            <th scope="col"><?php echo esc_html((string) $aggregates['summary']['tickets_sold']); ?></th>
+                                            <th scope="col">
+                                                <?php if ((int) $aggregates['summary']['tickets_sold'] > 0) : ?>
+                                                    <a href="<?php echo esc_url($this->build_attendees_dashboard_url($selected_event_id, 'tickets', 'all', '')); ?>">
+                                                        <?php echo esc_html((string) $aggregates['summary']['tickets_sold']); ?>
+                                                    </a>
+                                                <?php else : ?>
+                                                    <?php echo esc_html((string) $aggregates['summary']['tickets_sold']); ?>
+                                                <?php endif; ?>
+                                            </th>
                                             <th scope="col" class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['gross_sales'])); ?></th>
                                             <th scope="col"><?php echo esc_html((string) $aggregates['summary']['refunded_qty']); ?></th>
                                             <th scope="col" class="is-right"><?php echo esc_html($this->format_money($aggregates['summary']['refunded_amount'])); ?></th>
@@ -1687,6 +1711,22 @@ final class Reports_Page
             'oras_tickets_before'   => $range_data['before'],
             'oras_tickets_statuses' => $statuses,
         );
+
+        return add_query_arg($args, admin_url('admin.php'));
+    }
+
+    private function build_attendees_dashboard_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'all', string $search = ''): string
+    {
+        $args = array(
+            'page'          => 'oras-tickets',
+            'tab'           => 'attendees',
+            'event_id'      => $event_id,
+            'source_filter' => $source_filter,
+            'ticket_status' => $ticket_status,
+        );
+        if ($search !== '') {
+            $args['search'] = $search;
+        }
 
         return add_query_arg($args, admin_url('admin.php'));
     }
