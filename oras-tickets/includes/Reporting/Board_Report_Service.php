@@ -42,7 +42,20 @@ final class Board_Report_Service {
 	 * @return array<int,\WP_Post>
 	 */
 	public function get_events(): array {
-		return get_posts(
+		$events = array();
+
+		foreach ( $this->get_ticket_event_ids_from_orders() as $event_id ) {
+			$post = get_post( $event_id );
+			if ( ! $post instanceof \WP_Post || 'tribe_events' !== $post->post_type ) {
+				continue;
+			}
+			if ( in_array( $post->post_status, array( 'trash', 'auto-draft' ), true ) ) {
+				continue;
+			}
+			$events[ (int) $post->ID ] = $post;
+		}
+
+		$all_events = get_posts(
 			array(
 				'post_type'      => 'tribe_events',
 				'post_status'    => array( 'publish', 'future', 'draft', 'private' ),
@@ -51,6 +64,23 @@ final class Board_Report_Service {
 				'order'          => 'DESC',
 			)
 		);
+
+		foreach ( $all_events as $event ) {
+			if ( ! $event instanceof \WP_Post ) {
+				continue;
+			}
+			$events[ (int) $event->ID ] = $event;
+		}
+
+		$events = array_values( $events );
+		usort(
+			$events,
+			static function ( \WP_Post $left, \WP_Post $right ): int {
+				return strcmp( (string) $right->post_date, (string) $left->post_date );
+			}
+		);
+
+		return $events;
 	}
 
 	/**
@@ -391,5 +421,44 @@ final class Board_Report_Service {
 		}
 
 		return false;
+	}
+
+	/**
+	 * @return int[]
+	 */
+	private function get_ticket_event_ids_from_orders(): array {
+		global $wpdb;
+
+		if ( ! $wpdb instanceof \wpdb ) {
+			return array();
+		}
+
+		// Pull distinct linked event IDs from Woo ticket line item meta.
+		$rows = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT CAST(meta_value AS UNSIGNED) AS event_id
+				FROM {$wpdb->prefix}woocommerce_order_itemmeta
+				WHERE meta_key = %s
+				AND meta_value <> ''
+				AND meta_value IS NOT NULL",
+				'_oras_ticket_event_id'
+			)
+		);
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$ids = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'absint', $rows ),
+					static function ( int $id ): bool {
+						return $id > 0;
+					}
+				)
+			)
+		);
+
+		return $ids;
 	}
 }

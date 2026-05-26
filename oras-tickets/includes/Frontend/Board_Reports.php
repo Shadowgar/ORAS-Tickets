@@ -37,10 +37,13 @@ final class Board_Reports {
 		if ( ! isset( $types[ $filters['type'] ] ) ) {
 			$filters['type'] = Board_Report_Service::TYPE_TICKETS;
 		}
+		$requires_event = self::type_requires_event( $filters['type'] );
 
 		$events = $service->get_events();
-		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
+		if ( $requires_event && $filters['event_id'] <= 0 && ! empty( $events ) ) {
 			$filters['event_id'] = (int) $events[0]->ID;
+		} elseif ( ! $requires_event ) {
+			$filters['event_id'] = 0;
 		}
 		$page_id = self::get_context_page_id();
 
@@ -133,14 +136,16 @@ final class Board_Reports {
 					</select>
 				</label>
 
-				<label>
-					<?php echo esc_html__( 'Event', 'oras-tickets' ); ?>
-					<select name="oras_board_event_id">
-						<?php foreach ( $events as $event ) : ?>
-							<option value="<?php echo esc_attr( (string) $event->ID ); ?>" <?php selected( $filters['event_id'], (int) $event->ID ); ?>><?php echo esc_html( get_the_title( $event ) ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
+				<?php if ( $requires_event ) : ?>
+					<label>
+						<?php echo esc_html__( 'Event', 'oras-tickets' ); ?>
+						<select name="oras_board_event_id">
+							<?php foreach ( $events as $event ) : ?>
+								<option value="<?php echo esc_attr( (string) $event->ID ); ?>" <?php selected( $filters['event_id'], (int) $event->ID ); ?>><?php echo esc_html( get_the_title( $event ) ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</label>
+				<?php endif; ?>
 
 				<label>
 					<?php echo esc_html__( 'After', 'oras-tickets' ); ?>
@@ -282,6 +287,14 @@ final class Board_Reports {
 			'refunded'   => __( 'Refunded', 'oras-tickets' ),
 			'cancelled'  => __( 'Cancelled', 'oras-tickets' ),
 			'failed'     => __( 'Failed', 'oras-tickets' ),
+		);
+	}
+
+	private static function type_requires_event( string $type ): bool {
+		return in_array(
+			$type,
+			array( Board_Report_Service::TYPE_TICKETS, Board_Report_Service::TYPE_RSVP ),
+			true
 		);
 	}
 
