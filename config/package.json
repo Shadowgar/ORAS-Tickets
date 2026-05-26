@@ -11,11 +11,15 @@
     "stan:php": "composer phpstan"
   },
   "devDependencies": {
-    "@wordpress/env": "^11.3.0"
+    "@wordpress/env": "^11.6.0"
   },
   "overrides": {
-    "fast-xml-parser": "5.5.11",
+    "ajv": "8.20.0",
+    "fast-xml-parser": "5.8.0",
+    "fast-xml-builder": "1.2.0",
     "minimatch": "^9.0.7",
-    "simple-git": "3.33.0"
+    "qs": "6.15.2",
+    "simple-git": "3.36.0",
+    "ws": "8.21.0"
   }
 }
