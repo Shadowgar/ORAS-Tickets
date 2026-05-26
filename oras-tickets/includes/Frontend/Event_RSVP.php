@@ -15,6 +15,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const META_KEY = '_oras_rsvp_v1';
     private const USERMETA_PREFIX = '_oras_rsvp_event_';
     private const USERMETA_ATTENDANCE_SUFFIX = '_attendance_mode';
+    private const USERMETA_CONTACT_SUFFIX = '_contact';
     private const ACTION = 'oras_rsvp_update';
     private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
 
@@ -95,6 +96,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         $status = self::get_user_status( $event_id, $user_id );
         $attendance_mode = self::get_user_attendance_mode( $event_id, $user_id );
+        $contact = self::get_user_contact_defaults( $event_id, $user_id );
         $yes_count = self::yes_count( $event_id );
         $selected_mode = '' !== $attendance_mode ? $attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE;
 
@@ -133,6 +135,16 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         echo '<p class="description oras-rsvp-description">' . esc_html__( 'Choose whether your RSVP is for attending on-site or joining virtually.', 'oras-tickets' ) . '</p>';
         echo '</fieldset>';
 
+        echo '<fieldset class="oras-rsvp-contact">';
+        echo '<legend>' . esc_html__( 'Contact Details', 'oras-tickets' ) . '</legend>';
+        echo '<p class="description oras-rsvp-description">' . esc_html__( 'These details help ORAS prepare the event roster.', 'oras-tickets' ) . '</p>';
+        echo '<label class="oras-rsvp-field">' . esc_html__( 'First Name', 'oras-tickets' ) . '<input type="text" name="rsvp_first_name" value="' . esc_attr( $contact['first_name'] ) . '" autocomplete="given-name" /></label>';
+        echo '<label class="oras-rsvp-field">' . esc_html__( 'Last Name', 'oras-tickets' ) . '<input type="text" name="rsvp_last_name" value="' . esc_attr( $contact['last_name'] ) . '" autocomplete="family-name" /></label>';
+        echo '<label class="oras-rsvp-field">' . esc_html__( 'Email', 'oras-tickets' ) . '<input type="email" name="rsvp_email" value="' . esc_attr( $contact['email'] ) . '" autocomplete="email" required /></label>';
+        echo '<label class="oras-rsvp-field">' . esc_html__( 'Phone', 'oras-tickets' ) . '<input type="tel" name="rsvp_phone" value="' . esc_attr( $contact['phone'] ) . '" autocomplete="tel" /></label>';
+        echo '<label class="oras-rsvp-field">' . esc_html__( 'Note', 'oras-tickets' ) . '<textarea name="rsvp_note" rows="3">' . esc_textarea( $contact['note'] ) . '</textarea></label>';
+        echo '</fieldset>';
+
         // Buttons
         echo '<p class="oras-rsvp-actions">';
         echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button>';
@@ -169,7 +181,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $nonce = isset( $_POST['oras_rsvp_nonce'] ) && is_scalar( $_POST['oras_rsvp_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_nonce'] ) ) : '';
         $raw_intent = isset( $_POST['intent'] ) && is_scalar( $_POST['intent'] ) ? sanitize_text_field( wp_unslash( $_POST['intent'] ) ) : '';
         $posted_attendance_mode = isset( $_POST['attendance_mode'] ) && is_scalar( $_POST['attendance_mode'] ) ? sanitize_text_field( wp_unslash( $_POST['attendance_mode'] ) ) : '';
+        $posted_contact = self::get_posted_contact();
         $virtual_email = isset( $_POST['virtual_email'] ) && is_scalar( $_POST['virtual_email'] ) ? sanitize_email( wp_unslash( $_POST['virtual_email'] ) ) : '';
+        if ( '' === $virtual_email && '' !== $posted_contact['email'] ) {
+            $virtual_email = $posted_contact['email'];
+        }
         $redirect = get_permalink( $event_id ) ?: home_url();
 
         $intent = self::normalize_intent( $raw_intent );
@@ -368,6 +384,10 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             exit;
         }
 
+        if ( in_array( (string) ( $operation['status'] ?? '' ), array( 'yes', 'waitlist' ), true ) ) {
+            update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CONTACT_SUFFIX, $posted_contact );
+        }
+
         if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
             if ( 'yes' === (string) ( $operation['status'] ?? '' ) ) {
                 $attendance_mode = (string) ( $operation['attendance_mode'] ?? $request_attendance_mode );
@@ -404,6 +424,75 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         wp_safe_redirect( $redirect );
         exit;
+    }
+
+    /**
+     * @return array{first_name:string,last_name:string,email:string,phone:string,note:string}
+     */
+    private static function get_user_contact_defaults( int $event_id, int $user_id ): array {
+        $contact = array(
+            'first_name' => '',
+            'last_name'  => '',
+            'email'      => '',
+            'phone'      => '',
+            'note'       => '',
+        );
+
+        if ( $user_id <= 0 ) {
+            return $contact;
+        }
+
+        $stored = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CONTACT_SUFFIX, true );
+        if ( is_array( $stored ) ) {
+            foreach ( $contact as $key => $value ) {
+                if ( isset( $stored[ $key ] ) && is_scalar( $stored[ $key ] ) ) {
+                    $contact[ $key ] = 'email' === $key
+                        ? sanitize_email( (string) $stored[ $key ] )
+                        : sanitize_text_field( (string) $stored[ $key ] );
+                }
+            }
+        }
+
+        $user = get_user_by( 'id', $user_id );
+        if ( $user instanceof \WP_User ) {
+            if ( '' === $contact['first_name'] ) {
+                $contact['first_name'] = sanitize_text_field( (string) get_user_meta( $user_id, 'first_name', true ) );
+            }
+            if ( '' === $contact['last_name'] ) {
+                $contact['last_name'] = sanitize_text_field( (string) get_user_meta( $user_id, 'last_name', true ) );
+            }
+            if ( '' === $contact['email'] ) {
+                $contact['email'] = sanitize_email( (string) $user->user_email );
+            }
+            if ( '' === $contact['phone'] ) {
+                $contact['phone'] = sanitize_text_field( (string) get_user_meta( $user_id, 'billing_phone', true ) );
+            }
+        }
+
+        return $contact;
+    }
+
+    /**
+     * @return array{first_name:string,last_name:string,email:string,phone:string,note:string}
+     */
+    private static function get_posted_contact(): array {
+        return array(
+            'first_name' => isset( $_POST['rsvp_first_name'] ) && is_scalar( $_POST['rsvp_first_name'] )
+                ? sanitize_text_field( wp_unslash( $_POST['rsvp_first_name'] ) )
+                : '',
+            'last_name'  => isset( $_POST['rsvp_last_name'] ) && is_scalar( $_POST['rsvp_last_name'] )
+                ? sanitize_text_field( wp_unslash( $_POST['rsvp_last_name'] ) )
+                : '',
+            'email'      => isset( $_POST['rsvp_email'] ) && is_scalar( $_POST['rsvp_email'] )
+                ? sanitize_email( wp_unslash( $_POST['rsvp_email'] ) )
+                : '',
+            'phone'      => isset( $_POST['rsvp_phone'] ) && is_scalar( $_POST['rsvp_phone'] )
+                ? sanitize_text_field( wp_unslash( $_POST['rsvp_phone'] ) )
+                : '',
+            'note'       => isset( $_POST['rsvp_note'] ) && is_scalar( $_POST['rsvp_note'] )
+                ? sanitize_textarea_field( wp_unslash( $_POST['rsvp_note'] ) )
+                : '',
+        );
     }
 
     private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode ): bool {
@@ -489,7 +578,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 $parts = array_filter(
                     array( $venue_name, $address, $city, $region, $zip, $country ),
                     static function ( $value ) {
-                        return is_string( $value ) && '' !== trim( $value );
+                        return '' !== trim( $value );
                     }
                 );
                 $location_text = implode( ', ', $parts );

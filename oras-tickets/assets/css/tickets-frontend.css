@@ -232,7 +232,8 @@
 	margin-top: 1rem;
 }
 
-.oras-rsvp-attendance-mode {
+.oras-rsvp-attendance-mode,
+.oras-rsvp-contact {
 	margin: 1rem 0 0;
 	padding: 1rem 1.125rem;
 	border: 1px solid var(--oras-rsvp-field-border);
@@ -242,7 +243,8 @@
 	color: var(--oras-rsvp-label-text);
 }
 
-.oras-rsvp-attendance-mode legend {
+.oras-rsvp-attendance-mode legend,
+.oras-rsvp-contact legend {
 	padding: 0 0.35rem;
 	font-weight: 700;
 	color: var(--oras-rsvp-legend-text) !important;
@@ -250,7 +252,9 @@
 
 .oras-rsvp-attendance-mode,
 .oras-rsvp-attendance-mode label,
-.oras-rsvp-attendance-mode span {
+.oras-rsvp-attendance-mode span,
+.oras-rsvp-contact,
+.oras-rsvp-contact label {
 	color: var(--oras-rsvp-label-text) !important;
 }
 
@@ -278,6 +282,24 @@
 .oras-rsvp-description {
 	margin: 0.75rem 0 0;
 	color: var(--oras-rsvp-description-text) !important;
+}
+
+.oras-rsvp-field {
+	display: grid;
+	gap: 0.35rem;
+	margin-top: 0.75rem;
+	font-weight: 600;
+}
+
+.oras-rsvp-field input,
+.oras-rsvp-field textarea {
+	width: 100%;
+	max-width: 520px;
+	border: 1px solid var(--oras-rsvp-field-border);
+	border-radius: 6px;
+	padding: 0.55rem 0.65rem;
+	background: #fff;
+	color: #1d2327;
 }
 
 .oras-rsvp-actions {
@@ -464,6 +486,21 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-button-secondary-bg: rgba(148, 163, 184, 0.18);
 	--oras-rsvp-button-secondary-text: #e2e8f0;
 	--oras-rsvp-button-secondary-border: rgba(148, 163, 184, 0.32);
+}
+
+html[data-wp-dark-mode-active] .oras-rsvp-field input,
+html[data-wp-dark-mode-loading] .oras-rsvp-field input,
+html.wp-dark-mode-active .oras-rsvp-field input,
+body.wp-dark-mode-active .oras-rsvp-field input,
+html.oras-dark-on .oras-rsvp-field input,
+html[data-wp-dark-mode-active] .oras-rsvp-field textarea,
+html[data-wp-dark-mode-loading] .oras-rsvp-field textarea,
+html.wp-dark-mode-active .oras-rsvp-field textarea,
+body.wp-dark-mode-active .oras-rsvp-field textarea,
+html.oras-dark-on .oras-rsvp-field textarea {
+	background: rgba(15, 23, 42, 0.72);
+	color: #e5e7eb;
+	border-color: rgba(255, 255, 255, 0.22);
 }
 
 @media (max-width: 640px) {

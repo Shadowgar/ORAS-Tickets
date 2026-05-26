@@ -282,6 +282,9 @@ final class Board_Dashboard
             </style>
 
             <h2><?php echo esc_html__('Board Dashboard', 'oras-tickets'); ?></h2>
+            <p class="oras-board-note">
+                <a href="<?php echo esc_url(home_url('/board-reports/')); ?>"><?php echo esc_html__('Open board reports for ticket buyers, RSVP lists, observer passes, and merchandise.', 'oras-tickets'); ?></a>
+            </p>
             <p class="oras-board-warning">
                 <?php echo esc_html__('Board note: figures on this dashboard are rough operational estimates. Final confirmed totals must come from the Treasurer.', 'oras-tickets'); ?>
             </p>

@@ -33,10 +33,14 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Ticket_Print_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Virtual_Access.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Event_RSVP.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Dashboard.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Reports.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
+require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php'; // NOSONAR include: board-safe contact normalization
+require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php'; // NOSONAR include: board-safe CSV export
+require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Service.php'; // NOSONAR include: board reports data service
 require_once ORAS_TICKETS_DIR . 'includes/Security/Ticket_Checkin_Token.php'; // NOSONAR include: signed check-in token service
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php'; // NOSONAR legacy include
@@ -148,6 +152,7 @@ final class Bootstrap
         \ORAS\Tickets\Frontend\Virtual_Access::register();
         \ORAS\Tickets\Frontend\Event_RSVP::register();
         \ORAS\Tickets\Frontend\Board_Dashboard::register();
+        \ORAS\Tickets\Frontend\Board_Reports::register();
         \ORAS\Tickets\Frontend\Door_Prizes::register();
         \ORAS\Tickets\Templates\Template_Loader::register();
 
