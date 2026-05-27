@@ -950,6 +950,7 @@ final class Bootstrap
         $orders_by_id = array();
         $map = get_post_meta($event_id, '_oras_tickets_woo_map_v1', true);
         $product_ids = array();
+        $product_lookup = array();
 
         if (is_array($map)) {
             foreach ($map as $product_id) {
@@ -957,6 +958,9 @@ final class Bootstrap
                 if ($product_id > 0) {
                     $product_ids[] = $product_id;
                 }
+            }
+            if (! empty($product_ids)) {
+                $product_lookup = array_fill_keys($product_ids, true);
             }
         }
 
@@ -976,7 +980,11 @@ final class Bootstrap
                     }
                 }
             }
-        } else {
+        }
+
+        // Some Woo setups do not honor product_id filtering consistently.
+        // If mapped-product lookup produced no orders, fall back to paged scan.
+        if (empty($orders_by_id)) {
             // Legacy fallback: if map metadata is missing, scan in pages.
             $page = 1;
             $limit = 100;
@@ -1041,7 +1049,9 @@ final class Bootstrap
                 }
 
                 $linked_event = (int) $item->get_meta('_oras_ticket_event_id', true);
-                if ($linked_event !== $event_id) {
+                $item_product_id = (int) $item->get_product_id();
+                $is_mapped_product = $item_product_id > 0 && isset($product_lookup[$item_product_id]);
+                if ($linked_event !== $event_id && ! $is_mapped_product) {
                     continue;
                 }
 

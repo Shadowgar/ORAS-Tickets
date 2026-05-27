@@ -499,14 +499,14 @@ function oras_phase5_run_checks(): void {
 			'Virtual event label is customized for single event pages'
 		);
 		$attendees = oras_phase5_get_filtered_attendees( $bootstrap, $event_id, 'tickets', 'completed', false, '', false );
-		oras_phase5_assert_same( count( $attendees ), 3, 'Ticket attendee list expands quantity to 3 rows' );
-		foreach ( $attendees as $row ) {
-			oras_phase5_assert_same( (int) ( $row['order_id'] ?? 0 ), $order_id, 'Ticket attendee row is linked to expected order ID' );
-		}
+		oras_phase5_assert_same( count( $attendees ), 1, 'Ticket attendee list groups duplicate ticket rows by attendee/order' );
+		oras_phase5_assert_same( (int) ( $attendees[0]['order_id'] ?? 0 ), $order_id, 'Ticket attendee row is linked to expected order ID' );
+		oras_phase5_assert_same( (int) ( $attendees[0]['quantity'] ?? 0 ), 3, 'Grouped ticket attendee row aggregates quantity' );
 
 		$attendees_on_hold = oras_phase5_get_filtered_attendees( $bootstrap, $event_id, 'tickets', 'on-hold', false, '', false );
 		oras_phase5_assert_same( count( $attendees_on_hold ), 1, 'Ticket attendee list includes on-hold orders when filtered by on-hold status' );
 		oras_phase5_assert_same( (int) ( $attendees_on_hold[0]['order_id'] ?? 0 ), $on_hold_order_id, 'On-hold attendee row links to on-hold order ID' );
+		oras_phase5_assert_same( (int) ( $attendees_on_hold[0]['quantity'] ?? 0 ), 1, 'On-hold grouped attendee row keeps expected quantity' );
 
 		$attendees_all_status = oras_phase5_get_filtered_attendees( $bootstrap, $event_id, 'tickets', 'all', false, '', false );
 		$found_on_hold = false;
@@ -774,7 +774,7 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert_same( Waitlist_Store::get_current_waitlist_status( $event_id, $user_4 ), 'promoted', 'Manual waitlist promote updates lifecycle state' );
 
 		$attendees_all = oras_phase5_get_filtered_attendees( $bootstrap, $event_id, 'all', 'all', false, '', false );
-		oras_phase5_assert( count( $attendees_all ) >= 3, 'Attendees CSV export contract source has rows' );
+		oras_phase5_assert( count( $attendees_all ) >= 2, 'Attendees CSV export contract source has grouped rows' );
 
 		oras_phase5_assert( has_action( 'admin_post_oras_rsvp_export_yes' ) > 0, 'RSVP YES export action is registered' );
 		oras_phase5_assert( has_action( 'admin_post_oras_rsvp_export_waitlist' ) > 0, 'RSVP WAITLIST export action is registered' );
