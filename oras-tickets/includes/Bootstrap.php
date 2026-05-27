@@ -933,109 +933,147 @@ final class Bootstrap
         }
 
         $attendees = array();
-        $page = 1;
-        $limit = 100;
         $statuses = array('completed', 'processing', 'on-hold', 'pending', 'refunded', 'cancelled', 'failed');
+        $orders_by_id = array();
+        $map = get_post_meta($event_id, '_oras_tickets_woo_map_v1', true);
+        $product_ids = array();
 
-        do {
-            $orders = wc_get_orders(
-                array(
-                    'status'  => $statuses,
-                    'limit'   => $limit,
-                    'page'    => $page,
-                    'orderby' => 'date',
-                    'order'   => 'DESC',
-                )
-            );
-            if (empty($orders)) {
-                break;
-            }
-
-            foreach ($orders as $order) {
-                if (! $order instanceof \WC_Order) {
-                    continue;
+        if (is_array($map)) {
+            foreach ($map as $product_id) {
+                $product_id = absint($product_id);
+                if ($product_id > 0) {
+                    $product_ids[] = $product_id;
                 }
-                $user_id = (int) $order->get_user_id();
-                $order_id = $order->get_id();
-                $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
-                $email = $order->get_billing_email();
-                $phone = (string) $order->get_billing_phone();
-                $address = trim(
-                    implode(
-                        ', ',
-                        array_filter(
-                            array(
-                                (string) $order->get_billing_address_1(),
-                                (string) $order->get_billing_address_2(),
-                                (string) $order->get_billing_city(),
-                                (string) $order->get_billing_state(),
-                                (string) $order->get_billing_postcode(),
-                                (string) $order->get_billing_country(),
-                            ),
-                            static function (string $value): bool {
-                                return trim($value) !== '';
-                            }
-                        )
+            }
+        }
+
+        if (! empty($product_ids)) {
+            foreach ($product_ids as $product_id) {
+                $matched_orders = wc_get_orders(
+                    array(
+                        'status'     => $statuses,
+                        'product_id' => $product_id,
+                        'limit'      => -1,
                     )
                 );
-                $order_status = $order->get_status();
 
-                foreach ($order->get_items() as $item) {
-                    if (! $item instanceof \WC_Order_Item_Product) {
-                        continue;
-                    }
-
-                    $linked_event = (int) $item->get_meta('_oras_ticket_event_id', true);
-                    if ($linked_event !== $event_id) {
-                        continue;
-                    }
-
-                    $qty = (int) $item->get_quantity();
-                    $ticket_count = max(1, $qty);
-                    $ticket_name = trim((string) $item->get_meta('_oras_ticket_name', true));
-                    if ($ticket_name === '') {
-                        $ticket_name = (string) $item->get_name();
-                    }
-
-                    for ($idx = 1; $idx <= $ticket_count; $idx++) {
-                        if ($user_id > 0) {
-                            $attendees[] = array(
-                                'name'         => $name,
-                                'email'        => $email,
-                                'phone'        => $phone,
-                                'address'      => $address,
-                                'source'       => 'Ticket',
-                                'item_label'   => $ticket_name,
-                                'quantity'     => 1,
-                                'user_id'      => $user_id,
-                                'order_id'     => $order_id,
-                                'order_status' => $order_status,
-                                'ticket_index' => $idx,
-                                'ticket_total' => $ticket_count,
-                            );
-                        } else {
-                            $attendees[] = array(
-                                'name'         => $name,
-                                'email'        => $email,
-                                'phone'        => $phone,
-                                'address'      => $address,
-                                'source'       => 'Ticket (Guest)',
-                                'item_label'   => $ticket_name,
-                                'quantity'     => 1,
-                                'user_id'      => 0,
-                                'order_id'     => $order_id,
-                                'order_status' => $order_status,
-                                'ticket_index' => $idx,
-                                'ticket_total' => $ticket_count,
-                            );
-                        }
+                foreach ($matched_orders as $order) {
+                    if ($order instanceof \WC_Order) {
+                        $orders_by_id[(int) $order->get_id()] = $order;
                     }
                 }
             }
+        } else {
+            // Legacy fallback: if map metadata is missing, scan in pages.
+            $page = 1;
+            $limit = 100;
+            do {
+                $orders = wc_get_orders(
+                    array(
+                        'status'  => $statuses,
+                        'limit'   => $limit,
+                        'page'    => $page,
+                        'orderby' => 'date',
+                        'order'   => 'DESC',
+                    )
+                );
+                if (empty($orders)) {
+                    break;
+                }
 
-            ++$page;
-            $count = count($orders);
-        } while ($count === $limit);
+                foreach ($orders as $order) {
+                    if ($order instanceof \WC_Order) {
+                        $orders_by_id[(int) $order->get_id()] = $order;
+                    }
+                }
+
+                ++$page;
+                $count = count($orders);
+            } while ($count === $limit);
+        }
+
+        foreach ($orders_by_id as $order) {
+            if (! $order instanceof \WC_Order) {
+                continue;
+            }
+
+            $user_id = (int) $order->get_user_id();
+            $order_id = $order->get_id();
+            $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+            $email = $order->get_billing_email();
+            $phone = (string) $order->get_billing_phone();
+            $address = trim(
+                implode(
+                    ', ',
+                    array_filter(
+                        array(
+                            (string) $order->get_billing_address_1(),
+                            (string) $order->get_billing_address_2(),
+                            (string) $order->get_billing_city(),
+                            (string) $order->get_billing_state(),
+                            (string) $order->get_billing_postcode(),
+                            (string) $order->get_billing_country(),
+                        ),
+                        static function (string $value): bool {
+                            return trim($value) !== '';
+                        }
+                    )
+                )
+            );
+            $order_status = $order->get_status();
+
+            foreach ($order->get_items() as $item) {
+                if (! $item instanceof \WC_Order_Item_Product) {
+                    continue;
+                }
+
+                $linked_event = (int) $item->get_meta('_oras_ticket_event_id', true);
+                if ($linked_event !== $event_id) {
+                    continue;
+                }
+
+                $qty = (int) $item->get_quantity();
+                $ticket_count = max(1, $qty);
+                $ticket_name = trim((string) $item->get_meta('_oras_ticket_name', true));
+                if ($ticket_name === '') {
+                    $ticket_name = (string) $item->get_name();
+                }
+
+                for ($idx = 1; $idx <= $ticket_count; $idx++) {
+                    if ($user_id > 0) {
+                        $attendees[] = array(
+                            'name'         => $name,
+                            'email'        => $email,
+                            'phone'        => $phone,
+                            'address'      => $address,
+                            'source'       => 'Ticket',
+                            'item_label'   => $ticket_name,
+                            'quantity'     => 1,
+                            'user_id'      => $user_id,
+                            'order_id'     => $order_id,
+                            'order_status' => $order_status,
+                            'ticket_index' => $idx,
+                            'ticket_total' => $ticket_count,
+                        );
+                    } else {
+                        $attendees[] = array(
+                            'name'         => $name,
+                            'email'        => $email,
+                            'phone'        => $phone,
+                            'address'      => $address,
+                            'source'       => 'Ticket (Guest)',
+                            'item_label'   => $ticket_name,
+                            'quantity'     => 1,
+                            'user_id'      => 0,
+                            'order_id'     => $order_id,
+                            'order_status' => $order_status,
+                            'ticket_index' => $idx,
+                            'ticket_total' => $ticket_count,
+                        );
+                    }
+                }
+            }
+        }
 
         return $attendees;
     }
