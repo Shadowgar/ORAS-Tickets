@@ -1715,7 +1715,7 @@ final class Reports_Page
         return add_query_arg($args, admin_url('admin.php'));
     }
 
-    private function build_attendees_dashboard_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'all', string $search = ''): string
+    private function build_attendees_dashboard_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'paid-active', string $search = ''): string
     {
         $args = array(
             'page'          => 'oras-tickets',

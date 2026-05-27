@@ -974,8 +974,7 @@ jQuery( document ).ready( function( $ ) {
 
 	var initialEventId = sanitizeEventId( $attendeesEventSelector.val() );
 	if ( initialEventId ) {
-		$attendeesFilters.show();
-		$attendeesMessagePanel.show();
-		loadAttendeesData( initialEventId );
+		$attendeesEventSelector.val( initialEventId );
+		$attendeesEventSelector.trigger( 'change' );
 	}
 } );

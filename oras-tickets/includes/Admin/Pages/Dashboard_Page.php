@@ -73,7 +73,7 @@ final class Dashboard_Page
                                     <td><?php echo esc_html((string) $type_count); ?></td>
                                     <td>
                                         <?php if ($sold_count > 0) : ?>
-                                            <a href="<?php echo esc_url($this->build_attendees_tab_url($event_id, 'tickets', 'all', '')); ?>">
+                                            <a href="<?php echo esc_url($this->build_attendees_tab_url($event_id, 'tickets', 'paid-active', '')); ?>">
                                                 <?php echo esc_html((string) $sold_count); ?>
                                             </a>
                                         <?php else : ?>
@@ -478,7 +478,7 @@ final class Dashboard_Page
         return $ticket_units;
     }
 
-    private function build_attendees_tab_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'all', string $search = ''): string
+    private function build_attendees_tab_url(int $event_id, string $source_filter = 'tickets', string $ticket_status = 'paid-active', string $search = ''): string
     {
         $args = array(
             'page' => 'oras-tickets',
