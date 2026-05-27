@@ -16,6 +16,7 @@ jQuery( document ).ready( function( $ ) {
 	};
 	var ALLOWED_TICKET_STATUSES = {
 		all: true,
+		'paid-active': true,
 		completed: true,
 		processing: true,
 		'on-hold': true,
@@ -648,7 +649,7 @@ jQuery( document ).ready( function( $ ) {
 			return;
 		}
 		var sourceFilter = sanitizeEnum( $attendeesSourceFilter.val(), ALLOWED_SOURCE_FILTERS, 'all' );
-		var ticketStatus = sanitizeEnum( $attendeesTicketStatusFilter.val(), ALLOWED_TICKET_STATUSES, 'all' );
+		var ticketStatus = sanitizeEnum( $attendeesTicketStatusFilter.val(), ALLOWED_TICKET_STATUSES, 'paid-active' );
 		var guestsOnly = $attendeesGuestsOnly.is( ':checked' ) ? '1' : '0';
 		var hasNoteOnly = $attendeesHasNoteOnly.is( ':checked' ) ? '1' : '0';
 		var search = sanitizeSearchTerm( $attendeesSearch.val() );
@@ -686,8 +687,8 @@ jQuery( document ).ready( function( $ ) {
 			return;
 		}
 
-		var sourceFilter = $attendeesSourceFilter.val();
-		var ticketStatus = $attendeesTicketStatusFilter.val();
+		var sourceFilter = sanitizeEnum( $attendeesSourceFilter.val(), ALLOWED_SOURCE_FILTERS, 'all' );
+		var ticketStatus = sanitizeEnum( $attendeesTicketStatusFilter.val(), ALLOWED_TICKET_STATUSES, 'paid-active' );
 		var guestsOnly = $attendeesGuestsOnly.is( ':checked' ) ? '1' : '0';
 		var hasNoteOnly = $attendeesHasNoteOnly.is( ':checked' ) ? '1' : '0';
 		var search = $attendeesSearch.val().trim();
@@ -730,8 +731,8 @@ jQuery( document ).ready( function( $ ) {
 	} );
 
 	function loadAttendeesData( eventId ) {
-		var sourceFilter = $attendeesSourceFilter.val();
-		var ticketStatus = $attendeesTicketStatusFilter.val();
+		var sourceFilter = sanitizeEnum( $attendeesSourceFilter.val(), ALLOWED_SOURCE_FILTERS, 'all' );
+		var ticketStatus = sanitizeEnum( $attendeesTicketStatusFilter.val(), ALLOWED_TICKET_STATUSES, 'paid-active' );
 		var guestsOnly = $attendeesGuestsOnly.is( ':checked' ) ? '1' : '0';
 		var hasNoteOnly = $attendeesHasNoteOnly.is( ':checked' ) ? '1' : '0';
 		var search = $attendeesSearch.val().trim();
@@ -811,8 +812,11 @@ jQuery( document ).ready( function( $ ) {
 			var attendeeKey = String( attendee.attendee_key ?? '' );
 			var emailValue = String( attendee.email ?? '' ).trim();
 			var emailHref = 'mailto:' + encodeURIComponent( emailValue );
+			var purchasedLabel = String( attendee.item_label ?? '' );
+			var orderStatus = String( attendee.order_status ?? '' );
 			var userIdLabel = userId > 0 ? String( userId ) : '';
 			var orderIdLabel = orderId > 0 ? String( orderId ) : '';
+			var quantityValue = normalizeInt( attendee.quantity );
 			var noteRaw = String( attendee.note ?? '' );
 			var $actionsCell = $( '<td/>' );
 			var $noteCell = $( '<td/>' );
@@ -914,11 +918,11 @@ jQuery( document ).ready( function( $ ) {
 				.append( $( '<td/>' ).text( String( attendee.source ?? '' ) ) )
 				.append( $( '<td/>' ).text( String( attendee.phone ?? '' ) ) )
 				.append( $( '<td/>' ).text( String( attendee.address ?? '' ) ) )
-				.append( $( '<td/>' ).text( String( attendee.item_label ?? '' ) ) )
-				.append( $( '<td/>' ).text( String( attendee.quantity ?? '' ) ) )
+				.append( $( '<td/>' ).text( purchasedLabel ) )
+				.append( $( '<td/>' ).text( quantityValue > 0 ? String( quantityValue ) : '' ) )
 				.append( $( '<td/>' ).text( userIdLabel ) )
 				.append( $( '<td/>' ).text( orderIdLabel ) )
-				.append( $( '<td/>' ).text( String( attendee.order_status ?? '' ) ) )
+				.append( $( '<td/>' ).text( orderStatus ) )
 				.append( $noteCell )
 				.append( $actionsCell );
 

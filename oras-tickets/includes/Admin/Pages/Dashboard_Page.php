@@ -20,7 +20,7 @@ final class Dashboard_Page
         $all_events = $this->get_all_events();
         $prefill_event_id = isset($_GET['event_id']) ? absint($_GET['event_id']) : 0;
         $prefill_source = isset($_GET['source_filter']) ? sanitize_key((string) wp_unslash($_GET['source_filter'])) : 'all';
-        $prefill_ticket_status = isset($_GET['ticket_status']) ? sanitize_key((string) wp_unslash($_GET['ticket_status'])) : 'all';
+        $prefill_ticket_status = isset($_GET['ticket_status']) ? sanitize_key((string) wp_unslash($_GET['ticket_status'])) : 'paid-active';
         $prefill_search = isset($_GET['search']) ? sanitize_text_field((string) wp_unslash($_GET['search'])) : '';
         $prefill_print = isset($_GET['print']) && (string) wp_unslash($_GET['print']) === '1';
 
@@ -223,6 +223,7 @@ final class Dashboard_Page
                     <label for="oras-attendees-ticket-status-filter"><?php echo esc_html__('Ticket Status:', 'oras-tickets'); ?></label>
                     <select id="oras-attendees-ticket-status-filter" style="margin-left: 10px; margin-right: 20px;">
                         <option value="all" <?php selected($prefill_ticket_status, 'all'); ?>><?php echo esc_html__('All', 'oras-tickets'); ?></option>
+                        <option value="paid-active" <?php selected($prefill_ticket_status, 'paid-active'); ?>><?php echo esc_html__('Paid/Active', 'oras-tickets'); ?></option>
                         <option value="completed" <?php selected($prefill_ticket_status, 'completed'); ?>><?php echo esc_html__('Completed', 'oras-tickets'); ?></option>
                         <option value="processing" <?php selected($prefill_ticket_status, 'processing'); ?>><?php echo esc_html__('Processing', 'oras-tickets'); ?></option>
                         <option value="on-hold" <?php selected($prefill_ticket_status, 'on-hold'); ?>><?php echo esc_html__('On Hold', 'oras-tickets'); ?></option>

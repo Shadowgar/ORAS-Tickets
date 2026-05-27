@@ -581,7 +581,7 @@ final class Bootstrap
         }
 
         $source_filter = isset($_POST['source_filter']) ? sanitize_key($_POST['source_filter']) : 'all';
-        $ticket_status = isset($_POST['ticket_status']) ? sanitize_key($_POST['ticket_status']) : 'all';
+        $ticket_status = isset($_POST['ticket_status']) ? sanitize_key($_POST['ticket_status']) : $this->get_default_attendee_ticket_status();
         $guests_only = isset($_POST['guests_only']) && $_POST['guests_only'] === '1';
         $has_note_only = isset($_POST['has_note_only']) && $_POST['has_note_only'] === '1';
         $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
@@ -610,7 +610,7 @@ final class Bootstrap
         }
 
         $source_filter = isset($_POST['source_filter']) ? sanitize_key($_POST['source_filter']) : 'all';
-        $ticket_status = isset($_POST['ticket_status']) ? sanitize_key($_POST['ticket_status']) : 'all';
+        $ticket_status = isset($_POST['ticket_status']) ? sanitize_key($_POST['ticket_status']) : $this->get_default_attendee_ticket_status();
         $guests_only = isset($_POST['guests_only']) && $_POST['guests_only'] === '1';
         $has_note_only = isset($_POST['has_note_only']) && $_POST['has_note_only'] === '1';
         $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
@@ -751,6 +751,7 @@ final class Bootstrap
         $rsvp_attendees = array();
         $ticket_attendees = array();
         $matched_rsvp_user_ids = array();
+        $ticket_status = $this->normalize_attendee_ticket_status($ticket_status);
 
         // Get notes envelope
         $notes_envelope = get_post_meta($event_id, '_oras_attendee_notes_v1', true);
@@ -808,7 +809,7 @@ final class Bootstrap
                 }
 
                 // Apply ticket status filter
-                if ($ticket_status !== 'all' && $attendee['order_status'] !== $ticket_status) {
+                if (! $this->attendee_ticket_status_matches($ticket_status, (string) ($attendee['order_status'] ?? ''))) {
                     continue;
                 }
 
@@ -825,9 +826,13 @@ final class Bootstrap
         foreach ($ticket_attendees as $ticket_data) {
             $attendee = $ticket_data;
             $user_id = (int) ($ticket_data['user_id'] ?? 0);
-            $attendee_key = $user_id > 0
-                ? 'u_' . $user_id
-                : 'o_' . (int) ($ticket_data['order_id'] ?? 0);
+            $order_id = (int) ($ticket_data['order_id'] ?? 0);
+            $attendee_key = $this->build_attendee_key(
+                $user_id,
+                $order_id,
+                (string) ($ticket_data['email'] ?? ''),
+                (string) ($ticket_data['item_label'] ?? '')
+            );
 
             if ($user_id > 0 && isset($rsvp_attendees[$user_id])) {
                 $rsvp_data = $rsvp_attendees[$user_id];
@@ -838,13 +843,20 @@ final class Bootstrap
             }
 
             $attendee['attendee_key'] = $attendee_key;
-            $attendee['note'] = isset($notes[$attendee_key]) ? $notes[$attendee_key]['note'] : '';
+            $attendee['note'] = $this->resolve_attendee_note(
+                $notes,
+                $attendee_key,
+                array(
+                    'u_' . $user_id,
+                    'o_' . $order_id,
+                )
+            );
 
             if ($has_note_only && empty($attendee['note'])) {
                 continue;
             }
 
-            $attendees[] = $attendee;
+            $attendees[] = $this->normalize_attendee_row($attendee);
         }
 
         // Append RSVP-only users not represented in ticket rows.
@@ -856,17 +868,17 @@ final class Bootstrap
 
                 $attendee_key = 'u_' . $rsvp_data['user_id'];
                 $rsvp_data['attendee_key'] = $attendee_key;
-                $rsvp_data['note'] = isset($notes[$attendee_key]) ? $notes[$attendee_key]['note'] : '';
+                $rsvp_data['note'] = $this->resolve_attendee_note($notes, $attendee_key, array());
 
                 if ($has_note_only && empty($rsvp_data['note'])) {
                     continue;
                 }
 
-                $attendees[] = $rsvp_data;
+                $attendees[] = $this->normalize_attendee_row($rsvp_data);
             }
         }
 
-        return $attendees;
+        return $this->group_attendees_rows($attendees);
     }
 
     /**
@@ -885,7 +897,8 @@ final class Bootstrap
             }
 
             $order_ids[$order_id] = true;
-            $total_tickets++;
+            $quantity = isset($attendee['quantity']) ? max(0, (int) $attendee['quantity']) : 0;
+            $total_tickets += $quantity;
         }
 
         return array(
@@ -1092,7 +1105,7 @@ final class Bootstrap
         }
 
         $source_filter = isset($_GET['source_filter']) ? sanitize_key($_GET['source_filter']) : 'all';
-        $ticket_status = isset($_GET['ticket_status']) ? sanitize_key($_GET['ticket_status']) : 'all';
+        $ticket_status = isset($_GET['ticket_status']) ? sanitize_key($_GET['ticket_status']) : $this->get_default_attendee_ticket_status();
         $guests_only = isset($_GET['guests_only']) && $_GET['guests_only'] === '1';
         $has_note_only = isset($_GET['has_note_only']) && $_GET['has_note_only'] === '1';
         $search = isset($_GET['search']) ? sanitize_text_field(wp_unslash($_GET['search'])) : '';
@@ -1134,6 +1147,170 @@ final class Bootstrap
 
         fclose($output);
         exit;
+    }
+
+    private function get_default_attendee_ticket_status(): string
+    {
+        return 'paid-active';
+    }
+
+    private function normalize_attendee_ticket_status(string $ticket_status): string
+    {
+        $allowed = array(
+            'all',
+            'paid-active',
+            'completed',
+            'processing',
+            'on-hold',
+            'pending',
+            'refunded',
+            'cancelled',
+            'failed',
+        );
+        if (! in_array($ticket_status, $allowed, true)) {
+            return $this->get_default_attendee_ticket_status();
+        }
+
+        return $ticket_status;
+    }
+
+    private function attendee_ticket_status_matches(string $ticket_status, string $order_status): bool
+    {
+        if ($ticket_status === 'all') {
+            return true;
+        }
+        if ($ticket_status === 'paid-active') {
+            return in_array($order_status, array('completed', 'processing', 'on-hold'), true);
+        }
+
+        return $order_status === $ticket_status;
+    }
+
+    private function build_attendee_key(int $user_id, int $order_id, string $email, string $item_label): string
+    {
+        if ($user_id > 0 && $order_id > 0) {
+            return 'u_' . $user_id . '_o_' . $order_id;
+        }
+        if ($user_id > 0) {
+            return 'u_' . $user_id;
+        }
+        if ($order_id > 0) {
+            return 'g_' . $order_id . '_' . md5(strtolower(trim($email)) . '|' . $item_label);
+        }
+
+        return 'g_' . md5(strtolower(trim($email)) . '|' . $item_label);
+    }
+
+    /**
+     * @param array<string, mixed> $notes
+     * @param string[]             $legacy_keys
+     */
+    private function resolve_attendee_note(array $notes, string $attendee_key, array $legacy_keys): string
+    {
+        if (isset($notes[$attendee_key]) && is_array($notes[$attendee_key])) {
+            $value = $notes[$attendee_key]['note'] ?? '';
+            return is_string($value) ? $value : '';
+        }
+
+        foreach ($legacy_keys as $legacy_key) {
+            if (! is_string($legacy_key) || $legacy_key === '') {
+                continue;
+            }
+            if (isset($notes[$legacy_key]) && is_array($notes[$legacy_key])) {
+                $value = $notes[$legacy_key]['note'] ?? '';
+                return is_string($value) ? $value : '';
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $attendee
+     * @return array<string, mixed>
+     */
+    private function normalize_attendee_row(array $attendee): array
+    {
+        $quantity = isset($attendee['quantity']) ? (int) $attendee['quantity'] : 0;
+        if ($quantity <= 0) {
+            $quantity = 1;
+        }
+
+        return array(
+            'name'         => isset($attendee['name']) ? (string) $attendee['name'] : '',
+            'email'        => isset($attendee['email']) ? (string) $attendee['email'] : '',
+            'source'       => isset($attendee['source']) ? (string) $attendee['source'] : '',
+            'phone'        => isset($attendee['phone']) ? (string) $attendee['phone'] : '',
+            'address'      => isset($attendee['address']) ? (string) $attendee['address'] : '',
+            'item_label'   => isset($attendee['item_label']) ? (string) $attendee['item_label'] : '',
+            'quantity'     => $quantity,
+            'user_id'      => isset($attendee['user_id']) ? (int) $attendee['user_id'] : 0,
+            'order_id'     => isset($attendee['order_id']) ? (int) $attendee['order_id'] : 0,
+            'order_status' => isset($attendee['order_status']) ? (string) $attendee['order_status'] : '',
+            'attendee_key' => isset($attendee['attendee_key']) ? (string) $attendee['attendee_key'] : '',
+            'note'         => isset($attendee['note']) ? (string) $attendee['note'] : '',
+        );
+    }
+
+    private function attendee_group_key(array $attendee): string
+    {
+        $user_id = (int) ($attendee['user_id'] ?? 0);
+        $order_id = (int) ($attendee['order_id'] ?? 0);
+        if ($user_id > 0 && $order_id > 0) {
+            return 'u:' . $user_id . '|o:' . $order_id;
+        }
+        if ($user_id > 0) {
+            return 'u:' . $user_id;
+        }
+
+        $email = strtolower(trim((string) ($attendee['email'] ?? '')));
+        $item_label = (string) ($attendee['item_label'] ?? '');
+        if ($order_id > 0) {
+            return 'g:o:' . $order_id . '|e:' . $email . '|i:' . $item_label;
+        }
+
+        return 'g:e:' . $email . '|i:' . $item_label;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $attendees
+     * @return array<int, array<string, mixed>>
+     */
+    private function group_attendees_rows(array $attendees): array
+    {
+        $grouped = array();
+        $order = array();
+
+        foreach ($attendees as $attendee) {
+            $row = $this->normalize_attendee_row($attendee);
+            $group_key = $this->attendee_group_key($row);
+            if (! isset($grouped[$group_key])) {
+                $grouped[$group_key] = $row;
+                $order[] = $group_key;
+                continue;
+            }
+
+            $grouped[$group_key]['quantity'] = (int) $grouped[$group_key]['quantity'] + (int) $row['quantity'];
+            if ((string) $grouped[$group_key]['note'] === '' && (string) $row['note'] !== '') {
+                $grouped[$group_key]['note'] = $row['note'];
+            }
+            if ((string) $grouped[$group_key]['item_label'] === '' && (string) $row['item_label'] !== '') {
+                $grouped[$group_key]['item_label'] = $row['item_label'];
+            }
+            if ((string) $grouped[$group_key]['order_status'] === '' && (string) $row['order_status'] !== '') {
+                $grouped[$group_key]['order_status'] = $row['order_status'];
+            }
+        }
+
+        $result = array();
+        foreach ($order as $group_key) {
+            if (! isset($grouped[$group_key])) {
+                continue;
+            }
+            $result[] = $grouped[$group_key];
+        }
+
+        return $result;
     }
 
     public function handle_rsvp_export_yes(): void
