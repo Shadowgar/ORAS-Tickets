@@ -61,10 +61,11 @@ final class Board_Reports {
 					margin: 24px 0;
 				}
 				.oras-board-reports .oras-board-reports__notice {
-					background: #f6f7f7;
-					border-left: 4px solid #2271b1;
+					background: rgba(10, 16, 28, 0.75);
+					border-left: 4px solid #2d7dbf;
 					margin: 0 0 16px;
 					padding: 10px 12px;
+					color: #e5ecf5;
 				}
 				.oras-board-reports .oras-board-reports__filters {
 					display: grid;
@@ -88,9 +89,39 @@ final class Board_Reports {
 					min-height: 36px;
 				}
 				.oras-board-reports .oras-board-reports__actions {
+					grid-column: 1 / -1;
 					display: flex;
 					gap: 8px;
 					flex-wrap: wrap;
+					justify-content: flex-end;
+					align-items: center;
+				}
+				.oras-board-reports .oras-board-reports__actions .button {
+					min-height: 40px;
+					padding: 0 16px;
+					border: 1px solid #35516e;
+					border-radius: 6px;
+					background: #1f3953;
+					color: #f5f8fc;
+					text-decoration: none;
+					font-weight: 600;
+					box-shadow: none;
+				}
+				.oras-board-reports .oras-board-reports__actions .button:hover,
+				.oras-board-reports .oras-board-reports__actions .button:focus {
+					background: #2a4d70;
+					border-color: #466a8e;
+					color: #ffffff;
+				}
+				.oras-board-reports .oras-board-reports__actions .button.button-primary {
+					background: #2d7dbf;
+					border-color: #2d7dbf;
+					color: #ffffff;
+				}
+				.oras-board-reports .oras-board-reports__actions .button.button-primary:hover,
+				.oras-board-reports .oras-board-reports__actions .button.button-primary:focus {
+					background: #3892d8;
+					border-color: #3892d8;
 				}
 				.oras-board-reports .oras-board-reports__table-wrap {
 					overflow-x: auto;
@@ -120,6 +151,15 @@ final class Board_Reports {
 					border-radius: 8px;
 					background: #fff;
 					padding: 18px;
+				}
+				@media (max-width: 900px) {
+					.oras-board-reports .oras-board-reports__actions {
+						justify-content: stretch;
+					}
+					.oras-board-reports .oras-board-reports__actions .button {
+						flex: 1 1 100%;
+						text-align: center;
+					}
 				}
 			</style>
 

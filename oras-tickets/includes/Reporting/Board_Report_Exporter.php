@@ -105,14 +105,21 @@ final class Board_Report_Exporter {
 		$lines = array();
 		$lines[] = 'ORAS Board Report';
 		$lines[] = gmdate( 'Y-m-d H:i:s' ) . ' UTC';
+		$lines[] = 'Total Rows: ' . count( $rows );
 		$lines[] = '';
-		$lines[] = implode( ' | ', array_values( self::COLUMNS ) );
-		$lines[] = str_repeat( '-', 160 );
 
-		foreach ( $rows as $row ) {
-			$columns = $this->row_to_csv_values( $row );
-			$line = implode( ' | ', array_map( array( $this, 'normalize_pdf_cell' ), $columns ) );
-			$lines[] = $line;
+		foreach ( $rows as $index => $row ) {
+			$lines[] = 'Row ' . (string) ( $index + 1 );
+			foreach ( self::COLUMNS as $key => $label ) {
+				$raw_value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
+				$value = $this->normalize_pdf_cell( $raw_value );
+				$field_text = $label . ': ' . $value;
+				$wrapped = $this->wrap_pdf_text( $field_text, 90 );
+				foreach ( $wrapped as $wrapped_line ) {
+					$lines[] = $wrapped_line;
+				}
+			}
+			$lines[] = str_repeat( '-', 90 );
 		}
 
 		$line_height = 14;
@@ -142,7 +149,7 @@ final class Board_Report_Exporter {
 			$page_ids
 		);
 		$objects[ $pages_id ] = '<< /Type /Pages /Kids [ ' . implode( ' ', $kids ) . ' ] /Count ' . count( $page_ids ) . ' >>';
-		$objects[ $font_id ] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>';
+		$objects[ $font_id ] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
 
 		foreach ( $pages as $idx => $page_lines ) {
 			$page_id = $page_ids[ $idx ];
@@ -200,6 +207,23 @@ final class Board_Report_Exporter {
 			return '';
 		}
 
-		return substr( $flat, 0, 60 );
+		return substr( $flat, 0, 240 );
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function wrap_pdf_text( string $text, int $max_length ): array {
+		$trimmed = trim( $text );
+		if ( '' === $trimmed ) {
+			return array( '' );
+		}
+
+		$wrapped = wordwrap( $trimmed, $max_length, "\n", true );
+		if ( ! is_string( $wrapped ) ) {
+			return array( $trimmed );
+		}
+
+		return explode( "\n", $wrapped );
 	}
 }
