@@ -110,23 +110,47 @@ final class Board_Report_Exporter {
 		$table_top_y = $page_height - 92;
 		$table_bottom_y = 34;
 		$header_row_h = 20;
-		$data_row_h = 18;
+		$data_line_h = 10;
+		$row_padding = 4;
 		$col_widths = array( 78, 120, 70, 120, 95, 40, 68, 78, 58, 55 );
-		$max_rows_per_page = max( 1, (int) floor( ( ( $table_top_y - $table_bottom_y ) - $header_row_h ) / $data_row_h ) );
+		$body_height_available = ( $table_top_y - $table_bottom_y ) - $header_row_h;
 
-		$data_rows = array();
+		$prepared_rows = array();
 		foreach ( $rows as $row ) {
-			$cells = array();
+			$row_cells = array();
+			$row_max_lines = 1;
 			$col_index = 0;
 			foreach ( self::COLUMNS as $key => $label ) {
 				$raw_value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
-				$cells[] = $this->truncate_for_column( $this->normalize_pdf_cell( $raw_value ), $col_widths[ $col_index ] );
+				$normalized = $this->normalize_pdf_cell( $raw_value );
+				$wrapped_lines = $this->wrap_for_column( $normalized, $col_widths[ $col_index ] );
+				$row_cells[] = $wrapped_lines;
+				$row_max_lines = max( $row_max_lines, count( $wrapped_lines ) );
 				$col_index++;
 			}
-			$data_rows[] = $cells;
+
+			$prepared_rows[] = array(
+				'cells'      => $row_cells,
+				'row_height' => ( $row_max_lines * $data_line_h ) + $row_padding,
+			);
 		}
 
-		$pages = array_chunk( $data_rows, $max_rows_per_page );
+		$pages = array();
+		$current_page = array();
+		$current_height = 0;
+		foreach ( $prepared_rows as $prepared_row ) {
+			$row_height = (int) $prepared_row['row_height'];
+			if ( $current_height > 0 && ( $current_height + $row_height ) > $body_height_available ) {
+				$pages[] = $current_page;
+				$current_page = array();
+				$current_height = 0;
+			}
+			$current_page[] = $prepared_row;
+			$current_height += $row_height;
+		}
+		if ( ! empty( $current_page ) ) {
+			$pages[] = $current_page;
+		}
 		if ( empty( $pages ) ) {
 			$pages = array( array() );
 		}
@@ -176,7 +200,10 @@ final class Board_Report_Exporter {
 			}
 
 			$table_top = $table_top_y;
-			$table_height = $header_row_h + ( count( $page_rows ) * $data_row_h );
+			$table_height = $header_row_h;
+			foreach ( $page_rows as $page_row ) {
+				$table_height += (int) $page_row['row_height'];
+			}
 			$table_bottom = $table_top - $table_height;
 
 			foreach ( $x_positions as $x ) {
@@ -184,8 +211,10 @@ final class Board_Report_Exporter {
 			}
 
 			$y_lines = array( $table_top, $table_top - $header_row_h );
-			for ( $r = 0; $r < count( $page_rows ); $r++ ) {
-				$y_lines[] = $table_top - $header_row_h - ( ( $r + 1 ) * $data_row_h );
+			$current_row_bottom = $table_top - $header_row_h;
+			foreach ( $page_rows as $page_row ) {
+				$current_row_bottom -= (int) $page_row['row_height'];
+				$y_lines[] = $current_row_bottom;
 			}
 			foreach ( $y_lines as $y_line ) {
 				$content .= sprintf( "%d %d m %d %d l S\n", $margin_x, $y_line, $margin_x + array_sum( $col_widths ), $y_line );
@@ -202,12 +231,18 @@ final class Board_Report_Exporter {
 			$content .= "ET\n";
 
 			$content .= "BT\n/F1 8 Tf\n";
-			foreach ( $page_rows as $row_idx => $cells ) {
-				$row_y = $table_top - $header_row_h - ( $row_idx * $data_row_h ) - 12;
-				foreach ( $cells as $col_idx => $cell ) {
+			$current_row_top = $table_top - $header_row_h;
+			foreach ( $page_rows as $page_row ) {
+				$row_height = (int) $page_row['row_height'];
+				$line_start_y = $current_row_top - 11;
+				foreach ( $page_row['cells'] as $col_idx => $cell_lines ) {
 					$x = $x_positions[ $col_idx ] + 2;
-					$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $x, $row_y, $this->pdf_escape( $cell ) );
+					foreach ( $cell_lines as $line_index => $line_value ) {
+						$line_y = $line_start_y - ( $line_index * $data_line_h );
+						$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $x, $line_y, $this->pdf_escape( $line_value ) );
+					}
 				}
+				$current_row_top -= $row_height;
 			}
 			$content .= "ET\n";
 
@@ -263,10 +298,24 @@ final class Board_Report_Exporter {
 		if ( strlen( $value ) <= $max_chars ) {
 			return $value;
 		}
-		if ( $max_chars <= 3 ) {
-			return substr( $value, 0, $max_chars );
+		return substr( $value, 0, $max_chars );
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function wrap_for_column( string $value, int $column_width ): array {
+		$max_chars = max( 4, (int) floor( ( $column_width - 6 ) / 4.2 ) );
+		$safe_value = trim( $value );
+		if ( '' === $safe_value ) {
+			return array( '' );
 		}
 
-		return substr( $value, 0, $max_chars - 3 ) . '...';
+		$wrapped = wordwrap( $safe_value, $max_chars, "\n", true );
+		if ( ! is_string( $wrapped ) ) {
+			return array( $safe_value );
+		}
+
+		return explode( "\n", $wrapped );
 	}
 }
