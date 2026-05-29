@@ -82,11 +82,14 @@ final class Board_Reports {
 					display: grid;
 					gap: 5px;
 					font-weight: 600;
+					color: #1f2937;
 				}
 				.oras-board-reports input,
 				.oras-board-reports select {
 					max-width: 100%;
 					min-height: 36px;
+					color: #111827;
+					background: #ffffff;
 				}
 				.oras-board-reports .oras-board-reports__actions {
 					grid-column: 1 / -1;
@@ -97,14 +100,20 @@ final class Board_Reports {
 					align-items: center;
 				}
 				.oras-board-reports .oras-board-reports__actions .button {
+					display: inline-flex;
+					align-items: center;
+					justify-content: center;
 					min-height: 40px;
-					padding: 0 16px;
+					padding: 0 18px;
 					border: 1px solid #35516e;
 					border-radius: 6px;
 					background: #1f3953;
 					color: #f5f8fc;
 					text-decoration: none;
 					font-weight: 600;
+					line-height: 1;
+					white-space: nowrap;
+					text-align: center;
 					box-shadow: none;
 				}
 				.oras-board-reports .oras-board-reports__actions .button:hover,
@@ -151,6 +160,34 @@ final class Board_Reports {
 					border-radius: 8px;
 					background: #fff;
 					padding: 18px;
+				}
+				html.oras-dark-on .oras-board-reports label,
+				html[data-wp-dark-mode-active] .oras-board-reports label,
+				body.wp-dark-mode-active .oras-board-reports label {
+					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports input,
+				html.oras-dark-on .oras-board-reports select,
+				html[data-wp-dark-mode-active] .oras-board-reports input,
+				html[data-wp-dark-mode-active] .oras-board-reports select,
+				body.wp-dark-mode-active .oras-board-reports input,
+				body.wp-dark-mode-active .oras-board-reports select {
+					color: #f4f7fc;
+					background: #0c1624;
+					border-color: #3a4f68;
+				}
+				html.oras-dark-on .oras-board-reports input::placeholder,
+				html[data-wp-dark-mode-active] .oras-board-reports input::placeholder,
+				body.wp-dark-mode-active .oras-board-reports input::placeholder {
+					color: #c0cfdf;
+				}
+				html:not(.oras-dark-on) .oras-board-reports label {
+					color: #1f2937;
+				}
+				html:not(.oras-dark-on) .oras-board-reports input,
+				html:not(.oras-dark-on) .oras-board-reports select {
+					color: #111827;
+					background: #ffffff;
 				}
 				@media (max-width: 900px) {
 					.oras-board-reports .oras-board-reports__actions {

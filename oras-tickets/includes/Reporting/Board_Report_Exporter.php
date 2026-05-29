@@ -102,31 +102,34 @@ final class Board_Report_Exporter {
 	 * @param array<int,array<string,mixed>> $rows
 	 */
 	private function build_simple_pdf( array $rows ): string {
-		$lines = array();
-		$lines[] = 'ORAS Board Report';
-		$lines[] = gmdate( 'Y-m-d H:i:s' ) . ' UTC';
-		$lines[] = 'Total Rows: ' . count( $rows );
-		$lines[] = '';
+		$page_width = 842;
+		$page_height = 595;
+		$margin_x = 26;
+		$margin_y = 24;
+		$header_y = $page_height - $margin_y;
+		$table_top_y = $page_height - 92;
+		$table_bottom_y = 34;
+		$header_row_h = 20;
+		$data_row_h = 18;
+		$col_widths = array( 78, 120, 70, 120, 95, 40, 68, 78, 58, 55 );
+		$max_rows_per_page = max( 1, (int) floor( ( ( $table_top_y - $table_bottom_y ) - $header_row_h ) / $data_row_h ) );
 
-		foreach ( $rows as $index => $row ) {
-			$lines[] = 'Row ' . (string) ( $index + 1 );
+		$data_rows = array();
+		foreach ( $rows as $row ) {
+			$cells = array();
+			$col_index = 0;
 			foreach ( self::COLUMNS as $key => $label ) {
 				$raw_value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
-				$value = $this->normalize_pdf_cell( $raw_value );
-				$field_text = $label . ': ' . $value;
-				$wrapped = $this->wrap_pdf_text( $field_text, 90 );
-				foreach ( $wrapped as $wrapped_line ) {
-					$lines[] = $wrapped_line;
-				}
+				$cells[] = $this->truncate_for_column( $this->normalize_pdf_cell( $raw_value ), $col_widths[ $col_index ] );
+				$col_index++;
 			}
-			$lines[] = str_repeat( '-', 90 );
+			$data_rows[] = $cells;
 		}
 
-		$line_height = 14;
-		$start_y = 760;
-		$bottom_y = 40;
-		$max_lines_per_page = max( 1, (int) floor( ( $start_y - $bottom_y ) / $line_height ) );
-		$pages = array_chunk( $lines, $max_lines_per_page );
+		$pages = array_chunk( $data_rows, $max_rows_per_page );
+		if ( empty( $pages ) ) {
+			$pages = array( array() );
+		}
 
 		$objects = array();
 		$object_index = 1;
@@ -149,21 +152,66 @@ final class Board_Report_Exporter {
 			$page_ids
 		);
 		$objects[ $pages_id ] = '<< /Type /Pages /Kids [ ' . implode( ' ', $kids ) . ' ] /Count ' . count( $page_ids ) . ' >>';
+		$font_bold_id = $object_index++;
 		$objects[ $font_id ] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+		$objects[ $font_bold_id ] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
 
-		foreach ( $pages as $idx => $page_lines ) {
+		foreach ( $pages as $idx => $page_rows ) {
 			$page_id = $page_ids[ $idx ];
 			$content_id = $content_ids[ $idx ];
 
-			$content = "BT\n/F1 10 Tf\n";
-			$y = $start_y;
-			foreach ( $page_lines as $line ) {
-				$content .= sprintf( "1 0 0 1 40 %d Tm (%s) Tj\n", $y, $this->pdf_escape( $line ) );
-				$y -= $line_height;
+			$content = "0.1 w\n";
+			$content .= "0 0 0 RG\n";
+			$content .= "BT\n/F2 15 Tf\n";
+			$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $margin_x, $header_y, $this->pdf_escape( 'ORAS Board Report' ) );
+			$content .= "/F1 10 Tf\n";
+			$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $margin_x, $header_y - 16, $this->pdf_escape( gmdate( 'Y-m-d H:i:s' ) . ' UTC' ) );
+			$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $margin_x, $header_y - 30, $this->pdf_escape( 'Total Rows: ' . count( $rows ) ) );
+			$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $page_width - 110, $header_y - 16, $this->pdf_escape( 'Page ' . (string) ( $idx + 1 ) . ' of ' . count( $pages ) ) );
+			$content .= "ET\n";
+
+			$x_positions = array( $margin_x );
+			foreach ( $col_widths as $col_width ) {
+				$x_positions[] = (int) end( $x_positions ) + $col_width;
+			}
+
+			$table_top = $table_top_y;
+			$table_height = $header_row_h + ( count( $page_rows ) * $data_row_h );
+			$table_bottom = $table_top - $table_height;
+
+			foreach ( $x_positions as $x ) {
+				$content .= sprintf( "%d %d m %d %d l S\n", $x, $table_top, $x, $table_bottom );
+			}
+
+			$y_lines = array( $table_top, $table_top - $header_row_h );
+			for ( $r = 0; $r < count( $page_rows ); $r++ ) {
+				$y_lines[] = $table_top - $header_row_h - ( ( $r + 1 ) * $data_row_h );
+			}
+			foreach ( $y_lines as $y_line ) {
+				$content .= sprintf( "%d %d m %d %d l S\n", $margin_x, $y_line, $margin_x + array_sum( $col_widths ), $y_line );
+			}
+
+			$content .= "BT\n/F2 8 Tf\n";
+			$col_idx = 0;
+			$header_text_y = $table_top - 14;
+			foreach ( self::COLUMNS as $label ) {
+				$x = $x_positions[ $col_idx ] + 2;
+				$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $x, $header_text_y, $this->pdf_escape( $this->truncate_for_column( $label, $col_widths[ $col_idx ] ) ) );
+				$col_idx++;
 			}
 			$content .= "ET\n";
 
-			$objects[ $page_id ] = '<< /Type /Page /Parent ' . $pages_id . ' 0 R /MediaBox [0 0 612 792] /Contents ' . $content_id . ' 0 R /Resources << /Font << /F1 ' . $font_id . ' 0 R >> >> >>';
+			$content .= "BT\n/F1 8 Tf\n";
+			foreach ( $page_rows as $row_idx => $cells ) {
+				$row_y = $table_top - $header_row_h - ( $row_idx * $data_row_h ) - 12;
+				foreach ( $cells as $col_idx => $cell ) {
+					$x = $x_positions[ $col_idx ] + 2;
+					$content .= sprintf( "1 0 0 1 %d %d Tm (%s) Tj\n", $x, $row_y, $this->pdf_escape( $cell ) );
+				}
+			}
+			$content .= "ET\n";
+
+			$objects[ $page_id ] = '<< /Type /Page /Parent ' . $pages_id . ' 0 R /MediaBox [0 0 ' . $page_width . ' ' . $page_height . '] /Contents ' . $content_id . ' 0 R /Resources << /Font << /F1 ' . $font_id . ' 0 R /F2 ' . $font_bold_id . ' 0 R >> >> >>';
 			$objects[ $content_id ] = '<< /Length ' . strlen( $content ) . " >>\nstream\n" . $content . "endstream";
 		}
 
@@ -210,20 +258,15 @@ final class Board_Report_Exporter {
 		return substr( $flat, 0, 240 );
 	}
 
-	/**
-	 * @return array<int,string>
-	 */
-	private function wrap_pdf_text( string $text, int $max_length ): array {
-		$trimmed = trim( $text );
-		if ( '' === $trimmed ) {
-			return array( '' );
+	private function truncate_for_column( string $value, int $column_width ): string {
+		$max_chars = max( 4, (int) floor( ( $column_width - 6 ) / 4.2 ) );
+		if ( strlen( $value ) <= $max_chars ) {
+			return $value;
+		}
+		if ( $max_chars <= 3 ) {
+			return substr( $value, 0, $max_chars );
 		}
 
-		$wrapped = wordwrap( $trimmed, $max_length, "\n", true );
-		if ( ! is_string( $wrapped ) ) {
-			return array( $trimmed );
-		}
-
-		return explode( "\n", $wrapped );
+		return substr( $value, 0, $max_chars - 3 ) . '...';
 	}
 }
