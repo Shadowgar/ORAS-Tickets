@@ -16,6 +16,8 @@ final class Board_Reports {
 	public static function register(): void {
 		add_shortcode( 'oras_board_reports', array( self::class, 'render_shortcode' ) );
 		add_action( 'admin_post_oras_board_reports_export_csv', array( self::class, 'handle_export_csv' ) );
+		add_action( 'admin_post_oras_board_reports_export_spreadsheet', array( self::class, 'handle_export_spreadsheet' ) );
+		add_action( 'admin_post_oras_board_reports_export_pdf', array( self::class, 'handle_export_pdf' ) );
 	}
 
 	/**
@@ -48,7 +50,8 @@ final class Board_Reports {
 		$page_id = self::get_context_page_id();
 
 		$rows = $service->get_rows( $filters['type'], $filters );
-		$export_url = self::build_export_url( $filters );
+		$spreadsheet_export_url = self::build_export_url( $filters, 'spreadsheet' );
+		$pdf_export_url = self::build_export_url( $filters, 'pdf' );
 
 		ob_start();
 		?>
@@ -174,7 +177,8 @@ final class Board_Reports {
 				<div class="oras-board-reports__actions">
 					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Report', 'oras-tickets' ); ?></button>
 					<?php if ( current_user_can( 'oras_tickets_export_reports' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
-						<a class="button button-secondary" href="<?php echo esc_url( $export_url ); ?>"><?php echo esc_html__( 'Download CSV', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Create Spreadsheet', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Create PDF', 'oras-tickets' ); ?></a>
 					<?php endif; ?>
 				</div>
 			</form>
@@ -227,6 +231,42 @@ final class Board_Reports {
 		exit;
 	}
 
+	public static function handle_export_spreadsheet(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_export_reports' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), self::NONCE_ACTION ) ) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$service = new Board_Report_Service();
+		$filters = self::get_filters_from_request();
+		$rows = $service->get_rows( $filters['type'], $filters );
+		$filename = 'oras-board-' . sanitize_key( $filters['type'] ) . '-' . gmdate( 'Y-m-d' ) . '.xls';
+
+		( new Board_Report_Exporter() )->output_spreadsheet( $rows, $filename );
+		exit;
+	}
+
+	public static function handle_export_pdf(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_export_reports' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), self::NONCE_ACTION ) ) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$service = new Board_Report_Service();
+		$filters = self::get_filters_from_request();
+		$rows = $service->get_rows( $filters['type'], $filters );
+		$filename = 'oras-board-' . sanitize_key( $filters['type'] ) . '-' . gmdate( 'Y-m-d' ) . '.pdf';
+
+		( new Board_Report_Exporter() )->output_pdf( $rows, $filename );
+		exit;
+	}
+
 	/**
 	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string}
 	 */
@@ -248,11 +288,18 @@ final class Board_Reports {
 	/**
 	 * @param array<string,mixed> $filters
 	 */
-	private static function build_export_url( array $filters ): string {
+	private static function build_export_url( array $filters, string $format = 'csv' ): string {
+		$action = 'oras_board_reports_export_csv';
+		if ( 'spreadsheet' === $format ) {
+			$action = 'oras_board_reports_export_spreadsheet';
+		} elseif ( 'pdf' === $format ) {
+			$action = 'oras_board_reports_export_pdf';
+		}
+
 		return wp_nonce_url(
 			add_query_arg(
 				array(
-					'action'                 => 'oras_board_reports_export_csv',
+					'action'                 => $action,
 					'oras_board_report_type' => $filters['type'],
 					'oras_board_event_id'    => $filters['event_id'],
 					'oras_board_after'       => $filters['after'],
