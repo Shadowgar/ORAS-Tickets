@@ -11,7 +11,7 @@
     "stan:php": "composer phpstan"
   },
   "devDependencies": {
-    "@wordpress/env": "^11.6.0"
+    "@wordpress/env": "^11.8.0"
   },
   "overrides": {
     "ajv": "8.20.0",
