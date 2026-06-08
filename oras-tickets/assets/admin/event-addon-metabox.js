@@ -506,7 +506,7 @@
 	}
 
 	document.addEventListener('DOMContentLoaded', function () {
-		var container = document.getElementById('oras-events-addon');
+		var container = document.getElementById('oras-events-addon-root');
 		if (!container) {
 			return;
 		}

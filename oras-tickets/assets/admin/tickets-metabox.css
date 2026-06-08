@@ -1,12 +1,12 @@
 #oras_tickets_metabox #oras-tickets-metabox,
-#oras-events-addon #oras-tickets-metabox {
+#oras-events-addon-root #oras-tickets-metabox {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-toolbar,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-toolbar {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
@@ -15,92 +15,92 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-add-ticket-button,
-#oras-events-addon #oras-tickets-metabox .oras-add-ticket-button {
+#oras-events-addon-root #oras-tickets-metabox .oras-add-ticket-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-add-ticket-button .dashicons,
-#oras-events-addon #oras-tickets-metabox .oras-add-ticket-button .dashicons {
+#oras-events-addon-root #oras-tickets-metabox .oras-add-ticket-button .dashicons {
 	font-size: 16px;
 	width: 16px;
 	height: 16px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-validation,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-validation {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-validation {
 	order: 2;
 	margin: 0;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-summary-wrap,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-summary-wrap {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-summary-wrap {
 	order: 3;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-summary-wrap h4,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-summary-wrap h4 {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-summary-wrap h4 {
 	margin: 0 0 8px;
 	font-size: 14px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-summary-actions,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-summary-actions {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-summary-actions {
 	display: flex;
 	gap: 6px;
 	flex-wrap: wrap;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-tickets-layout,
-#oras-events-addon #oras-tickets-metabox .oras-tickets-layout {
+#oras-events-addon-root #oras-tickets-metabox .oras-tickets-layout {
 	order: 4;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-tickets-tabs,
-#oras-events-addon #oras-tickets-metabox .oras-tickets-tabs {
+#oras-events-addon-root #oras-tickets-metabox .oras-tickets-tabs {
 	display: none;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-panels,
 #oras_tickets_metabox #oras-tickets-metabox .oras-tickets-panels,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-panels,
-#oras-events-addon #oras-tickets-metabox .oras-tickets-panels {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-panels,
+#oras-events-addon-root #oras-tickets-metabox .oras-tickets-panels {
 	width: 100%;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox #oras-tickets-table,
-#oras-events-addon #oras-tickets-metabox #oras-tickets-table {
+#oras-events-addon-root #oras-tickets-metabox #oras-tickets-table {
 	border: 0;
 	box-shadow: none;
 	background: transparent;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox #oras-tickets-table tbody,
-#oras-events-addon #oras-tickets-metabox #oras-tickets-table tbody {
+#oras-events-addon-root #oras-tickets-metabox #oras-tickets-table tbody {
 	display: block;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-row,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-row {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-row {
 	display: block;
 	margin: 0 0 16px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-row td,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-row td {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-row td {
 	display: block;
 	padding: 0;
 	border: 0;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-panel,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-panel {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-panel {
 	display: block;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__header,
-#oras-events-addon #oras-tickets-metabox .oras-card__header {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -112,32 +112,32 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__title,
-#oras-events-addon #oras-tickets-metabox .oras-card__title {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__title {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__name,
-#oras-events-addon #oras-tickets-metabox .oras-card__name {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__name {
 	font-weight: 600;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__meta,
-#oras-events-addon #oras-tickets-metabox .oras-card__meta {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__meta {
 	font-size: 12px;
 	color: #50575e;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__actions,
-#oras-events-addon #oras-tickets-metabox .oras-card__actions {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__actions {
 	display: flex;
 	gap: 8px;
 	flex-wrap: wrap;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__body,
-#oras-events-addon #oras-tickets-metabox .oras-card__body {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__body {
 	border: 1px solid #dcdcde;
 	border-top: 0;
 	border-radius: 0 0 6px 6px;
@@ -146,12 +146,12 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-card__body[hidden],
-#oras-events-addon #oras-tickets-metabox .oras-card__body[hidden] {
+#oras-events-addon-root #oras-tickets-metabox .oras-card__body[hidden] {
 	display: none;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data,
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data {
 	display: grid;
 	grid-template-columns: minmax(260px, 1.35fr) minmax(220px, 1fr);
 	gap: 12px;
@@ -159,12 +159,12 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .oras-ticket-data-tabs,
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .oras-ticket-data-tabs {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .oras-ticket-data-tabs {
 	display: none;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel,
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel {
 	display: block;
 	border: 1px solid #e4e5e7;
 	border-radius: 4px;
@@ -174,31 +174,31 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel.oras-panel-hidden,
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel.oras-panel-hidden {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel.oras-panel-hidden {
 	display: block;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_general"],
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_general"] {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_general"] {
 	grid-column: 1;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_inventory"],
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_sale_window"],
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing"],
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_inventory"],
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_sale_window"],
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing"] {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_inventory"],
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_sale_window"],
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing"] {
 	grid-column: 2;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing_phases"],
-#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing_phases"] {
+#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel[id*="_pricing_phases"] {
 	grid-column: 1 / -1;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-field-label,
-#oras-events-addon #oras-tickets-metabox .oras-field-label {
+#oras-events-addon-root #oras-tickets-metabox .oras-field-label {
 	display: inline-block;
 	margin-bottom: 4px;
 	font-weight: 600;
@@ -210,43 +210,43 @@
 #oras_tickets_metabox #oras-tickets-metabox input[type="text"],
 #oras_tickets_metabox #oras-tickets-metabox input[type="number"],
 #oras_tickets_metabox #oras-tickets-metabox input[type="datetime-local"],
-#oras-events-addon #oras-tickets-metabox .oras-input-full,
-#oras-events-addon #oras-tickets-metabox .oras-textarea-full,
-#oras-events-addon #oras-tickets-metabox select,
-#oras-events-addon #oras-tickets-metabox input[type="text"],
-#oras-events-addon #oras-tickets-metabox input[type="number"],
-#oras-events-addon #oras-tickets-metabox input[type="datetime-local"] {
+#oras-events-addon-root #oras-tickets-metabox .oras-input-full,
+#oras-events-addon-root #oras-tickets-metabox .oras-textarea-full,
+#oras-events-addon-root #oras-tickets-metabox select,
+#oras-events-addon-root #oras-tickets-metabox input[type="text"],
+#oras-events-addon-root #oras-tickets-metabox input[type="number"],
+#oras-events-addon-root #oras-tickets-metabox input[type="datetime-local"] {
 	width: 100%;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-field-block,
-#oras-events-addon #oras-tickets-metabox .oras-field-block {
+#oras-events-addon-root #oras-tickets-metabox .oras-field-block {
 	margin-bottom: 12px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-help-text,
-#oras-events-addon #oras-tickets-metabox .oras-help-text {
+#oras-events-addon-root #oras-tickets-metabox .oras-help-text {
 	margin: 4px 0 0;
 	color: #50575e;
 	font-size: 12px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-field-error,
-#oras-events-addon #oras-tickets-metabox .oras-field-error {
+#oras-events-addon-root #oras-tickets-metabox .oras-field-error {
 	margin: 4px 0 0;
 	color: #b32d2e;
 	font-size: 12px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-list,
-#oras-events-addon #oras-tickets-metabox .oras-phase-list {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-list {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-toolbar,
-#oras-events-addon #oras-tickets-metabox .oras-phase-toolbar {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -255,13 +255,13 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-help,
-#oras-events-addon #oras-tickets-metabox .oras-phase-help {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-help {
 	font-size: 12px;
 	color: #50575e;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-item,
-#oras-events-addon #oras-tickets-metabox .oras-phase-item {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-item {
 	border: 1px solid #dcdcde;
 	background: #fafafa;
 	padding: 12px;
@@ -272,7 +272,7 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-cardhead,
-#oras-events-addon #oras-tickets-metabox .oras-phase-cardhead {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-cardhead {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -282,9 +282,9 @@
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-row,
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-row-main,
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-row-advanced,
-#oras-events-addon #oras-tickets-metabox .oras-phase-row,
-#oras-events-addon #oras-tickets-metabox .oras-phase-row-main,
-#oras-events-addon #oras-tickets-metabox .oras-phase-row-advanced {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-row,
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-row-main,
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-row-advanced {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 12px;
@@ -292,57 +292,57 @@
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-item.is-collapsed .oras-phase-row-advanced,
-#oras-events-addon #oras-tickets-metabox .oras-phase-item.is-collapsed .oras-phase-row-advanced {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-item.is-collapsed .oras-phase-row-advanced {
 	display: none;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-phase-actions,
-#oras-events-addon #oras-tickets-metabox .oras-phase-actions {
+#oras-events-addon-root #oras-tickets-metabox .oras-phase-actions {
 	display: flex;
 	justify-content: flex-end;
 	align-items: flex-end;
 }
 
 #oras_tickets_metabox #oras-tickets-metabox .oras-ticket-actions,
-#oras-events-addon #oras-tickets-metabox .oras-ticket-actions {
+#oras-events-addon-root #oras-tickets-metabox .oras-ticket-actions {
 	margin-top: 12px;
 }
 
 @media (max-width: 960px) {
 	#oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data,
-	#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data {
+	#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data {
 		grid-template-columns: 1fr;
 	}
 
 	#oras_tickets_metabox #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel,
-	#oras-events-addon #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel {
+	#oras-events-addon-root #oras-tickets-metabox .panel-wrap.oras-ticket-data .panel {
 		grid-column: 1;
 	}
 
 	#oras_tickets_metabox #oras-tickets-metabox .oras-phase-row,
 	#oras_tickets_metabox #oras-tickets-metabox .oras-phase-row-main,
 	#oras_tickets_metabox #oras-tickets-metabox .oras-phase-row-advanced,
-	#oras-events-addon #oras-tickets-metabox .oras-phase-row,
-	#oras-events-addon #oras-tickets-metabox .oras-phase-row-main,
-	#oras-events-addon #oras-tickets-metabox .oras-phase-row-advanced {
+	#oras-events-addon-root #oras-tickets-metabox .oras-phase-row,
+	#oras-events-addon-root #oras-tickets-metabox .oras-phase-row-main,
+	#oras-events-addon-root #oras-tickets-metabox .oras-phase-row-advanced {
 		grid-template-columns: 1fr;
 	}
 
 	#oras_tickets_metabox #oras-tickets-metabox .oras-phase-actions,
-	#oras-events-addon #oras-tickets-metabox .oras-phase-actions {
+	#oras-events-addon-root #oras-tickets-metabox .oras-phase-actions {
 		justify-content: flex-start;
 	}
 }
 
 @media (max-width: 782px) {
 	#oras_tickets_metabox #oras-tickets-metabox .oras-card__header,
-	#oras-events-addon #oras-tickets-metabox .oras-card__header {
+	#oras-events-addon-root #oras-tickets-metabox .oras-card__header {
 		flex-direction: column;
 		align-items: flex-start;
 	}
 
 	#oras_tickets_metabox #oras-tickets-metabox .oras-ticket-summary-actions,
-	#oras-events-addon #oras-tickets-metabox .oras-ticket-summary-actions {
+	#oras-events-addon-root #oras-tickets-metabox .oras-ticket-summary-actions {
 		flex-direction: column;
 		align-items: stretch;
 	}

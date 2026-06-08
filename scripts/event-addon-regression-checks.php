@@ -24,6 +24,11 @@ if (! is_string($eventAddonJs) || $eventAddonJs === '') {
     fail('Unable to read event addon metabox script.');
 }
 
+if (strpos($eventAddonJs, "document.getElementById('oras-events-addon-root')") === false) {
+    fail('Event addon script must bind to a unique inner root element.');
+}
+pass('Event addon script targets a unique inner root element.');
+
 if (! preg_match('/focusTarget\.focus\(\{\s*preventScroll:\s*true\s*\}\)/', $eventAddonJs)) {
     fail('Event addon viewport restore must focus with preventScroll enabled.');
 }
@@ -59,3 +64,15 @@ if ($phaseEndNormalizationCount < 2) {
 }
 pass('Pricing phase save path normalizes datetime-local values.');
 
+$eventAddonPhp = file_get_contents($base . '/includes/Admin/Event_Addon_Metabox.php');
+if (! is_string($eventAddonPhp) || $eventAddonPhp === '') {
+    fail('Unable to read event addon metabox source.');
+}
+
+if (! preg_match("/private const META_BOX_ID = 'oras-events-addon-metabox';/", $eventAddonPhp)) {
+    fail('Event addon metabox wrapper id must not reuse the inner app root id.');
+}
+if (! preg_match('/<div id="oras-events-addon-root" class="oras-events-addon"/', $eventAddonPhp)) {
+    fail('Event addon markup must render a dedicated inner root element.');
+}
+pass('Event addon markup uses distinct wrapper and inner root ids.');

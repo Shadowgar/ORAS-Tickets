@@ -1,4 +1,4 @@
-#oras-events-addon {
+#oras-events-addon-root {
 	--oras-space-1: 8px;
 	--oras-space-2: 12px;
 	--oras-space-3: 16px;
@@ -10,12 +10,12 @@
 	margin-top: 4px;
 }
 
-#oras-events-addon,
-#oras-events-addon * {
+#oras-events-addon-root,
+#oras-events-addon-root * {
 	box-sizing: border-box;
 }
 
-#oras-events-addon .oras-events-addon__header {
+#oras-events-addon-root .oras-events-addon__header {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
@@ -27,22 +27,22 @@
 	background: linear-gradient(180deg, #fff, #fcfcfc);
 }
 
-#oras-events-addon .oras-events-addon__header-main {
+#oras-events-addon-root .oras-events-addon__header-main {
 	min-width: 0;
 }
 
-#oras-events-addon .oras-events-addon__title {
+#oras-events-addon-root .oras-events-addon__title {
 	margin: 0 0 4px;
 	font-size: 17px;
 	line-height: 1.3;
 }
 
-#oras-events-addon .oras-events-addon__header .description {
+#oras-events-addon-root .oras-events-addon__header .description {
 	margin: 0;
 	color: var(--oras-text-muted);
 }
 
-#oras-events-addon .oras-events-addon__badges {
+#oras-events-addon-root .oras-events-addon__badges {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -50,11 +50,11 @@
 	gap: var(--oras-space-1);
 }
 
-#oras-events-addon .oras-events-addon-save-trigger {
+#oras-events-addon-root .oras-events-addon-save-trigger {
 	margin-left: var(--oras-space-1);
 }
 
-#oras-events-addon .oras-events-addon__badge {
+#oras-events-addon-root .oras-events-addon__badge {
 	display: inline-flex;
 	align-items: center;
 	min-height: 24px;
@@ -68,45 +68,45 @@
 	white-space: nowrap;
 }
 
-#oras-events-addon .oras-events-addon__badge.is-success {
+#oras-events-addon-root .oras-events-addon__badge.is-success {
 	color: #196331;
 	border-color: #8bcfa4;
 	background: #f1faf4;
 }
 
-#oras-events-addon .oras-events-addon__badge.is-muted {
+#oras-events-addon-root .oras-events-addon__badge.is-muted {
 	color: #646970;
 	border-color: #dcdcde;
 	background: #f8f9f9;
 }
 
-#oras-events-addon .oras-events-addon__tabs.nav-tab-wrapper {
+#oras-events-addon-root .oras-events-addon__tabs.nav-tab-wrapper {
 	border-bottom: 1px solid #c3c4c7;
 	margin: 0 0 var(--oras-space-3);
 	padding: 0;
 }
 
-#oras-events-addon .oras-events-addon__tab.nav-tab {
+#oras-events-addon-root .oras-events-addon__tab.nav-tab {
 	cursor: pointer;
 	margin-left: 0;
 }
 
-#oras-events-addon .oras-events-addon__tab.is-active,
-#oras-events-addon .oras-events-addon__tab[aria-selected="true"] {
+#oras-events-addon-root .oras-events-addon__tab.is-active,
+#oras-events-addon-root .oras-events-addon__tab[aria-selected="true"] {
 	background: #fff;
 	border-bottom-color: #fff;
 	font-weight: 600;
 }
 
-#oras-events-addon .oras-events-addon__panel[hidden] {
+#oras-events-addon-root .oras-events-addon__panel[hidden] {
 	display: none;
 }
 
-#oras-events-addon .oras-events-addon__panel-inner {
+#oras-events-addon-root .oras-events-addon__panel-inner {
 	padding: 0;
 }
 
-#oras-events-addon .oras-events-addon__save-bar {
+#oras-events-addon-root .oras-events-addon__save-bar {
 	display: flex;
 	justify-content: flex-end;
 	padding-top: var(--oras-space-3);
@@ -114,7 +114,7 @@
 	border-top: 1px solid var(--oras-border-soft);
 }
 
-#oras-events-addon .oras-card__header {
+#oras-events-addon-root .oras-card__header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -125,32 +125,32 @@
 	background: #fff;
 }
 
-#oras-events-addon .oras-card__title {
+#oras-events-addon-root .oras-card__title {
 	min-width: 0;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
-#oras-events-addon .oras-card__name {
+#oras-events-addon-root .oras-card__name {
 	font-weight: 600;
 	line-height: 1.3;
 }
 
-#oras-events-addon .oras-card__meta {
+#oras-events-addon-root .oras-card__meta {
 	color: var(--oras-text-muted);
 	font-size: 12px;
 	line-height: 1.3;
 }
 
-#oras-events-addon .oras-card__actions {
+#oras-events-addon-root .oras-card__actions {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
 	gap: var(--oras-space-1);
 }
 
-#oras-events-addon .oras-card__body {
+#oras-events-addon-root .oras-card__body {
 	border: 1px solid var(--oras-border);
 	border-top: 0;
 	border-radius: 0 0 6px 6px;
@@ -158,52 +158,52 @@
 	padding: var(--oras-space-3);
 }
 
-#oras-events-addon .oras-card__body[hidden] {
+#oras-events-addon-root .oras-card__body[hidden] {
 	display: none;
 }
 
-#oras-events-addon #oras-agenda-metabox {
+#oras-events-addon-root #oras-agenda-metabox {
 	margin: 0;
 }
 
-#oras-events-addon #oras-agenda-metabox > p {
+#oras-events-addon-root #oras-agenda-metabox > p {
 	margin: 0 0 var(--oras-space-2);
 }
 
-#oras-events-addon #oras-agenda-metabox .oras-agenda-days-toolbar {
+#oras-events-addon-root #oras-agenda-metabox .oras-agenda-days-toolbar {
 	margin: 0;
 }
 
-#oras-events-addon #oras-agenda-days {
+#oras-events-addon-root #oras-agenda-days {
 	display: flex;
 	flex-direction: column;
 	gap: var(--oras-space-3);
 	margin-top: var(--oras-space-3);
 }
 
-#oras-events-addon .oras-agenda-day {
+#oras-events-addon-root .oras-agenda-day {
 	margin: 0;
 }
 
-#oras-events-addon .oras-agenda-day .oras-card__body {
+#oras-events-addon-root .oras-agenda-day .oras-card__body {
 	margin: 0;
 }
 
-#oras-events-addon .oras-agenda-slots-table {
+#oras-events-addon-root .oras-agenda-slots-table {
 	margin-top: var(--oras-space-2);
 }
 
-#oras-events-addon .oras-agenda-slots-table th,
-#oras-events-addon .oras-agenda-slots-table td {
+#oras-events-addon-root .oras-agenda-slots-table th,
+#oras-events-addon-root .oras-agenda-slots-table td {
 	vertical-align: top;
 }
 
-#oras-events-addon .oras-agenda-slots-table .oras-agenda-slot-details {
+#oras-events-addon-root .oras-agenda-slots-table .oras-agenda-slot-details {
 	min-width: 320px;
 }
 
-#oras-events-addon .oras-agenda-speaker-row,
-#oras-events-addon .oras-agenda-resource-row {
+#oras-events-addon-root .oras-agenda-speaker-row,
+#oras-events-addon-root .oras-agenda-resource-row {
 	margin: 6px 0;
 	padding: var(--oras-space-2);
 	border: 1px solid var(--oras-border-soft);
@@ -211,32 +211,32 @@
 	background: #fff;
 }
 
-#oras-events-addon .oras-agenda-group {
+#oras-events-addon-root .oras-agenda-group {
 	margin-top: var(--oras-space-1);
 }
 
-#oras-events-addon .oras-agenda-group__rows {
+#oras-events-addon-root .oras-agenda-group__rows {
 	margin-top: 6px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
 
-#oras-events-addon .oras-agenda-resource-row p,
-#oras-events-addon .oras-agenda-speaker-row p {
+#oras-events-addon-root .oras-agenda-resource-row p,
+#oras-events-addon-root .oras-agenda-speaker-row p {
 	margin: 0 0 var(--oras-space-1);
 }
 
-#oras-events-addon .oras-agenda-stack-input,
-#oras-events-addon .oras-agenda-stack-action {
+#oras-events-addon-root .oras-agenda-stack-input,
+#oras-events-addon-root .oras-agenda-stack-action {
 	margin-top: 6px;
 }
 
-#oras-events-addon #oras-rsvp-metabox {
+#oras-events-addon-root #oras-rsvp-metabox {
 	padding: var(--oras-space-2) 0;
 }
 
-#oras-events-addon #oras-rsvp-metabox fieldset {
+#oras-events-addon-root #oras-rsvp-metabox fieldset {
 	margin: 0;
 	padding: var(--oras-space-3);
 	border: 1px solid var(--oras-border);
@@ -244,81 +244,81 @@
 	background: #fff;
 }
 
-#oras-events-addon #oras-rsvp-metabox legend {
+#oras-events-addon-root #oras-rsvp-metabox legend {
 	font-weight: 600;
 	padding: 0 6px;
 }
 
-#oras-events-addon .oras-rsvp-grid {
+#oras-events-addon-root .oras-rsvp-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--oras-space-3);
 }
 
-#oras-events-addon .oras-rsvp-field {
+#oras-events-addon-root .oras-rsvp-field {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
 
-#oras-events-addon .oras-rsvp-field label {
+#oras-events-addon-root .oras-rsvp-field label {
 	font-weight: 600;
 }
 
-#oras-events-addon .oras-rsvp-field .description {
+#oras-events-addon-root .oras-rsvp-field .description {
 	margin: 0;
 	font-size: 12px;
 	color: var(--oras-text-muted);
 }
 
-#oras-events-addon .oras-rsvp-field--full {
+#oras-events-addon-root .oras-rsvp-field--full {
 	grid-column: 1 / -1;
 }
 
-#oras-events-addon .oras-rsvp-datetime-grid {
+#oras-events-addon-root .oras-rsvp-datetime-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--oras-space-2);
 }
 
-#oras-events-addon .oras-rsvp-is-disabled .oras-rsvp-field--capacity {
+#oras-events-addon-root .oras-rsvp-is-disabled .oras-rsvp-field--capacity {
 	opacity: 0.6;
 }
 
-#oras-events-addon #oras-event-speakers-metabox {
+#oras-events-addon-root #oras-event-speakers-metabox {
 	margin: 0;
 }
 
-#oras-events-addon .oras-event-speakers-toolbar {
+#oras-events-addon-root .oras-event-speakers-toolbar {
 	margin-bottom: var(--oras-space-2);
 }
 
-#oras-events-addon #oras-event-speakers-metabox #oras-add-speaker-row {
+#oras-events-addon-root #oras-event-speakers-metabox #oras-add-speaker-row {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 }
 
-#oras-events-addon #oras-event-speakers-metabox #oras-add-speaker-row .dashicons {
+#oras-events-addon-root #oras-event-speakers-metabox #oras-add-speaker-row .dashicons {
 	font-size: 16px;
 	width: 16px;
 	height: 16px;
 }
 
-#oras-events-addon .oras-event-speakers-rows {
+#oras-events-addon-root .oras-event-speakers-rows {
 	display: flex;
 	flex-direction: column;
 	gap: var(--oras-space-2);
 }
 
-#oras-events-addon .oras-speaker-badges {
+#oras-events-addon-root .oras-speaker-badges {
 	display: inline-flex;
 	gap: 6px;
 	margin-top: 4px;
 	flex-wrap: wrap;
 }
 
-#oras-events-addon .oras-speaker-badge {
+#oras-events-addon-root .oras-speaker-badge {
 	padding: 1px 8px;
 	border: 1px solid #ccd0d4;
 	border-radius: 999px;
@@ -328,68 +328,68 @@
 	background: #f6f7f7;
 }
 
-#oras-events-addon .oras-speaker-badge.is-primary {
+#oras-events-addon-root .oras-speaker-badge.is-primary {
 	background: #eef6ff;
 	border-color: #72aee6;
 }
 
-#oras-events-addon .oras-speaker-badge.is-fulfilled {
+#oras-events-addon-root .oras-speaker-badge.is-fulfilled {
 	background: #f1faf4;
 	border-color: #8bcfa4;
 	color: #196331;
 }
 
-#oras-events-addon .oras-event-speaker-grid {
+#oras-events-addon-root .oras-event-speaker-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--oras-space-2);
 }
 
-#oras-events-addon .oras-event-speaker-field {
+#oras-events-addon-root .oras-event-speaker-field {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
 
-#oras-events-addon .oras-event-speaker-field label,
-#oras-events-addon .oras-event-speaker-field .oras-field-label {
+#oras-events-addon-root .oras-event-speaker-field label,
+#oras-events-addon-root .oras-event-speaker-field .oras-field-label {
 	font-weight: 600;
 }
 
-#oras-events-addon .oras-event-speaker-notes {
+#oras-events-addon-root .oras-event-speaker-notes {
 	grid-column: 1 / -1;
 }
 
 @media (max-width: 960px) {
-	#oras-events-addon .oras-events-addon__header {
+	#oras-events-addon-root .oras-events-addon__header {
 		flex-direction: column;
 	}
 
-	#oras-events-addon .oras-events-addon__badges {
+	#oras-events-addon-root .oras-events-addon__badges {
 		justify-content: flex-start;
 	}
 
-	#oras-events-addon .oras-rsvp-grid,
-	#oras-events-addon .oras-event-speaker-grid {
+	#oras-events-addon-root .oras-rsvp-grid,
+	#oras-events-addon-root .oras-event-speaker-grid {
 		grid-template-columns: 1fr;
 	}
 
-	#oras-events-addon .oras-rsvp-datetime-grid {
+	#oras-events-addon-root .oras-rsvp-datetime-grid {
 		grid-template-columns: 1fr;
 	}
 }
 
 @media (max-width: 782px) {
-	#oras-events-addon .oras-events-addon__tab.nav-tab {
+	#oras-events-addon-root .oras-events-addon__tab.nav-tab {
 		padding: 8px 10px;
 	}
 
-	#oras-events-addon .oras-card__header {
+	#oras-events-addon-root .oras-card__header {
 		flex-direction: column;
 		align-items: flex-start;
 	}
 
-	#oras-events-addon .oras-card__actions {
+	#oras-events-addon-root .oras-card__actions {
 		width: 100%;
 	}
 }

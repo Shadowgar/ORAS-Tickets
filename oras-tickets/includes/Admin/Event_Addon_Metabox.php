@@ -15,7 +15,7 @@ if (! defined('ABSPATH')) {
 final class Event_Addon_Metabox
 { // NOSONAR legacy WP class naming
 
-    private const META_BOX_ID = 'oras-events-addon';
+    private const META_BOX_ID = 'oras-events-addon-metabox';
 
     private function assetVersion(string $relative_path): string
     {
@@ -186,7 +186,7 @@ final class Event_Addon_Metabox
         $save_event_label     = __('Save Event', 'oras-tickets');
         $saving_event_label   = __('Saving…', 'oras-tickets');
 ?>
-        <div id="oras-events-addon" class="oras-events-addon" data-post-id="<?php echo esc_attr((string) $post->ID); ?>">
+        <div id="oras-events-addon-root" class="oras-events-addon" data-post-id="<?php echo esc_attr((string) $post->ID); ?>">
             <header class="oras-events-addon__header">
                 <div class="oras-events-addon__header-main">
                     <h2 class="oras-events-addon__title"><?php echo esc_html__('ORAS Events Addon', 'oras-tickets'); ?></h2>
