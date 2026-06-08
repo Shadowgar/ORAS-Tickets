@@ -30,10 +30,34 @@ final class Settings_Page
             $repair_notice = '<div class="updated notice is-dismissible"><p>' . esc_html__('Capabilities were repaired.', 'oras-tickets') . '</p></div>';
         }
 
+        $phase_repair_notice = '';
+        if (isset($_GET['oras_phase_datetimes']) && $_GET['oras_phase_datetimes'] === 'repaired') {
+            $events_scanned = isset($_GET['oras_phase_scanned']) ? absint(wp_unslash($_GET['oras_phase_scanned'])) : 0;
+            $events_updated = isset($_GET['oras_phase_events']) ? absint(wp_unslash($_GET['oras_phase_events'])) : 0;
+            $fields_updated = isset($_GET['oras_phase_fields']) ? absint(wp_unslash($_GET['oras_phase_fields'])) : 0;
+            $fields_skipped = isset($_GET['oras_phase_skipped']) ? absint(wp_unslash($_GET['oras_phase_skipped'])) : 0;
+
+            $phase_repair_notice = sprintf(
+                '<div class="updated notice is-dismissible"><p>%s</p></div>',
+                esc_html(
+                    sprintf(
+                        /* translators: 1: events scanned, 2: events updated, 3: fields updated, 4: fields skipped */
+                        __('Pricing phase date repair finished. Scanned %1$d events, updated %2$d events, normalized %3$d fields, and skipped %4$d ambiguous fields.', 'oras-tickets'),
+                        $events_scanned,
+                        $events_updated,
+                        $fields_updated,
+                        $fields_skipped
+                    )
+                )
+            );
+        }
+
 ?>
         <div class="wrap">
             <h1><?php echo esc_html__('ORAS Tickets Settings', 'oras-tickets'); ?></h1>
             <?php echo $repair_notice; // phpcs:ignore -- safe HTML output 
+            ?>
+            <?php echo $phase_repair_notice; // phpcs:ignore -- safe HTML output 
             ?>
 
             <?php if (current_user_can('manage_options')) : ?>
@@ -41,6 +65,12 @@ final class Settings_Page
                     <?php wp_nonce_field('oras_repair_caps', 'oras_repair_caps_nonce'); ?>
                     <input type="hidden" name="action" value="oras_tickets_repair_caps" />
                     <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will add permissions to the Administrator role. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
+                </form>
+
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">
+                    <?php wp_nonce_field('oras_repair_phase_datetimes', 'oras_repair_phase_datetimes_nonce'); ?>
+                    <input type="hidden" name="action" value="oras_tickets_repair_phase_datetimes" />
+                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repair pricing phase dates across all events? Only clearly safe legacy formats will be changed.'); ?>');"><?php echo esc_html__('Repair Pricing Phase Dates', 'oras-tickets'); ?></button>
                 </form>
             <?php endif; ?>
 

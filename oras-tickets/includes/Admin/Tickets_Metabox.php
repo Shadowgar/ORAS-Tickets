@@ -299,6 +299,8 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                                     $phase_price = isset( $phase['price'] ) ? (string) $phase['price'] : '';
                                                                     $phase_start = isset( $phase['start'] ) ? (string) $phase['start'] : '';
                                                                     $phase_end   = isset( $phase['end'] ) ? (string) $phase['end'] : '';
+                                                                    $phase_start_val = $phase_start !== '' ? str_replace( ' ', 'T', $phase_start ) : '';
+                                                                    $phase_end_val   = $phase_end !== '' ? str_replace( ' ', 'T', $phase_end ) : '';
                                                                     ?>
                                                                     <div class="oras-phase-item is-collapsed" data-phase-index="<?php echo $phase_idx; ?>">
                                                                         <div class="oras-phase-cardhead">
@@ -322,11 +324,11 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                                         <div class="oras-phase-row oras-phase-row-advanced">
                                                                             <div>
                                                                                 <span class="oras-field-label">Start (UTC)</span>
-                                                                                <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][start]" placeholder="YYYY-MM-DD HH:MM" value="<?php echo esc_attr( $phase_start ); ?>" />
+                                                                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][start]" value="<?php echo esc_attr( $phase_start_val ); ?>" />
                                                                             </div>
                                                                             <div>
                                                                                 <span class="oras-field-label">End (UTC)</span>
-                                                                                <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][end]" placeholder="YYYY-MM-DD HH:MM" value="<?php echo esc_attr( $phase_end ); ?>" />
+                                                                                <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][<?php echo $phase_idx; ?>][end]" value="<?php echo esc_attr( $phase_end_val ); ?>" />
                                                                             </div>
                                                                             <div class="oras-phase-actions">
                                                                                 <button type="button" class="button oras-phase-remove">Remove</button>
@@ -359,11 +361,11 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                                 <div class="oras-phase-row oras-phase-row-advanced">
                                                                     <div>
                                                                         <span class="oras-field-label">Start (UTC)</span>
-                                                                        <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][start]" placeholder="YYYY-MM-DD HH:MM" value="" />
+                                                                        <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][start]" value="" />
                                                                     </div>
                                                                     <div>
                                                                         <span class="oras-field-label">End (UTC)</span>
-                                                                        <input type="text" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][end]" placeholder="YYYY-MM-DD HH:MM" value="" />
+                                                                        <input type="datetime-local" name="oras_tickets_tickets[<?php echo $idx; ?>][price_phases][__PHASE__][end]" value="" />
                                                                     </div>
                                                                     <div class="oras-phase-actions">
                                                                         <button type="button" class="button oras-phase-remove">Remove</button>
@@ -567,11 +569,11 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                 <div class="oras-phase-row oras-phase-row-advanced">
                                                     <div>
                                                         <span class="oras-field-label">Start (UTC)</span>
-                                                        <input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][start]" placeholder="YYYY-MM-DD HH:MM" value="" />
+                                                        <input type="datetime-local" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][start]" value="" />
                                                     </div>
                                                     <div>
                                                         <span class="oras-field-label">End (UTC)</span>
-                                                        <input type="text" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][end]" placeholder="YYYY-MM-DD HH:MM" value="" />
+                                                        <input type="datetime-local" name="oras_tickets_tickets[__INDEX__][price_phases][__PHASE__][end]" value="" />
                                                     </div>
                                                     <div class="oras-phase-actions">
                                                         <button type="button" class="button oras-phase-remove">Remove</button>
@@ -811,6 +813,20 @@ $sale_end   = $tmp;
                             : sanitize_text_field( $phase_price_raw );
                         $phase_start     = isset( $phase_fields['start'] ) ? sanitize_text_field( $phase_fields['start'] ) : '';
                         $phase_end       = isset( $phase_fields['end'] ) ? sanitize_text_field( $phase_fields['end'] ) : '';
+                        if ( $phase_start !== '' ) {
+                            $phase_start = str_replace( 'T', ' ', $phase_start );
+                            $phase_start = trim( $phase_start );
+                            if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $phase_start ) ) {
+                                $phase_start = '';
+                            }
+                        }
+                        if ( $phase_end !== '' ) {
+                            $phase_end = str_replace( 'T', ' ', $phase_end );
+                            $phase_end = trim( $phase_end );
+                            if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $phase_end ) ) {
+                                $phase_end = '';
+                            }
+                        }
 
                         $price_phases_clean[] = array(
                             'key'   => $phase_key,
@@ -921,6 +937,20 @@ $sale_end   = $tmp;
                             : sanitize_text_field( $phase_price_raw );
                         $phase_start     = isset( $phase_fields['start'] ) ? sanitize_text_field( $phase_fields['start'] ) : '';
                         $phase_end       = isset( $phase_fields['end'] ) ? sanitize_text_field( $phase_fields['end'] ) : '';
+                        if ( $phase_start !== '' ) {
+                            $phase_start = str_replace( 'T', ' ', $phase_start );
+                            $phase_start = trim( $phase_start );
+                            if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $phase_start ) ) {
+                                $phase_start = '';
+                            }
+                        }
+                        if ( $phase_end !== '' ) {
+                            $phase_end = str_replace( 'T', ' ', $phase_end );
+                            $phase_end = trim( $phase_end );
+                            if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $phase_end ) ) {
+                                $phase_end = '';
+                            }
+                        }
 
                         $price_phases_clean[] = array(
                             'key'   => $phase_key,
@@ -1070,6 +1100,138 @@ $sale_end   = $tmp;
         echo '<div class="notice notice-warning is-dismissible">';
         echo '<p>' . esc_html( $data['message'] ) . ' <a href="' . esc_url( $edit_url ) . '">' . esc_html__( 'Edit Event', 'oras-tickets' ) . '</a></p>';
         echo '</div>';
+    }
+
+    /**
+     * @return array{value:string,safe:bool,normalized:bool}
+     */
+    public static function normalize_legacy_phase_datetime_value( string $raw ): array {
+        $trimmed = trim( $raw );
+
+        if ( $trimmed === '' ) {
+            return array(
+                'value'      => '',
+                'safe'       => true,
+                'normalized' => false,
+            );
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $trimmed ) ) {
+            return array(
+                'value'      => $trimmed,
+                'safe'       => true,
+                'normalized' => $trimmed !== $raw,
+            );
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $trimmed ) ) {
+            return array(
+                'value'      => str_replace( 'T', ' ', $trimmed ),
+                'safe'       => true,
+                'normalized' => true,
+            );
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $trimmed ) ) {
+            return array(
+                'value'      => $trimmed . ' 00:00',
+                'safe'       => true,
+                'normalized' => true,
+            );
+        }
+
+        return array(
+            'value'      => $raw,
+            'safe'       => false,
+            'normalized' => false,
+        );
+    }
+
+    /**
+     * @return array{events_scanned:int,events_updated:int,fields_updated:int,fields_skipped:int}
+     */
+    public function repair_all_price_phase_datetimes(): array {
+        $event_ids = get_posts(
+            array(
+                'post_type'              => Meta::EVENT_POST_TYPE,
+                'post_status'            => 'any',
+                'posts_per_page'         => -1,
+                'fields'                 => 'ids',
+                'orderby'                => 'ID',
+                'order'                  => 'ASC',
+                'no_found_rows'          => true,
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+                'meta_query'             => array(
+                    array(
+                        'key'     => Meta::META_KEY_TICKETS,
+                        'compare' => 'EXISTS',
+                    ),
+                ),
+            )
+        );
+
+        $stats = array(
+            'events_scanned' => 0,
+            'events_updated' => 0,
+            'fields_updated' => 0,
+            'fields_skipped' => 0,
+        );
+
+        foreach ( $event_ids as $event_id ) {
+            $event_id = (int) $event_id;
+            if ( $event_id <= 0 ) {
+                continue;
+            }
+
+            ++$stats['events_scanned'];
+
+            $envelope = Ticket_Collection::load_envelope_for_event( $event_id );
+            $tickets  = isset( $envelope['tickets'] ) && is_array( $envelope['tickets'] ) ? $envelope['tickets'] : array();
+            $changed  = false;
+
+            foreach ( $tickets as $ticket_index => $ticket ) {
+                if ( ! is_array( $ticket ) || empty( $ticket['price_phases'] ) || ! is_array( $ticket['price_phases'] ) ) {
+                    continue;
+                }
+
+                foreach ( $ticket['price_phases'] as $phase_index => $phase ) {
+                    if ( ! is_array( $phase ) ) {
+                        continue;
+                    }
+
+                    foreach ( array( 'start', 'end' ) as $field ) {
+                        $raw_value = isset( $phase[ $field ] ) && is_scalar( $phase[ $field ] ) ? (string) $phase[ $field ] : '';
+                        $result    = self::normalize_legacy_phase_datetime_value( $raw_value );
+
+                        if ( ! $result['safe'] ) {
+                            if ( trim( $raw_value ) !== '' ) {
+                                ++$stats['fields_skipped'];
+                            }
+                            continue;
+                        }
+
+                        if ( ! $result['normalized'] ) {
+                            continue;
+                        }
+
+                        $tickets[ $ticket_index ]['price_phases'][ $phase_index ][ $field ] = $result['value'];
+                        ++$stats['fields_updated'];
+                        $changed = true;
+                    }
+                }
+            }
+
+            if ( ! $changed ) {
+                continue;
+            }
+
+            $envelope['tickets'] = $tickets;
+            Ticket_Collection::save_for_event( $event_id, $envelope );
+            ++$stats['events_updated'];
+        }
+
+        return $stats;
     }
 
     /**

@@ -100,7 +100,11 @@
 				}
 
 				if (focusTarget && typeof focusTarget.focus === 'function') {
-					focusTarget.focus();
+					try {
+						focusTarget.focus({ preventScroll: true });
+					} catch (focusError) {
+						focusTarget.focus();
+					}
 				}
 			});
 		});

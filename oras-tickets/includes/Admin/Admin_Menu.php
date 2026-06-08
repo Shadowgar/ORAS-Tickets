@@ -30,6 +30,7 @@ final class Admin_Menu
         add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
         add_action('admin_post_oras_tickets_export_csv', array($this, 'handle_export_csv'));
         add_action('admin_post_oras_tickets_repair_caps', array($this, 'handle_repair_caps'));
+        add_action('admin_post_oras_tickets_repair_phase_datetimes', array($this, 'handle_repair_phase_datetimes'));
         add_action('admin_init', array(Settings_Page::class, 'register_settings'));
         (new Speaker_Obligations_Page())->register();
         (new Speaker_Reports_Page())->register();
@@ -195,6 +196,33 @@ final class Admin_Menu
 
         $redirect = wp_get_referer() ?: admin_url();
         $redirect = add_query_arg(array('oras_caps' => 'repaired'), $redirect);
+        wp_safe_redirect($redirect);
+        exit;
+    }
+
+    public function handle_repair_phase_datetimes(): void
+    {
+        if (! current_user_can('manage_options')) {
+            wp_die(esc_html__('Not allowed.', 'oras-tickets'), '', array('response' => 403));
+        }
+
+        if (! isset($_POST['oras_repair_phase_datetimes_nonce']) || ! wp_verify_nonce(wp_unslash($_POST['oras_repair_phase_datetimes_nonce']), 'oras_repair_phase_datetimes')) {
+            wp_die(esc_html__('Invalid request.', 'oras-tickets'), '', array('response' => 400));
+        }
+
+        $stats = Tickets_Metabox::instance()->repair_all_price_phase_datetimes();
+
+        $redirect = wp_get_referer() ?: admin_url();
+        $redirect = add_query_arg(
+            array(
+                'oras_phase_datetimes' => 'repaired',
+                'oras_phase_events'    => (string) ($stats['events_updated'] ?? 0),
+                'oras_phase_fields'    => (string) ($stats['fields_updated'] ?? 0),
+                'oras_phase_skipped'   => (string) ($stats['fields_skipped'] ?? 0),
+                'oras_phase_scanned'   => (string) ($stats['events_scanned'] ?? 0),
+            ),
+            $redirect
+        );
         wp_safe_redirect($redirect);
         exit;
     }
