@@ -34,16 +34,16 @@ if (! preg_match('/focusTarget\.focus\(\{\s*preventScroll:\s*true\s*\}\)/', $eve
 }
 pass('Event addon viewport restore uses non-scrolling focus.');
 
-if (strpos($eventAddonJs, 'function setupButtonViewportGuard(container)') === false) {
-    fail('Event addon script must guard button interactions against deferred editor scroll jumps.');
+if (strpos($eventAddonJs, 'function setupResizeSuppression(container)') === false) {
+    fail('Event addon script must suppress editor resize side effects during addon interactions.');
 }
-if (strpos($eventAddonJs, "'mousedown'") === false) {
-    fail('Event addon button viewport guard must preempt editor focus theft on mousedown.');
+if (strpos($eventAddonJs, "wp-window-resized.orasEventsAddon") === false) {
+    fail('Event addon resize suppression must hook the wp-window-resized document event.');
 }
-if (strpos($eventAddonJs, "activeElement.tagName === 'IFRAME' && activeElement.id === 'content_ifr'") === false) {
-    fail('Event addon button viewport guard must detect editor iframe focus theft.');
+if (strpos($eventAddonJs, "event.stopImmediatePropagation();") === false) {
+    fail('Event addon resize suppression must stop the editor resize handler when armed.');
 }
-pass('Event addon button interactions preserve viewport when the editor steals focus.');
+pass('Event addon interactions suppress the editor resize focus trap.');
 
 $ticketsMetaboxPhp = file_get_contents($base . '/includes/Admin/Tickets_Metabox.php');
 if (! is_string($ticketsMetaboxPhp) || $ticketsMetaboxPhp === '') {

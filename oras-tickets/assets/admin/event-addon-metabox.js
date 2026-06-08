@@ -110,81 +110,41 @@
 		});
 	}
 
-	function preserveButtonInteractionViewport(button, scrollX, scrollY) {
-		if (!button || !button.isConnected) {
+	function setupResizeSuppression(container) {
+		if (typeof globalThis.jQuery !== 'function') {
 			return;
 		}
 
-		globalThis.scrollTo(scrollX, scrollY);
+		var suppressUntil = 0;
+		var suppressRemaining = 0;
+		var $document = globalThis.jQuery(document);
 
-		if (typeof button.focus === 'function') {
-			try {
-				button.focus({ preventScroll: true });
-			} catch (focusError) {
-				button.focus();
-			}
+		function armSuppression() {
+			suppressUntil = Date.now() + 1000;
+			suppressRemaining = 4;
 		}
-	}
 
-	function activeElementIsEditorIframe(activeElement) {
-		return !!activeElement && activeElement.tagName === 'IFRAME' && activeElement.id === 'content_ifr';
-	}
-
-	function setupButtonViewportGuard(container) {
 		container.addEventListener(
 			'mousedown',
 			function (event) {
-				var button = event.target.closest('button');
-				if (!button || !container.contains(button)) {
+				var interactive = event.target.closest('button, [role="tab"], input, select, textarea, label');
+				if (!interactive || !container.contains(interactive)) {
 					return;
 				}
 
-				var activeElement = document.activeElement;
-				if (!activeElementIsEditorIframe(activeElement)) {
-					return;
-				}
-
-				var scrollX = globalThis.pageXOffset || globalThis.scrollX || 0;
-				var scrollY = globalThis.pageYOffset || globalThis.scrollY || 0;
-
-				if (typeof activeElement.blur === 'function') {
-					activeElement.blur();
-				}
-
-				preserveButtonInteractionViewport(button, scrollX, scrollY);
+				armSuppression();
 			},
 			true
 		);
 
-		container.addEventListener(
-			'click',
-			function (event) {
-				var button = event.target.closest('button');
-				if (!button || !container.contains(button)) {
-					return;
-				}
+		$document.on('wp-window-resized.orasEventsAddon', function (event) {
+			if (suppressRemaining < 1 || Date.now() > suppressUntil) {
+				return;
+			}
 
-				var scrollX = globalThis.pageXOffset || globalThis.scrollX || 0;
-				var scrollY = globalThis.pageYOffset || globalThis.scrollY || 0;
-				var attempts = 0;
-				var timer = globalThis.setInterval(function () {
-					attempts += 1;
-
-					var activeElement = document.activeElement;
-					var iframeStoleFocus = activeElementIsEditorIframe(activeElement);
-					var jumped = Math.abs((globalThis.pageYOffset || globalThis.scrollY || 0) - scrollY) > 50;
-
-					if (iframeStoleFocus || jumped) {
-						preserveButtonInteractionViewport(button, scrollX, scrollY);
-					}
-
-					if (attempts >= 12) {
-						globalThis.clearInterval(timer);
-					}
-				}, 100);
-			},
-			true
-		);
+			suppressRemaining -= 1;
+			event.stopImmediatePropagation();
+		});
 	}
 
 	function tabButtons(container) {
@@ -589,7 +549,7 @@
 		}
 
 		setupTabs(container);
-		setupButtonViewportGuard(container);
+		setupResizeSuppression(container);
 		setupSaveTriggers(container);
 
 		var defaultTab = 'tickets';
