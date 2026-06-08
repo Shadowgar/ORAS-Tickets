@@ -37,6 +37,9 @@ pass('Event addon viewport restore uses non-scrolling focus.');
 if (strpos($eventAddonJs, 'function setupButtonViewportGuard(container)') === false) {
     fail('Event addon script must guard button interactions against deferred editor scroll jumps.');
 }
+if (strpos($eventAddonJs, "'mousedown'") === false) {
+    fail('Event addon button viewport guard must preempt editor focus theft on mousedown.');
+}
 if (strpos($eventAddonJs, "activeElement.tagName === 'IFRAME' && activeElement.id === 'content_ifr'") === false) {
     fail('Event addon button viewport guard must detect editor iframe focus theft.');
 }
