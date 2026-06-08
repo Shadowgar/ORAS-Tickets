@@ -34,6 +34,14 @@ if (! preg_match('/focusTarget\.focus\(\{\s*preventScroll:\s*true\s*\}\)/', $eve
 }
 pass('Event addon viewport restore uses non-scrolling focus.');
 
+if (strpos($eventAddonJs, 'function setupButtonViewportGuard(container)') === false) {
+    fail('Event addon script must guard button interactions against deferred editor scroll jumps.');
+}
+if (strpos($eventAddonJs, "activeElement.tagName === 'IFRAME' && activeElement.id === 'content_ifr'") === false) {
+    fail('Event addon button viewport guard must detect editor iframe focus theft.');
+}
+pass('Event addon button interactions preserve viewport when the editor steals focus.');
+
 $ticketsMetaboxPhp = file_get_contents($base . '/includes/Admin/Tickets_Metabox.php');
 if (! is_string($ticketsMetaboxPhp) || $ticketsMetaboxPhp === '') {
     fail('Unable to read tickets metabox source.');
