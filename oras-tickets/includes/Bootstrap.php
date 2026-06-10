@@ -37,6 +37,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Reports.php'; // NOSONA
 require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
+require_once ORAS_TICKETS_DIR . 'includes/Communication_Log_Store.php'; // NOSONAR include: communications audit storage
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php'; // NOSONAR include: board-safe contact normalization
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php'; // NOSONAR include: board-safe CSV export
@@ -69,6 +70,10 @@ final class Bootstrap
     {
         Logger::instance()->log('Bootstrap init start');
         \ORAS\Tickets\Waitlist_Store::maybe_upgrade();
+        \ORAS\Tickets\Communication_Log_Store::maybe_upgrade();
+        if (class_exists(\ORAS\Tickets\Capabilities::class)) {
+            \ORAS\Tickets\Capabilities::ensure_board_communication_caps();
+        }
 
         // Hard deps: TEC (tribe_events) and WooCommerce.
         $has_tec = post_type_exists('tribe_events') || class_exists('Tribe__Events__Main');
