@@ -506,6 +506,9 @@ final class Board_Report_Service {
 			'attendance_label' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_attendance_mode_label( $attendance_mode ) : __( 'On-site', 'oras-tickets' ),
 			'approval_status' => $approval_status,
 			'approval_label'  => class_exists( Event_RSVP::class ) ? Event_RSVP::get_approval_status_label( $approval_status ) : __( 'Approved', 'oras-tickets' ),
+			'approved_by'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_by_display( $event_id, $user_id ) : '',
+			'approved_at'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_at( $event_id, $user_id ) : '',
+			'rejection_reason' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_rejection_reason( $event_id, $user_id ) : '',
 		);
 	}
 

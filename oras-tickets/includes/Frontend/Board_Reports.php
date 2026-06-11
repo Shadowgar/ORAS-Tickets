@@ -17,6 +17,8 @@ final class Board_Reports {
 	private const NONCE_ACTION = 'oras_board_reports_export';
 	private const COMMUNICATION_NONCE_ACTION = 'oras_board_reports_communication';
 	private const COMMUNICATION_ACTION = 'oras_board_reports_send_communication';
+	private const APPROVAL_NONCE_ACTION = 'oras_board_reports_rsvp_approval';
+	private const APPROVAL_ACTION = 'oras_board_reports_update_rsvp_approval';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
 	private const TAB_COMMUNICATIONS = 'communications';
@@ -29,6 +31,7 @@ final class Board_Reports {
 		add_action( 'admin_post_oras_board_reports_export_spreadsheet', array( self::class, 'handle_export_spreadsheet' ) );
 		add_action( 'admin_post_oras_board_reports_export_pdf', array( self::class, 'handle_export_pdf' ) );
 		add_action( 'admin_post_' . self::COMMUNICATION_ACTION, array( self::class, 'handle_send_communication' ) );
+		add_action( 'admin_post_' . self::APPROVAL_ACTION, array( self::class, 'handle_update_rsvp_approval' ) );
 	}
 
 	/**
@@ -194,6 +197,22 @@ final class Board_Reports {
 					background: #fff;
 					padding: 18px;
 				}
+				.oras-board-reports .oras-board-reports__inline-actions {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 6px;
+				}
+				.oras-board-reports .oras-board-reports__inline-actions form {
+					margin: 0;
+				}
+				.oras-board-reports .oras-board-reports__inline-actions .button {
+					min-height: 32px;
+					padding: 0 10px;
+				}
+				.oras-board-reports details summary {
+					cursor: pointer;
+					font-weight: 700;
+				}
 				html.oras-dark-on .oras-board-reports label,
 				html[data-wp-dark-mode-active] .oras-board-reports label,
 				body.wp-dark-mode-active .oras-board-reports label {
@@ -249,6 +268,7 @@ final class Board_Reports {
 
 			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
+			<?php self::render_rsvp_approval_notice(); ?>
 			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_TICKET_SALES === $active_tab ) : ?>
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
@@ -692,8 +712,11 @@ final class Board_Reports {
 								<th><?php echo esc_html__( 'RSVP Status', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Approved By', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Approved Date', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -705,8 +728,11 @@ final class Board_Reports {
 									<td><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
+									<td><?php self::render_rsvp_row_actions( $row ); ?></td>
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
@@ -714,6 +740,101 @@ final class Board_Reports {
 				</div>
 			<?php endif; ?>
 		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_rsvp_row_actions( array $row ): void {
+		$event_id = absint( $row['event_id'] ?? 0 );
+		$user_id = absint( $row['user_id'] ?? 0 );
+		$approval_status = Event_RSVP::normalize_approval_status( self::row_scalar( $row, 'approval_status' ), Event_RSVP::APPROVAL_STATUS_APPROVED );
+		$rejection_reason = self::row_scalar( $row, 'rejection_reason' );
+
+		?>
+		<div class="oras-board-reports__inline-actions">
+			<details>
+				<summary><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></summary>
+				<p><strong><?php echo esc_html__( 'Attendance mode:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></p>
+				<p><strong><?php echo esc_html__( 'Approval status:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></p>
+				<p><strong><?php echo esc_html__( 'Approved by:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></p>
+				<p><strong><?php echo esc_html__( 'Approved date:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></p>
+				<?php if ( '' !== $rejection_reason ) : ?>
+					<p><strong><?php echo esc_html__( 'Rejection reason:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $rejection_reason ); ?></p>
+				<?php endif; ?>
+				<p><strong><?php echo esc_html__( 'User ID:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $user_id ); ?></p>
+			</details>
+			<?php if ( current_user_can( 'oras_tickets_manage_rsvps' ) && $event_id > 0 && $user_id > 0 ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<?php if ( Event_RSVP::APPROVAL_STATUS_APPROVED !== $approval_status ) : ?>
+					<?php self::render_rsvp_approval_action_form( $event_id, $user_id, Event_RSVP::APPROVAL_STATUS_APPROVED, __( 'Approve', 'oras-tickets' ) ); ?>
+				<?php endif; ?>
+				<?php if ( Event_RSVP::APPROVAL_STATUS_REJECTED !== $approval_status ) : ?>
+					<?php self::render_rsvp_approval_action_form( $event_id, $user_id, Event_RSVP::APPROVAL_STATUS_REJECTED, __( 'Reject', 'oras-tickets' ), true ); ?>
+				<?php endif; ?>
+				<?php if ( Event_RSVP::APPROVAL_STATUS_PENDING !== $approval_status ) : ?>
+					<?php self::render_rsvp_approval_action_form( $event_id, $user_id, Event_RSVP::APPROVAL_STATUS_PENDING, __( 'Return to Pending', 'oras-tickets' ) ); ?>
+				<?php else : ?>
+					<button type="button" class="button button-secondary" disabled><?php echo esc_html__( 'Return to Pending', 'oras-tickets' ); ?></button>
+				<?php endif; ?>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	private static function render_rsvp_approval_action_form( int $event_id, int $user_id, string $approval_status, string $label, bool $include_reason = false ): void {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( self::APPROVAL_NONCE_ACTION, 'oras_board_rsvp_approval_nonce' ); ?>
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::APPROVAL_ACTION ); ?>" />
+			<input type="hidden" name="event_id" value="<?php echo esc_attr( (string) $event_id ); ?>" />
+			<input type="hidden" name="user_id" value="<?php echo esc_attr( (string) $user_id ); ?>" />
+			<input type="hidden" name="approval_status" value="<?php echo esc_attr( $approval_status ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_url() ); ?>" />
+			<?php if ( $include_reason ) : ?>
+				<input type="hidden" name="rejection_reason" value="" />
+			<?php endif; ?>
+			<button type="submit" class="button button-secondary"><?php echo esc_html( $label ); ?></button>
+		</form>
+		<?php
+	}
+
+	private static function render_rsvp_approval_notice(): void {
+		$status = isset( $_GET['oras_rsvp_approval_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_rsvp_approval_status'] ) ) : '';
+		if ( '' === $status ) {
+			return;
+		}
+
+		$message = 'updated' === $status
+			? __( 'RSVP approval status updated.', 'oras-tickets' )
+			: __( 'Unable to update RSVP approval status.', 'oras-tickets' );
+		?>
+		<p class="oras-board-reports__notice"><?php echo esc_html( $message ); ?></p>
+		<?php
+	}
+
+	public static function handle_update_rsvp_approval(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if (
+			! isset( $_POST['oras_board_rsvp_approval_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['oras_board_rsvp_approval_nonce'] ) ), self::APPROVAL_NONCE_ACTION )
+		) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		$user_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$approval_status = isset( $_POST['approval_status'] ) ? sanitize_key( wp_unslash( $_POST['approval_status'] ) ) : '';
+		$rejection_reason = isset( $_POST['rejection_reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['rejection_reason'] ) ) : '';
+		$redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : self::get_current_dashboard_url( self::TAB_RSVPS, $event_id );
+
+		$result = Event_RSVP::update_approval_status( $event_id, $user_id, $approval_status, $rejection_reason );
+		$status = is_wp_error( $result ) ? 'failed' : 'updated';
+
+		wp_safe_redirect( add_query_arg( 'oras_rsvp_approval_status', $status, $redirect ) );
+		exit;
 	}
 
 	public static function handle_export_csv(): void {
@@ -1372,6 +1493,18 @@ final class Board_Reports {
 		}
 
 		return home_url( $path );
+	}
+
+	private static function get_current_url(): string {
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] )
+			? wp_unslash( $_SERVER['REQUEST_URI'] )
+			: '';
+
+		if ( '' === $request_uri ) {
+			return self::get_form_action_url();
+		}
+
+		return home_url( esc_url_raw( $request_uri ) );
 	}
 
 	private static function get_context_page_id(): int {

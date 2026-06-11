@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
@@ -16,6 +17,9 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const USERMETA_PREFIX = '_oras_rsvp_event_';
     private const USERMETA_ATTENDANCE_SUFFIX = '_attendance_mode';
     private const USERMETA_APPROVAL_SUFFIX = '_approval_status';
+    private const USERMETA_APPROVED_BY_SUFFIX = '_approved_by';
+    private const USERMETA_APPROVED_AT_SUFFIX = '_approved_at';
+    private const USERMETA_REJECTION_REASON_SUFFIX = '_rejection_reason';
     private const USERMETA_CONTACT_SUFFIX = '_contact';
     private const ACTION = 'oras_rsvp_update';
     private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
@@ -334,6 +338,9 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_BY_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_AT_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX );
 
                     return array(
                         'ok'      => true,
@@ -348,7 +355,13 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 $approval_meta_key = self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX;
                 $stored_approval_status = get_user_meta( $user_id, $approval_meta_key, true );
                 if ( ! is_string( $stored_approval_status ) || '' === $stored_approval_status ) {
-                    update_user_meta( $user_id, $approval_meta_key, self::APPROVAL_STATUS_APPROVED );
+                    $default_approval_status = (
+                        Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode
+                        && Ticket::ATTENDANCE_MODE_VIRTUAL !== $current_attendance_mode
+                    )
+                        ? self::APPROVAL_STATUS_PENDING
+                        : self::APPROVAL_STATUS_APPROVED;
+                    update_user_meta( $user_id, $approval_meta_key, $default_approval_status );
                 }
 
                 if ( $new_status === 'waitlist' ) {
@@ -402,7 +415,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
             if ( 'yes' === (string) ( $operation['status'] ?? '' ) ) {
                 $attendance_mode = (string) ( $operation['attendance_mode'] ?? $request_attendance_mode );
-                $sent = self::send_rsvp_confirmation_email( $event_id, $virtual_email, $attendance_mode );
+                $sent = self::send_rsvp_confirmation_email( $event_id, $virtual_email, $attendance_mode, $user_id );
                 if ( ! $sent ) {
                     wp_send_json_error(
                         array(
@@ -423,7 +436,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         if ( 'yes' === (string) ( $operation['status'] ?? '' ) ) {
             $attendance_mode = (string) ( $operation['attendance_mode'] ?? $request_attendance_mode );
-            $sent = self::send_rsvp_confirmation_email( $event_id, $virtual_email, $attendance_mode );
+            $sent = self::send_rsvp_confirmation_email( $event_id, $virtual_email, $attendance_mode, $user_id );
             if ( ! $sent ) {
                 $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'confirmation_email_send_failed' ) ), $redirect );
                 wp_safe_redirect( $redirect );
@@ -506,7 +519,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         );
     }
 
-    private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode ): bool {
+    private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): bool {
         if ( $event_id <= 0 || '' === $recipient_email || ! is_email( $recipient_email ) ) {
             return false;
         }
@@ -549,8 +562,12 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         if ( $is_virtual ) {
             $lines[] = '';
-            $lines[] = __( 'Zoom Link:', 'oras-tickets' );
-            $lines[] = '' !== $virtual_link ? $virtual_link : __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' );
+            if ( $user_id > 0 && self::APPROVAL_STATUS_APPROVED !== self::get_user_approval_status( $event_id, $user_id ) ) {
+                $lines[] = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
+            } else {
+                $lines[] = __( 'Zoom Link:', 'oras-tickets' );
+                $lines[] = '' !== $virtual_link ? $virtual_link : __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' );
+            }
         } else {
             $lines[] = '';
             $lines[] = sprintf( __( 'Location: %s', 'oras-tickets' ), $onsite_location );
@@ -711,7 +728,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         return $text;
     }
 
-    private static function get_virtual_join_link( int $event_id ): string {
+    public static function get_virtual_join_link( int $event_id ): string {
         $candidate_keys = array(
             '_tribe_events_zoom_join_url',
             '_EventZoomJoinURL',
@@ -873,6 +890,210 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         return is_string( $status ) && '' !== $status
             ? self::normalize_approval_status( $status, self::APPROVAL_STATUS_APPROVED )
             : self::APPROVAL_STATUS_APPROVED;
+    }
+
+    public static function get_user_approved_by( int $event_id, int $user_id ): int {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return 0;
+        }
+
+        return absint( get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_BY_SUFFIX, true ) );
+    }
+
+    public static function get_user_approved_at( int $event_id, int $user_id ): string {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return '';
+        }
+
+        $approved_at = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_AT_SUFFIX, true );
+
+        return is_string( $approved_at ) ? $approved_at : '';
+    }
+
+    public static function get_user_rejection_reason( int $event_id, int $user_id ): string {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return '';
+        }
+
+        $reason = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX, true );
+
+        return is_string( $reason ) ? $reason : '';
+    }
+
+    public static function get_user_approved_by_display( int $event_id, int $user_id ): string {
+        $approved_by = self::get_user_approved_by( $event_id, $user_id );
+        if ( $approved_by <= 0 ) {
+            return '';
+        }
+
+        $user = get_user_by( 'id', $approved_by );
+        if ( $user instanceof \WP_User ) {
+            return (string) $user->display_name;
+        }
+
+        return (string) $approved_by;
+    }
+
+    /**
+     * @return true|\WP_Error
+     */
+    public static function update_approval_status( int $event_id, int $user_id, string $approval_status, string $rejection_reason = '' ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+            return new \WP_Error( 'oras_rsvp_approval_forbidden', __( 'You do not have permission to manage RSVPs.', 'oras-tickets' ) );
+        }
+
+        $event = get_post( $event_id );
+        if ( ! $event instanceof \WP_Post || 'tribe_events' !== $event->post_type ) {
+            return new \WP_Error( 'oras_rsvp_approval_invalid_event', __( 'Invalid event.', 'oras-tickets' ) );
+        }
+
+        $attendee = get_user_by( 'id', $user_id );
+        if ( ! $attendee instanceof \WP_User ) {
+            return new \WP_Error( 'oras_rsvp_approval_invalid_user', __( 'Invalid RSVP attendee.', 'oras-tickets' ) );
+        }
+
+        if ( '' === self::get_user_status( $event_id, $user_id ) ) {
+            return new \WP_Error( 'oras_rsvp_approval_missing_rsvp', __( 'No RSVP record exists for this attendee.', 'oras-tickets' ) );
+        }
+
+        $normalized_status = sanitize_key( $approval_status );
+        if ( ! in_array( $normalized_status, self::get_approval_statuses(), true ) ) {
+            return new \WP_Error( 'oras_rsvp_approval_invalid_status', __( 'Invalid approval status.', 'oras-tickets' ) );
+        }
+
+        $approver = wp_get_current_user();
+        $approver_id = get_current_user_id();
+        $approved_at = current_time( 'mysql', true );
+        $reason = sanitize_textarea_field( $rejection_reason );
+
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX, $normalized_status );
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_BY_SUFFIX, $approver_id );
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_AT_SUFFIX, $approved_at );
+
+        if ( self::APPROVAL_STATUS_REJECTED === $normalized_status && '' !== $reason ) {
+            update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX, $reason );
+        } elseif ( self::APPROVAL_STATUS_REJECTED !== $normalized_status ) {
+            delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX );
+        }
+
+        $email_sent = self::send_virtual_approval_status_email( $event_id, $user_id, $normalized_status, $reason );
+        self::log_approval_status_change( $event_id, $user_id, $normalized_status, $reason, $approver, $email_sent );
+
+        return true;
+    }
+
+    /**
+     * @return array{subject:string,body:string,email:string}
+     */
+    public static function build_virtual_approval_email( int $event_id, int $user_id, string $approval_status, string $rejection_reason = '' ): array {
+        $event_title = get_the_title( $event_id );
+        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
+            $event_title = __( 'ORAS Event', 'oras-tickets' );
+        }
+
+        $contact = self::get_user_contact_defaults( $event_id, $user_id );
+        $recipient_email = sanitize_email( (string) ( $contact['email'] ?? '' ) );
+        $normalized_status = self::normalize_approval_status( $approval_status, self::APPROVAL_STATUS_PENDING );
+        $event_url = get_permalink( $event_id );
+        if ( ! is_string( $event_url ) || '' === $event_url ) {
+            $event_url = home_url();
+        }
+
+        if ( self::APPROVAL_STATUS_APPROVED === $normalized_status ) {
+            $subject = sprintf(
+                /* translators: %s: event title */
+                __( 'Your virtual RSVP was approved for %s', 'oras-tickets' ),
+                $event_title
+            );
+            $lines = array(
+                __( 'Your virtual RSVP has been approved.', 'oras-tickets' ),
+                '',
+                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+                sprintf( __( 'Date & Time: %s', 'oras-tickets' ), self::get_event_datetime_text( $event_id ) ),
+                '',
+                __( 'Virtual access link:', 'oras-tickets' ),
+                self::get_virtual_join_link( $event_id ) ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+            );
+        } elseif ( self::APPROVAL_STATUS_REJECTED === $normalized_status ) {
+            $subject = sprintf(
+                /* translators: %s: event title */
+                __( 'Your virtual RSVP was not approved for %s', 'oras-tickets' ),
+                $event_title
+            );
+            $lines = array(
+                __( 'Your virtual RSVP was not approved.', 'oras-tickets' ),
+                '',
+                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            );
+            $reason = trim( sanitize_textarea_field( $rejection_reason ) );
+            if ( '' !== $reason ) {
+                $lines[] = '';
+                $lines[] = sprintf( __( 'Reason: %s', 'oras-tickets' ), $reason );
+            }
+        } else {
+            $subject = sprintf(
+                /* translators: %s: event title */
+                __( 'Your virtual RSVP is pending for %s', 'oras-tickets' ),
+                $event_title
+            );
+            $lines = array(
+                __( 'Your virtual RSVP has been returned to pending review.', 'oras-tickets' ),
+                '',
+                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            );
+        }
+
+        $lines[] = '';
+        $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
+        $lines[] = $event_url;
+
+        return array(
+            'subject' => $subject,
+            'body'    => implode( "\n", $lines ),
+            'email'   => $recipient_email,
+        );
+    }
+
+    private static function send_virtual_approval_status_email( int $event_id, int $user_id, string $approval_status, string $rejection_reason = '' ): bool {
+        $attendance_mode = self::get_user_attendance_type_for_report( $event_id, $user_id );
+        if ( Ticket::ATTENDANCE_MODE_VIRTUAL !== $attendance_mode ) {
+            return true;
+        }
+
+        $email = self::build_virtual_approval_email( $event_id, $user_id, $approval_status, $rejection_reason );
+        if ( '' === $email['email'] || ! is_email( $email['email'] ) ) {
+            return false;
+        }
+
+        return (bool) wp_mail( $email['email'], $email['subject'], $email['body'], self::VIRTUAL_EMAIL_HEADERS );
+    }
+
+    private static function log_approval_status_change( int $event_id, int $user_id, string $approval_status, string $rejection_reason, \WP_User $approver, bool $email_sent ): void {
+        $attendance_mode = self::get_user_attendance_type_for_report( $event_id, $user_id );
+        if ( Ticket::ATTENDANCE_MODE_VIRTUAL !== $attendance_mode ) {
+            return;
+        }
+
+        $email = self::build_virtual_approval_email( $event_id, $user_id, $approval_status, $rejection_reason );
+        $related_action_type = 'virtual_rsvp_' . $approval_status;
+        $recipient_count = '' !== $email['email'] && is_email( $email['email'] ) ? 1 : 0;
+
+        Communication_Log_Store::insert(
+            array(
+                'event_id'               => $event_id,
+                'sender_user_id'         => (int) $approver->ID,
+                'sender_display_name'    => (string) $approver->display_name,
+                'sender_email'           => (string) $approver->user_email,
+                'recipient_segment'      => 'virtual_rsvp_' . $approval_status,
+                'recipient_count'        => $recipient_count,
+                'email_subject'          => $email['subject'],
+                'email_body_snapshot'    => $email['body'],
+                'sent_at'                => current_time( 'mysql', true ),
+                'send_status'            => $email_sent ? 'sent' : 'failed',
+                'failed_recipient_count' => $email_sent ? 0 : $recipient_count,
+                'related_action_type'    => $related_action_type,
+            )
+        );
     }
 
     public static function get_approval_status_label( string $approval_status ): string {
