@@ -933,6 +933,7 @@ final class Bootstrap
         update_user_meta($user_id, $meta_key, 'no');
         delete_user_meta($user_id, $meta_key . '_ts');
         delete_user_meta($user_id, $meta_key . '_attendance_mode');
+        delete_user_meta($user_id, $meta_key . '_approval_status');
 
         return true;
     }

@@ -91,11 +91,11 @@ function orasPhase1bRunChecks(): void
 
     $_GET = array('oras_board_tab' => 'attendees');
     $attendees_html = Board_Reports::render_shortcode();
-    orasPhase1bAssert(str_contains($attendees_html, 'Attendee management will be added in Phase 1C.'), 'Attendees placeholder renders');
+    orasPhase1bAssert(str_contains($attendees_html, 'Show Attendees'), 'Attendees tab renders implemented dashboard');
 
     $_GET = array('oras_board_tab' => 'statistics');
     $statistics_html = Board_Reports::render_shortcode();
-    orasPhase1bAssert(str_contains($statistics_html, 'Event statistics will be added in Phase 1C.'), 'Event Statistics placeholder renders');
+    orasPhase1bAssert(str_contains($statistics_html, 'Show Statistics'), 'Event Statistics tab renders implemented dashboard');
 
     wp_delete_user((int) $user_id);
     remove_role($role_name);
