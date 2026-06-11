@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Reporting;
 
 use ORAS\Tickets\Commerce\Woo\Order_Item_Classifier;
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Integrations\QuickBooks\Settings;
 use ORAS\Tickets\Waitlist_Store;
@@ -152,6 +153,14 @@ final class Board_Report_Service {
 		$status = sanitize_key( (string) ( $filters['status'] ?? 'all' ) );
 		$include_yes = ( '' === $status || 'all' === $status || 'yes' === $status );
 		$include_waitlist = ( '' === $status || 'all' === $status || 'waitlist' === $status );
+		$attendance_type = sanitize_key( (string) ( $filters['attendance_type'] ?? 'all' ) );
+		if ( ! in_array( $attendance_type, array( 'all', Ticket::ATTENDANCE_MODE_ONSITE, Ticket::ATTENDANCE_MODE_VIRTUAL ), true ) ) {
+			$attendance_type = 'all';
+		}
+		$approval_status = sanitize_key( (string) ( $filters['approval_status'] ?? 'all' ) );
+		if ( class_exists( Event_RSVP::class ) && ! in_array( $approval_status, array_merge( array( 'all' ), Event_RSVP::get_approval_statuses() ), true ) ) {
+			$approval_status = 'all';
+		}
 
 		if ( $include_yes ) {
 			$yes_users = get_users(
@@ -183,7 +192,22 @@ final class Board_Report_Service {
 			}
 		}
 
-		return $this->filter_rows_by_search( $rows, (string) ( $filters['search'] ?? '' ) );
+		$rows = array_filter(
+			$rows,
+			static function ( array $row ) use ( $attendance_type, $approval_status ): bool {
+				if ( 'all' !== $attendance_type && (string) ( $row['attendance_type'] ?? '' ) !== $attendance_type ) {
+					return false;
+				}
+
+				if ( 'all' !== $approval_status && (string) ( $row['approval_status'] ?? '' ) !== $approval_status ) {
+					return false;
+				}
+
+				return true;
+			}
+		);
+
+		return $this->filter_rows_by_search( array_values( $rows ), (string) ( $filters['search'] ?? '' ) );
 	}
 
 	/**
@@ -329,12 +353,14 @@ final class Board_Report_Service {
 	private function build_rsvp_row( int $event_id, int $user_id, string $status ): array {
 		$contact_raw = get_user_meta( $user_id, '_oras_rsvp_event_' . $event_id . '_contact', true );
 		$contact = Contact_Normalizer::from_rsvp_contact( is_array( $contact_raw ) ? $contact_raw : array(), $user_id );
-		$attendance_mode = class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_attendance_mode( $event_id, $user_id ) : '';
+		$attendance_mode = class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_attendance_type_for_report( $event_id, $user_id ) : Ticket::ATTENDANCE_MODE_ONSITE;
+		$approval_status = class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approval_status( $event_id, $user_id ) : Event_RSVP::APPROVAL_STATUS_APPROVED;
 		$label = 'waitlist' === $status ? __( 'Waitlist', 'oras-tickets' ) : __( 'RSVP Yes', 'oras-tickets' );
 
 		if ( $attendance_mode !== '' && class_exists( Event_RSVP::class ) ) {
 			$label .= ' - ' . Event_RSVP::get_attendance_mode_label( $attendance_mode );
 		}
+		$source = 'waitlist' === $status ? __( 'RSVP Waitlist', 'oras-tickets' ) : __( 'RSVP', 'oras-tickets' );
 
 		return array(
 			'report_type'     => self::TYPE_RSVP,
@@ -349,8 +375,12 @@ final class Board_Report_Service {
 			'order_status'    => $status,
 			'order_id'        => 0,
 			'order_date'      => '',
-			'source'          => __( 'RSVP', 'oras-tickets' ),
+			'source'          => $source,
 			'note'            => $contact['note'],
+			'attendance_type' => $attendance_mode,
+			'attendance_label' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_attendance_mode_label( $attendance_mode ) : __( 'On-site', 'oras-tickets' ),
+			'approval_status' => $approval_status,
+			'approval_label'  => class_exists( Event_RSVP::class ) ? Event_RSVP::get_approval_status_label( $approval_status ) : __( 'Approved', 'oras-tickets' ),
 		);
 	}
 

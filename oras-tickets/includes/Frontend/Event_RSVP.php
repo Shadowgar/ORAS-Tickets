@@ -15,9 +15,14 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const META_KEY = '_oras_rsvp_v1';
     private const USERMETA_PREFIX = '_oras_rsvp_event_';
     private const USERMETA_ATTENDANCE_SUFFIX = '_attendance_mode';
+    private const USERMETA_APPROVAL_SUFFIX = '_approval_status';
     private const USERMETA_CONTACT_SUFFIX = '_contact';
     private const ACTION = 'oras_rsvp_update';
     private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
+
+    public const APPROVAL_STATUS_PENDING = 'pending';
+    public const APPROVAL_STATUS_APPROVED = 'approved';
+    public const APPROVAL_STATUS_REJECTED = 'rejected';
 
     public static function register(): void {
         // Render after tickets display (tickets appended at priority 20).
@@ -328,6 +333,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX );
 
                     return array(
                         'ok'      => true,
@@ -339,6 +345,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
                 update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, $new_status );
                 update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX, $attendance_mode );
+                $approval_meta_key = self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX;
+                $stored_approval_status = get_user_meta( $user_id, $approval_meta_key, true );
+                if ( ! is_string( $stored_approval_status ) || '' === $stored_approval_status ) {
+                    update_user_meta( $user_id, $approval_meta_key, self::APPROVAL_STATUS_APPROVED );
+                }
 
                 if ( $new_status === 'waitlist' ) {
                     $joined_ts = time();
@@ -823,6 +834,59 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         return Ticket::normalizeAttendanceMode( $mode, Ticket::ATTENDANCE_MODE_ONSITE );
+    }
+
+    public static function get_user_attendance_type_for_report( int $event_id, int $user_id ): string {
+        $mode = self::get_user_attendance_mode( $event_id, $user_id );
+
+        return '' !== $mode ? $mode : Ticket::ATTENDANCE_MODE_ONSITE;
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function get_approval_statuses(): array {
+        return array(
+            self::APPROVAL_STATUS_PENDING,
+            self::APPROVAL_STATUS_APPROVED,
+            self::APPROVAL_STATUS_REJECTED,
+        );
+    }
+
+    public static function normalize_approval_status( string $status, string $default = self::APPROVAL_STATUS_APPROVED ): string {
+        $normalized = sanitize_key( $status );
+
+        if ( in_array( $normalized, self::get_approval_statuses(), true ) ) {
+            return $normalized;
+        }
+
+        return in_array( $default, self::get_approval_statuses(), true ) ? $default : self::APPROVAL_STATUS_APPROVED;
+    }
+
+    public static function get_user_approval_status( int $event_id, int $user_id ): string {
+        if ( $user_id <= 0 ) {
+            return self::APPROVAL_STATUS_APPROVED;
+        }
+
+        $status = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX, true );
+
+        return is_string( $status ) && '' !== $status
+            ? self::normalize_approval_status( $status, self::APPROVAL_STATUS_APPROVED )
+            : self::APPROVAL_STATUS_APPROVED;
+    }
+
+    public static function get_approval_status_label( string $approval_status ): string {
+        switch ( self::normalize_approval_status( $approval_status, self::APPROVAL_STATUS_APPROVED ) ) {
+            case self::APPROVAL_STATUS_PENDING:
+                return __( 'Pending', 'oras-tickets' );
+
+            case self::APPROVAL_STATUS_REJECTED:
+                return __( 'Rejected', 'oras-tickets' );
+
+            case self::APPROVAL_STATUS_APPROVED:
+            default:
+                return __( 'Approved', 'oras-tickets' );
+        }
     }
 
     public static function get_attendance_mode_label( string $attendance_mode ): string {
