@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Frontend;
 
+use ORAS\Tickets\Communication_Log_Store;
+use ORAS\Tickets\Communication_Recipients;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
@@ -13,6 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Board_Reports {
 
 	private const NONCE_ACTION = 'oras_board_reports_export';
+	private const COMMUNICATION_NONCE_ACTION = 'oras_board_reports_communication';
+	private const COMMUNICATION_ACTION = 'oras_board_reports_send_communication';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
 	private const TAB_COMMUNICATIONS = 'communications';
@@ -24,6 +28,7 @@ final class Board_Reports {
 		add_action( 'admin_post_oras_board_reports_export_csv', array( self::class, 'handle_export_csv' ) );
 		add_action( 'admin_post_oras_board_reports_export_spreadsheet', array( self::class, 'handle_export_spreadsheet' ) );
 		add_action( 'admin_post_oras_board_reports_export_pdf', array( self::class, 'handle_export_pdf' ) );
+		add_action( 'admin_post_' . self::COMMUNICATION_ACTION, array( self::class, 'handle_send_communication' ) );
 	}
 
 	/**
@@ -249,6 +254,8 @@ final class Board_Reports {
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_RSVPS === $active_tab ) : ?>
 				<?php self::render_rsvps_tab( $page_id ); ?>
+			<?php elseif ( self::TAB_COMMUNICATIONS === $active_tab ) : ?>
+				<?php self::render_communications_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_ATTENDEES === $active_tab ) : ?>
 				<?php self::render_attendees_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_STATISTICS === $active_tab ) : ?>
@@ -364,6 +371,87 @@ final class Board_Reports {
 						</tbody>
 					</table>
 				</div>
+			<?php endif; ?>
+		<?php
+	}
+
+	private static function render_communications_tab( int $page_id ): void {
+		$service = new Board_Report_Service();
+		$events = $service->get_events();
+		$filters = self::get_filters_from_request();
+		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
+			$filters['event_id'] = (int) $events[0]->ID;
+		}
+
+		$segment = self::get_communication_segment_from_request();
+		$recipients = ( new Communication_Recipients( $service ) )->resolve( $filters['event_id'], $segment );
+		$recipient_count = count( $recipients );
+		$history_filters = self::get_communication_history_filters( $filters['event_id'] );
+		$history_rows = Communication_Log_Store::query( $history_filters );
+		$detail = self::get_communication_detail();
+		?>
+			<?php self::render_communication_notice(); ?>
+			<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+				<?php if ( $page_id > 0 ) : ?>
+					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+				<?php endif; ?>
+				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_COMMUNICATIONS ); ?>" />
+				<?php self::render_event_filter( $events, $filters['event_id'] ); ?>
+				<label>
+					<?php echo esc_html__( 'Recipient Segment', 'oras-tickets' ); ?>
+					<select name="oras_comm_segment">
+						<?php foreach ( Communication_Recipients::get_segments() as $key => $label ) : ?>
+							<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $segment, $key ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<div class="oras-board-reports__actions">
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Preview Recipients', 'oras-tickets' ); ?></button>
+				</div>
+			</form>
+
+			<div class="oras-board-reports__placeholder">
+				<h3><?php echo esc_html__( 'Recipient Count Preview', 'oras-tickets' ); ?></h3>
+				<p><strong><?php echo esc_html( (string) $recipient_count ); ?></strong> <?php echo esc_html__( 'valid deduplicated recipient(s) found for the selected segment.', 'oras-tickets' ); ?></p>
+			</div>
+
+			<?php if ( current_user_can( 'oras_tickets_send_notifications' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<form class="oras-board-reports__filters" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="<?php echo esc_attr( self::COMMUNICATION_ACTION ); ?>" />
+					<input type="hidden" name="event_id" value="<?php echo esc_attr( (string) $filters['event_id'] ); ?>" />
+					<input type="hidden" name="recipient_segment" value="<?php echo esc_attr( $segment ); ?>" />
+					<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_dashboard_url( self::TAB_COMMUNICATIONS, $filters['event_id'], $segment ) ); ?>" />
+					<?php wp_nonce_field( self::COMMUNICATION_NONCE_ACTION, 'oras_board_communication_nonce' ); ?>
+					<label>
+						<?php echo esc_html__( 'Subject', 'oras-tickets' ); ?>
+						<input type="text" name="email_subject" required maxlength="200" />
+					</label>
+					<label style="grid-column:1 / -1;">
+						<?php echo esc_html__( 'Message', 'oras-tickets' ); ?>
+						<textarea name="email_message" rows="8" required></textarea>
+					</label>
+					<label style="grid-column:1 / -1;">
+						<input type="checkbox" name="confirm_send" value="1" required />
+						<?php echo esc_html__( 'I confirm this message should be sent to the selected recipient segment.', 'oras-tickets' ); ?>
+					</label>
+					<div class="oras-board-reports__actions">
+						<button class="button button-primary" type="submit" <?php disabled( 0, $recipient_count ); ?>><?php echo esc_html__( 'Send Email', 'oras-tickets' ); ?></button>
+					</div>
+				</form>
+			<?php else : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'You do not have permission to send event communications.', 'oras-tickets' ); ?></div>
+			<?php endif; ?>
+
+			<h3><?php echo esc_html__( 'Communication History', 'oras-tickets' ); ?></h3>
+			<?php self::render_communication_history_filters( $page_id, $events, $history_filters ); ?>
+			<?php self::render_communication_history_table( $history_rows ); ?>
+			<?php if ( is_array( $detail ) ) : ?>
+				<section class="oras-board-reports__placeholder">
+					<h3><?php echo esc_html__( 'Communication Details', 'oras-tickets' ); ?></h3>
+					<p><strong><?php echo esc_html__( 'Subject:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) ( $detail['email_subject'] ?? '' ) ); ?></p>
+					<p><strong><?php echo esc_html__( 'Body Snapshot:', 'oras-tickets' ); ?></strong></p>
+					<pre><?php echo esc_html( (string) ( $detail['email_body_snapshot'] ?? '' ) ); ?></pre>
+				</section>
 			<?php endif; ?>
 		<?php
 	}
@@ -682,6 +770,77 @@ final class Board_Reports {
 		exit;
 	}
 
+	public static function handle_send_communication(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_send_notifications' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if (
+			! isset( $_POST['oras_board_communication_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['oras_board_communication_nonce'] ) ), self::COMMUNICATION_NONCE_ACTION )
+		) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+		$segment = isset( $_POST['recipient_segment'] ) ? Communication_Recipients::normalize_segment( sanitize_key( wp_unslash( $_POST['recipient_segment'] ) ) ) : Communication_Recipients::SEGMENT_ALL_ATTENDEES;
+		$subject = isset( $_POST['email_subject'] ) ? sanitize_text_field( wp_unslash( $_POST['email_subject'] ) ) : '';
+		$message = isset( $_POST['email_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['email_message'] ) ) : '';
+		$confirmed = isset( $_POST['confirm_send'] ) && '1' === (string) wp_unslash( $_POST['confirm_send'] );
+		$redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : self::get_current_dashboard_url( self::TAB_COMMUNICATIONS, $event_id, $segment );
+
+		if ( $event_id <= 0 || '' === $subject || '' === $message || ! $confirmed ) {
+			self::redirect_communication_result( $redirect, 'failed', 0 );
+		}
+
+		$sender = wp_get_current_user();
+		$sender_user_id = get_current_user_id();
+		$sender_display_name = $sender instanceof \WP_User ? (string) $sender->display_name : '';
+		$sender_email = $sender instanceof \WP_User ? (string) $sender->user_email : '';
+		$recipients = ( new Communication_Recipients() )->resolve( $event_id, $segment );
+		$recipient_count = count( $recipients );
+
+		$failed_count = 0;
+		$body = self::append_email_footer( $message, $sender, $event_id );
+		if ( $recipient_count <= 0 ) {
+			$failed_count = 0;
+			$status = 'failed';
+		} else {
+			foreach ( $recipients as $recipient ) {
+				$email = isset( $recipient['email'] ) && is_scalar( $recipient['email'] ) ? sanitize_email( (string) $recipient['email'] ) : '';
+				if ( '' === $email || ! is_email( $email ) ) {
+					++$failed_count;
+					continue;
+				}
+				$sent = wp_mail( $email, $subject, $body, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+				if ( ! $sent ) {
+					++$failed_count;
+				}
+			}
+
+			$status = 0 === $failed_count ? 'sent' : ( $failed_count >= $recipient_count ? 'failed' : 'partial' );
+		}
+
+		$log_id = Communication_Log_Store::insert(
+			array(
+				'event_id'               => $event_id,
+				'sender_user_id'         => $sender_user_id,
+				'sender_display_name'    => $sender_display_name,
+				'sender_email'           => $sender_email,
+				'recipient_segment'      => $segment,
+				'recipient_count'        => $recipient_count,
+				'email_subject'          => $subject,
+				'email_body_snapshot'    => $message,
+				'sent_at'                => current_time( 'mysql', true ),
+				'send_status'            => $status,
+				'failed_recipient_count' => $failed_count,
+				'related_action_type'    => self::get_related_action_type( $segment ),
+			)
+		);
+
+		self::redirect_communication_result( $redirect, $status, $log_id );
+	}
+
 	private static function get_active_tab(): string {
 		$tab = isset( $_GET['oras_board_tab'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_tab'] ) ) : self::TAB_TICKET_SALES;
 		$tabs = self::get_dashboard_tabs();
@@ -760,6 +919,212 @@ final class Board_Reports {
 		}
 
 		return add_query_arg( $args, self::get_form_action_url() );
+	}
+
+	private static function get_communication_segment_from_request(): string {
+		$segment = isset( $_GET['oras_comm_segment'] ) ? sanitize_key( wp_unslash( $_GET['oras_comm_segment'] ) ) : Communication_Recipients::SEGMENT_ALL_ATTENDEES;
+
+		return Communication_Recipients::normalize_segment( $segment );
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private static function get_communication_history_filters( int $event_id ): array {
+		$segment = isset( $_GET['oras_comm_history_segment'] ) ? sanitize_key( wp_unslash( $_GET['oras_comm_history_segment'] ) ) : '';
+		$after = isset( $_GET['oras_comm_after'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_after'] ) ) : '';
+		$before = isset( $_GET['oras_comm_before'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_before'] ) ) : '';
+
+		return array(
+			'event_id'           => $event_id,
+			'sender_user_id'     => isset( $_GET['oras_comm_sender_id'] ) ? absint( $_GET['oras_comm_sender_id'] ) : 0,
+			'recipient_segment'  => isset( Communication_Recipients::get_segments()[ $segment ] ) ? $segment : '',
+			'search'             => isset( $_GET['oras_comm_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_search'] ) ) : '',
+			'after'              => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $after ) ? $after : '',
+			'before'             => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $before ) ? $before : '',
+			'limit'              => 50,
+		);
+	}
+
+	/**
+	 * @return array<string,mixed>|null
+	 */
+	private static function get_communication_detail(): ?array {
+		$detail_id = isset( $_GET['oras_comm_detail'] ) ? absint( $_GET['oras_comm_detail'] ) : 0;
+		if ( $detail_id <= 0 ) {
+			return null;
+		}
+
+		return Communication_Log_Store::get( $detail_id );
+	}
+
+	private static function render_communication_notice(): void {
+		$status = isset( $_GET['oras_comm_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_comm_status'] ) ) : '';
+		if ( '' === $status ) {
+			return;
+		}
+
+		$message = __( 'Communication send attempt was recorded.', 'oras-tickets' );
+		if ( 'sent' === $status ) {
+			$message = __( 'Communication sent and logged.', 'oras-tickets' );
+		} elseif ( 'partial' === $status ) {
+			$message = __( 'Communication partially sent; failures were logged.', 'oras-tickets' );
+		} elseif ( 'failed' === $status ) {
+			$message = __( 'Communication was not sent; the failed attempt was logged when possible.', 'oras-tickets' );
+		}
+
+		echo '<div class="oras-board-reports__notice">' . esc_html( $message ) . '</div>';
+	}
+
+	/**
+	 * @param array<int,\WP_Post> $events
+	 * @param array<string,mixed> $filters
+	 */
+	private static function render_communication_history_filters( int $page_id, array $events, array $filters ): void {
+		?>
+		<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+			<?php if ( $page_id > 0 ) : ?>
+				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+			<?php endif; ?>
+			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_COMMUNICATIONS ); ?>" />
+			<?php self::render_event_filter( $events, absint( $filters['event_id'] ?? 0 ) ); ?>
+			<label>
+				<?php echo esc_html__( 'Sender User ID', 'oras-tickets' ); ?>
+				<input type="number" min="1" name="oras_comm_sender_id" value="<?php echo esc_attr( (string) absint( $filters['sender_user_id'] ?? 0 ) ); ?>" />
+			</label>
+			<label>
+				<?php echo esc_html__( 'Subject Search', 'oras-tickets' ); ?>
+				<input type="search" name="oras_comm_search" value="<?php echo esc_attr( (string) ( $filters['search'] ?? '' ) ); ?>" />
+			</label>
+			<label>
+				<?php echo esc_html__( 'Recipient Segment', 'oras-tickets' ); ?>
+				<select name="oras_comm_history_segment">
+					<option value=""><?php echo esc_html__( 'All', 'oras-tickets' ); ?></option>
+					<?php foreach ( Communication_Recipients::get_segments() as $key => $label ) : ?>
+						<option value="<?php echo esc_attr( $key ); ?>" <?php selected( (string) ( $filters['recipient_segment'] ?? '' ), $key ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<label>
+				<?php echo esc_html__( 'After', 'oras-tickets' ); ?>
+				<input type="date" name="oras_comm_after" value="<?php echo esc_attr( (string) ( $filters['after'] ?? '' ) ); ?>" />
+			</label>
+			<label>
+				<?php echo esc_html__( 'Before', 'oras-tickets' ); ?>
+				<input type="date" name="oras_comm_before" value="<?php echo esc_attr( (string) ( $filters['before'] ?? '' ) ); ?>" />
+			</label>
+			<div class="oras-board-reports__actions">
+				<button class="button button-primary" type="submit"><?php echo esc_html__( 'Filter History', 'oras-tickets' ); ?></button>
+			</div>
+		</form>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 */
+	private static function render_communication_history_table( array $rows ): void {
+		if ( empty( $rows ) ) {
+			echo '<div class="oras-board-reports__empty">' . esc_html__( 'No communication history found.', 'oras-tickets' ) . '</div>';
+			return;
+		}
+		?>
+		<div class="oras-board-reports__table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th><?php echo esc_html__( 'Date Sent', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Sent By', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Recipient Segment', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Recipient Count', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Subject', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
+						<tr>
+							<td><?php echo esc_html( self::row_scalar( $row, 'sent_at' ) ); ?></td>
+							<td><?php echo esc_html( self::row_scalar( $row, 'sender_display_name' ) . ' <' . self::row_scalar( $row, 'sender_email' ) . '>' ); ?></td>
+							<td><?php echo esc_html( Communication_Recipients::get_segment_label( self::row_scalar( $row, 'recipient_segment' ) ) ); ?></td>
+							<td><?php echo esc_html( self::row_scalar( $row, 'recipient_count' ) ); ?></td>
+							<td><?php echo esc_html( self::row_scalar( $row, 'email_subject' ) ); ?></td>
+							<td><?php echo esc_html( self::row_scalar( $row, 'send_status' ) ); ?></td>
+							<td><a href="<?php echo esc_url( self::build_communication_detail_url( absint( $row['id'] ?? 0 ) ) ); ?>"><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></a></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php
+	}
+
+	private static function get_current_dashboard_url( string $tab, int $event_id, string $segment = '' ): string {
+		$args = array(
+			'oras_board_tab'      => $tab,
+			'oras_board_event_id' => $event_id,
+		);
+		if ( '' !== $segment ) {
+			$args['oras_comm_segment'] = $segment;
+		}
+
+		return add_query_arg( $args, self::get_form_action_url() );
+	}
+
+	private static function build_communication_detail_url( int $detail_id ): string {
+		$args = $_GET;
+		$args['oras_board_tab'] = self::TAB_COMMUNICATIONS;
+		$args['oras_comm_detail'] = $detail_id;
+
+		foreach ( $args as $key => $value ) {
+			if ( is_array( $value ) ) {
+				unset( $args[ $key ] );
+				continue;
+			}
+
+			$args[ $key ] = sanitize_text_field( wp_unslash( (string) $value ) );
+		}
+
+		return add_query_arg( $args, self::get_form_action_url() );
+	}
+
+	private static function redirect_communication_result( string $redirect, string $status, int $log_id ): void {
+		$args = array(
+			'oras_comm_status' => sanitize_key( $status ),
+		);
+		if ( $log_id > 0 ) {
+			$args['oras_comm_log'] = $log_id;
+		}
+
+		wp_safe_redirect( add_query_arg( $args, $redirect ) );
+		exit;
+	}
+
+	private static function append_email_footer( string $message, \WP_User $sender, int $event_id ): string {
+		$footer = "\n\n--\n" . __( 'This message was sent by Oil Region Astronomical Society regarding an ORAS event.', 'oras-tickets' );
+		$show_sender = (bool) apply_filters( 'oras_tickets_show_sender_name_in_email_footer', false, $sender, $event_id );
+		if ( $show_sender && '' !== (string) $sender->display_name ) {
+			$footer .= "\n" . sprintf(
+				/* translators: %s: sender display name. */
+				__( 'Sent by: %s', 'oras-tickets' ),
+				(string) $sender->display_name
+			);
+		}
+
+		return rtrim( $message ) . $footer;
+	}
+
+	private static function get_related_action_type( string $segment ): string {
+		if ( Communication_Recipients::SEGMENT_EVENT_CANCELLATION === $segment ) {
+			return 'event_cancellation';
+		}
+
+		if ( Communication_Recipients::SEGMENT_EVENT_UPDATE === $segment ) {
+			return 'event_update';
+		}
+
+		return 'mass_email';
 	}
 
 	/**

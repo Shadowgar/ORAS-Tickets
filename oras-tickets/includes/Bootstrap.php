@@ -38,6 +38,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR 
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Communication_Log_Store.php'; // NOSONAR include: communications audit storage
+require_once ORAS_TICKETS_DIR . 'includes/Communication_Recipients.php'; // NOSONAR include: communications recipient resolver
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php'; // NOSONAR include: board-safe contact normalization
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php'; // NOSONAR include: board-safe CSV export
