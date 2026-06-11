@@ -68,7 +68,8 @@ function orasPhase1eRunChecks(): void
     );
     orasPhase1eAssert(is_int($event_id) && $event_id > 0, 'Fixture event created');
     update_post_meta($event_id, '_oras_rsvp_v1', array('enabled' => true, 'capacity' => 100, 'waitlist_enabled' => true));
-    update_post_meta($event_id, '_tribe_events_zoom_join_url', 'https://example.org/private-zoom-' . $suffix);
+    update_post_meta($event_id, '_EventVideoSource', 'zoom');
+    update_post_meta($event_id, '_EventZoomMeetingLink', 'https://example.org/private-zoom-' . $suffix);
 
     $manager_role = 'phase1e_rsvp_manager';
     $viewer_role = 'phase1e_board_viewer';

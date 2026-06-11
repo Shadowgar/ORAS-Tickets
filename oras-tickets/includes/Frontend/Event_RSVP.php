@@ -732,6 +732,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $candidate_keys = array(
             '_tribe_events_zoom_join_url',
             '_EventZoomJoinURL',
+            '_EventZoomMeetingLink',
             '_EventVirtualURL',
             '_EventVideoSource',
             '_EventGoogleMeetURL',
@@ -745,8 +746,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 continue;
             }
 
-            $url = esc_url_raw( trim( $value ) );
-            if ( '' !== $url && filter_var( $url, FILTER_VALIDATE_URL ) ) {
+            $url = self::normalize_virtual_join_url( $value );
+            if ( '' !== $url ) {
                 return $url;
             }
         }
@@ -778,14 +779,35 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     continue;
                 }
 
-                $url = esc_url_raw( trim( $value ) );
-                if ( '' !== $url && filter_var( $url, FILTER_VALIDATE_URL ) ) {
+                $url = self::normalize_virtual_join_url( $value );
+                if ( '' !== $url ) {
                     return $url;
                 }
             }
         }
 
         return '';
+    }
+
+    private static function normalize_virtual_join_url( string $value ): string {
+        $raw = trim( $value );
+        if ( '' === $raw || ! filter_var( $raw, FILTER_VALIDATE_URL ) ) {
+            return '';
+        }
+
+        $parts = wp_parse_url( $raw );
+        $scheme = is_array( $parts ) && isset( $parts['scheme'] ) ? strtolower( (string) $parts['scheme'] ) : '';
+        $host = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( (string) $parts['host'] ) : '';
+
+        if ( ! in_array( $scheme, array( 'http', 'https' ), true ) || '' === $host ) {
+            return '';
+        }
+
+        if ( false === strpos( $host, '.' ) && 'localhost' !== $host ) {
+            return '';
+        }
+
+        return esc_url_raw( $raw );
     }
 
     private static function normalize_intent( string $raw_intent ): string {
