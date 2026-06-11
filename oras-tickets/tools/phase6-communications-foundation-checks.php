@@ -125,6 +125,7 @@ function orasPhase6RunFoundationChecks(): void
     orasPhase6Assert($board_role instanceof WP_Role, 'Board role exists for capability test');
     orasPhase6Assert($board_role->has_cap('oras_tickets_view_board_dashboard'), 'Board role can view board dashboard');
     orasPhase6Assert($board_role->has_cap('oras_tickets_send_notifications'), 'Board role can send notifications');
+    orasPhase6Assert($board_role->has_cap('oras_tickets_manage_rsvps'), 'Board role can manage RSVP approvals');
 
     $board_user_suffix = wp_generate_password(8, false);
     $board_user_id = wp_create_user(

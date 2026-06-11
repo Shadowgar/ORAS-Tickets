@@ -29,6 +29,7 @@ final class Capabilities {
     public const BOARD_COMMUNICATION_CAPS = [
         'oras_tickets_view_board_dashboard',
         'oras_tickets_send_notifications',
+        'oras_tickets_manage_rsvps',
     ];
 
     public static function add_caps(): void {
