@@ -7,6 +7,7 @@ use ORAS\Tickets\Communication_Recipients;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
+use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -19,6 +20,8 @@ final class Board_Reports {
 	private const COMMUNICATION_ACTION = 'oras_board_reports_send_communication';
 	private const APPROVAL_NONCE_ACTION = 'oras_board_reports_rsvp_approval';
 	private const APPROVAL_ACTION = 'oras_board_reports_update_rsvp_approval';
+	private const WAITLIST_NONCE_ACTION = 'oras_board_reports_waitlist';
+	private const WAITLIST_ACTION = 'oras_board_reports_update_waitlist';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
 	private const TAB_COMMUNICATIONS = 'communications';
@@ -32,6 +35,7 @@ final class Board_Reports {
 		add_action( 'admin_post_oras_board_reports_export_pdf', array( self::class, 'handle_export_pdf' ) );
 		add_action( 'admin_post_' . self::COMMUNICATION_ACTION, array( self::class, 'handle_send_communication' ) );
 		add_action( 'admin_post_' . self::APPROVAL_ACTION, array( self::class, 'handle_update_rsvp_approval' ) );
+		add_action( 'admin_post_' . self::WAITLIST_ACTION, array( self::class, 'handle_update_waitlist' ) );
 	}
 
 	/**
@@ -269,6 +273,7 @@ final class Board_Reports {
 			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
 			<?php self::render_rsvp_approval_notice(); ?>
+			<?php self::render_waitlist_notice(); ?>
 			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_TICKET_SALES === $active_tab ) : ?>
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
@@ -389,9 +394,127 @@ final class Board_Reports {
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+			<?php
+		}
+
+	private static function render_waitlist_section( int $event_id ): void {
+		$rows = Waitlist_Store::get_event_rows( $event_id, array( 'waiting' ), 250, 'joined_asc' );
+		$position = 1;
+		?>
+		<section class="oras-board-reports__placeholder">
+			<h3><?php echo esc_html__( 'Waitlist Queue', 'oras-tickets' ); ?></h3>
+			<p><?php echo esc_html__( 'Board users can promote waitlisted RSVPs when capacity opens, open one additional RSVP seat, or remove a waitlist entry.', 'oras-tickets' ); ?></p>
+			<?php if ( empty( $rows ) ) : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No one is currently waiting for this event.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<div class="oras-board-reports__table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th><?php echo esc_html__( 'Position', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Joined Date', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Contact Note', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $rows as $row ) : ?>
+								<?php
+								$user_id = isset( $row->user_id ) ? absint( $row->user_id ) : 0;
+								$user = $user_id > 0 ? get_user_by( 'id', $user_id ) : false;
+								$contact = self::get_waitlist_contact( $event_id, $user_id );
+								$attendance_mode = Event_RSVP::get_user_attendance_type_for_report( $event_id, $user_id );
+								$approval_status = Event_RSVP::get_user_approval_status( $event_id, $user_id );
+								?>
+								<tr>
+									<td><?php echo esc_html( (string) $position ); ?></td>
+									<td><?php echo esc_html( $contact['name'] !== '' ? $contact['name'] : ( $user instanceof \WP_User ? (string) $user->display_name : 'User #' . $user_id ) ); ?></td>
+									<td><?php echo esc_html( $contact['email'] !== '' ? $contact['email'] : ( $user instanceof \WP_User ? (string) $user->user_email : '' ) ); ?></td>
+									<td><?php echo esc_html( Event_RSVP::get_attendance_mode_label( $attendance_mode ) ); ?></td>
+									<td><?php echo esc_html( Event_RSVP::get_approval_status_label( $approval_status ) ); ?></td>
+									<td><?php echo esc_html( isset( $row->joined_at ) ? (string) $row->joined_at : '' ); ?></td>
+									<td><?php echo esc_html( $contact['note'] ); ?></td>
+									<td><?php self::render_waitlist_row_actions( $event_id, $user_id, $row, $contact, $attendance_mode, $approval_status ); ?></td>
+								</tr>
+								<?php ++$position; ?>
+							<?php endforeach; ?>
+						</tbody>
 					</table>
 				</div>
 			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/**
+	 * @return array{name:string,email:string,phone:string,note:string}
+	 */
+	private static function get_waitlist_contact( int $event_id, int $user_id ): array {
+		$contact = array(
+			'name'  => '',
+			'email' => '',
+			'phone' => '',
+			'note'  => '',
+		);
+		if ( $event_id <= 0 || $user_id <= 0 ) {
+			return $contact;
+		}
+
+		$stored = get_user_meta( $user_id, '_oras_rsvp_event_' . $event_id . '_contact', true );
+		if ( is_array( $stored ) ) {
+			$first = isset( $stored['first_name'] ) && is_scalar( $stored['first_name'] ) ? sanitize_text_field( (string) $stored['first_name'] ) : '';
+			$last = isset( $stored['last_name'] ) && is_scalar( $stored['last_name'] ) ? sanitize_text_field( (string) $stored['last_name'] ) : '';
+			$contact['name'] = trim( $first . ' ' . $last );
+			$contact['email'] = isset( $stored['email'] ) && is_scalar( $stored['email'] ) ? sanitize_email( (string) $stored['email'] ) : '';
+			$contact['phone'] = isset( $stored['phone'] ) && is_scalar( $stored['phone'] ) ? sanitize_text_field( (string) $stored['phone'] ) : '';
+			$contact['note'] = isset( $stored['note'] ) && is_scalar( $stored['note'] ) ? sanitize_textarea_field( (string) $stored['note'] ) : '';
+		}
+
+		return $contact;
+	}
+
+	/**
+	 * @param object               $row
+	 * @param array<string,string> $contact
+	 */
+	private static function render_waitlist_row_actions( int $event_id, int $user_id, object $row, array $contact, string $attendance_mode, string $approval_status ): void {
+		?>
+		<div class="oras-board-reports__inline-actions">
+			<details>
+				<summary><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></summary>
+				<p><strong><?php echo esc_html__( 'User ID:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $user_id ); ?></p>
+				<p><strong><?php echo esc_html__( 'Phone:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $contact['phone'] ); ?></p>
+				<p><strong><?php echo esc_html__( 'Attendance mode:', 'oras-tickets' ); ?></strong> <?php echo esc_html( Event_RSVP::get_attendance_mode_label( $attendance_mode ) ); ?></p>
+				<p><strong><?php echo esc_html__( 'Approval status:', 'oras-tickets' ); ?></strong> <?php echo esc_html( Event_RSVP::get_approval_status_label( $approval_status ) ); ?></p>
+				<p><strong><?php echo esc_html__( 'Source:', 'oras-tickets' ); ?></strong> <?php echo esc_html( isset( $row->source ) ? (string) $row->source : '' ); ?></p>
+			</details>
+			<?php if ( current_user_can( 'oras_tickets_manage_rsvps' ) && $event_id > 0 && $user_id > 0 ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<?php self::render_waitlist_action_form( $event_id, $user_id, 'promote', __( 'Promote', 'oras-tickets' ) ); ?>
+				<?php self::render_waitlist_action_form( $event_id, $user_id, 'open_seat_promote', __( 'Open Seat + Promote', 'oras-tickets' ) ); ?>
+				<?php self::render_waitlist_action_form( $event_id, $user_id, 'remove', __( 'Remove from Waitlist', 'oras-tickets' ) ); ?>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	private static function render_waitlist_action_form( int $event_id, int $user_id, string $waitlist_action, string $label ): void {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( self::WAITLIST_NONCE_ACTION, 'oras_board_waitlist_nonce' ); ?>
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::WAITLIST_ACTION ); ?>" />
+			<input type="hidden" name="event_id" value="<?php echo esc_attr( (string) $event_id ); ?>" />
+			<input type="hidden" name="user_id" value="<?php echo esc_attr( (string) $user_id ); ?>" />
+			<input type="hidden" name="waitlist_action" value="<?php echo esc_attr( $waitlist_action ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_url() ); ?>" />
+			<button type="submit" class="button button-secondary"><?php echo esc_html( $label ); ?></button>
+		</form>
 		<?php
 	}
 
@@ -589,10 +712,10 @@ final class Board_Reports {
 							<?php endforeach; ?>
 						</tbody>
 					</table>
-				</div>
-			<?php endif; ?>
-		<?php
-	}
+					</div>
+				<?php endif; ?>
+			<?php
+		}
 
 	private static function render_statistics_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
@@ -627,11 +750,11 @@ final class Board_Reports {
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
-					</table>
-				</div>
-			<?php endif; ?>
-		<?php
-	}
+						</table>
+					</div>
+				<?php endif; ?>
+			<?php
+		}
 
 	private static function render_rsvps_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
@@ -728,19 +851,22 @@ final class Board_Reports {
 									<td><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-									<td><?php self::render_rsvp_row_actions( $row ); ?></td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-				</div>
-			<?php endif; ?>
-		<?php
-	}
+										<td><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
+										<td><?php self::render_rsvp_row_actions( $row ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+				<?php if ( ! empty( $events ) && $filters['event_id'] > 0 ) : ?>
+					<?php self::render_waitlist_section( $filters['event_id'] ); ?>
+				<?php endif; ?>
+			<?php
+		}
 
 	/**
 	 * @param array<string,mixed> $row
@@ -812,6 +938,20 @@ final class Board_Reports {
 		<?php
 	}
 
+	private static function render_waitlist_notice(): void {
+		$status = isset( $_GET['oras_waitlist_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_waitlist_status'] ) ) : '';
+		if ( '' === $status ) {
+			return;
+		}
+
+		$message = 'updated' === $status
+			? __( 'Waitlist action completed.', 'oras-tickets' )
+			: __( 'Unable to complete waitlist action.', 'oras-tickets' );
+		?>
+		<p class="oras-board-reports__notice"><?php echo esc_html( $message ); ?></p>
+		<?php
+	}
+
 	public static function handle_update_rsvp_approval(): void {
 		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
 			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
@@ -834,6 +974,40 @@ final class Board_Reports {
 		$status = is_wp_error( $result ) ? 'failed' : 'updated';
 
 		wp_safe_redirect( add_query_arg( 'oras_rsvp_approval_status', $status, $redirect ) );
+		exit;
+	}
+
+	public static function handle_update_waitlist(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if (
+			! isset( $_POST['oras_board_waitlist_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['oras_board_waitlist_nonce'] ) ), self::WAITLIST_NONCE_ACTION )
+		) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
+		$user_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : 0;
+		$waitlist_action = isset( $_POST['waitlist_action'] ) && is_scalar( $_POST['waitlist_action'] ) ? sanitize_key( wp_unslash( $_POST['waitlist_action'] ) ) : '';
+		$redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : self::get_current_dashboard_url( self::TAB_RSVPS, $event_id );
+		$actor_user_id = get_current_user_id();
+
+		if ( 'promote' === $waitlist_action ) {
+			$result = Event_RSVP::promote_waitlist_user( $event_id, $user_id, $actor_user_id, 'board-waitlist', true );
+		} elseif ( 'open_seat_promote' === $waitlist_action ) {
+			$result = Event_RSVP::open_seat_and_promote_waitlist_user( $event_id, $user_id, $actor_user_id, 'board-open-seat' );
+		} elseif ( 'remove' === $waitlist_action ) {
+			$result = Event_RSVP::cancel_rsvp_attendee( $event_id, $user_id, $actor_user_id, 'board-waitlist-remove', false );
+		} else {
+			$result = new \WP_Error( 'oras_waitlist_invalid_action', __( 'Invalid waitlist action.', 'oras-tickets' ) );
+		}
+
+		$status = is_wp_error( $result ) ? 'failed' : 'updated';
+
+		wp_safe_redirect( add_query_arg( 'oras_waitlist_status', $status, $redirect ) );
 		exit;
 	}
 

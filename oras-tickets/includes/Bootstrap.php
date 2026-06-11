@@ -327,59 +327,52 @@ final class Bootstrap
         $requested = isset($_POST['count']) ? absint($_POST['count']) : 1;
         $requested = max(1, min(25, $requested));
 
-        $result = \ORAS\Tickets\Support\DbLock::forEvent(
-            $event_id,
-            function () use ($event_id, $rsvp_settings, $requested): array {
-                $stats = $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings);
-                $capacity = (int) $stats['capacity'];
-                $available_slots = (int) $stats['available_slots'];
-
-                if ($capacity > 0 && $available_slots <= 0) {
-                    return array('error' => 'Event is already at capacity');
-                }
-
-                $limit = $capacity > 0 ? min($requested, $available_slots) : $requested;
-                if ($limit <= 0) {
-                    return array('error' => 'No capacity available for promotion');
-                }
-
-                $promoted_user_ids = \ORAS\Tickets\Waitlist_Store::bulk_promote_waiting(
-                    $event_id,
-                    $limit,
-                    get_current_user_id(),
-                    'dashboard-bulk'
-                );
-
-                if (empty($promoted_user_ids)) {
-                    return array('error' => 'No users available on waitlist');
-                }
-
-                foreach ($promoted_user_ids as $promoted_user_id) {
-                    update_user_meta((int) $promoted_user_id, '_oras_rsvp_event_' . $event_id, 'yes');
-                    delete_user_meta((int) $promoted_user_id, '_oras_rsvp_event_' . $event_id . '_ts');
-                }
-
-                return array(
-                    'promoted_count'    => count($promoted_user_ids),
-                    'promoted_user_ids' => array_values(array_map('absint', $promoted_user_ids)),
-                    'stats'             => $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings),
-                );
-            }
-        );
-
-        if (is_wp_error($result)) {
-            wp_send_json_error($result->get_error_message());
+        $lock_probe = \ORAS\Tickets\Support\DbLock::forEvent($event_id, static function (): bool {
+            return true;
+        });
+        if (is_wp_error($lock_probe)) {
+            wp_send_json_error($lock_probe->get_error_message());
         }
 
-        if (isset($result['error'])) {
-            wp_send_json_error((string) $result['error']);
+        $stats = $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings);
+        $capacity = (int) $stats['capacity'];
+        $available_slots = (int) $stats['available_slots'];
+
+        if ($capacity > 0 && $available_slots <= 0) {
+            wp_send_json_error('Event is already at capacity');
+        }
+
+        $limit = $capacity > 0 ? min($requested, $available_slots) : $requested;
+        if ($limit <= 0) {
+            wp_send_json_error('No capacity available for promotion');
+        }
+
+        $promoted_user_ids = array();
+        $first_error = '';
+        for ($i = 0; $i < $limit; $i++) {
+            $promoted = \ORAS\Tickets\Frontend\Event_RSVP::promote_next_waitlisted_attendee($event_id, '', get_current_user_id(), 'dashboard-bulk');
+            if (is_wp_error($promoted)) {
+                $first_error = $promoted->get_error_message();
+                break;
+            }
+
+            $promoted_user_id = isset($promoted['user_id']) ? absint($promoted['user_id']) : 0;
+            if ($promoted_user_id <= 0) {
+                break;
+            }
+
+            $promoted_user_ids[] = $promoted_user_id;
+        }
+
+        if (empty($promoted_user_ids)) {
+            wp_send_json_error($first_error !== '' ? $first_error : 'No users available on waitlist');
         }
 
         wp_send_json_success(
             array(
-                'promoted_count'    => (int) ($result['promoted_count'] ?? 0),
-                'promoted_user_ids' => isset($result['promoted_user_ids']) && is_array($result['promoted_user_ids']) ? $result['promoted_user_ids'] : array(),
-                'stats'             => isset($result['stats']) && is_array($result['stats']) ? $result['stats'] : array(),
+                'promoted_count'    => count($promoted_user_ids),
+                'promoted_user_ids' => array_values(array_map('absint', $promoted_user_ids)),
+                'stats'             => $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings),
             )
         );
     }
@@ -404,42 +397,16 @@ final class Bootstrap
             wp_send_json_error('No RSVP settings found for this event');
         }
 
-        $result = \ORAS\Tickets\Support\DbLock::forEvent(
-            $event_id,
-            function () use ($event_id, $user_id, $rsvp_settings): array {
-                $stats = $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings);
-                $capacity = (int) $stats['capacity'];
-                $available_slots = (int) $stats['available_slots'];
-                if ($capacity > 0 && $available_slots <= 0) {
-                    return array('error' => 'Event is already at capacity');
-                }
-
-                if (! \ORAS\Tickets\Waitlist_Store::promote_user($event_id, $user_id, get_current_user_id(), 'dashboard-manual')) {
-                    return array('error' => 'Unable to promote selected user');
-                }
-
-                update_user_meta($user_id, '_oras_rsvp_event_' . $event_id, 'yes');
-                delete_user_meta($user_id, '_oras_rsvp_event_' . $event_id . '_ts');
-
-                return array(
-                    'user_id' => $user_id,
-                    'stats'   => $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings),
-                );
-            }
-        );
+        $result = \ORAS\Tickets\Frontend\Event_RSVP::promote_waitlist_user($event_id, $user_id, get_current_user_id(), 'dashboard-manual', true);
 
         if (is_wp_error($result)) {
             wp_send_json_error($result->get_error_message());
         }
 
-        if (isset($result['error'])) {
-            wp_send_json_error((string) $result['error']);
-        }
-
         wp_send_json_success(
             array(
                 'user_id' => (int) ($result['user_id'] ?? $user_id),
-                'stats'   => isset($result['stats']) && is_array($result['stats']) ? $result['stats'] : array(),
+                'stats'   => $this->get_rsvp_stats_from_settings($event_id, $rsvp_settings),
             )
         );
     }
@@ -919,24 +886,9 @@ final class Bootstrap
      */
     private function remove_rsvp_attendee(int $event_id, int $user_id, string $source)
     {
-        $meta_key = '_oras_rsvp_event_' . $event_id;
-        $current_status = sanitize_key((string) get_user_meta($user_id, $meta_key, true));
-        $waitlist_status = \ORAS\Tickets\Waitlist_Store::get_current_waitlist_status($event_id, $user_id);
+        $removed = \ORAS\Tickets\Frontend\Event_RSVP::cancel_rsvp_attendee($event_id, $user_id, get_current_user_id(), $source, false);
 
-        if ('waiting' === $waitlist_status) {
-            if (! \ORAS\Tickets\Waitlist_Store::remove_waiting_user($event_id, $user_id, get_current_user_id(), $source)) {
-                return new \WP_Error('oras_rsvp_remove_waitlist_failed', 'Unable to remove selected user from waitlist');
-            }
-        } elseif ('yes' !== $current_status && 'waitlist' !== $current_status) {
-            return new \WP_Error('oras_rsvp_remove_invalid_state', 'Selected attendee does not have an active RSVP');
-        }
-
-        update_user_meta($user_id, $meta_key, 'no');
-        delete_user_meta($user_id, $meta_key . '_ts');
-        delete_user_meta($user_id, $meta_key . '_attendance_mode');
-        delete_user_meta($user_id, $meta_key . '_approval_status');
-
-        return true;
+        return is_wp_error($removed) ? $removed : true;
     }
 
     private function can_manage_rsvp_dashboard(): bool

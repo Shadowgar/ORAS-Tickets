@@ -21,7 +21,10 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const USERMETA_APPROVED_AT_SUFFIX = '_approved_at';
     private const USERMETA_REJECTION_REASON_SUFFIX = '_rejection_reason';
     private const USERMETA_CONTACT_SUFFIX = '_contact';
+    private const USERMETA_CANCEL_TOKEN_HASH_SUFFIX = '_cancel_token_hash';
+    private const USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX = '_cancel_token_expires';
     private const ACTION = 'oras_rsvp_update';
+    private const CANCEL_ACTION = 'oras_rsvp_cancel_confirm';
     private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
 
     public const APPROVAL_STATUS_PENDING = 'pending';
@@ -32,6 +35,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         // Render after tickets display (tickets appended at priority 20).
         add_filter( 'the_content', array( self::class, 'render_rsvp_block' ), 21 );
         add_action( 'admin_post_' . self::ACTION, array( self::class, 'handle_post' ) );
+        add_action( 'admin_post_' . self::CANCEL_ACTION, array( self::class, 'handle_cancel_confirmation' ) );
+        add_action( 'admin_post_nopriv_' . self::CANCEL_ACTION, array( self::class, 'handle_cancel_confirmation' ) );
     }
 
     public static function render_rsvp_block( string $content ): string {
@@ -86,6 +91,15 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         if ( 'error' === $oras_rsvp ) {
             $text = self::humanize_error_message( $oras_msg );
             $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . $text . '</div>';
+        }
+
+        if ( self::is_cancellation_confirmation_request() ) {
+            $cancel_event_id = isset( $_GET['event_id'] ) ? absint( wp_unslash( $_GET['event_id'] ) ) : $event_id;
+            $cancel_user_id = isset( $_GET['user_id'] ) ? absint( wp_unslash( $_GET['user_id'] ) ) : 0;
+            $cancel_token = isset( $_GET['token'] ) && is_scalar( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+            echo self::render_cancellation_confirmation( $cancel_event_id, $cancel_user_id, $cancel_token ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            echo '</div>';
+            return $content . ob_get_clean();
         }
 
         if ( ! is_user_logged_in() ) {
@@ -351,6 +365,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_BY_SUFFIX );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_AT_SUFFIX );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX );
+                    delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX );
 
                     return array(
                         'ok'      => true,
@@ -460,6 +476,28 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         exit;
     }
 
+    public static function handle_cancel_confirmation(): void {
+        $event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
+        $user_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : 0;
+        $token = isset( $_POST['token'] ) && is_scalar( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
+        $nonce = isset( $_POST['oras_rsvp_cancel_nonce'] ) && is_scalar( $_POST['oras_rsvp_cancel_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['oras_rsvp_cancel_nonce'] ) ) : '';
+        $redirect = get_permalink( $event_id );
+        if ( ! is_string( $redirect ) || '' === $redirect ) {
+            $redirect = home_url();
+        }
+
+        if ( $event_id <= 0 || $user_id <= 0 || '' === $token || ! wp_verify_nonce( $nonce, self::get_cancellation_nonce_action( $event_id, $user_id ) ) ) {
+            wp_safe_redirect( add_query_arg( 'oras_rsvp_cancelled', 'failed', $redirect ) );
+            exit;
+        }
+
+        $result = self::cancel_rsvp_with_token( $event_id, $user_id, $token );
+        $status = is_wp_error( $result ) ? 'failed' : '1';
+
+        wp_safe_redirect( add_query_arg( 'oras_rsvp_cancelled', $status, $redirect ) );
+        exit;
+    }
+
     /**
      * @return array{first_name:string,last_name:string,email:string,phone:string,note:string}
      */
@@ -529,9 +567,16 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         );
     }
 
-    private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): bool {
+    /**
+     * @return array{subject:string,body:string,email:string}
+     */
+    public static function build_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): array {
         if ( $event_id <= 0 || '' === $recipient_email || ! is_email( $recipient_email ) ) {
-            return false;
+            return array(
+                'subject' => '',
+                'body'    => '',
+                'email'   => '',
+            );
         }
 
         $normalized_mode = Ticket::normalizeAttendanceMode( $attendance_mode, Ticket::ATTENDANCE_MODE_ONSITE );
@@ -590,11 +635,475 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
         $lines[] = $event_url;
 
+        if ( $user_id > 0 ) {
+            $lines[] = '';
+            $lines[] = __( 'Need to cancel? Use this link so someone on the waitlist can take your seat:', 'oras-tickets' );
+            $lines[] = self::create_cancellation_url( $event_id, $user_id );
+        }
+
+        return array(
+            'subject' => $subject,
+            'body'    => implode( "\n", $lines ),
+            'email'   => $recipient_email,
+        );
+    }
+
+    private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): bool {
+        $email = self::build_rsvp_confirmation_email( $event_id, $recipient_email, $attendance_mode, $user_id );
+        if ( '' === $email['email'] || '' === $email['subject'] ) {
+            return false;
+        }
+
         return (bool) wp_mail(
-            $recipient_email,
-            $subject,
-            implode( "\n", $lines ),
+            $email['email'],
+            $email['subject'],
+            $email['body'],
             self::VIRTUAL_EMAIL_HEADERS
+        );
+    }
+
+    public static function create_cancellation_url( int $event_id, int $user_id ): string {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return '';
+        }
+
+        $token = wp_generate_password( 48, false, false );
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX, wp_hash( $token ) );
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX, time() + YEAR_IN_SECONDS );
+
+        $event_url = get_permalink( $event_id );
+        if ( ! is_string( $event_url ) || '' === $event_url ) {
+            $event_url = home_url();
+        }
+
+        return add_query_arg(
+            array(
+                'oras_rsvp_cancel' => '1',
+                'event_id'          => $event_id,
+                'user_id'           => $user_id,
+                'token'             => $token,
+            ),
+            $event_url
+        );
+    }
+
+    public static function validate_cancellation_token( int $event_id, int $user_id, string $token ): bool {
+        if ( $event_id <= 0 || $user_id <= 0 || '' === trim( $token ) ) {
+            return false;
+        }
+
+        $stored_hash = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX, true );
+        $expires = absint( get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX, true ) );
+        if ( ! is_string( $stored_hash ) || '' === $stored_hash || $expires < time() ) {
+            return false;
+        }
+
+        $status = self::get_user_status( $event_id, $user_id );
+        if ( ! in_array( $status, array( 'yes', 'waitlist' ), true ) ) {
+            return false;
+        }
+
+        return hash_equals( $stored_hash, wp_hash( $token ) );
+    }
+
+    public static function render_cancellation_confirmation( int $event_id, int $user_id, string $token ): string {
+        $event = get_post( $event_id );
+        if ( ! $event instanceof \WP_Post || 'tribe_events' !== $event->post_type || ! self::validate_cancellation_token( $event_id, $user_id, $token ) ) {
+            return '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . esc_html__( 'This RSVP cancellation link is invalid or has expired.', 'oras-tickets' ) . '</div>';
+        }
+
+        $attendance_mode = self::get_user_attendance_type_for_report( $event_id, $user_id );
+
+        ob_start();
+        ?>
+        <div class="oras-rsvp-cancel-confirmation">
+            <h3><?php echo esc_html__( 'Cancel RSVP', 'oras-tickets' ); ?></h3>
+            <p><?php echo esc_html__( 'Please confirm that you want to cancel this RSVP. If the event has a waitlist, ORAS may offer the opened seat to the next waitlisted attendee.', 'oras-tickets' ); ?></p>
+            <p><strong><?php echo esc_html__( 'Event:', 'oras-tickets' ); ?></strong> <?php echo esc_html( get_the_title( $event_id ) ); ?></p>
+            <p><strong><?php echo esc_html__( 'Attendance:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::get_attendance_mode_label( $attendance_mode ) ); ?></p>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( self::get_cancellation_nonce_action( $event_id, $user_id ), 'oras_rsvp_cancel_nonce' ); ?>
+                <input type="hidden" name="action" value="<?php echo esc_attr( self::CANCEL_ACTION ); ?>" />
+                <input type="hidden" name="event_id" value="<?php echo esc_attr( (string) $event_id ); ?>" />
+                <input type="hidden" name="user_id" value="<?php echo esc_attr( (string) $user_id ); ?>" />
+                <input type="hidden" name="token" value="<?php echo esc_attr( $token ); ?>" />
+                <button type="submit" class="oras-rsvp-button oras-rsvp-button-secondary"><?php echo esc_html__( 'Cancel RSVP', 'oras-tickets' ); ?></button>
+            </form>
+        </div>
+        <?php
+
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public static function cancel_rsvp_with_token( int $event_id, int $user_id, string $token ) {
+        if ( ! self::validate_cancellation_token( $event_id, $user_id, $token ) ) {
+            return new \WP_Error( 'oras_rsvp_cancel_invalid_token', __( 'Invalid or expired cancellation link.', 'oras-tickets' ) );
+        }
+
+        return self::cancel_rsvp_attendee( $event_id, $user_id, 0, 'frontend-cancel', true );
+    }
+
+    /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public static function cancel_rsvp_attendee( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'system', bool $auto_promote = true ) {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return new \WP_Error( 'oras_rsvp_cancel_invalid', __( 'Invalid event or attendee.', 'oras-tickets' ) );
+        }
+
+        $result = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id, $user_id, $actor_user_id, $source, $auto_promote ): array {
+                $previous_status = self::get_user_status( $event_id, $user_id );
+                $previous_mode = self::get_user_attendance_type_for_report( $event_id, $user_id );
+                $waitlist_status = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
+
+                if ( ! in_array( $previous_status, array( 'yes', 'waitlist' ), true ) && 'waiting' !== $waitlist_status ) {
+                    return array( 'error' => __( 'No active RSVP or waitlist row exists for this attendee.', 'oras-tickets' ) );
+                }
+
+                if ( 'waiting' === $waitlist_status || 'waitlist' === $previous_status ) {
+                    Waitlist_Store::mark_left( $event_id, $user_id, $source, $actor_user_id );
+                }
+
+                update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, 'no' );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_ATTENDANCE_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVAL_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_BY_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_APPROVED_AT_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX );
+                delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX );
+
+                self::log_rsvp_lifecycle_message(
+                    $event_id,
+                    $actor_user_id,
+                    $user_id,
+                    'rsvp_cancelled',
+                    __( 'RSVP cancelled', 'oras-tickets' ),
+                    sprintf(
+                        /* translators: 1: user ID, 2: previous status, 3: attendance mode */
+                        __( 'User #%1$d cancelled or was removed from RSVP status %2$s for %3$s attendance.', 'oras-tickets' ),
+                        $user_id,
+                        $previous_status,
+                        $previous_mode
+                    ),
+                    true
+                );
+
+                $promoted_user_id = 0;
+                if ( $auto_promote && 'yes' === $previous_status ) {
+                    $promoted = self::promote_next_waitlisted_attendee_unlocked( $event_id, $previous_mode, $actor_user_id, 'waitlist-auto-promote' );
+                    if ( is_array( $promoted ) && empty( $promoted['error'] ) ) {
+                        $promoted_user_id = absint( $promoted['user_id'] ?? 0 );
+                    }
+                }
+
+                return array(
+                    'cancelled'                => true,
+                    'user_id'                  => $user_id,
+                    'previous_status'          => $previous_status,
+                    'previous_attendance_mode' => $previous_mode,
+                    'promoted_user_id'         => $promoted_user_id,
+                );
+            }
+        );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        if ( isset( $result['error'] ) ) {
+            return new \WP_Error( 'oras_rsvp_cancel_failed', (string) $result['error'] );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public static function promote_waitlist_user( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'board-waitlist', bool $require_capacity = true ) {
+        $result = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id, $user_id, $actor_user_id, $source, $require_capacity ): array {
+                return self::promote_waitlist_user_unlocked( $event_id, $user_id, $actor_user_id, $source, $require_capacity );
+            }
+        );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        if ( isset( $result['error'] ) ) {
+            return new \WP_Error( 'oras_waitlist_promote_failed', (string) $result['error'] );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public static function open_seat_and_promote_waitlist_user( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'board-open-seat' ) {
+        $result = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id, $user_id, $actor_user_id, $source ): array {
+                $meta = get_post_meta( $event_id, self::META_KEY, true );
+                if ( ! is_array( $meta ) ) {
+                    return array( 'error' => __( 'RSVP settings are missing for this event.', 'oras-tickets' ) );
+                }
+
+                $capacity = absint( $meta['capacity'] ?? 0 );
+                if ( $capacity > 0 ) {
+                    $meta['capacity'] = $capacity + 1;
+                    update_post_meta( $event_id, self::META_KEY, $meta );
+                }
+
+                return self::promote_waitlist_user_unlocked( $event_id, $user_id, $actor_user_id, $source, false );
+            }
+        );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        if ( isset( $result['error'] ) ) {
+            return new \WP_Error( 'oras_waitlist_open_promote_failed', (string) $result['error'] );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>|\WP_Error
+     */
+    public static function promote_next_waitlisted_attendee( int $event_id, string $preferred_attendance_mode = '', int $actor_user_id = 0, string $source = 'waitlist-auto-promote' ) {
+        $result = DbLock::forEvent(
+            $event_id,
+            static function () use ( $event_id, $preferred_attendance_mode, $actor_user_id, $source ): array {
+                return self::promote_next_waitlisted_attendee_unlocked( $event_id, $preferred_attendance_mode, $actor_user_id, $source );
+            }
+        );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        if ( isset( $result['error'] ) ) {
+            return new \WP_Error( 'oras_waitlist_auto_promote_failed', (string) $result['error'] );
+        }
+
+        return $result;
+    }
+
+    private static function is_cancellation_confirmation_request(): bool {
+        return isset( $_GET['oras_rsvp_cancel'] ) && '1' === (string) wp_unslash( $_GET['oras_rsvp_cancel'] );
+    }
+
+    private static function get_cancellation_nonce_action( int $event_id, int $user_id ): string {
+        return 'oras_rsvp_cancel_' . max( 0, $event_id ) . '_' . max( 0, $user_id );
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function promote_next_waitlisted_attendee_unlocked( int $event_id, string $preferred_attendance_mode = '', int $actor_user_id = 0, string $source = 'waitlist-auto-promote' ): array {
+        if ( $event_id <= 0 ) {
+            return array( 'error' => __( 'Invalid event.', 'oras-tickets' ) );
+        }
+
+        if ( ! self::has_capacity_available( $event_id ) ) {
+            return array( 'error' => __( 'No capacity available for promotion.', 'oras-tickets' ) );
+        }
+
+        $rows = Waitlist_Store::get_event_rows( $event_id, array( 'waiting' ), 250, 'joined_asc' );
+        if ( empty( $rows ) ) {
+            return array( 'error' => __( 'No users are waiting.', 'oras-tickets' ) );
+        }
+
+        $preferred_mode = Ticket::normalizeAttendanceMode( $preferred_attendance_mode, '' );
+        $fallback_user_id = 0;
+        $matched_user_id = 0;
+
+        foreach ( $rows as $row ) {
+            $candidate_user_id = isset( $row->user_id ) ? absint( $row->user_id ) : 0;
+            if ( $candidate_user_id <= 0 ) {
+                continue;
+            }
+
+            if ( 0 === $fallback_user_id ) {
+                $fallback_user_id = $candidate_user_id;
+            }
+
+            if ( '' !== $preferred_mode && self::get_user_attendance_type_for_report( $event_id, $candidate_user_id ) === $preferred_mode ) {
+                $matched_user_id = $candidate_user_id;
+                break;
+            }
+        }
+
+        $selected_user_id = $matched_user_id > 0 ? $matched_user_id : $fallback_user_id;
+        if ( $selected_user_id <= 0 ) {
+            return array( 'error' => __( 'No eligible waitlist user was found.', 'oras-tickets' ) );
+        }
+
+        return self::promote_waitlist_user_unlocked( $event_id, $selected_user_id, $actor_user_id, $source, true );
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function promote_waitlist_user_unlocked( int $event_id, int $user_id, int $actor_user_id = 0, string $source = 'board-waitlist', bool $require_capacity = true ): array {
+        if ( $event_id <= 0 || $user_id <= 0 ) {
+            return array( 'error' => __( 'Invalid event or waitlist user.', 'oras-tickets' ) );
+        }
+
+        $event = get_post( $event_id );
+        if ( ! $event instanceof \WP_Post || 'tribe_events' !== $event->post_type ) {
+            return array( 'error' => __( 'Invalid event.', 'oras-tickets' ) );
+        }
+
+        if ( 'waiting' !== Waitlist_Store::get_current_waitlist_status( $event_id, $user_id ) ) {
+            return array( 'error' => __( 'Selected user is not currently on the waitlist.', 'oras-tickets' ) );
+        }
+
+        if ( $require_capacity && ! self::has_capacity_available( $event_id ) ) {
+            return array( 'error' => __( 'Event is already at capacity.', 'oras-tickets' ) );
+        }
+
+        if ( ! Waitlist_Store::promote_user( $event_id, $user_id, $actor_user_id, $source ) ) {
+            return array( 'error' => __( 'Unable to promote selected user.', 'oras-tickets' ) );
+        }
+
+        update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id, 'yes' );
+        delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . '_ts' );
+
+        $email_sent = self::send_waitlist_promotion_email( $event_id, $user_id );
+        self::log_rsvp_lifecycle_message(
+            $event_id,
+            $actor_user_id,
+            $user_id,
+            str_contains( $source, 'auto' ) ? 'waitlist_auto_promoted' : 'waitlist_manual_promoted',
+            __( 'Moved from waitlist to RSVP confirmed', 'oras-tickets' ),
+            sprintf(
+                /* translators: 1: user ID, 2: attendance mode */
+                __( 'User #%1$d was moved from waitlist to confirmed RSVP for %2$s attendance.', 'oras-tickets' ),
+                $user_id,
+                self::get_user_attendance_type_for_report( $event_id, $user_id )
+            ),
+            $email_sent
+        );
+
+        return array(
+            'promoted'   => true,
+            'user_id'    => $user_id,
+            'event_id'   => $event_id,
+            'email_sent' => $email_sent,
+        );
+    }
+
+    private static function has_capacity_available( int $event_id ): bool {
+        $meta = get_post_meta( $event_id, self::META_KEY, true );
+        if ( ! is_array( $meta ) ) {
+            return false;
+        }
+
+        $capacity = absint( $meta['capacity'] ?? 0 );
+        if ( 0 === $capacity ) {
+            return true;
+        }
+
+        return self::yes_count( $event_id ) < $capacity;
+    }
+
+    private static function send_waitlist_promotion_email( int $event_id, int $user_id ): bool {
+        $contact = self::get_user_contact_defaults( $event_id, $user_id );
+        $recipient_email = sanitize_email( (string) ( $contact['email'] ?? '' ) );
+        if ( '' === $recipient_email || ! is_email( $recipient_email ) ) {
+            return false;
+        }
+
+        $email = self::build_waitlist_promotion_email( $event_id, $user_id, $recipient_email );
+
+        return (bool) wp_mail( $recipient_email, $email['subject'], $email['body'], self::VIRTUAL_EMAIL_HEADERS );
+    }
+
+    /**
+     * @return array{subject:string,body:string}
+     */
+    private static function build_waitlist_promotion_email( int $event_id, int $user_id, string $recipient_email ): array {
+        $event_title = get_the_title( $event_id );
+        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
+            $event_title = __( 'ORAS Event', 'oras-tickets' );
+        }
+
+        $event_url = get_permalink( $event_id );
+        if ( ! is_string( $event_url ) || '' === $event_url ) {
+            $event_url = home_url();
+        }
+
+        $attendance_mode = self::get_user_attendance_type_for_report( $event_id, $user_id );
+        $subject = sprintf(
+            /* translators: %s: event title */
+            __( 'You were moved from the waitlist for %s', 'oras-tickets' ),
+            $event_title
+        );
+        $lines = array(
+            __( 'A seat opened up and your RSVP has been moved from the waitlist to confirmed.', 'oras-tickets' ),
+            '',
+            sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            sprintf( __( 'Attendance: %s', 'oras-tickets' ), self::get_attendance_mode_label( $attendance_mode ) ),
+            sprintf( __( 'Date & Time: %s', 'oras-tickets' ), self::get_event_datetime_text( $event_id ) ),
+        );
+
+        if ( Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode ) {
+            $lines[] = '';
+            if ( self::APPROVAL_STATUS_APPROVED === self::get_user_approval_status( $event_id, $user_id ) ) {
+                $lines[] = __( 'Virtual access link:', 'oras-tickets' );
+                $lines[] = self::get_virtual_join_link( $event_id ) ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' );
+            } else {
+                $lines[] = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
+        $lines[] = $event_url;
+        $lines[] = '';
+        $lines[] = __( 'Need to cancel? Use this link so someone else on the waitlist can take your seat:', 'oras-tickets' );
+        $lines[] = self::create_cancellation_url( $event_id, $user_id );
+
+        return array(
+            'subject' => $subject,
+            'body'    => implode( "\n", $lines ),
+        );
+    }
+
+    private static function log_rsvp_lifecycle_message( int $event_id, int $actor_user_id, int $target_user_id, string $related_action_type, string $subject, string $body, bool $email_sent ): void {
+        $sender = $actor_user_id > 0 ? get_user_by( 'id', $actor_user_id ) : false;
+        $target = $target_user_id > 0 ? get_user_by( 'id', $target_user_id ) : false;
+        $target_email = $target instanceof \WP_User ? sanitize_email( (string) $target->user_email ) : '';
+        $recipient_count = '' !== $target_email && is_email( $target_email ) ? 1 : 0;
+
+        Communication_Log_Store::insert(
+            array(
+                'event_id'               => $event_id,
+                'sender_user_id'         => $sender instanceof \WP_User ? (int) $sender->ID : 0,
+                'sender_display_name'    => $sender instanceof \WP_User ? (string) $sender->display_name : __( 'System', 'oras-tickets' ),
+                'sender_email'           => $sender instanceof \WP_User ? (string) $sender->user_email : '',
+                'recipient_segment'      => $related_action_type,
+                'recipient_count'        => $recipient_count,
+                'email_subject'          => $subject,
+                'email_body_snapshot'    => $body,
+                'sent_at'                => current_time( 'mysql', true ),
+                'send_status'            => $email_sent ? 'sent' : 'failed',
+                'failed_recipient_count' => $email_sent ? 0 : $recipient_count,
+                'related_action_type'    => $related_action_type,
+            )
         );
     }
 
