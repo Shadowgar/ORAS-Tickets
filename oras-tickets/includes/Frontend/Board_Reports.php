@@ -12,6 +12,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Board_Reports {
 
 	private const NONCE_ACTION = 'oras_board_reports_export';
+	private const TAB_TICKET_SALES = 'ticket_sales';
+	private const TAB_RSVPS = 'rsvps';
+	private const TAB_COMMUNICATIONS = 'communications';
+	private const TAB_ATTENDEES = 'attendees';
+	private const TAB_STATISTICS = 'statistics';
 
 	public static function register(): void {
 		add_shortcode( 'oras_board_reports', array( self::class, 'render_shortcode' ) );
@@ -33,25 +38,8 @@ final class Board_Reports {
 			return '<p>' . esc_html__( 'You do not have permission to view board reports.', 'oras-tickets' ) . '</p>';
 		}
 
-		$service = new Board_Report_Service();
-		$filters = self::get_filters_from_request();
-		$types = $service->get_report_types();
-		if ( ! isset( $types[ $filters['type'] ] ) ) {
-			$filters['type'] = Board_Report_Service::TYPE_TICKETS;
-		}
-		$requires_event = self::type_requires_event( $filters['type'] );
-
-		$events = $service->get_events();
-		if ( $requires_event && $filters['event_id'] <= 0 && ! empty( $events ) ) {
-			$filters['event_id'] = (int) $events[0]->ID;
-		} elseif ( ! $requires_event ) {
-			$filters['event_id'] = 0;
-		}
+		$active_tab = self::get_active_tab();
 		$page_id = self::get_context_page_id();
-
-		$rows = $service->get_rows( $filters['type'], $filters );
-		$spreadsheet_export_url = self::build_export_url( $filters, 'spreadsheet' );
-		$pdf_export_url = self::build_export_url( $filters, 'pdf' );
 
 		ob_start();
 		?>
@@ -66,6 +54,45 @@ final class Board_Reports {
 					margin: 0 0 16px;
 					padding: 10px 12px;
 					color: #e5ecf5;
+				}
+				.oras-board-reports .oras-board-reports__tabs {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px;
+					margin: 18px 0 16px;
+					border-bottom: 1px solid #dcdcde;
+				}
+				.oras-board-reports .oras-board-reports__tab {
+					display: inline-flex;
+					align-items: center;
+					min-height: 40px;
+					margin-bottom: -1px;
+					padding: 0 14px;
+					border: 1px solid #dcdcde;
+					border-radius: 8px 8px 0 0;
+					background: #f6f7f7;
+					color: #1d2327;
+					text-decoration: none;
+					font-weight: 700;
+				}
+				.oras-board-reports .oras-board-reports__tab:hover,
+				.oras-board-reports .oras-board-reports__tab:focus {
+					background: #ffffff;
+					color: #0a4b78;
+				}
+				.oras-board-reports .oras-board-reports__tab[aria-current="page"] {
+					background: #ffffff;
+					border-bottom-color: #ffffff;
+					color: #0a4b78;
+				}
+				.oras-board-reports .oras-board-reports__placeholder {
+					border: 1px solid #dcdcde;
+					border-radius: 8px;
+					background: #fff;
+					padding: 18px;
+				}
+				.oras-board-reports .oras-board-reports__placeholder h3 {
+					margin-top: 0;
 				}
 				.oras-board-reports .oras-board-reports__filters {
 					display: grid;
@@ -166,6 +193,20 @@ final class Board_Reports {
 				body.wp-dark-mode-active .oras-board-reports label {
 					color: #e6edf7;
 				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__tab,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__tab,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__tab {
+					background: #142238;
+					border-color: #3a4f68;
+					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__tab[aria-current="page"],
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__tab[aria-current="page"],
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__tab[aria-current="page"] {
+					background: #0c1624;
+					border-bottom-color: #0c1624;
+					color: #ffffff;
+				}
 				html.oras-dark-on .oras-board-reports input,
 				html.oras-dark-on .oras-board-reports select,
 				html[data-wp-dark-mode-active] .oras-board-reports input,
@@ -200,13 +241,46 @@ final class Board_Reports {
 				}
 			</style>
 
-			<h2><?php echo esc_html__( 'Board Reports', 'oras-tickets' ); ?></h2>
+			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
+			<?php self::render_tabs( $active_tab ); ?>
+			<?php if ( self::TAB_TICKET_SALES === $active_tab ) : ?>
+				<?php self::render_ticket_sales_tab( $page_id ); ?>
+			<?php else : ?>
+				<?php self::render_placeholder_tab( $active_tab ); ?>
+			<?php endif; ?>
+		</div>
+		<?php
+
+		return (string) ob_get_clean();
+	}
+
+	private static function render_ticket_sales_tab( int $page_id ): void {
+		$service = new Board_Report_Service();
+		$filters = self::get_filters_from_request();
+		$types = $service->get_report_types();
+		if ( ! isset( $types[ $filters['type'] ] ) ) {
+			$filters['type'] = Board_Report_Service::TYPE_TICKETS;
+		}
+		$requires_event = self::type_requires_event( $filters['type'] );
+
+		$events = $service->get_events();
+		if ( $requires_event && $filters['event_id'] <= 0 && ! empty( $events ) ) {
+			$filters['event_id'] = (int) $events[0]->ID;
+		} elseif ( ! $requires_event ) {
+			$filters['event_id'] = 0;
+		}
+
+		$rows = $service->get_rows( $filters['type'], $filters );
+		$spreadsheet_export_url = self::build_export_url( $filters, 'spreadsheet' );
+		$pdf_export_url = self::build_export_url( $filters, 'pdf' );
+		?>
 
 			<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
 				<?php if ( $page_id > 0 ) : ?>
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
+				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_TICKET_SALES ); ?>" />
 				<label>
 					<?php echo esc_html__( 'Report', 'oras-tickets' ); ?>
 					<select name="oras_board_report_type">
@@ -284,10 +358,7 @@ final class Board_Reports {
 					</table>
 				</div>
 			<?php endif; ?>
-		</div>
 		<?php
-
-		return (string) ob_get_clean();
 	}
 
 	public static function handle_export_csv(): void {
@@ -342,6 +413,86 @@ final class Board_Reports {
 
 		( new Board_Report_Exporter() )->output_pdf( $rows, $filename );
 		exit;
+	}
+
+	private static function get_active_tab(): string {
+		$tab = isset( $_GET['oras_board_tab'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_tab'] ) ) : self::TAB_TICKET_SALES;
+		$tabs = self::get_dashboard_tabs();
+
+		return isset( $tabs[ $tab ] ) ? $tab : self::TAB_TICKET_SALES;
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private static function get_dashboard_tabs(): array {
+		return array(
+			self::TAB_TICKET_SALES  => __( 'Ticket Sales', 'oras-tickets' ),
+			self::TAB_RSVPS         => __( 'RSVPs', 'oras-tickets' ),
+			self::TAB_COMMUNICATIONS => __( 'Communications', 'oras-tickets' ),
+			self::TAB_ATTENDEES     => __( 'Attendees', 'oras-tickets' ),
+			self::TAB_STATISTICS    => __( 'Event Statistics', 'oras-tickets' ),
+		);
+	}
+
+	private static function render_tabs( string $active_tab ): void {
+		?>
+		<nav class="oras-board-reports__tabs" aria-label="<?php echo esc_attr__( 'Event Management Dashboard sections', 'oras-tickets' ); ?>">
+			<?php foreach ( self::get_dashboard_tabs() as $tab => $label ) : ?>
+				<a
+					class="oras-board-reports__tab"
+					href="<?php echo esc_url( self::build_tab_url( $tab ) ); ?>"
+					<?php if ( $active_tab === $tab ) : ?>
+						aria-current="page"
+					<?php endif; ?>
+				><?php echo esc_html( $label ); ?></a>
+			<?php endforeach; ?>
+		</nav>
+		<?php
+	}
+
+	private static function render_placeholder_tab( string $active_tab ): void {
+		$placeholders = array(
+			self::TAB_RSVPS          => array(
+				'title' => __( 'RSVPs', 'oras-tickets' ),
+				'body'  => __( 'RSVP management will be added in Phase 1C.', 'oras-tickets' ),
+			),
+			self::TAB_COMMUNICATIONS => array(
+				'title' => __( 'Communications', 'oras-tickets' ),
+				'body'  => __( 'Communications tools will be added in Phase 1D.', 'oras-tickets' ),
+			),
+			self::TAB_ATTENDEES      => array(
+				'title' => __( 'Attendees', 'oras-tickets' ),
+				'body'  => __( 'Attendee management will be added in Phase 1C.', 'oras-tickets' ),
+			),
+			self::TAB_STATISTICS     => array(
+				'title' => __( 'Event Statistics', 'oras-tickets' ),
+				'body'  => __( 'Event statistics will be added in Phase 1C.', 'oras-tickets' ),
+			),
+		);
+		$placeholder = $placeholders[ $active_tab ] ?? $placeholders[ self::TAB_RSVPS ];
+		?>
+		<section class="oras-board-reports__placeholder" aria-live="polite">
+			<h3><?php echo esc_html( $placeholder['title'] ); ?></h3>
+			<p><?php echo esc_html( $placeholder['body'] ); ?></p>
+		</section>
+		<?php
+	}
+
+	private static function build_tab_url( string $tab ): string {
+		$args = $_GET;
+		$args['oras_board_tab'] = $tab;
+
+		foreach ( $args as $key => $value ) {
+			if ( is_array( $value ) ) {
+				unset( $args[ $key ] );
+				continue;
+			}
+
+			$args[ $key ] = sanitize_text_field( wp_unslash( (string) $value ) );
+		}
+
+		return add_query_arg( $args, self::get_form_action_url() );
 	}
 
 	/**
