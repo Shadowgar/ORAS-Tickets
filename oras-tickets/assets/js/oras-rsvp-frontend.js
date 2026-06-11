@@ -268,16 +268,16 @@
                             badge.textContent = 'Status: RSVPed for ' + attendanceMode + ' ✅';
                         }
 
-                        if (attendanceMode === 'Virtual') {
-                            window.location.reload();
-                            return;
-                        }
+                        window.location.reload();
+                        return;
                     } else if (s === 'waitlist') {
                         updateStatus(block, 'waitlist', msg);
                         if (yes) {
                             yes.disabled = false;
                             yes.removeAttribute('aria-pressed');
                         }
+                        window.location.reload();
+                        return;
                     } else {
                         updateStatus(block, s, msg);
                     }

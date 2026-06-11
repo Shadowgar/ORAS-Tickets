@@ -232,6 +232,21 @@
 	margin-top: 1rem;
 }
 
+.oras-rsvp-details {
+	margin-top: 1rem;
+}
+
+.oras-rsvp-details summary {
+	cursor: pointer;
+	font-weight: 700;
+	color: var(--oras-rsvp-label-text);
+}
+
+.oras-rsvp-details summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 3px;
+}
+
 .oras-rsvp-attendance-mode,
 .oras-rsvp-contact {
 	margin: 1rem 0 0;

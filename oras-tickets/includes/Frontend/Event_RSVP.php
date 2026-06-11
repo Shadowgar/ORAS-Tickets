@@ -129,6 +129,12 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         // Form
         $nonce = wp_create_nonce( 'oras_rsvp_' . $event_id );
         $action_url = admin_url( 'admin-post.php' );
+        $collapse_form = in_array( $status, array( 'yes', 'waitlist' ), true );
+
+        if ( $collapse_form ) {
+            echo '<details class="oras-rsvp-details">';
+            echo '<summary>' . esc_html__( 'Change RSVP details', 'oras-tickets' ) . '</summary>';
+        }
 
         echo '<form method="post" action="' . esc_url( $action_url ) . '" class="oras-rsvp-form">';
         printf( '<input type="hidden" name="action" value="%s"/>', esc_attr( self::ACTION ) );
@@ -170,6 +176,10 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         echo '</p>';
         echo '</form>';
+
+        if ( $collapse_form ) {
+            echo '</details>';
+        }
 
         echo '</div>';
 

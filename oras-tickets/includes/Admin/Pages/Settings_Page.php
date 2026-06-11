@@ -676,6 +676,7 @@ final class Settings_Page
                     'rsvp'        => __('RSVP Attendees', 'oras-tickets'),
                     'ticket'      => __('Ticket Holders', 'oras-tickets'),
                     'virtual_ticket' => __('Virtual Ticket Holders', 'oras-tickets'),
+                    'approved_virtual_attendees' => __('Approved Virtual Attendees', 'oras-tickets'),
                     'free_ticket' => __('Free Ticket Holders', 'oras-tickets'),
                 ),
             )
@@ -1147,7 +1148,7 @@ final class Settings_Page
 
     private static function sanitize_show_to(string $value): string
     {
-        $allowed = array('everyone', 'logged_in', 'rsvp', 'ticket', 'virtual_ticket', 'free_ticket');
+        $allowed = array('everyone', 'logged_in', 'rsvp', 'ticket', 'virtual_ticket', 'approved_virtual_attendees', 'free_ticket');
         $sanitized = sanitize_key($value);
         return in_array($sanitized, $allowed, true) ? $sanitized : 'logged_in';
     }

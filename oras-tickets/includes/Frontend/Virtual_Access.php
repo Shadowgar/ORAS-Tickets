@@ -20,6 +20,7 @@ final class Virtual_Access
     private const SHOW_TO_RSVP       = 'rsvp';
     private const SHOW_TO_TICKET     = 'ticket';
     private const SHOW_TO_VIRTUAL_TICKET = 'virtual_ticket';
+    private const SHOW_TO_APPROVED_VIRTUAL_ATTENDEES = 'approved_virtual_attendees';
     private const SHOW_TO_FREE_TICKET = 'free_ticket';
 
     public static function register(): void
@@ -183,6 +184,20 @@ final class Virtual_Access
                                 <?php echo esc_html__('People with free tickets', 'oras-tickets'); ?>
                             </label>
                             <p class="description"><?php echo esc_html__('Visible only to users with free (zero-cost) ticket purchases for this event.', 'oras-tickets'); ?></p>
+                        </li>
+                    <?php endif; ?>
+                    <?php if ($has_rsvp || $has_tickets) : ?>
+                        <li>
+                            <label for="<?php echo esc_attr($metabox_id . '-oras-show-to-approved-virtual-attendees'); ?>">
+                                <input
+                                    id="<?php echo esc_attr($metabox_id . '-oras-show-to-approved-virtual-attendees'); ?>"
+                                    name="oras_virtual_access[show_to]"
+                                    type="radio"
+                                    value="<?php echo esc_attr(self::SHOW_TO_APPROVED_VIRTUAL_ATTENDEES); ?>"
+                                    <?php checked(self::SHOW_TO_APPROVED_VIRTUAL_ATTENDEES, $show_to); ?> />
+                                <?php echo esc_html__('Approved virtual attendees', 'oras-tickets'); ?>
+                            </label>
+                            <p class="description"><?php echo esc_html__('Visible only to approved virtual RSVPs and virtual ticket purchasers for this event.', 'oras-tickets'); ?></p>
                         </li>
                     <?php endif; ?>
                 </ul>
@@ -381,6 +396,13 @@ final class Virtual_Access
                 }
                 return self::user_has_event_ticket_purchase($event_id, $user_id, false, Ticket::ATTENDANCE_MODE_VIRTUAL);
 
+            case self::SHOW_TO_APPROVED_VIRTUAL_ATTENDEES:
+                if ($user_id <= 0 || ! is_user_logged_in()) {
+                    return false;
+                }
+                return self::user_has_approved_virtual_rsvp($event_id, $user_id)
+                    || self::user_has_event_ticket_purchase($event_id, $user_id, false, Ticket::ATTENDANCE_MODE_VIRTUAL);
+
             case self::SHOW_TO_FREE_TICKET:
                 if ($user_id <= 0 || ! is_user_logged_in()) {
                     return false;
@@ -551,6 +573,10 @@ final class Virtual_Access
             $values[] = self::SHOW_TO_FREE_TICKET;
         }
 
+        if (self::event_has_rsvp_enabled($event_id) || self::event_has_oras_tickets($event_id)) {
+            $values[] = self::SHOW_TO_APPROVED_VIRTUAL_ATTENDEES;
+        }
+
         return $values;
     }
 
@@ -587,6 +613,9 @@ final class Virtual_Access
     private static function get_access_denied_message(string $show_to): string
     {
         switch ($show_to) {
+            case self::SHOW_TO_APPROVED_VIRTUAL_ATTENDEES:
+                return __('This link is available to approved virtual attendees only.', 'oras-tickets');
+
             case self::SHOW_TO_VIRTUAL_TICKET:
                 return __('This link is available to virtual ticket purchasers only.', 'oras-tickets');
 
@@ -596,5 +625,22 @@ final class Virtual_Access
             default:
                 return __('This link is available to attendees. Please RSVP or purchase a ticket.', 'oras-tickets');
         }
+    }
+
+    private static function user_has_approved_virtual_rsvp(int $event_id, int $user_id): bool
+    {
+        if (! class_exists(Event_RSVP::class)) {
+            return false;
+        }
+
+        if ('yes' !== Event_RSVP::get_user_status($event_id, $user_id)) {
+            return false;
+        }
+
+        if (Ticket::ATTENDANCE_MODE_VIRTUAL !== Event_RSVP::get_user_attendance_type_for_report($event_id, $user_id)) {
+            return false;
+        }
+
+        return Event_RSVP::APPROVAL_STATUS_APPROVED === Event_RSVP::get_user_approval_status($event_id, $user_id);
     }
 }
