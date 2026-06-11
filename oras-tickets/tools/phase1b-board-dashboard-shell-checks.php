@@ -87,7 +87,7 @@ function orasPhase1bRunChecks(): void
 
     $_GET = array('oras_board_tab' => 'communications');
     $communications_html = Board_Reports::render_shortcode();
-    orasPhase1bAssert(str_contains($communications_html, 'Communications tools will be added in Phase 1D.'), 'Communications placeholder renders');
+    orasPhase1bAssert(str_contains($communications_html, 'Preview Recipients'), 'Communications tab renders implemented dashboard');
 
     $_GET = array('oras_board_tab' => 'attendees');
     $attendees_html = Board_Reports::render_shortcode();

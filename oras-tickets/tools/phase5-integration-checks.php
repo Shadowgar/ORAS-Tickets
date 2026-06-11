@@ -643,19 +643,6 @@ function oras_phase5_run_checks(): void {
 		oras_phase5_assert_same( Waitlist_Store::get_current_waitlist_status( $event_id, $user_1 ), 'left', 'Manual waitlist remove updates lifecycle to left' );
 		oras_phase5_assert_same( get_user_meta( $user_1, '_oras_rsvp_event_' . $event_id, true ), 'no', 'Manual waitlist remove updates RSVP status to no' );
 
-		$remove_yes_response = oras_phase5_call_json_handler(
-			array( $bootstrap, 'handle_rsvp_remove_attendee' ),
-			array(
-				'event_id' => (string) $event_id,
-				'user_id'  => (string) $user_3,
-			),
-			$admin_id,
-			'oras_rsvp_dashboard',
-			'nonce'
-		);
-		oras_phase5_assert_same( ! empty( $remove_yes_response['success'] ), true, 'Manual RSVP remove handler returns success for confirmed attendee' );
-		oras_phase5_assert_same( get_user_meta( $user_3, '_oras_rsvp_event_' . $event_id, true ), 'no', 'Manual RSVP remove updates confirmed attendee status to no' );
-
 		$response = oras_phase5_call_json_handler(
 			array( Event_RSVP::class, 'handle_post' ),
 			array(
@@ -668,6 +655,19 @@ function oras_phase5_run_checks(): void {
 			'oras_rsvp_nonce'
 		);
 		oras_phase5_assert_same( $response['data']['status'] ?? '', 'waitlist', 'User 1 can rejoin waitlist after manual remove' );
+
+		$remove_yes_response = oras_phase5_call_json_handler(
+			array( $bootstrap, 'handle_rsvp_remove_attendee' ),
+			array(
+				'event_id' => (string) $event_id,
+				'user_id'  => (string) $user_3,
+			),
+			$admin_id,
+			'oras_rsvp_dashboard',
+			'nonce'
+		);
+		oras_phase5_assert_same( ! empty( $remove_yes_response['success'] ), true, 'Manual RSVP remove handler returns success for confirmed attendee' );
+		oras_phase5_assert_same( get_user_meta( $user_3, '_oras_rsvp_event_' . $event_id, true ), 'no', 'Manual RSVP remove updates confirmed attendee status to no' );
 
 		$response = oras_phase5_call_json_handler(
 			array( Event_RSVP::class, 'handle_post' ),
