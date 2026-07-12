@@ -65,15 +65,21 @@ function orasPhase1cRunChecks(): void
     );
 
     $suffix = wp_generate_password(8, false);
+    $created_posts = array();
     $event_id = wp_insert_post(
         array(
-            'post_type'   => 'tribe_events',
-            'post_status' => 'publish',
-            'post_title'  => 'ORAS Phase1C RSVP ' . $suffix,
+            'post_type'      => 'tribe_events',
+            'post_status'    => 'publish',
+            'post_title'     => 'ORAS Phase1C RSVP ' . $suffix,
+            'post_date'      => '2000-01-01 00:00:00',
+            'post_date_gmt'  => '2000-01-01 00:00:00',
+            'post_modified'  => '2000-01-01 00:00:00',
+            'post_modified_gmt' => '2000-01-01 00:00:00',
         ),
         true
     );
     orasPhase1cAssert(is_int($event_id) && $event_id > 0, 'Fixture event created');
+    $created_posts[] = (int) $event_id;
 
     update_post_meta(
         $event_id,
@@ -84,6 +90,22 @@ function orasPhase1cRunChecks(): void
             'waitlist_enabled' => true,
         )
     );
+
+    for ($i = 0; $i < 251; $i++) {
+        $newer_event_id = wp_insert_post(
+            array(
+                'post_type'     => 'tribe_events',
+                'post_status'   => 'publish',
+                'post_title'    => 'ORAS Phase1C Newer Event ' . $suffix . ' ' . $i,
+                'post_date'     => gmdate('Y-m-d H:i:s', strtotime('2026-01-01 00:00:00') + $i),
+                'post_date_gmt' => gmdate('Y-m-d H:i:s', strtotime('2026-01-01 00:00:00') + $i),
+            ),
+            true
+        );
+        if (is_int($newer_event_id) && $newer_event_id > 0) {
+            $created_posts[] = (int) $newer_event_id;
+        }
+    }
 
     $board_user_id = wp_create_user(
         'phase1c_board_' . $suffix,
@@ -141,6 +163,14 @@ function orasPhase1cRunChecks(): void
     );
 
     $service = new Board_Report_Service();
+    $event_ids = array_map(
+        static function (WP_Post $event): int {
+            return (int) $event->ID;
+        },
+        $service->get_events()
+    );
+    orasPhase1cAssert(in_array((int) $event_id, $event_ids, true), 'RSVP-enabled event appears in Board Reports event selector even outside newest 250 events');
+
     $all_rows = $service->get_rows(
         Board_Report_Service::TYPE_RSVP,
         array(
@@ -214,7 +244,9 @@ function orasPhase1cRunChecks(): void
     wp_delete_user((int) $legacy_user_id);
     wp_delete_user((int) $virtual_user_id);
     wp_delete_user((int) $board_user_id);
-    wp_delete_post((int) $event_id, true);
+    foreach ($created_posts as $created_post_id) {
+        wp_delete_post((int) $created_post_id, true);
+    }
     remove_role($role_name);
     wp_set_current_user(0);
 }

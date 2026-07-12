@@ -56,6 +56,17 @@ final class Board_Report_Service {
 			$events[ (int) $post->ID ] = $post;
 		}
 
+		foreach ( $this->get_rsvp_enabled_event_ids() as $event_id ) {
+			$post = get_post( $event_id );
+			if ( ! $post instanceof \WP_Post || 'tribe_events' !== $post->post_type ) {
+				continue;
+			}
+			if ( in_array( $post->post_status, array( 'trash', 'auto-draft' ), true ) ) {
+				continue;
+			}
+			$events[ (int) $post->ID ] = $post;
+		}
+
 		$all_events = get_posts(
 			array(
 				'post_type'      => 'tribe_events',
@@ -659,7 +670,51 @@ final class Board_Report_Service {
 					return true;
 				}
 			)
+			);
+		}
+
+	/**
+	 * @return int[]
+	 */
+	private function get_rsvp_enabled_event_ids(): array {
+		global $wpdb;
+
+		if ( ! $wpdb instanceof \wpdb ) {
+			return array();
+		}
+
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT p.ID
+				FROM {$wpdb->posts} p
+				INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+				WHERE p.post_type = %s
+				AND p.post_status IN ('publish', 'future', 'draft', 'pending', 'private')
+				AND pm.meta_key = %s
+				ORDER BY p.post_date DESC, p.ID DESC",
+				'tribe_events',
+				'_oras_rsvp_v1'
+			)
 		);
+
+		if ( ! is_array( $ids ) ) {
+			return array();
+		}
+
+		$enabled_ids = array();
+		foreach ( $ids as $id ) {
+			$event_id = absint( $id );
+			if ( $event_id <= 0 ) {
+				continue;
+			}
+
+			$rsvp = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+			if ( is_array( $rsvp ) && ! empty( $rsvp['enabled'] ) ) {
+				$enabled_ids[] = $event_id;
+			}
+		}
+
+		return array_values( array_unique( $enabled_ids ) );
 	}
 
 	/**
