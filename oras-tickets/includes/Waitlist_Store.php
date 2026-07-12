@@ -467,10 +467,11 @@ final class Waitlist_Store {
         return is_object( $row ) ? $row : null;
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private static function insert_row( int $event_id, int $user_id, array $data ): int|false {
+	/**
+	 * @param array<string, mixed> $data
+	 * @return int|false
+	 */
+	private static function insert_row( int $event_id, int $user_id, array $data ) {
         global $wpdb;
 
         $row = array_merge(
@@ -498,10 +499,11 @@ final class Waitlist_Store {
         return false === $result ? false : (int) $result;
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private static function update_row( int $event_id, int $user_id, array $data ): int|false {
+	/**
+	 * @param array<string, mixed> $data
+	 * @return int|false
+	 */
+	private static function update_row( int $event_id, int $user_id, array $data ) {
         global $wpdb;
 
         return $wpdb->update(

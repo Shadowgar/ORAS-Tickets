@@ -987,7 +987,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $event_id,
             $actor_user_id,
             $user_id,
-            str_contains( $source, 'auto' ) ? 'waitlist_auto_promoted' : 'waitlist_manual_promoted',
+			false !== strpos( $source, 'auto' ) ? 'waitlist_auto_promoted' : 'waitlist_manual_promoted',
             __( 'Moved from waitlist to RSVP confirmed', 'oras-tickets' ),
             sprintf(
                 /* translators: 1: user ID, 2: attendance mode */
