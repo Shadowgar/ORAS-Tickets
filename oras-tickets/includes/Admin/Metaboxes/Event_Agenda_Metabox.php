@@ -317,6 +317,24 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 var visibilities = <?php echo wp_json_encode(array_values(self::allowed_visibility())); ?>;
                 var speakerOptionsHtml = <?php echo wp_json_encode($speaker_options_html); ?>;
 
+                function disableAgendaAutofill(scope) {
+                    if (!scope) {
+                        return;
+                    }
+
+                    var fields = scope.querySelectorAll('input[type="text"], input[type="url"], textarea');
+                    for (var i = 0; i < fields.length; i++) {
+                        fields[i].setAttribute('autocomplete', 'new-password');
+                        fields[i].setAttribute('autocorrect', 'off');
+                        fields[i].setAttribute('data-lpignore', 'true');
+                        fields[i].setAttribute('data-1p-ignore', 'true');
+                        fields[i].setAttribute('data-bwignore', 'true');
+                        fields[i].setAttribute('data-form-type', 'other');
+                    }
+                }
+
+                disableAgendaAutofill(document.getElementById('oras-agenda-metabox'));
+
                 function options(values) {
                     var out = '';
                     for (var i = 0; i < values.length; i++) {
@@ -482,6 +500,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     addDayButtons[b].addEventListener('click', function() {
                         var dayIndex = nextDayIndex();
                         daysContainer.insertAdjacentHTML('beforeend', dayHtml(dayIndex));
+                        disableAgendaAutofill(daysContainer.lastElementChild);
                     });
                 }
 
@@ -511,6 +530,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         }
                         var slotIndex = nextSlotIndex(dayElement);
                         slotsBody.insertAdjacentHTML('beforeend', slotRowHtml(dayIndex, slotIndex));
+                        disableAgendaAutofill(slotsBody.lastElementChild);
                         return;
                     }
 
@@ -531,6 +551,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         }
                         var speakerIndex = nextSpeakerIndex(slotRow);
                         speakersRows.insertAdjacentHTML('beforeend', speakerRowHtml(dayIndex, slotIndex, speakerIndex));
+                        disableAgendaAutofill(speakersRows.lastElementChild);
                         return;
                     }
 
@@ -559,6 +580,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         }
                         var resourceIndex = nextResourceIndex(slotRow);
                         resourcesRows.insertAdjacentHTML('beforeend', resourceRowHtml(dayIndex, slotIndex, resourceIndex));
+                        disableAgendaAutofill(resourcesRows.lastElementChild);
                         return;
                     }
 
