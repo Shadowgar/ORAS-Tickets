@@ -48,6 +48,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Service.php'; /
 require_once ORAS_TICKETS_DIR . 'includes/Security/Ticket_Checkin_Token.php'; // NOSONAR include: signed check-in token service
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Cart_Pricing.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Virtual_Ticket_Access_Email.php'; // NOSONAR include: paid virtual ticket access email
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Api/Checkin.php'; // NOSONAR include: check-in REST routes
 require_once ORAS_TICKETS_DIR . 'src/Integrations/QuickBooks/Module.php'; // NOSONAR legacy include
@@ -138,6 +139,7 @@ final class Bootstrap
         $oa->register();
 
         \ORAS\Tickets\Commerce\Woo\Cart_Pricing::register();
+        (new \ORAS\Tickets\Commerce\Woo\Virtual_Ticket_Access_Email())->register();
 
         $quickbooks_module = new \ORAS\Tickets\Integrations\QuickBooks\Module();
         $quickbooks_module->register();

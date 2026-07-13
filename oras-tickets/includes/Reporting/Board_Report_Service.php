@@ -197,6 +197,7 @@ final class Board_Report_Service {
 		$rsvp_yes = 0;
 		$rsvp_waitlist = 0;
 		$rsvp_virtual = 0;
+		$rsvp_virtual_approved = 0;
 		$rsvp_onsite = 0;
 		$rsvp_approval_counts = array_fill_keys( Event_RSVP::get_approval_statuses(), 0 );
 		foreach ( $rsvp_rows as $row ) {
@@ -214,6 +215,12 @@ final class Board_Report_Service {
 
 			$approval = Event_RSVP::normalize_approval_status( (string) ( $row['approval_status'] ?? '' ), Event_RSVP::APPROVAL_STATUS_APPROVED );
 			$rsvp_approval_counts[ $approval ] = ( $rsvp_approval_counts[ $approval ] ?? 0 ) + 1;
+			if (
+				Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $row['attendance_type'] ?? '' )
+				&& Event_RSVP::APPROVAL_STATUS_APPROVED === $approval
+			) {
+				++$rsvp_virtual_approved;
+			}
 		}
 
 		return array(
@@ -227,6 +234,7 @@ final class Board_Report_Service {
 			'rsvp_waitlist_count'      => $rsvp_waitlist,
 			'rsvp_onsite_count'        => $rsvp_onsite,
 			'rsvp_virtual_count'       => $rsvp_virtual,
+			'rsvp_virtual_approved_count' => $rsvp_virtual_approved,
 			'rsvp_approval_counts'     => $rsvp_approval_counts,
 			'virtual_attendance_count' => $ticket_virtual + $rsvp_virtual,
 			'onsite_attendance_count'  => $ticket_onsite + $rsvp_onsite,

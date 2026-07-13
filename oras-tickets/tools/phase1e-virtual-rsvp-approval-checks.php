@@ -61,7 +61,7 @@ function orasPhase1eRunChecks(): void
         array(
             'post_type'    => 'tribe_events',
             'post_status'  => 'publish',
-            'post_title'   => 'ORAS Phase1E Virtual Approval ' . $suffix,
+            'post_title'   => 'ORAS Phase1E Virtual Approval &#8211; ' . $suffix,
             'post_content' => 'Phase 1E event details.',
         ),
         true
@@ -116,6 +116,10 @@ function orasPhase1eRunChecks(): void
     orasPhase1eAssert(Event_RSVP::get_user_approved_at($event_id, $attendee_id) !== '', 'Approve captures approved-at timestamp');
 
     $approval_email = Event_RSVP::build_virtual_approval_email($event_id, $attendee_id, Event_RSVP::APPROVAL_STATUS_APPROVED);
+    orasPhase1eAssert(! str_contains((string) ($approval_email['subject'] ?? ''), '&#8211;'), 'Approval email subject decodes event title entities');
+    orasPhase1eAssert(str_contains((string) ($approval_email['body'] ?? ''), '<!doctype html>'), 'Approval email renders HTML body');
+    orasPhase1eAssert(str_contains((string) ($approval_email['body'] ?? ''), 'Virtual RSVP approved'), 'Approval email uses styled approval heading');
+    orasPhase1eAssert(str_contains((string) ($approval_email['body'] ?? ''), 'Join Virtual Event'), 'Approval email includes join CTA');
     orasPhase1eAssert(str_contains((string) ($approval_email['body'] ?? ''), 'https://example.org/private-zoom-' . $suffix), 'Approval email includes virtual meeting link');
 
     $reject_result = Event_RSVP::update_approval_status($event_id, $attendee_id, Event_RSVP::APPROVAL_STATUS_REJECTED, 'Capacity changed');
@@ -124,6 +128,7 @@ function orasPhase1eRunChecks(): void
     orasPhase1eAssertSame(Event_RSVP::get_user_rejection_reason($event_id, $attendee_id), 'Capacity changed', 'Reject stores rejection reason');
 
     $rejection_email = Event_RSVP::build_virtual_approval_email($event_id, $attendee_id, Event_RSVP::APPROVAL_STATUS_REJECTED, 'Capacity changed');
+    orasPhase1eAssert(str_contains((string) ($rejection_email['body'] ?? ''), '<!doctype html>'), 'Rejection email renders HTML body');
     orasPhase1eAssert(! str_contains((string) ($rejection_email['body'] ?? ''), 'https://example.org/private-zoom-' . $suffix), 'Rejection email does not include virtual meeting link');
 
     $pending_result = Event_RSVP::update_approval_status($event_id, $attendee_id, Event_RSVP::APPROVAL_STATUS_PENDING);

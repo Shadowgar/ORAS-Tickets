@@ -208,10 +208,32 @@ $board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php
 $board_reports      = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';
 oras_phase1h_assert( false !== strpos( $board_reports, '<details class="oras-board-reports__question-answers">' ), 'Board report question answers render collapsed by default' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__question-answers-summary' ), 'Board report question answers include an expandable summary' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'TAB_OVERVIEW' ), 'Board reports include event overview tab' );
+oras_phase1h_assert( false !== strpos( $board_reports, "'Event Overview'" ), 'Board reports expose Event Overview label' );
+oras_phase1h_assert( false !== strpos( $board_reports, "'Sales'" ), 'Board reports expose Sales label' );
+oras_phase1h_assert( false !== strpos( $board_reports, "'RSVP Management'" ), 'Board reports expose RSVP Management label' );
+oras_phase1h_assert( false !== strpos( $board_reports, "'Roster'" ), 'Board reports expose Roster label' );
+oras_phase1h_assert( false !== strpos( $board_reports, '$filters[\'type\'] = Board_Report_Service::TYPE_TICKETS;' ), 'Ticket Sales tab is locked to ticket rows' );
+oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board_report_type">' ), 'Ticket Sales tab no longer exposes generic report type dropdown' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Submit RSVP'" ), 'Frontend RSVP submit button uses updated label' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Remove RSVP'" ), 'Frontend RSVP removal button uses updated label' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'Content-Type: text/html; charset=UTF-8' ), 'RSVP attendee emails use HTML content type' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'build_oras_email_template' ), 'RSVP attendee emails use shared ORAS email template' );
+
+$bootstrap_file = dirname( __DIR__ ) . '/includes/Bootstrap.php';
+$bootstrap      = file_exists( $bootstrap_file ) ? (string) file_get_contents( $bootstrap_file ) : '';
+$virtual_ticket_email_file = dirname( __DIR__ ) . '/includes/Commerce/Woo/Virtual_Ticket_Access_Email.php';
+$virtual_ticket_email      = file_exists( $virtual_ticket_email_file ) ? (string) file_get_contents( $virtual_ticket_email_file ) : '';
+oras_phase1h_assert( false !== strpos( $bootstrap, 'Virtual_Ticket_Access_Email' ), 'Bootstrap registers virtual ticket access email service' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'woocommerce_order_status_processing' ), 'Virtual ticket access email runs on processing orders' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'woocommerce_order_status_completed' ), 'Virtual ticket access email runs on completed orders' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, '_oras_virtual_access_email_sent_' ), 'Virtual ticket access email prevents duplicate sends per event' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, '_oras_ticket_attendance_mode' ), 'Virtual ticket access email reads ticket attendance mode' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'Ticket::ATTENDANCE_MODE_VIRTUAL' ), 'Virtual ticket access email only targets virtual ticket rows' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'Event_RSVP::get_virtual_join_link' ), 'Virtual ticket access email reuses ORAS virtual join link resolver' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'virtual_ticket_access' ), 'Virtual ticket access email logs its action type' );
 
 echo "Event question checks passed.\n";

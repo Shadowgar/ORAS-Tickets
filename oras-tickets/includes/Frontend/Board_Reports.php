@@ -22,6 +22,7 @@ final class Board_Reports {
 	private const APPROVAL_ACTION = 'oras_board_reports_update_rsvp_approval';
 	private const WAITLIST_NONCE_ACTION = 'oras_board_reports_waitlist';
 	private const WAITLIST_ACTION = 'oras_board_reports_update_waitlist';
+	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
 	private const TAB_COMMUNICATIONS = 'communications';
@@ -53,6 +54,12 @@ final class Board_Reports {
 
 		$active_tab = self::get_active_tab();
 		$page_id = self::get_context_page_id();
+		$service = new Board_Report_Service();
+		$events = $service->get_events();
+		$filters = self::get_filters_from_request();
+		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
+			$filters['event_id'] = (int) $events[0]->ID;
+		}
 
 		ob_start();
 		?>
@@ -116,6 +123,49 @@ final class Board_Reports {
 				}
 				.oras-board-reports .oras-board-reports__placeholder h3 {
 					margin-top: 0;
+				}
+				.oras-board-reports .oras-board-reports__event-shell {
+					display: grid;
+					grid-template-columns: minmax(240px, 1fr) auto;
+					gap: 14px;
+					align-items: end;
+					margin: 18px 0;
+					padding: 16px;
+					border: 1px solid #dcdcde;
+					border-radius: 12px;
+					background: rgba(255, 255, 255, 0.94);
+					box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+				}
+				.oras-board-reports .oras-board-reports__event-shell label {
+					margin: 0;
+				}
+				.oras-board-reports .oras-board-reports__overview-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+					gap: 12px;
+					margin: 16px 0;
+				}
+				.oras-board-reports .oras-board-reports__metric {
+					padding: 16px;
+					border: 1px solid #d8dee9;
+					border-radius: 14px;
+					background: #ffffff;
+					box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+				}
+				.oras-board-reports .oras-board-reports__metric-label {
+					margin: 0 0 6px;
+					color: #475569;
+					font-size: 0.82rem;
+					font-weight: 800;
+					letter-spacing: 0.04em;
+					text-transform: uppercase;
+				}
+				.oras-board-reports .oras-board-reports__metric-value {
+					margin: 0;
+					color: #0f172a;
+					font-size: 1.65rem;
+					font-weight: 850;
+					line-height: 1.1;
 				}
 				.oras-board-reports .oras-board-reports__filters {
 					display: grid;
@@ -449,6 +499,26 @@ final class Board_Reports {
 					border-color: rgba(148, 163, 184, 0.28);
 					color: #f8fafc;
 				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__event-shell,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__event-shell,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__event-shell,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__metric,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__metric,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__metric {
+					background: rgba(15, 23, 42, 0.9);
+					border-color: rgba(148, 163, 184, 0.35);
+					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__metric-label,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__metric-label,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__metric-label {
+					color: #cbd5e1;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__metric-value,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__metric-value,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__metric-value {
+					color: #f8fafc;
+				}
 				html:not(.oras-dark-on) .oras-board-reports label {
 					color: #1f2937;
 				}
@@ -468,6 +538,9 @@ final class Board_Reports {
 					.oras-board-reports .oras-board-reports__question-answers dl {
 						grid-template-columns: 1fr;
 					}
+					.oras-board-reports .oras-board-reports__event-shell {
+						grid-template-columns: 1fr;
+					}
 				}
 			</style>
 
@@ -475,8 +548,12 @@ final class Board_Reports {
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
 			<?php self::render_rsvp_approval_notice(); ?>
 			<?php self::render_waitlist_notice(); ?>
+			<?php self::render_event_selector_shell( $page_id, $events, $filters['event_id'], $active_tab ); ?>
+			<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
 			<?php self::render_tabs( $active_tab ); ?>
-			<?php if ( self::TAB_TICKET_SALES === $active_tab ) : ?>
+			<?php if ( self::TAB_OVERVIEW === $active_tab ) : ?>
+				<?php self::render_overview_tab( $filters['event_id'] ); ?>
+			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_RSVPS === $active_tab ) : ?>
 				<?php self::render_rsvps_tab( $page_id ); ?>
@@ -484,8 +561,6 @@ final class Board_Reports {
 				<?php self::render_communications_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_ATTENDEES === $active_tab ) : ?>
 				<?php self::render_attendees_tab( $page_id ); ?>
-			<?php elseif ( self::TAB_STATISTICS === $active_tab ) : ?>
-				<?php self::render_statistics_tab( $page_id ); ?>
 			<?php else : ?>
 				<?php self::render_placeholder_tab( $active_tab ); ?>
 			<?php endif; ?>
@@ -495,20 +570,75 @@ final class Board_Reports {
 		return (string) ob_get_clean();
 	}
 
+	private static function render_event_selector_shell( int $page_id, array $events, int $event_id, string $active_tab ): void {
+		?>
+		<form class="oras-board-reports__event-shell" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+			<?php if ( $page_id > 0 ) : ?>
+				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+			<?php endif; ?>
+			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( $active_tab ); ?>" />
+			<?php self::render_event_filter( $events, $event_id ); ?>
+			<div class="oras-board-reports__actions">
+				<button class="button button-primary" type="submit"><?php echo esc_html__( 'Load Event Dashboard', 'oras-tickets' ); ?></button>
+			</div>
+		</form>
+		<?php
+	}
+
+	private static function render_overview_cards( Board_Report_Service $service, int $event_id ): void {
+		if ( $event_id <= 0 ) {
+			echo '<div class="oras-board-reports__empty">' . esc_html__( 'Select an event to load the dashboard overview.', 'oras-tickets' ) . '</div>';
+			return;
+		}
+
+		$stats = $service->get_event_statistics( $event_id );
+		$approval_counts = isset( $stats['rsvp_approval_counts'] ) && is_array( $stats['rsvp_approval_counts'] )
+			? $stats['rsvp_approval_counts']
+			: array();
+		$metrics = array(
+			__( 'Ticket Quantity', 'oras-tickets' )       => (string) absint( $stats['ticket_quantity'] ?? 0 ),
+			__( 'Ticket Orders', 'oras-tickets' )         => (string) absint( $stats['ticket_order_count'] ?? 0 ),
+			__( 'RSVP Yes', 'oras-tickets' )              => (string) absint( $stats['rsvp_yes_count'] ?? 0 ),
+			__( 'Pending Virtual', 'oras-tickets' )       => (string) absint( $approval_counts[ Event_RSVP::APPROVAL_STATUS_PENDING ] ?? 0 ),
+			__( 'Approved Virtual', 'oras-tickets' )      => (string) absint( $stats['rsvp_virtual_approved_count'] ?? 0 ),
+			__( 'On-site Attendance', 'oras-tickets' )    => (string) absint( $stats['onsite_attendance_count'] ?? 0 ),
+			__( 'Virtual Attendance', 'oras-tickets' )    => (string) absint( $stats['virtual_attendance_count'] ?? 0 ),
+			__( 'Waitlist', 'oras-tickets' )              => (string) absint( $stats['rsvp_waitlist_count'] ?? 0 ),
+			__( 'Expected Attendance', 'oras-tickets' )   => (string) ( absint( $stats['onsite_attendance_count'] ?? 0 ) + absint( $stats['virtual_attendance_count'] ?? 0 ) ),
+			__( 'Communications Sent', 'oras-tickets' )   => (string) self::get_communication_count_for_event( $event_id ),
+		);
+		?>
+		<section class="oras-board-reports__overview-grid" aria-label="<?php echo esc_attr__( 'Event Overview', 'oras-tickets' ); ?>">
+			<?php foreach ( $metrics as $label => $value ) : ?>
+				<div class="oras-board-reports__metric">
+					<p class="oras-board-reports__metric-label"><?php echo esc_html( $label ); ?></p>
+					<p class="oras-board-reports__metric-value"><?php echo esc_html( $value ); ?></p>
+				</div>
+			<?php endforeach; ?>
+		</section>
+		<?php
+	}
+
+	private static function render_overview_tab( int $event_id ): void {
+		?>
+		<section class="oras-board-reports__placeholder">
+			<h3><?php echo esc_html__( 'Event Overview', 'oras-tickets' ); ?></h3>
+			<p><?php echo esc_html__( 'Use Sales for paid ticket orders, RSVP Management for approvals and waitlists, Roster for the combined attendee list, and Communications for event emails.', 'oras-tickets' ); ?></p>
+			<?php if ( $event_id > 0 ) : ?>
+				<p><strong><?php echo esc_html__( 'Selected event:', 'oras-tickets' ); ?></strong> <?php echo esc_html( get_the_title( $event_id ) ); ?></p>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
 	private static function render_ticket_sales_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
 		$filters = self::get_filters_from_request();
-		$types = $service->get_report_types();
-		if ( ! isset( $types[ $filters['type'] ] ) ) {
-			$filters['type'] = Board_Report_Service::TYPE_TICKETS;
-		}
-		$requires_event = self::type_requires_event( $filters['type'] );
+		$filters['type'] = Board_Report_Service::TYPE_TICKETS;
 
 		$events = $service->get_events();
-		if ( $requires_event && $filters['event_id'] <= 0 && ! empty( $events ) ) {
+		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
 			$filters['event_id'] = (int) $events[0]->ID;
-		} elseif ( ! $requires_event ) {
-			$filters['event_id'] = 0;
 		}
 
 		$rows = $service->get_rows( $filters['type'], $filters );
@@ -521,25 +651,8 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_TICKET_SALES ); ?>" />
-				<label>
-					<?php echo esc_html__( 'Report', 'oras-tickets' ); ?>
-					<select name="oras_board_report_type">
-						<?php foreach ( $types as $type => $label ) : ?>
-							<option value="<?php echo esc_attr( $type ); ?>" <?php selected( $filters['type'], $type ); ?>><?php echo esc_html( $label ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
 
-				<?php if ( $requires_event ) : ?>
-					<label>
-						<?php echo esc_html__( 'Event', 'oras-tickets' ); ?>
-						<select name="oras_board_event_id">
-							<?php foreach ( $events as $event ) : ?>
-								<option value="<?php echo esc_attr( (string) $event->ID ); ?>" <?php selected( $filters['event_id'], (int) $event->ID ); ?>><?php echo esc_html( get_the_title( $event ) ); ?></option>
-							<?php endforeach; ?>
-						</select>
-					</label>
-				<?php endif; ?>
+				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
 				<label>
 					<?php echo esc_html__( 'After', 'oras-tickets' ); ?>
@@ -566,7 +679,7 @@ final class Board_Reports {
 				</label>
 
 				<div class="oras-board-reports__actions">
-					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Report', 'oras-tickets' ); ?></button>
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Sales', 'oras-tickets' ); ?></button>
 					<?php if ( current_user_can( 'oras_tickets_export_reports' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
 						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Create Spreadsheet', 'oras-tickets' ); ?></a>
 						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Create PDF', 'oras-tickets' ); ?></a>
@@ -743,7 +856,7 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_COMMUNICATIONS ); ?>" />
-				<?php self::render_event_filter( $events, $filters['event_id'] ); ?>
+				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 				<label>
 					<?php echo esc_html__( 'Recipient Segment', 'oras-tickets' ); ?>
 					<select name="oras_comm_segment">
@@ -833,8 +946,8 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_ATTENDEES ); ?>" />
+				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
-				<?php self::render_event_filter( $events, $filters['event_id'] ); ?>
 				<label>
 					<?php echo esc_html__( 'Source', 'oras-tickets' ); ?>
 					<select name="oras_board_attendee_source">
@@ -872,18 +985,18 @@ final class Board_Reports {
 					<input type="search" name="oras_board_search" value="<?php echo esc_attr( $filters['search'] ); ?>" placeholder="<?php echo esc_attr__( 'Name, email, phone, item', 'oras-tickets' ); ?>" />
 				</label>
 				<div class="oras-board-reports__actions">
-					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Attendees', 'oras-tickets' ); ?></button>
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Roster', 'oras-tickets' ); ?></button>
 					<?php if ( current_user_can( 'oras_tickets_export_reports' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
-						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Export Ticket Sales Spreadsheet', 'oras-tickets' ); ?></a>
-						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Export Ticket Sales PDF', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Export Sales Spreadsheet', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Export Sales PDF', 'oras-tickets' ); ?></a>
 					<?php endif; ?>
 				</div>
 			</form>
 
 			<?php if ( empty( $events ) ) : ?>
-				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No events are available for attendee reporting.', 'oras-tickets' ); ?></div>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No events are available for roster reporting.', 'oras-tickets' ); ?></div>
 			<?php elseif ( empty( $rows ) ) : ?>
-				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching attendees found for this event.', 'oras-tickets' ); ?></div>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching roster rows found for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
 				<div class="oras-board-reports__table-wrap">
 					<table>
@@ -924,45 +1037,6 @@ final class Board_Reports {
 			<?php
 		}
 
-	private static function render_statistics_tab( int $page_id ): void {
-		$service = new Board_Report_Service();
-		$events = $service->get_events();
-		$filters = self::get_filters_from_request();
-		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
-			$filters['event_id'] = (int) $events[0]->ID;
-		}
-		$stats = $service->get_event_statistics( $filters['event_id'] );
-		?>
-			<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
-				<?php if ( $page_id > 0 ) : ?>
-					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
-				<?php endif; ?>
-				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_STATISTICS ); ?>" />
-				<?php self::render_event_filter( $events, $filters['event_id'] ); ?>
-				<div class="oras-board-reports__actions">
-					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Statistics', 'oras-tickets' ); ?></button>
-				</div>
-			</form>
-
-			<?php if ( empty( $events ) ) : ?>
-				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No events are available for statistics.', 'oras-tickets' ); ?></div>
-			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-					<table>
-						<tbody>
-							<?php foreach ( self::get_statistics_rows( $stats ) as $label => $value ) : ?>
-								<tr>
-									<th><?php echo esc_html( $label ); ?></th>
-									<td><?php echo esc_html( $value ); ?></td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-						</table>
-					</div>
-				<?php endif; ?>
-			<?php
-		}
-
 	private static function render_rsvps_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
 		$events = $service->get_events();
@@ -984,16 +1058,7 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_RSVPS ); ?>" />
-				<input type="hidden" name="oras_board_report_type" value="<?php echo esc_attr( Board_Report_Service::TYPE_RSVP ); ?>" />
-
-				<label>
-					<?php echo esc_html__( 'Event', 'oras-tickets' ); ?>
-					<select name="oras_board_event_id">
-						<?php foreach ( $events as $event ) : ?>
-							<option value="<?php echo esc_attr( (string) $event->ID ); ?>" <?php selected( $filters['event_id'], (int) $event->ID ); ?>><?php echo esc_html( get_the_title( $event ) ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
+				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
 				<label>
 					<?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?>
@@ -1345,10 +1410,14 @@ final class Board_Reports {
 	}
 
 	private static function get_active_tab(): string {
-		$tab = isset( $_GET['oras_board_tab'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_tab'] ) ) : self::TAB_TICKET_SALES;
+		$tab = isset( $_GET['oras_board_tab'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_tab'] ) ) : self::TAB_OVERVIEW;
+		if ( self::TAB_STATISTICS === $tab ) {
+			return self::TAB_OVERVIEW;
+		}
+
 		$tabs = self::get_dashboard_tabs();
 
-		return isset( $tabs[ $tab ] ) ? $tab : self::TAB_TICKET_SALES;
+		return isset( $tabs[ $tab ] ) ? $tab : self::TAB_OVERVIEW;
 	}
 
 	/**
@@ -1356,11 +1425,11 @@ final class Board_Reports {
 	 */
 	private static function get_dashboard_tabs(): array {
 		return array(
-			self::TAB_TICKET_SALES  => __( 'Ticket Sales', 'oras-tickets' ),
-			self::TAB_RSVPS         => __( 'RSVPs', 'oras-tickets' ),
+			self::TAB_OVERVIEW      => __( 'Event Overview', 'oras-tickets' ),
+			self::TAB_TICKET_SALES  => __( 'Sales', 'oras-tickets' ),
+			self::TAB_RSVPS         => __( 'RSVP Management', 'oras-tickets' ),
 			self::TAB_COMMUNICATIONS => __( 'Communications', 'oras-tickets' ),
-			self::TAB_ATTENDEES     => __( 'Attendees', 'oras-tickets' ),
-			self::TAB_STATISTICS    => __( 'Event Statistics', 'oras-tickets' ),
+			self::TAB_ATTENDEES     => __( 'Roster', 'oras-tickets' ),
 		);
 	}
 
@@ -1382,8 +1451,12 @@ final class Board_Reports {
 
 	private static function render_placeholder_tab( string $active_tab ): void {
 		$placeholders = array(
+			self::TAB_OVERVIEW       => array(
+				'title' => __( 'Event Overview', 'oras-tickets' ),
+				'body'  => __( 'Select an event to review sales, RSVP status, roster, and communications from one place.', 'oras-tickets' ),
+			),
 			self::TAB_RSVPS          => array(
-				'title' => __( 'RSVPs', 'oras-tickets' ),
+				'title' => __( 'RSVP Management', 'oras-tickets' ),
 				'body'  => __( 'RSVP management will be added in Phase 1C.', 'oras-tickets' ),
 			),
 			self::TAB_COMMUNICATIONS => array(
@@ -1391,15 +1464,11 @@ final class Board_Reports {
 				'body'  => __( 'Communications tools will be added in Phase 1D.', 'oras-tickets' ),
 			),
 			self::TAB_ATTENDEES      => array(
-				'title' => __( 'Attendees', 'oras-tickets' ),
-				'body'  => __( 'Attendee management will be added in Phase 1C.', 'oras-tickets' ),
-			),
-			self::TAB_STATISTICS     => array(
-				'title' => __( 'Event Statistics', 'oras-tickets' ),
-				'body'  => __( 'Event statistics will be added in Phase 1C.', 'oras-tickets' ),
+				'title' => __( 'Roster', 'oras-tickets' ),
+				'body'  => __( 'Roster management will be added in Phase 1C.', 'oras-tickets' ),
 			),
 		);
-		$placeholder = $placeholders[ $active_tab ] ?? $placeholders[ self::TAB_RSVPS ];
+		$placeholder = $placeholders[ $active_tab ] ?? $placeholders[ self::TAB_OVERVIEW ];
 		?>
 		<section class="oras-board-reports__placeholder" aria-live="polite">
 			<h3><?php echo esc_html( $placeholder['title'] ); ?></h3>
@@ -1461,6 +1530,21 @@ final class Board_Reports {
 		return Communication_Log_Store::get( $detail_id );
 	}
 
+	private static function get_communication_count_for_event( int $event_id ): int {
+		if ( $event_id <= 0 ) {
+			return 0;
+		}
+
+		return count(
+			Communication_Log_Store::query(
+				array(
+					'event_id' => $event_id,
+					'limit'    => 500,
+				)
+			)
+		);
+	}
+
 	private static function render_communication_notice(): void {
 		$status = isset( $_GET['oras_comm_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_comm_status'] ) ) : '';
 		if ( '' === $status ) {
@@ -1490,7 +1574,7 @@ final class Board_Reports {
 				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 			<?php endif; ?>
 			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_COMMUNICATIONS ); ?>" />
-			<?php self::render_event_filter( $events, absint( $filters['event_id'] ?? 0 ) ); ?>
+			<?php self::render_event_hidden_input( absint( $filters['event_id'] ?? 0 ) ); ?>
 			<label>
 				<?php echo esc_html__( 'Sender User ID', 'oras-tickets' ); ?>
 				<input type="number" min="1" name="oras_comm_sender_id" value="<?php echo esc_attr( (string) absint( $filters['sender_user_id'] ?? 0 ) ); ?>" />
@@ -1730,14 +1814,6 @@ final class Board_Reports {
 		);
 	}
 
-	private static function type_requires_event( string $type ): bool {
-		return in_array(
-			$type,
-			array( Board_Report_Service::TYPE_TICKETS, Board_Report_Service::TYPE_RSVP ),
-			true
-		);
-	}
-
 	/**
 	 * @param array<int,\WP_Post> $events
 	 */
@@ -1751,6 +1827,12 @@ final class Board_Reports {
 				<?php endforeach; ?>
 			</select>
 		</label>
+		<?php
+	}
+
+	private static function render_event_hidden_input( int $event_id ): void {
+		?>
+		<input type="hidden" name="oras_board_event_id" value="<?php echo esc_attr( (string) $event_id ); ?>" />
 		<?php
 	}
 
@@ -1806,51 +1888,6 @@ final class Board_Reports {
 		}
 
 		return ' (' . $status . ')';
-	}
-
-	/**
-	 * @param array<string,mixed> $stats
-	 * @return array<string,string>
-	 */
-	private static function get_statistics_rows( array $stats ): array {
-		$approval_counts = isset( $stats['rsvp_approval_counts'] ) && is_array( $stats['rsvp_approval_counts'] )
-			? $stats['rsvp_approval_counts']
-			: array();
-		$status_counts = isset( $stats['ticket_status_counts'] ) && is_array( $stats['ticket_status_counts'] )
-			? $stats['ticket_status_counts']
-			: array();
-
-		return array(
-			__( 'Unified Attendee Rows', 'oras-tickets' ) => (string) absint( $stats['total_attendee_rows'] ?? 0 ),
-			__( 'Ticket Quantity', 'oras-tickets' ) => (string) absint( $stats['ticket_quantity'] ?? 0 ),
-			__( 'Ticket Orders', 'oras-tickets' ) => (string) absint( $stats['ticket_order_count'] ?? 0 ),
-			__( 'Ticket Status Counts', 'oras-tickets' ) => self::format_count_map( $status_counts ),
-			__( 'RSVP Yes', 'oras-tickets' ) => (string) absint( $stats['rsvp_yes_count'] ?? 0 ),
-			__( 'RSVP Waitlist', 'oras-tickets' ) => (string) absint( $stats['rsvp_waitlist_count'] ?? 0 ),
-			__( 'RSVP Approval Counts', 'oras-tickets' ) => self::format_count_map( $approval_counts ),
-			__( 'On-site Attendance', 'oras-tickets' ) => (string) absint( $stats['onsite_attendance_count'] ?? 0 ),
-			__( 'Virtual Attendance', 'oras-tickets' ) => (string) absint( $stats['virtual_attendance_count'] ?? 0 ),
-			__( 'On-site RSVPs', 'oras-tickets' ) => (string) absint( $stats['rsvp_onsite_count'] ?? 0 ),
-			__( 'Virtual RSVPs', 'oras-tickets' ) => (string) absint( $stats['rsvp_virtual_count'] ?? 0 ),
-			__( 'On-site Tickets', 'oras-tickets' ) => (string) absint( $stats['ticket_onsite_count'] ?? 0 ),
-			__( 'Virtual Tickets', 'oras-tickets' ) => (string) absint( $stats['ticket_virtual_count'] ?? 0 ),
-		);
-	}
-
-	/**
-	 * @param array<string,int> $counts
-	 */
-	private static function format_count_map( array $counts ): string {
-		if ( empty( $counts ) ) {
-			return '0';
-		}
-
-		$parts = array();
-		foreach ( $counts as $key => $count ) {
-			$parts[] = sanitize_key( (string) $key ) . ': ' . absint( $count );
-		}
-
-		return implode( ', ', $parts );
 	}
 
 	/**

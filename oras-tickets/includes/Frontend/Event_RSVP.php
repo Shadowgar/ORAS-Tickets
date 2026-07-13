@@ -26,7 +26,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     private const USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX = '_cancel_token_expires';
     private const ACTION = 'oras_rsvp_update';
     private const CANCEL_ACTION = 'oras_rsvp_cancel_confirm';
-    private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/plain; charset=UTF-8' );
+    private const VIRTUAL_EMAIL_HEADERS = array( 'Content-Type: text/html; charset=UTF-8' );
 
     public const APPROVAL_STATUS_PENDING = 'pending';
     public const APPROVAL_STATUS_APPROVED = 'approved';
@@ -632,10 +632,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $normalized_mode = Ticket::normalizeAttendanceMode( $attendance_mode, Ticket::ATTENDANCE_MODE_ONSITE );
         $is_virtual = Ticket::ATTENDANCE_MODE_VIRTUAL === $normalized_mode;
 
-        $event_title = get_the_title( $event_id );
-        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
-            $event_title = __( 'ORAS Event', 'oras-tickets' );
-        }
+        $event_title = self::get_email_event_title( $event_id );
 
         $event_url = get_permalink( $event_id );
         if ( ! is_string( $event_url ) || '' === $event_url ) {
@@ -654,48 +651,177 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $event_title
         );
 
-        $lines = array(
-            sprintf( __( 'Thank you for your RSVP.', 'oras-tickets' ) ),
-            '',
-            sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
-            sprintf( __( 'Attendance: %s', 'oras-tickets' ), self::get_attendance_mode_label( $normalized_mode ) ),
-            sprintf( __( 'Date & Time: %s', 'oras-tickets' ), $event_datetime ),
-            '',
-            __( 'Event Details:', 'oras-tickets' ),
-            $event_details,
+        $details = array(
+            array(
+                'label' => __( 'Event', 'oras-tickets' ),
+                'value' => $event_title,
+            ),
+            array(
+                'label' => __( 'Attendance', 'oras-tickets' ),
+                'value' => self::get_attendance_mode_label( $normalized_mode ),
+            ),
+            array(
+                'label' => __( 'Date & Time', 'oras-tickets' ),
+                'value' => $event_datetime,
+            ),
         );
+        $sections = array(
+            array(
+                'title' => __( 'Event Details', 'oras-tickets' ),
+                'body'  => $event_details,
+            ),
+        );
+        $notice = '';
 
         if ( $is_virtual ) {
-            $lines[] = '';
             if ( $user_id > 0 && self::APPROVAL_STATUS_APPROVED !== self::get_user_approval_status( $event_id, $user_id ) ) {
-                $lines[] = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
+                $notice = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
             } else {
-                $lines[] = __( 'Zoom Link:', 'oras-tickets' );
-                $lines[] = '' !== $virtual_link ? $virtual_link : __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' );
+                $details[] = array(
+                    'label' => __( 'Virtual access', 'oras-tickets' ),
+                    'value' => '' !== $virtual_link ? $virtual_link : __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+                    'url'   => '' !== $virtual_link ? $virtual_link : '',
+                );
             }
         } else {
-            $lines[] = '';
-            $lines[] = sprintf( __( 'Location: %s', 'oras-tickets' ), $onsite_location );
-            $lines[] = '';
-            $lines[] = __( 'Agenda:', 'oras-tickets' );
-            $lines[] = $agenda_summary;
+            $details[] = array(
+                'label' => __( 'Location', 'oras-tickets' ),
+                'value' => $onsite_location,
+            );
+            $sections[] = array(
+                'title' => __( 'Agenda', 'oras-tickets' ),
+                'body'  => $agenda_summary,
+            );
         }
 
-        $lines[] = '';
-        $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
-        $lines[] = $event_url;
+        $actions = array(
+            array(
+                'label' => __( 'View Event', 'oras-tickets' ),
+                'url'   => $event_url,
+            ),
+        );
 
         if ( $user_id > 0 ) {
-            $lines[] = '';
-            $lines[] = __( 'Need to cancel? Use this link so someone on the waitlist can take your seat:', 'oras-tickets' );
-            $lines[] = self::create_cancellation_url( $event_id, $user_id );
+            $actions[] = array(
+                'label' => __( 'Cancel RSVP', 'oras-tickets' ),
+                'url'   => self::create_cancellation_url( $event_id, $user_id ),
+                'style' => 'secondary',
+            );
         }
 
         return array(
             'subject' => $subject,
-            'body'    => implode( "\n", $lines ),
+            'body'    => self::build_oras_email_template(
+                __( 'Your RSVP is confirmed', 'oras-tickets' ),
+                __( 'Thank you for your RSVP. ORAS has recorded your attendance details for this event.', 'oras-tickets' ),
+                $details,
+                $sections,
+                $actions,
+                $notice,
+                __( 'Need to cancel? Use the cancellation button so someone on the waitlist can take your seat.', 'oras-tickets' )
+            ),
             'email'   => $recipient_email,
         );
+    }
+
+    private static function get_email_event_title( int $event_id ): string {
+        $event_title = get_the_title( $event_id );
+        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
+            return __( 'ORAS Event', 'oras-tickets' );
+        }
+
+        return wp_specialchars_decode( trim( $event_title ), ENT_QUOTES );
+    }
+
+    /**
+     * @param array<int,array{label:string,value:string,url?:string}> $details
+     * @param array<int,array{title:string,body:string}>              $sections
+     * @param array<int,array{label:string,url:string,style?:string}> $actions
+     */
+    private static function build_oras_email_template( string $headline, string $intro, array $details, array $sections = array(), array $actions = array(), string $notice = '', string $footer_note = '' ): string {
+        $brand = __( 'Oil Region Astronomical Society', 'oras-tickets' );
+        $preheader = wp_strip_all_tags( $intro );
+
+        $html = '<!doctype html><html><body style="margin:0;padding:0;background:#eef2f7;color:#111827;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">';
+        $html .= '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">' . esc_html( $preheader ) . '</div>';
+        $html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7;margin:0;padding:28px 12px;"><tr><td align="center">';
+        $html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d8dee8;box-shadow:0 12px 36px rgba(15,23,42,0.12);">';
+        $html .= '<tr><td style="background:#0b1220;padding:28px 32px;color:#ffffff;">';
+        $html .= '<div style="font-size:28px;font-weight:800;letter-spacing:0.18em;line-height:1;">ORAS</div>';
+        $html .= '<div style="font-size:14px;color:#cbd5e1;margin-top:8px;">' . esc_html( $brand ) . '</div>';
+        $html .= '</td></tr>';
+        $html .= '<tr><td style="padding:32px;">';
+        $html .= '<h1 style="margin:0 0 14px;font-size:28px;line-height:1.2;color:#0f172a;">' . esc_html( $headline ) . '</h1>';
+        $html .= '<p style="margin:0 0 24px;font-size:16px;color:#334155;">' . esc_html( $intro ) . '</p>';
+
+        if ( '' !== trim( $notice ) ) {
+            $html .= '<div style="margin:0 0 24px;padding:16px 18px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:15px;">' . esc_html( $notice ) . '</div>';
+        }
+
+        if ( ! empty( $details ) ) {
+            $html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">';
+            foreach ( $details as $detail ) {
+                $label = isset( $detail['label'] ) ? (string) $detail['label'] : '';
+                $value = isset( $detail['value'] ) ? (string) $detail['value'] : '';
+                $url = isset( $detail['url'] ) ? esc_url( (string) $detail['url'] ) : '';
+                if ( '' === trim( $label ) || '' === trim( $value ) ) {
+                    continue;
+                }
+
+                $html .= '<tr>';
+                $html .= '<td style="width:34%;padding:14px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">' . esc_html( $label ) . '</td>';
+                $html .= '<td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;">';
+                if ( '' !== $url ) {
+                    $html .= '<a href="' . $url . '" style="color:#1d4ed8;text-decoration:underline;word-break:break-word;">' . esc_html( $value ) . '</a>';
+                } else {
+                    $html .= nl2br( esc_html( $value ) );
+                }
+                $html .= '</td></tr>';
+            }
+            $html .= '</table>';
+        }
+
+        foreach ( $sections as $section ) {
+            $title = isset( $section['title'] ) ? (string) $section['title'] : '';
+            $body = isset( $section['body'] ) ? trim( (string) $section['body'] ) : '';
+            if ( '' === $title || '' === $body ) {
+                continue;
+            }
+
+            $html .= '<div style="margin:0 0 22px;padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">';
+            $html .= '<h2 style="margin:0 0 10px;font-size:16px;color:#0f172a;">' . esc_html( $title ) . '</h2>';
+            $html .= '<div style="font-size:15px;color:#334155;">' . nl2br( esc_html( $body ) ) . '</div>';
+            $html .= '</div>';
+        }
+
+        if ( ! empty( $actions ) ) {
+            $html .= '<div style="margin:28px 0 8px;">';
+            foreach ( $actions as $action ) {
+                $label = isset( $action['label'] ) ? (string) $action['label'] : '';
+                $url = isset( $action['url'] ) ? esc_url( (string) $action['url'] ) : '';
+                if ( '' === trim( $label ) || '' === $url ) {
+                    continue;
+                }
+
+                $is_secondary = isset( $action['style'] ) && 'secondary' === $action['style'];
+                $background = $is_secondary ? '#e2e8f0' : '#1e3a8a';
+                $color = $is_secondary ? '#0f172a' : '#ffffff';
+                $html .= '<a href="' . $url . '" style="display:inline-block;margin:0 10px 10px 0;padding:13px 18px;border-radius:10px;background:' . esc_attr( $background ) . ';color:' . esc_attr( $color ) . ';font-size:15px;font-weight:700;text-decoration:none;">' . esc_html( $label ) . '</a>';
+            }
+            $html .= '</div>';
+        }
+
+        if ( '' !== trim( $footer_note ) ) {
+            $html .= '<p style="margin:22px 0 0;font-size:13px;color:#64748b;">' . esc_html( $footer_note ) . '</p>';
+        }
+
+        $html .= '</td></tr>';
+        $html .= '<tr><td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;">';
+        $html .= esc_html__( 'This message was sent by Oil Region Astronomical Society regarding an ORAS event.', 'oras-tickets' );
+        $html .= '</td></tr>';
+        $html .= '</table></td></tr></table></body></html>';
+
+        return $html;
     }
 
     private static function send_rsvp_confirmation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): bool {
@@ -1086,10 +1212,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
      * @return array{subject:string,body:string}
      */
     private static function build_waitlist_promotion_email( int $event_id, int $user_id, string $recipient_email ): array {
-        $event_title = get_the_title( $event_id );
-        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
-            $event_title = __( 'ORAS Event', 'oras-tickets' );
-        }
+        $event_title = self::get_email_event_title( $event_id );
 
         $event_url = get_permalink( $event_id );
         if ( ! is_string( $event_url ) || '' === $event_url ) {
@@ -1102,34 +1225,58 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             __( 'You were moved from the waitlist for %s', 'oras-tickets' ),
             $event_title
         );
-        $lines = array(
-            __( 'A seat opened up and your RSVP has been moved from the waitlist to confirmed.', 'oras-tickets' ),
-            '',
-            sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
-            sprintf( __( 'Attendance: %s', 'oras-tickets' ), self::get_attendance_mode_label( $attendance_mode ) ),
-            sprintf( __( 'Date & Time: %s', 'oras-tickets' ), self::get_event_datetime_text( $event_id ) ),
+        $details = array(
+            array(
+                'label' => __( 'Event', 'oras-tickets' ),
+                'value' => $event_title,
+            ),
+            array(
+                'label' => __( 'Attendance', 'oras-tickets' ),
+                'value' => self::get_attendance_mode_label( $attendance_mode ),
+            ),
+            array(
+                'label' => __( 'Date & Time', 'oras-tickets' ),
+                'value' => self::get_event_datetime_text( $event_id ),
+            ),
         );
+        $notice = '';
 
         if ( Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode ) {
-            $lines[] = '';
             if ( self::APPROVAL_STATUS_APPROVED === self::get_user_approval_status( $event_id, $user_id ) ) {
-                $lines[] = __( 'Virtual access link:', 'oras-tickets' );
-                $lines[] = self::get_virtual_join_link( $event_id ) ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' );
+                $virtual_link = self::get_virtual_join_link( $event_id );
+                $details[] = array(
+                    'label' => __( 'Virtual access', 'oras-tickets' ),
+                    'value' => $virtual_link ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+                    'url'   => $virtual_link,
+                );
             } else {
-                $lines[] = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
+                $notice = __( 'Your virtual RSVP is pending board approval. The virtual access link will be sent after approval.', 'oras-tickets' );
             }
         }
 
-        $lines[] = '';
-        $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
-        $lines[] = $event_url;
-        $lines[] = '';
-        $lines[] = __( 'Need to cancel? Use this link so someone else on the waitlist can take your seat:', 'oras-tickets' );
-        $lines[] = self::create_cancellation_url( $event_id, $user_id );
+        $actions = array(
+            array(
+                'label' => __( 'View Event', 'oras-tickets' ),
+                'url'   => $event_url,
+            ),
+            array(
+                'label' => __( 'Cancel RSVP', 'oras-tickets' ),
+                'url'   => self::create_cancellation_url( $event_id, $user_id ),
+                'style' => 'secondary',
+            ),
+        );
 
         return array(
             'subject' => $subject,
-            'body'    => implode( "\n", $lines ),
+            'body'    => self::build_oras_email_template(
+                __( 'You are confirmed from the waitlist', 'oras-tickets' ),
+                __( 'A seat opened up and your RSVP has been moved from the waitlist to confirmed.', 'oras-tickets' ),
+                $details,
+                array(),
+                $actions,
+                $notice,
+                __( 'Need to cancel? Use the cancellation button so someone else on the waitlist can take your seat.', 'oras-tickets' )
+            ),
         );
     }
 
@@ -1577,10 +1724,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
      * @return array{subject:string,body:string,email:string}
      */
     public static function build_virtual_approval_email( int $event_id, int $user_id, string $approval_status, string $rejection_reason = '' ): array {
-        $event_title = get_the_title( $event_id );
-        if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
-            $event_title = __( 'ORAS Event', 'oras-tickets' );
-        }
+        $event_title = self::get_email_event_title( $event_id );
 
         $contact = self::get_user_contact_defaults( $event_id, $user_id );
         $recipient_email = sanitize_email( (string) ( $contact['email'] ?? '' ) );
@@ -1596,14 +1740,39 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 __( 'Your virtual RSVP was approved for %s', 'oras-tickets' ),
                 $event_title
             );
-            $lines = array(
-                __( 'Your virtual RSVP has been approved.', 'oras-tickets' ),
-                '',
-                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
-                sprintf( __( 'Date & Time: %s', 'oras-tickets' ), self::get_event_datetime_text( $event_id ) ),
-                '',
-                __( 'Virtual access link:', 'oras-tickets' ),
-                self::get_virtual_join_link( $event_id ) ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+            $virtual_link = self::get_virtual_join_link( $event_id );
+            $details = array(
+                array(
+                    'label' => __( 'Event', 'oras-tickets' ),
+                    'value' => $event_title,
+                ),
+                array(
+                    'label' => __( 'Date & Time', 'oras-tickets' ),
+                    'value' => self::get_event_datetime_text( $event_id ),
+                ),
+                array(
+                    'label' => __( 'Virtual access', 'oras-tickets' ),
+                    'value' => $virtual_link ?: __( 'Virtual access link is not currently available. Please contact ORAS support.', 'oras-tickets' ),
+                    'url'   => $virtual_link,
+                ),
+            );
+            $actions = array(
+                array(
+                    'label' => __( 'Join Virtual Event', 'oras-tickets' ),
+                    'url'   => $virtual_link,
+                ),
+                array(
+                    'label' => __( 'View Event', 'oras-tickets' ),
+                    'url'   => $event_url,
+                    'style' => 'secondary',
+                ),
+            );
+            $body = self::build_oras_email_template(
+                __( 'Virtual RSVP approved', 'oras-tickets' ),
+                __( 'Your virtual RSVP has been approved. Use the virtual access button below when it is time to join the event.', 'oras-tickets' ),
+                $details,
+                array(),
+                $actions
             );
         } elseif ( self::APPROVAL_STATUS_REJECTED === $normalized_status ) {
             $subject = sprintf(
@@ -1611,36 +1780,60 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 __( 'Your virtual RSVP was not approved for %s', 'oras-tickets' ),
                 $event_title
             );
-            $lines = array(
-                __( 'Your virtual RSVP was not approved.', 'oras-tickets' ),
-                '',
-                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            $details = array(
+                array(
+                    'label' => __( 'Event', 'oras-tickets' ),
+                    'value' => $event_title,
+                ),
             );
+            $sections = array();
             $reason = trim( sanitize_textarea_field( $rejection_reason ) );
             if ( '' !== $reason ) {
-                $lines[] = '';
-                $lines[] = sprintf( __( 'Reason: %s', 'oras-tickets' ), $reason );
+                $sections[] = array(
+                    'title' => __( 'Reason', 'oras-tickets' ),
+                    'body'  => $reason,
+                );
             }
+            $body = self::build_oras_email_template(
+                __( 'Virtual RSVP not approved', 'oras-tickets' ),
+                __( 'Your virtual RSVP was not approved. The virtual access link is not included in this message.', 'oras-tickets' ),
+                $details,
+                $sections,
+                array(
+                    array(
+                        'label' => __( 'View Event', 'oras-tickets' ),
+                        'url'   => $event_url,
+                    ),
+                )
+            );
         } else {
             $subject = sprintf(
                 /* translators: %s: event title */
                 __( 'Your virtual RSVP is pending for %s', 'oras-tickets' ),
                 $event_title
             );
-            $lines = array(
-                __( 'Your virtual RSVP has been returned to pending review.', 'oras-tickets' ),
-                '',
-                sprintf( __( 'Event: %s', 'oras-tickets' ), $event_title ),
+            $body = self::build_oras_email_template(
+                __( 'Virtual RSVP pending review', 'oras-tickets' ),
+                __( 'Your virtual RSVP has been returned to pending review. The virtual access link will be sent only if the RSVP is approved.', 'oras-tickets' ),
+                array(
+                    array(
+                        'label' => __( 'Event', 'oras-tickets' ),
+                        'value' => $event_title,
+                    ),
+                ),
+                array(),
+                array(
+                    array(
+                        'label' => __( 'View Event', 'oras-tickets' ),
+                        'url'   => $event_url,
+                    ),
+                )
             );
         }
 
-        $lines[] = '';
-        $lines[] = __( 'View this event on ORAS.org:', 'oras-tickets' );
-        $lines[] = $event_url;
-
         return array(
             'subject' => $subject,
-            'body'    => implode( "\n", $lines ),
+            'body'    => $body,
             'email'   => $recipient_email,
         );
     }
