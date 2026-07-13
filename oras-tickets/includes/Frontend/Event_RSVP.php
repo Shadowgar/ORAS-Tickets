@@ -189,8 +189,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         // Buttons
         echo '<p class="oras-rsvp-actions">';
-        echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button>';
-        echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'RSVP No', 'oras-tickets' ) . '</button>';
+        echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'Submit RSVP', 'oras-tickets' ) . '</button>';
+        echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Remove RSVP', 'oras-tickets' ) . '</button>';
 
         $is_full = ( $capacity > 0 && $yes_count >= $capacity );
         if ( $is_full && $waitlist_enabled ) {

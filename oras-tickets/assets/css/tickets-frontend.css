@@ -39,6 +39,15 @@
 	--oras-rsvp-button-secondary-bg: #e5e7eb;
 	--oras-rsvp-button-secondary-text: #111827;
 	--oras-rsvp-button-secondary-border: #cbd5e1;
+	--oras-rsvp-modal-overlay: rgba(17, 24, 39, 0.72);
+	--oras-rsvp-modal-bg: #ffffff;
+	--oras-rsvp-modal-text: #111827;
+	--oras-rsvp-modal-muted: #4b5563;
+	--oras-rsvp-modal-label: #111827;
+	--oras-rsvp-modal-input-bg: #ffffff;
+	--oras-rsvp-modal-input-border: #cbd5e1;
+	--oras-rsvp-modal-input-text: #111827;
+	--oras-rsvp-modal-error: #b91c1c;
 	--oras-question-panel-bg: #ffffff;
 	--oras-question-panel-border: rgba(148, 163, 184, 0.35);
 	--oras-question-field-bg: #ffffff;
@@ -477,15 +486,15 @@
 .oras-rsvp-email-modal__backdrop {
 	position: absolute;
 	inset: 0;
-	background: rgba(17, 24, 39, 0.72);
+	background: var(--oras-rsvp-modal-overlay);
 }
 
 .oras-rsvp-email-modal__dialog {
 	position: relative;
 	max-width: 460px;
 	margin: 8vh auto 0;
-	background: #fff;
-	color: #111827;
+	background: var(--oras-rsvp-modal-bg);
+	color: var(--oras-rsvp-modal-text);
 	border-radius: 10px;
 	padding: 1rem 1.125rem;
 	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
@@ -494,16 +503,19 @@
 
 .oras-rsvp-email-modal__dialog h3 {
 	margin: 0 0 0.5rem;
+	color: var(--oras-rsvp-modal-text);
 }
 
 .oras-rsvp-email-modal__dialog p {
 	margin: 0 0 0.75rem;
+	color: var(--oras-rsvp-modal-muted);
 }
 
 .oras-rsvp-email-modal__dialog label {
 	display: block;
 	font-weight: 600;
 	margin-bottom: 0.25rem;
+	color: var(--oras-rsvp-modal-label);
 }
 
 .oras-rsvp-email-input {
@@ -511,13 +523,15 @@
 	box-sizing: border-box;
 	padding: 0.625rem 0.7rem;
 	border-radius: 8px;
-	border: 1px solid #cbd5e1;
+	border: 1px solid var(--oras-rsvp-modal-input-border);
+	background: var(--oras-rsvp-modal-input-bg);
+	color: var(--oras-rsvp-modal-input-text);
 }
 
 .oras-rsvp-email-error {
 	min-height: 1.2rem;
 	margin-top: 0.35rem;
-	color: #b91c1c;
+	color: var(--oras-rsvp-modal-error);
 	font-size: 0.9rem;
 }
 
@@ -586,6 +600,15 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-button-secondary-bg: rgba(148, 163, 184, 0.18);
 	--oras-rsvp-button-secondary-text: #e2e8f0;
 	--oras-rsvp-button-secondary-border: rgba(148, 163, 184, 0.32);
+	--oras-rsvp-modal-overlay: rgba(2, 6, 23, 0.82);
+	--oras-rsvp-modal-bg: #0f172a;
+	--oras-rsvp-modal-text: #f8fafc;
+	--oras-rsvp-modal-muted: #dbe3ef;
+	--oras-rsvp-modal-label: #e5e7eb;
+	--oras-rsvp-modal-input-bg: #111827;
+	--oras-rsvp-modal-input-border: rgba(203, 213, 225, 0.7);
+	--oras-rsvp-modal-input-text: #f8fafc;
+	--oras-rsvp-modal-error: #fca5a5;
 	--oras-question-panel-bg: rgba(15, 23, 42, 0.76);
 	--oras-question-panel-border: rgba(148, 163, 184, 0.3);
 	--oras-question-field-bg: rgba(2, 6, 23, 0.72);

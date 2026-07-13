@@ -201,10 +201,17 @@ oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-label-text: #
 oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-description-text: #4b5563;' ), 'RSVP descriptions use readable light-mode text color' );
 oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-rsvp-event-questions legend' ), 'Event Questions fieldset legend inherits RSVP color handling' );
 oras_phase1h_assert( false === strpos( $frontend_css, 'wp-dark-mode-loading' ), 'WP Dark Mode loading state does not force dark RSVP colors' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-modal-bg: #0f172a;' ), 'RSVP email modal has dark-mode dialog color variables' );
+oras_phase1h_assert( false !== strpos( $frontend_css, 'color: var(--oras-rsvp-modal-label);' ), 'RSVP email modal labels use theme-aware colors' );
 
 $board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php';
 $board_reports      = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';
 oras_phase1h_assert( false !== strpos( $board_reports, '<details class="oras-board-reports__question-answers">' ), 'Board report question answers render collapsed by default' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__question-answers-summary' ), 'Board report question answers include an expandable summary' );
+
+$rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
+$rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Submit RSVP'" ), 'Frontend RSVP submit button uses updated label' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Remove RSVP'" ), 'Frontend RSVP removal button uses updated label' );
 
 echo "Event question checks passed.\n";
