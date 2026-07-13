@@ -172,6 +172,24 @@ final class Board_Reports {
 					font-weight: 850;
 					line-height: 1.1;
 				}
+				.oras-board-reports .oras-board-reports__attention-notice {
+					display: grid;
+					gap: 10px;
+					margin: 16px 0;
+					padding: 16px;
+					border: 1px solid #f59e0b;
+					border-left-width: 5px;
+					border-radius: 12px;
+					background: #fffbeb;
+					color: #78350f;
+				}
+				.oras-board-reports .oras-board-reports__attention-notice h3 {
+					margin: 0;
+					color: #78350f;
+				}
+				.oras-board-reports .oras-board-reports__attention-notice p {
+					margin: 0;
+				}
 				.oras-board-reports .oras-board-reports__filters {
 					display: grid;
 					grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -556,6 +574,7 @@ final class Board_Reports {
 			<?php self::render_attention_notice(); ?>
 			<?php self::render_event_selector_shell( $page_id, $events, $filters['event_id'], $active_tab ); ?>
 			<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
+			<?php self::render_attention_notification_center( $filters['event_id'] ); ?>
 			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
@@ -624,6 +643,43 @@ final class Board_Reports {
 					<p class="oras-board-reports__metric-value"><?php echo esc_html( $value ); ?></p>
 				</div>
 			<?php endforeach; ?>
+		</section>
+		<?php
+	}
+
+	private static function render_attention_notification_center( int $event_id ): void {
+		if ( $event_id <= 0 ) {
+			return;
+		}
+
+		$count = Event_Question_Attention_Store::count_open( $event_id );
+		if ( $count <= 0 ) {
+			return;
+		}
+
+		$url = add_query_arg(
+			array(
+				'oras_board_tab'      => self::TAB_ATTENTION,
+				'oras_board_event_id' => $event_id,
+				'oras_attention_status' => Event_Question_Attention_Store::STATUS_OPEN,
+			),
+			self::get_form_action_url()
+		);
+		?>
+		<section class="oras-board-reports__attention-notice" aria-live="polite">
+			<h3><?php echo esc_html__( 'Open event coordination items need review', 'oras-tickets' ); ?></h3>
+			<p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %d: open attention item count */
+						_n( '%d question answer matched an attention rule.', '%d question answers matched attention rules.', $count, 'oras-tickets' ),
+						$count
+					)
+				);
+				?>
+			</p>
+			<p><a class="button button-primary" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html__( 'Review Attention Items', 'oras-tickets' ); ?></a></p>
 		</section>
 		<?php
 	}
