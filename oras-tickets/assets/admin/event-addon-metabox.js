@@ -191,6 +191,131 @@
 		});
 	}
 
+	function setupTecAdminScrollGuard(container) {
+		if (!document.body || !document.body.classList.contains('post-type-tribe_events')) {
+			return;
+		}
+
+		var lastState = null;
+		var restoreTimers = [];
+		var interactiveSelector = [
+			'button',
+			'[role="button"]',
+			'a',
+			'select',
+			'input[type="checkbox"]',
+			'input[type="radio"]',
+			'.select2-selection',
+			'.tribe-dependent',
+			'[class*="virtual"]',
+			'[class*="Virtual"]',
+			'[id*="virtual"]',
+			'[id*="Virtual"]',
+		].join(',');
+
+		function currentScroll() {
+			return {
+				x: globalThis.pageXOffset || globalThis.scrollX || 0,
+				y: globalThis.pageYOffset || globalThis.scrollY || 0,
+			};
+		}
+
+		function clearRestoreTimers() {
+			restoreTimers.forEach(function (timer) {
+				globalThis.clearTimeout(timer);
+			});
+			restoreTimers = [];
+		}
+
+		function isSubmitControl(control) {
+			if (!control) {
+				return false;
+			}
+
+			var tagName = control.tagName ? control.tagName.toLowerCase() : '';
+			var type = (control.getAttribute('type') || '').toLowerCase();
+			if (tagName === 'button' && (type === 'submit' || type === '')) {
+				return control.closest('#poststuff') === null;
+			}
+
+			return type === 'submit' || control.id === 'publish' || control.id === 'save-post';
+		}
+
+		function isNavigationLink(control) {
+			if (!control || control.tagName?.toLowerCase() !== 'a') {
+				return false;
+			}
+
+			var href = control.getAttribute('href') || '';
+			return href !== '' && href !== '#' && href.charAt(0) !== '#';
+		}
+
+		function shouldWatchInteraction(target) {
+			var control = target?.closest?.(interactiveSelector);
+			if (!control) {
+				return false;
+			}
+
+			if (container.contains(control)) {
+				return false;
+			}
+
+			if (isSubmitControl(control) || isNavigationLink(control)) {
+				return false;
+			}
+
+			var adminForm = control.closest('#post, #poststuff, .interface-interface-skeleton__content, .edit-post-layout');
+			return !!adminForm;
+		}
+
+		function rememberInteraction(event) {
+			if (!shouldWatchInteraction(event.target)) {
+				return;
+			}
+
+			var position = currentScroll();
+			if (position.y < 120) {
+				return;
+			}
+
+			lastState = {
+				x: position.x,
+				y: position.y,
+				at: Date.now(),
+			};
+		}
+
+		function maybeRestore() {
+			if (!lastState || Date.now() - lastState.at > 2500) {
+				return;
+			}
+
+			var position = currentScroll();
+			if (position.y <= 40 && lastState.y > 120) {
+				globalThis.scrollTo(lastState.x, lastState.y);
+			}
+		}
+
+		function scheduleRestore(event) {
+			if (!shouldWatchInteraction(event.target) || !lastState) {
+				return;
+			}
+
+			clearRestoreTimers();
+			globalThis.requestAnimationFrame(function () {
+				globalThis.requestAnimationFrame(maybeRestore);
+			});
+			[80, 180, 360, 700, 1200].forEach(function (delay) {
+				restoreTimers.push(globalThis.setTimeout(maybeRestore, delay));
+			});
+		}
+
+		document.addEventListener('mousedown', rememberInteraction, true);
+		document.addEventListener('focusin', rememberInteraction, true);
+		document.addEventListener('click', scheduleRestore, true);
+		document.addEventListener('change', scheduleRestore, true);
+	}
+
 	function tabButtons(container) {
 		return toArray(container.querySelectorAll('.oras-events-addon__tab[role="tab"]'));
 	}
@@ -595,6 +720,7 @@
 		setupTabs(container);
 		setupAutofillSuppression(container);
 		setupResizeSuppression(container);
+		setupTecAdminScrollGuard(container);
 		setupSaveTriggers(container);
 
 		var defaultTab = 'tickets';
