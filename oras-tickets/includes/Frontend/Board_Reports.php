@@ -217,6 +217,47 @@ final class Board_Reports {
 					cursor: pointer;
 					font-weight: 700;
 				}
+				.oras-board-reports .oras-board-reports__answer-row > td {
+					padding: 0 8px 14px;
+					background: #f8fafc;
+				}
+				.oras-board-reports .oras-board-reports__question-answers {
+					margin: 10px 0 0;
+					padding: 14px;
+					border: 1px solid #d8dee9;
+					border-radius: 10px;
+					background: #ffffff;
+					color: #111827;
+				}
+				.oras-board-reports .oras-board-reports__question-answers-title {
+					margin-bottom: 10px;
+					font-size: 0.95rem;
+					font-weight: 800;
+					color: #0f172a;
+				}
+				.oras-board-reports .oras-board-reports__question-answers dl {
+					display: grid;
+					grid-template-columns: minmax(180px, 0.35fr) minmax(220px, 1fr);
+					gap: 8px 14px;
+					margin: 0;
+				}
+				.oras-board-reports .oras-board-reports__question-answers dt,
+				.oras-board-reports .oras-board-reports__question-answers dd {
+					margin: 0;
+					padding: 9px 10px;
+					border-radius: 8px;
+				}
+				.oras-board-reports .oras-board-reports__question-answers dt {
+					background: #eef2f7;
+					color: #1f2937;
+					font-weight: 700;
+				}
+				.oras-board-reports .oras-board-reports__question-answers dd {
+					background: #ffffff;
+					border: 1px solid #e5e7eb;
+					color: #111827;
+					white-space: pre-wrap;
+				}
 				html.oras-dark-on .oras-board-reports label,
 				html[data-wp-dark-mode-active] .oras-board-reports label,
 				body.wp-dark-mode-active .oras-board-reports label {
@@ -251,6 +292,36 @@ final class Board_Reports {
 				body.wp-dark-mode-active .oras-board-reports input::placeholder {
 					color: #c0cfdf;
 				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__answer-row > td,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__answer-row > td,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__answer-row > td {
+					background: rgba(2, 6, 23, 0.36);
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__question-answers {
+					background: rgba(15, 23, 42, 0.9);
+					border-color: rgba(148, 163, 184, 0.35);
+					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers-title,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers-title,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__question-answers-title {
+					color: #f8fafc;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers dt,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers dt,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__question-answers dt {
+					background: rgba(51, 65, 85, 0.78);
+					color: #e2e8f0;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers dd,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers dd,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__question-answers dd {
+					background: rgba(2, 6, 23, 0.72);
+					border-color: rgba(148, 163, 184, 0.28);
+					color: #f8fafc;
+				}
 				html:not(.oras-dark-on) .oras-board-reports label {
 					color: #1f2937;
 				}
@@ -266,6 +337,9 @@ final class Board_Reports {
 					.oras-board-reports .oras-board-reports__actions .button {
 						flex: 1 1 100%;
 						text-align: center;
+					}
+					.oras-board-reports .oras-board-reports__question-answers dl {
+						grid-template-columns: 1fr;
 					}
 				}
 			</style>
@@ -377,8 +451,8 @@ final class Board_Reports {
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching rows found for this report.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
 				<div class="oras-board-reports__table-wrap">
-					<table>
-						<thead>
+						<table>
+							<thead>
 								<tr>
 									<?php foreach ( Board_Report_Exporter::COLUMNS as $label ) : ?>
 										<th><?php echo esc_html( $label ); ?></th>
@@ -394,8 +468,9 @@ final class Board_Reports {
 										<?php endforeach; ?>
 										<td><?php self::render_question_answers_details( $row ); ?></td>
 									</tr>
+									<?php self::render_question_answers_table_row( $row, count( Board_Report_Exporter::COLUMNS ) + 1 ); ?>
 								<?php endforeach; ?>
-						</tbody>
+							</tbody>
 						</table>
 					</div>
 				<?php endif; ?>
@@ -686,34 +761,35 @@ final class Board_Reports {
 				<div class="oras-board-reports__table-wrap">
 					<table>
 						<thead>
-							<tr>
-								<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Item / Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
+								<tr>
+									<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Item / Status', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
 									<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
 									<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
 									<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 								</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $row ) : ?>
-								<tr>
-									<td><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
+							</thead>
+							<tbody>
+								<?php foreach ( $rows as $row ) : ?>
+									<tr>
+										<td><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
 										<td><?php self::render_question_answers_details( $row ); ?></td>
 									</tr>
-							<?php endforeach; ?>
+									<?php self::render_question_answers_table_row( $row, 10 ); ?>
+								<?php endforeach; ?>
 						</tbody>
 					</table>
 					</div>
@@ -852,15 +928,16 @@ final class Board_Reports {
 									<td><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-									<td><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
+										<td><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
 										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
 										<td><?php self::render_rsvp_row_actions( $row ); ?></td>
 									</tr>
+									<?php self::render_question_answers_table_row( $row, 11 ); ?>
 								<?php endforeach; ?>
 							</tbody>
 						</table>
@@ -889,12 +966,11 @@ final class Board_Reports {
 				<p><strong><?php echo esc_html__( 'Approval status:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></p>
 				<p><strong><?php echo esc_html__( 'Approved by:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></p>
 				<p><strong><?php echo esc_html__( 'Approved date:', 'oras-tickets' ); ?></strong> <?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></p>
-				<?php if ( '' !== $rejection_reason ) : ?>
-					<p><strong><?php echo esc_html__( 'Rejection reason:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $rejection_reason ); ?></p>
-				<?php endif; ?>
-				<?php self::render_question_answers_summary( $row ); ?>
-				<p><strong><?php echo esc_html__( 'User ID:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $user_id ); ?></p>
-			</details>
+					<?php if ( '' !== $rejection_reason ) : ?>
+						<p><strong><?php echo esc_html__( 'Rejection reason:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $rejection_reason ); ?></p>
+					<?php endif; ?>
+					<p><strong><?php echo esc_html__( 'User ID:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $user_id ); ?></p>
+				</details>
 			<?php if ( current_user_can( 'oras_tickets_manage_rsvps' ) && $event_id > 0 && $user_id > 0 ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
 				<?php if ( Event_RSVP::APPROVAL_STATUS_APPROVED !== $approval_status ) : ?>
 					<?php self::render_rsvp_approval_action_form( $event_id, $user_id, Event_RSVP::APPROVAL_STATUS_APPROVED, __( 'Approve', 'oras-tickets' ) ); ?>
@@ -1655,7 +1731,7 @@ final class Board_Reports {
 	 */
 	private static function format_report_cell( array $row, string $key ): string {
 		if ( 'question_answers' === $key ) {
-			return self::format_question_answers( $row['question_answers'] ?? array() );
+			return self::format_question_answer_count( $row['question_answers'] ?? array() );
 		}
 
 		return self::row_scalar( $row, $key );
@@ -1671,9 +1747,21 @@ final class Board_Reports {
 			return;
 		}
 
-		echo '<details><summary>' . esc_html__( 'View Answers', 'oras-tickets' ) . '</summary>';
+		echo esc_html( self::format_question_answer_count( $answers ) );
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_question_answers_table_row( array $row, int $colspan ): void {
+		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
+		if ( empty( $answers ) ) {
+			return;
+		}
+
+		echo '<tr class="oras-board-reports__answer-row"><td colspan="' . esc_attr( (string) max( 1, $colspan ) ) . '">';
 		self::render_question_answers_summary( $row );
-		echo '</details>';
+		echo '</td></tr>';
 	}
 
 	/**
@@ -1686,7 +1774,7 @@ final class Board_Reports {
 		}
 
 		echo '<div class="oras-board-reports__question-answers">';
-		echo '<strong>' . esc_html__( 'Event question answers:', 'oras-tickets' ) . '</strong>';
+		echo '<div class="oras-board-reports__question-answers-title">' . esc_html__( 'Event question answers', 'oras-tickets' ) . '</div>';
 		echo '<dl>';
 		foreach ( $answers as $answer ) {
 			if ( ! is_array( $answer ) ) {
@@ -1709,25 +1797,27 @@ final class Board_Reports {
 	/**
 	 * @param mixed $answers
 	 */
-	private static function format_question_answers( $answers ): string {
+	private static function format_question_answer_count( $answers ): string {
 		if ( ! is_array( $answers ) ) {
 			return '';
 		}
 
-		$parts = array();
+		$count = 0;
 		foreach ( $answers as $answer ) {
-			if ( ! is_array( $answer ) ) {
-				continue;
-			}
-
-			$label = isset( $answer['label'] ) && is_scalar( $answer['label'] ) ? sanitize_text_field( (string) $answer['label'] ) : '';
-			$value = isset( $answer['display_value'] ) && is_scalar( $answer['display_value'] ) ? sanitize_text_field( (string) $answer['display_value'] ) : '';
-			if ( '' !== $label && '' !== $value ) {
-				$parts[] = $label . ': ' . $value;
+			if ( is_array( $answer ) ) {
+				++$count;
 			}
 		}
 
-		return implode( '; ', $parts );
+		if ( 0 === $count ) {
+			return '';
+		}
+
+		return sprintf(
+			/* translators: %d: event question answer count */
+			_n( '%d answer below', '%d answers below', $count, 'oras-tickets' ),
+			$count
+		);
 	}
 
 	/**

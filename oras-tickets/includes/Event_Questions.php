@@ -20,8 +20,6 @@ final class Event_Questions {
 	public const ATTENDANCE_ONSITE = 'onsite';
 	public const ATTENDANCE_VIRTUAL = 'virtual';
 
-	private const TYPES_WITH_OPTIONS = array( 'select', 'radio', 'checkbox' );
-
 	/**
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -55,20 +53,14 @@ final class Event_Questions {
 			$id = self::normalize_id( $row['id'] ?? '', $label, (int) $index, $used_ids );
 			$used_ids[ $id ] = true;
 
-			$type = self::normalize_type( $row['type'] ?? 'text' );
-			$options = self::normalize_options( $row['options'] ?? array() );
-			if ( in_array( $type, self::TYPES_WITH_OPTIONS, true ) && empty( $options ) ) {
-				$type = 'text';
-			}
-
 			$definitions[] = array(
 				'id'               => $id,
 				'label'            => $label,
-				'type'             => $type,
+				'type'             => self::normalize_type( $row['type'] ?? 'text' ),
 				'required'         => ! empty( $row['required'] ),
 				'applies_to'       => self::normalize_applies_to( $row['applies_to'] ?? self::APPLIES_BOTH ),
 				'attendance_scope' => self::normalize_attendance_scope( $row['attendance_scope'] ?? self::ATTENDANCE_ALL ),
-				'options'          => in_array( $type, self::TYPES_WITH_OPTIONS, true ) ? $options : array(),
+				'options'          => array(),
 			);
 		}
 
@@ -214,15 +206,7 @@ final class Event_Questions {
 	 */
 	public static function field_type_options(): array {
 		return array(
-			'text'     => __( 'Short Text', 'oras-tickets' ),
-			'textarea' => __( 'Long Text', 'oras-tickets' ),
-			'number'   => __( 'Number', 'oras-tickets' ),
-			'email'    => __( 'Email', 'oras-tickets' ),
-			'phone'    => __( 'Phone', 'oras-tickets' ),
-			'select'   => __( 'Dropdown', 'oras-tickets' ),
-			'radio'    => __( 'Radio Buttons', 'oras-tickets' ),
-			'checkbox' => __( 'Checkboxes', 'oras-tickets' ),
-			'yes_no'   => __( 'Yes / No', 'oras-tickets' ),
+			'text' => __( 'Short Text', 'oras-tickets' ),
 		);
 	}
 
@@ -433,8 +417,8 @@ final class Event_Questions {
 	 * @param mixed $value
 	 */
 	private static function normalize_type( $value ): string {
-		$type = function_exists( 'sanitize_key' ) ? sanitize_key( (string) $value ) : strtolower( (string) $value );
-		return array_key_exists( $type, self::field_type_options() ) ? $type : 'text';
+		unset( $value );
+		return 'text';
 	}
 
 	/**

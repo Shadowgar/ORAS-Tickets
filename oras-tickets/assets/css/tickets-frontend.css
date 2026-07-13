@@ -39,6 +39,13 @@
 	--oras-rsvp-button-secondary-bg: #e5e7eb;
 	--oras-rsvp-button-secondary-text: #111827;
 	--oras-rsvp-button-secondary-border: #cbd5e1;
+	--oras-question-panel-bg: #ffffff;
+	--oras-question-panel-border: rgba(148, 163, 184, 0.35);
+	--oras-question-field-bg: #ffffff;
+	--oras-question-field-border: #cbd5e1;
+	--oras-question-field-text: #111827;
+	--oras-question-label-text: #111827;
+	--oras-question-help-text: #4b5563;
 }
 
 .oras-tickets-display,
@@ -182,14 +189,20 @@
 .oras-event-questions {
 	margin: 18px 0;
 	padding: 18px;
-	border: 1px solid rgba(148, 163, 184, 0.35);
+	border: 1px solid var(--oras-question-panel-border);
 	border-radius: 12px;
-	background: rgba(15, 23, 42, 0.03);
+	background: var(--oras-question-panel-bg);
+	color: var(--oras-ticket-text);
 }
 
 .oras-event-questions-panel h2,
 .oras-event-questions-panel h3 {
 	margin-top: 0;
+	color: var(--oras-ticket-text);
+}
+
+.oras-event-questions-panel p {
+	color: var(--oras-question-help-text);
 }
 
 .oras-event-question-field {
@@ -199,6 +212,7 @@
 .oras-event-question-field__label {
 	display: block;
 	margin-bottom: 6px;
+	color: var(--oras-question-label-text);
 	font-weight: 700;
 }
 
@@ -210,6 +224,19 @@
 .oras-event-question-field textarea {
 	width: 100%;
 	max-width: 620px;
+	border: 1px solid var(--oras-question-field-border);
+	border-radius: 8px;
+	background: var(--oras-question-field-bg);
+	color: var(--oras-question-field-text);
+	padding: 0.65em 0.75em;
+	box-sizing: border-box;
+}
+
+.oras-event-question-field input:focus,
+.oras-event-question-field select:focus,
+.oras-event-question-field textarea:focus {
+	outline: 2px solid rgba(37, 99, 235, 0.35);
+	outline-offset: 2px;
 }
 
 .oras-event-question-field__choices {
@@ -547,6 +574,13 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-button-secondary-bg: rgba(148, 163, 184, 0.18);
 	--oras-rsvp-button-secondary-text: #e2e8f0;
 	--oras-rsvp-button-secondary-border: rgba(148, 163, 184, 0.32);
+	--oras-question-panel-bg: rgba(15, 23, 42, 0.76);
+	--oras-question-panel-border: rgba(148, 163, 184, 0.3);
+	--oras-question-field-bg: rgba(2, 6, 23, 0.72);
+	--oras-question-field-border: rgba(148, 163, 184, 0.35);
+	--oras-question-field-text: #f8fafc;
+	--oras-question-label-text: #f8fafc;
+	--oras-question-help-text: rgba(226, 232, 240, 0.86);
 }
 
 html[data-wp-dark-mode-active] .oras-rsvp-field input,

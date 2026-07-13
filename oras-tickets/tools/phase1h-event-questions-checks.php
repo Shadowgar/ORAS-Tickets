@@ -49,6 +49,44 @@ if ( ! function_exists( '__' ) ) {
 	}
 }
 
+if ( ! function_exists( 'esc_attr' ) ) {
+	function esc_attr( $text ) {
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'esc_html' ) ) {
+	function esc_html( $text ) {
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'esc_html__' ) ) {
+	function esc_html__( $text, $domain = 'default' ) {
+		return esc_html( $text );
+	}
+}
+
+if ( ! function_exists( 'checked' ) ) {
+	function checked( $checked, $current = true, $display = true ) {
+		$result = (string) $checked === (string) $current ? ' checked="checked"' : '';
+		if ( $display ) {
+			echo $result;
+		}
+		return $result;
+	}
+}
+
+if ( ! function_exists( 'selected' ) ) {
+	function selected( $selected, $current = true, $display = true ) {
+		$result = (string) $selected === (string) $current ? ' selected="selected"' : '';
+		if ( $display ) {
+			echo $result;
+		}
+		return $result;
+	}
+}
+
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
 		private array $errors = array();
@@ -117,7 +155,8 @@ $definitions = $class::normalize_definitions(
 oras_phase1h_assert( 1 === count( $definitions ), 'Empty labels are discarded during definition normalization' );
 oras_phase1h_assert( 'telescope-type' === $definitions[0]['id'], 'Question IDs are preserved when safe' );
 oras_phase1h_assert( true === $definitions[0]['required'], 'Required flag normalizes to boolean true' );
-oras_phase1h_assert( array( 'Dobsonian', 'Refractor' ) === $definitions[0]['options'], 'Question options are sanitized and empty values removed' );
+oras_phase1h_assert( 'text' === $definitions[0]['type'], 'Question answer type is forced to short text' );
+oras_phase1h_assert( array() === $definitions[0]['options'], 'Question options are discarded because answers are short text only' );
 
 $ticket_questions = $class::filter_questions( $definitions, 'tickets', 'onsite' );
 oras_phase1h_assert( 1 === count( $ticket_questions ), 'Questions applying to both are shown for ticket buyers' );
@@ -138,5 +177,22 @@ oras_phase1h_assert( 'Dobsonian' === $snapshots[0]['value'], 'Answer snapshot st
 
 $definitions[0]['label'] = 'Changed later';
 oras_phase1h_assert( 'What telescope are you bringing?' === $snapshots[0]['label'], 'Historical answer snapshot is not changed when definition changes' );
+
+$yes_no_definitions = $class::normalize_definitions(
+	array(
+		array(
+			'label' => 'Do you have a telescope?',
+			'type'  => 'yes_no',
+		),
+	)
+);
+
+oras_phase1h_assert( 'text' === $yes_no_definitions[0]['type'], 'Legacy yes/no questions normalize to short text' );
+
+ob_start();
+$class::render_fields( $yes_no_definitions );
+$rendered = (string) ob_get_clean();
+oras_phase1h_assert( false !== strpos( $rendered, 'type="text"' ), 'Event questions render short text inputs' );
+oras_phase1h_assert( false === strpos( $rendered, 'type="radio"' ), 'Event questions do not render radio controls' );
 
 echo "Event question checks passed.\n";

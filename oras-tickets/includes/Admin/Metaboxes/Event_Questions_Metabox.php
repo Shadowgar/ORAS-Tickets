@@ -27,7 +27,7 @@ final class Event_Questions_Metabox {
 		<div id="oras-event-questions-metabox" class="oras-event-questions-admin">
 			<div class="oras-event-questions-admin__intro">
 				<h3><?php echo esc_html__( 'Event Questions', 'oras-tickets' ); ?></h3>
-				<p class="description"><?php echo esc_html__( 'Create event-specific questions for ticket buyers and RSVP attendees. Saved answers keep the original question label for historical reporting even if you edit questions later.', 'oras-tickets' ); ?></p>
+				<p class="description"><?php echo esc_html__( 'Create event-specific short-answer questions for ticket buyers and RSVP attendees. Saved answers keep the original question label for historical reporting even if you edit questions later.', 'oras-tickets' ); ?></p>
 			</div>
 
 			<div class="oras-event-questions-admin__rows" data-oras-question-rows>
@@ -99,15 +99,14 @@ final class Event_Questions_Metabox {
 	private static function render_question_row( array $question, $index ): void {
 		$id = isset( $question['id'] ) ? (string) $question['id'] : '';
 		$label = isset( $question['label'] ) ? (string) $question['label'] : '';
-		$type = isset( $question['type'] ) ? (string) $question['type'] : 'text';
 		$required = ! empty( $question['required'] );
 		$applies_to = isset( $question['applies_to'] ) ? (string) $question['applies_to'] : Event_Questions::APPLIES_BOTH;
 		$attendance_scope = isset( $question['attendance_scope'] ) ? (string) $question['attendance_scope'] : Event_Questions::ATTENDANCE_ALL;
-		$options = isset( $question['options'] ) && is_array( $question['options'] ) ? implode( "\n", array_map( 'strval', $question['options'] ) ) : '';
 		$name = 'oras_event_questions[questions][' . $index . ']';
 		?>
 		<div class="oras-event-question-admin-row">
 			<input type="hidden" name="<?php echo esc_attr( $name ); ?>[id]" value="<?php echo esc_attr( $id ); ?>" />
+			<input type="hidden" name="<?php echo esc_attr( $name ); ?>[type]" value="text" />
 			<div class="oras-event-question-admin-row__header">
 				<strong><?php echo esc_html__( 'Question', 'oras-tickets' ); ?></strong>
 				<button type="button" class="button-link-delete" data-oras-remove-question><?php echo esc_html__( 'Remove', 'oras-tickets' ); ?></button>
@@ -116,14 +115,6 @@ final class Event_Questions_Metabox {
 				<label>
 					<span><?php echo esc_html__( 'Question Label', 'oras-tickets' ); ?></span>
 					<input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $label ); ?>" placeholder="<?php echo esc_attr__( 'Example: Are you bringing a telescope?', 'oras-tickets' ); ?>" />
-				</label>
-				<label>
-					<span><?php echo esc_html__( 'Answer Type', 'oras-tickets' ); ?></span>
-					<select name="<?php echo esc_attr( $name ); ?>[type]">
-						<?php foreach ( Event_Questions::field_type_options() as $value => $text ) : ?>
-							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $type, $value ); ?>><?php echo esc_html( $text ); ?></option>
-						<?php endforeach; ?>
-					</select>
 				</label>
 				<label>
 					<span><?php echo esc_html__( 'Ask During', 'oras-tickets' ); ?></span>
@@ -144,10 +135,6 @@ final class Event_Questions_Metabox {
 				<label class="oras-event-question-admin-row__required">
 					<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[required]" value="1" <?php checked( $required ); ?> />
 					<?php echo esc_html__( 'Required', 'oras-tickets' ); ?>
-				</label>
-				<label class="oras-event-question-admin-row__options">
-					<span><?php echo esc_html__( 'Options', 'oras-tickets' ); ?></span>
-					<textarea name="<?php echo esc_attr( $name ); ?>[options]" rows="3" placeholder="<?php echo esc_attr__( 'One option per line for dropdown, radio, or checkbox fields.', 'oras-tickets' ); ?>"><?php echo esc_textarea( $options ); ?></textarea>
 				</label>
 			</div>
 		</div>
