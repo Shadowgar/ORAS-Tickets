@@ -4,6 +4,7 @@ namespace ORAS\Tickets\Frontend;
 
 use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
+use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Event_Questions;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
@@ -289,6 +290,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         $question_snapshots = array();
+        $rsvp_questions = array();
         if ( in_array( $intent, array( 'yes', 'waitlist' ), true ) ) {
             $rsvp_questions = Event_Questions::filter_questions(
                 Event_Questions::load_definitions( $event_id ),
@@ -480,6 +482,21 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 unset( $posted_contact[ Event_Questions::RSVP_CONTACT_KEY ] );
             }
             update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CONTACT_SUFFIX, $posted_contact );
+
+            if ( ! empty( $question_snapshots ) && ! empty( $rsvp_questions ) ) {
+                Event_Question_Attention_Store::upsert_for_answer_snapshots(
+                    $event_id,
+                    'rsvp',
+                    'user:' . $user_id,
+                    array(
+                        'user_id'       => $user_id,
+                        'attendee_name' => trim( (string) ( $posted_contact['first_name'] ?? '' ) . ' ' . (string) ( $posted_contact['last_name'] ?? '' ) ),
+                        'email'         => (string) ( $posted_contact['email'] ?? '' ),
+                    ),
+                    $rsvp_questions,
+                    $question_snapshots
+                );
+            }
         }
 
         if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {

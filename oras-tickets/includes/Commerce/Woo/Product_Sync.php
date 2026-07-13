@@ -5,6 +5,7 @@ namespace ORAS\Tickets\Commerce\Woo;
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
+use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Event_Questions;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -21,6 +22,7 @@ final class Product_Sync { // NOSONAR legacy WP class naming
     public function register(): void {
         add_action( 'save_post_tribe_events', array( $this, 'on_save_event' ), 30, 3 );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'snapshot_order_item_ticket_meta' ), 10, 4 );
+        add_action( 'woocommerce_checkout_order_processed', array( $this, 'generate_order_attention_items' ), 20, 3 );
     }
 
     /**
@@ -120,6 +122,64 @@ final class Product_Sync { // NOSONAR legacy WP class naming
             }
         } elseif ( $phase_price_differs && is_numeric( $phase_price ) ) {
             $item->add_meta_data( '_oras_ticket_price_phase_price', wc_format_decimal( $phase_price, wc_get_price_decimals() ), true );
+        }
+    }
+
+    /**
+     * Generate attention items after order item IDs exist.
+     *
+     * @param int       $order_id
+     * @param array     $posted_data
+     * @param \WC_Order $order
+     */
+    public function generate_order_attention_items( int $order_id, array $posted_data, $order ): void {
+        unset( $posted_data );
+
+        if ( $order_id <= 0 || ! $order || ! method_exists( $order, 'get_items' ) ) {
+            return;
+        }
+
+        foreach ( $order->get_items() as $item_id => $item ) {
+            if ( ! $item || ! method_exists( $item, 'get_meta' ) ) {
+                continue;
+            }
+
+            $event_id = absint( $item->get_meta( '_oras_ticket_event_id', true ) );
+            if ( $event_id <= 0 ) {
+                continue;
+            }
+
+            $answers = $item->get_meta( Event_Questions::ORDER_ITEM_KEY, true );
+            if ( ! is_array( $answers ) || empty( $answers ) ) {
+                continue;
+            }
+
+            $attendance_mode = Ticket::normalizeAttendanceMode(
+                (string) $item->get_meta( '_oras_ticket_attendance_mode', true ),
+                Ticket::ATTENDANCE_MODE_ONSITE
+            );
+            $questions = Event_Questions::filter_questions(
+                Event_Questions::load_definitions( $event_id ),
+                Event_Questions::APPLIES_TICKETS,
+                $attendance_mode
+            );
+            if ( empty( $questions ) ) {
+                continue;
+            }
+
+            Event_Question_Attention_Store::upsert_for_answer_snapshots(
+                $event_id,
+                'ticket',
+                'order:' . $order_id . ':item:' . absint( $item_id ),
+                array(
+                    'order_id'      => $order_id,
+                    'order_item_id' => absint( $item_id ),
+                    'attendee_name' => method_exists( $order, 'get_formatted_billing_full_name' ) ? (string) $order->get_formatted_billing_full_name() : '',
+                    'email'         => method_exists( $order, 'get_billing_email' ) ? (string) $order->get_billing_email() : '',
+                ),
+                $questions,
+                $answers
+            );
         }
     }
 

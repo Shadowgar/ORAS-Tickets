@@ -133,4 +133,14 @@ $nonmatching_snapshots = \ORAS\Tickets\Event_Questions::build_answer_snapshots(
 $nonmatching_items = \ORAS\Tickets\Event_Question_Attention_Store::build_items_for_answer_snapshots( 5870, 'rsvp', 'user:123', array(), $questions, $nonmatching_snapshots );
 oras_attention_assert( array() === $nonmatching_items, 'Nonmatching answer snapshot creates no attention item payload' );
 
+$rsvp_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
+$rsvp_code = file_exists( $rsvp_file ) ? (string) file_get_contents( $rsvp_file ) : '';
+oras_attention_assert( false !== strpos( $rsvp_code, 'Event_Question_Attention_Store::upsert_for_answer_snapshots' ), 'RSVP saves generate event question attention items' );
+oras_attention_assert( false !== strpos( $rsvp_code, "source_type' => 'rsvp'" ) || false !== strpos( $rsvp_code, "'rsvp'," ), 'RSVP attention context uses RSVP source type' );
+
+$product_sync_file = dirname( __DIR__ ) . '/includes/Commerce/Woo/Product_Sync.php';
+$product_sync_code = file_exists( $product_sync_file ) ? (string) file_get_contents( $product_sync_file ) : '';
+oras_attention_assert( false !== strpos( $product_sync_code, 'Event_Question_Attention_Store::upsert_for_answer_snapshots' ), 'Ticket order snapshots generate event question attention items' );
+oras_attention_assert( false !== strpos( $product_sync_code, "source_type' => 'ticket'" ) || false !== strpos( $product_sync_code, "'ticket'," ), 'Ticket attention context uses ticket source type' );
+
 echo "Event question attention checks passed.\n";
