@@ -26,9 +26,9 @@
 	--oras-rsvp-status-yes: #0b5132;
 	--oras-rsvp-status-no: #4b5563;
 	--oras-rsvp-status-waitlist: #8a5a00;
-	--oras-rsvp-label-text: #e5e7eb;
-	--oras-rsvp-legend-text: #cbd5e1;
-	--oras-rsvp-description-text: rgba(229, 231, 235, 0.9);
+	--oras-rsvp-label-text: #111827;
+	--oras-rsvp-legend-text: #111827;
+	--oras-rsvp-description-text: #4b5563;
 	--oras-rsvp-badge-bg: #e6ffed;
 	--oras-rsvp-badge-border: #bdeccf;
 	--oras-rsvp-badge-text: #114b2b;
@@ -216,6 +216,10 @@
 	font-weight: 700;
 }
 
+.oras-event-question-field .required {
+	color: inherit;
+}
+
 .oras-event-question-field input[type="text"],
 .oras-event-question-field input[type="email"],
 .oras-event-question-field input[type="number"],
@@ -237,6 +241,12 @@
 .oras-event-question-field textarea:focus {
 	outline: 2px solid rgba(37, 99, 235, 0.35);
 	outline-offset: 2px;
+}
+
+.oras-event-question-field input::placeholder,
+.oras-event-question-field textarea::placeholder {
+	color: color-mix(in srgb, var(--oras-question-field-text) 55%, transparent);
+	opacity: 1;
 }
 
 .oras-event-question-field__choices {
@@ -321,7 +331,8 @@
 }
 
 .oras-rsvp-attendance-mode,
-.oras-rsvp-contact {
+.oras-rsvp-contact,
+.oras-rsvp-event-questions {
 	margin: 1rem 0 0;
 	padding: 1rem 1.125rem;
 	border: 1px solid var(--oras-rsvp-field-border);
@@ -332,7 +343,8 @@
 }
 
 .oras-rsvp-attendance-mode legend,
-.oras-rsvp-contact legend {
+.oras-rsvp-contact legend,
+.oras-rsvp-event-questions legend {
 	padding: 0 0.35rem;
 	font-weight: 700;
 	color: var(--oras-rsvp-legend-text) !important;
@@ -342,7 +354,9 @@
 .oras-rsvp-attendance-mode label,
 .oras-rsvp-attendance-mode span,
 .oras-rsvp-contact,
-.oras-rsvp-contact label {
+.oras-rsvp-contact label,
+.oras-rsvp-event-questions,
+.oras-rsvp-event-questions label {
 	color: var(--oras-rsvp-label-text) !important;
 }
 
@@ -526,12 +540,10 @@
 }
 
 html[data-wp-dark-mode-active] .oras-tickets-display,
-html[data-wp-dark-mode-loading] .oras-tickets-display,
 html.wp-dark-mode-active .oras-tickets-display,
 body.wp-dark-mode-active .oras-tickets-display,
 html.oras-dark-on .oras-tickets-display,
 html[data-wp-dark-mode-active] .oras-rsvp-block,
-html[data-wp-dark-mode-loading] .oras-rsvp-block,
 html.wp-dark-mode-active .oras-rsvp-block,
 body.wp-dark-mode-active .oras-rsvp-block,
 html.oras-dark-on .oras-rsvp-block {
@@ -584,12 +596,10 @@ html.oras-dark-on .oras-rsvp-block {
 }
 
 html[data-wp-dark-mode-active] .oras-rsvp-field input,
-html[data-wp-dark-mode-loading] .oras-rsvp-field input,
 html.wp-dark-mode-active .oras-rsvp-field input,
 body.wp-dark-mode-active .oras-rsvp-field input,
 html.oras-dark-on .oras-rsvp-field input,
 html[data-wp-dark-mode-active] .oras-rsvp-field textarea,
-html[data-wp-dark-mode-loading] .oras-rsvp-field textarea,
 html.wp-dark-mode-active .oras-rsvp-field textarea,
 body.wp-dark-mode-active .oras-rsvp-field textarea,
 html.oras-dark-on .oras-rsvp-field textarea {

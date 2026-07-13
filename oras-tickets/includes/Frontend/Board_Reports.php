@@ -229,6 +229,14 @@ final class Board_Reports {
 					background: #ffffff;
 					color: #111827;
 				}
+				.oras-board-reports .oras-board-reports__question-answers-summary {
+					cursor: pointer;
+					font-weight: 800;
+					color: #0f172a;
+				}
+				.oras-board-reports .oras-board-reports__question-answers[open] .oras-board-reports__question-answers-summary {
+					margin-bottom: 12px;
+				}
 				.oras-board-reports .oras-board-reports__question-answers-title {
 					margin-bottom: 10px;
 					font-size: 0.95rem;
@@ -303,6 +311,11 @@ final class Board_Reports {
 					background: rgba(15, 23, 42, 0.9);
 					border-color: rgba(148, 163, 184, 0.35);
 					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers-summary,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers-summary,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__question-answers-summary {
+					color: #f8fafc;
 				}
 				html.oras-dark-on .oras-board-reports .oras-board-reports__question-answers-title,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__question-answers-title,
@@ -1773,7 +1786,8 @@ final class Board_Reports {
 			return;
 		}
 
-		echo '<div class="oras-board-reports__question-answers">';
+		echo '<details class="oras-board-reports__question-answers">';
+		echo '<summary class="oras-board-reports__question-answers-summary">' . esc_html( self::format_question_answer_count( $answers ) ) . '</summary>';
 		echo '<div class="oras-board-reports__question-answers-title">' . esc_html__( 'Event question answers', 'oras-tickets' ) . '</div>';
 		echo '<dl>';
 		foreach ( $answers as $answer ) {
@@ -1791,7 +1805,7 @@ final class Board_Reports {
 			echo '<dd>' . esc_html( $value ) . '</dd>';
 		}
 		echo '</dl>';
-		echo '</div>';
+		echo '</details>';
 	}
 
 	/**
@@ -1815,7 +1829,7 @@ final class Board_Reports {
 
 		return sprintf(
 			/* translators: %d: event question answer count */
-			_n( '%d answer below', '%d answers below', $count, 'oras-tickets' ),
+			_n( '%d event question answer', '%d event question answers', $count, 'oras-tickets' ),
 			$count
 		);
 	}

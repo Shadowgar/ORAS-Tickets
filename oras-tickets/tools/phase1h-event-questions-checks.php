@@ -195,4 +195,16 @@ $rendered = (string) ob_get_clean();
 oras_phase1h_assert( false !== strpos( $rendered, 'type="text"' ), 'Event questions render short text inputs' );
 oras_phase1h_assert( false === strpos( $rendered, 'type="radio"' ), 'Event questions do not render radio controls' );
 
+$frontend_css_file = dirname( __DIR__ ) . '/assets/css/tickets-frontend.css';
+$frontend_css      = file_exists( $frontend_css_file ) ? (string) file_get_contents( $frontend_css_file ) : '';
+oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-label-text: #111827;' ), 'RSVP labels use readable light-mode text color' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-description-text: #4b5563;' ), 'RSVP descriptions use readable light-mode text color' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-rsvp-event-questions legend' ), 'Event Questions fieldset legend inherits RSVP color handling' );
+oras_phase1h_assert( false === strpos( $frontend_css, 'wp-dark-mode-loading' ), 'WP Dark Mode loading state does not force dark RSVP colors' );
+
+$board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php';
+$board_reports      = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';
+oras_phase1h_assert( false !== strpos( $board_reports, '<details class="oras-board-reports__question-answers">' ), 'Board report question answers render collapsed by default' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__question-answers-summary' ), 'Board report question answers include an expandable summary' );
+
 echo "Event question checks passed.\n";
