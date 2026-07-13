@@ -275,6 +275,8 @@ oras_phase1h_assert( false !== strpos( $board_reports, "'RSVP Management'" ), 'B
 oras_phase1h_assert( false !== strpos( $board_reports, "'Roster'" ), 'Board reports expose Roster label' );
 oras_phase1h_assert( false !== strpos( $board_reports, '$filters[\'type\'] = Board_Report_Service::TYPE_TICKETS;' ), 'Ticket Sales tab is locked to ticket rows' );
 oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board_report_type">' ), 'Ticket Sales tab no longer exposes generic report type dropdown' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'Content-Type: text/html; charset=UTF-8' ), 'Board communications emails use HTML content type' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'build_communication_email_body' ), 'Board communications emails use a styled ORAS email body' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';

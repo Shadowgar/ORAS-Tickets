@@ -1595,15 +1595,15 @@ final class Board_Reports {
 			self::redirect_communication_result( $redirect, 'failed', 0 );
 		}
 
-			$sender = wp_get_current_user();
-			$sender_user_id = get_current_user_id();
-			$sender_display_name = (string) $sender->display_name;
-			$sender_email = (string) $sender->user_email;
+		$sender = wp_get_current_user();
+		$sender_user_id = get_current_user_id();
+		$sender_display_name = (string) $sender->display_name;
+		$sender_email = (string) $sender->user_email;
 		$recipients = ( new Communication_Recipients() )->resolve( $event_id, $segment );
 		$recipient_count = count( $recipients );
 
 		$failed_count = 0;
-		$body = self::append_email_footer( $message, $sender, $event_id );
+		$body = self::build_communication_email_body( $message, $sender, $event_id, $segment );
 		if ( $recipient_count <= 0 ) {
 			$failed_count = 0;
 			$status = 'failed';
@@ -1614,7 +1614,7 @@ final class Board_Reports {
 					++$failed_count;
 					continue;
 				}
-				$sent = wp_mail( $email, $subject, $body, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+				$sent = wp_mail( $email, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 				if ( ! $sent ) {
 					++$failed_count;
 				}
@@ -1978,18 +1978,91 @@ final class Board_Reports {
 		exit;
 	}
 
-	private static function append_email_footer( string $message, \WP_User $sender, int $event_id ): string {
-		$footer = "\n\n--\n" . __( 'This message was sent by Oil Region Astronomical Society regarding an ORAS event.', 'oras-tickets' );
+	private static function build_communication_email_body( string $message, \WP_User $sender, int $event_id, string $segment ): string {
+		$event_title = get_the_title( $event_id );
+		if ( ! is_string( $event_title ) || '' === trim( $event_title ) ) {
+			$event_title = __( 'ORAS Event', 'oras-tickets' );
+		}
+		$event_title = wp_specialchars_decode( trim( $event_title ), ENT_QUOTES );
+
+		$event_url = get_permalink( $event_id );
+		if ( ! is_string( $event_url ) || '' === $event_url ) {
+			$event_url = '';
+		}
+
+		$segment_label = Communication_Recipients::get_segment_label( $segment );
+		$brand = __( 'Oil Region Astronomical Society', 'oras-tickets' );
+		$intro = sprintf(
+			/* translators: %s: event title */
+			__( 'You are receiving this message because you are connected to %s.', 'oras-tickets' ),
+			$event_title
+		);
+
 		$show_sender = (bool) apply_filters( 'oras_tickets_show_sender_name_in_email_footer', false, $sender, $event_id );
+		$sender_note = '';
 		if ( $show_sender && '' !== (string) $sender->display_name ) {
-			$footer .= "\n" . sprintf(
+			$sender_note = sprintf(
 				/* translators: %s: sender display name. */
 				__( 'Sent by: %s', 'oras-tickets' ),
 				(string) $sender->display_name
 			);
 		}
 
-		return rtrim( $message ) . $footer;
+		$html = '<!doctype html><html><body style="margin:0;padding:0;background:#eef2f7;color:#111827;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">';
+		$html .= '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">' . esc_html( wp_strip_all_tags( $intro ) ) . '</div>';
+		$html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7;margin:0;padding:28px 12px;"><tr><td align="center">';
+		$html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d8dee8;box-shadow:0 12px 36px rgba(15,23,42,0.12);">';
+		$html .= '<tr><td style="background:#0b1220;padding:28px 32px;color:#ffffff;">';
+		$html .= '<div style="font-size:28px;font-weight:800;letter-spacing:0.18em;line-height:1;">ORAS</div>';
+		$html .= '<div style="font-size:14px;color:#cbd5e1;margin-top:8px;">' . esc_html( $brand ) . '</div>';
+		$html .= '</td></tr>';
+		$html .= '<tr><td style="padding:32px;">';
+		$html .= '<h1 style="margin:0 0 14px;font-size:28px;line-height:1.2;color:#0f172a;">' . esc_html__( 'Event communication', 'oras-tickets' ) . '</h1>';
+		$html .= '<p style="margin:0 0 24px;font-size:16px;color:#334155;">' . esc_html( $intro ) . '</p>';
+		$html .= '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">';
+		$html .= self::communication_email_detail_row( __( 'Event', 'oras-tickets' ), $event_title, $event_url );
+		$html .= self::communication_email_detail_row( __( 'Audience', 'oras-tickets' ), $segment_label );
+		$html .= '</table>';
+		$html .= '<div style="margin:0 0 22px;padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">';
+		$html .= '<h2 style="margin:0 0 10px;font-size:16px;color:#0f172a;">' . esc_html__( 'Message from ORAS', 'oras-tickets' ) . '</h2>';
+		$html .= '<div style="font-size:15px;color:#334155;">' . nl2br( esc_html( trim( $message ) ) ) . '</div>';
+		$html .= '</div>';
+
+		if ( '' !== $event_url ) {
+			$html .= '<div style="margin:28px 0 8px;">';
+			$html .= '<a href="' . esc_url( $event_url ) . '" style="display:inline-block;margin:0 10px 10px 0;padding:13px 18px;border-radius:10px;background:#1e3a8a;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">' . esc_html__( 'View Event', 'oras-tickets' ) . '</a>';
+			$html .= '</div>';
+		}
+
+		if ( '' !== $sender_note ) {
+			$html .= '<p style="margin:22px 0 0;font-size:13px;color:#64748b;">' . esc_html( $sender_note ) . '</p>';
+		}
+
+		$html .= '</td></tr>';
+		$html .= '<tr><td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;">';
+		$html .= esc_html__( 'This message was sent by Oil Region Astronomical Society regarding an ORAS event.', 'oras-tickets' );
+		$html .= '</td></tr>';
+		$html .= '</table></td></tr></table></body></html>';
+
+		return $html;
+	}
+
+	private static function communication_email_detail_row( string $label, string $value, string $url = '' ): string {
+		if ( '' === trim( $label ) || '' === trim( $value ) ) {
+			return '';
+		}
+
+		$html = '<tr>';
+		$html .= '<td style="width:34%;padding:14px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">' . esc_html( $label ) . '</td>';
+		$html .= '<td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;">';
+		if ( '' !== $url ) {
+			$html .= '<a href="' . esc_url( $url ) . '" style="color:#1d4ed8;text-decoration:underline;word-break:break-word;">' . esc_html( $value ) . '</a>';
+		} else {
+			$html .= esc_html( $value );
+		}
+		$html .= '</td></tr>';
+
+		return $html;
 	}
 
 	private static function get_related_action_type( string $segment ): string {
