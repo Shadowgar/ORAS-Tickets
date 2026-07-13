@@ -212,12 +212,71 @@
 			'[id*="virtual"]',
 			'[id*="Virtual"]',
 		].join(',');
+		var scrollContainerSelector = [
+			'html',
+			'body',
+			'#wpbody-content',
+			'#poststuff',
+			'.interface-interface-skeleton__content',
+			'.edit-post-layout__content',
+			'.edit-post-sidebar',
+			'.components-panel',
+		].join(',');
 
-		function currentScroll() {
+		function windowScroll() {
+			var doc = document.documentElement || {};
+			var body = document.body || {};
 			return {
-				x: globalThis.pageXOffset || globalThis.scrollX || 0,
-				y: globalThis.pageYOffset || globalThis.scrollY || 0,
+				x: globalThis.pageXOffset || globalThis.scrollX || doc.scrollLeft || body.scrollLeft || 0,
+				y: globalThis.pageYOffset || globalThis.scrollY || doc.scrollTop || body.scrollTop || 0,
 			};
+		}
+
+		function isScrollableElement(element) {
+			if (!element || element === document || element === globalThis) {
+				return false;
+			}
+
+			return element.scrollHeight > element.clientHeight + 8 || element.scrollWidth > element.clientWidth + 8;
+		}
+
+		function addScrollTarget(targets, element) {
+			if (!element || targets.some(function (target) { return target.element === element; })) {
+				return;
+			}
+
+			if (!isScrollableElement(element) && element.scrollTop < 1 && element.scrollLeft < 1) {
+				return;
+			}
+
+			targets.push({
+				element: element,
+				x: element.scrollLeft || 0,
+				y: element.scrollTop || 0,
+			});
+		}
+
+		function collectScrollState(control) {
+			var targets = [];
+			var win = windowScroll();
+			var state = {
+				x: win.x,
+				y: win.y,
+				targets: targets,
+				at: Date.now(),
+			};
+
+			toArray(document.querySelectorAll(scrollContainerSelector)).forEach(function (element) {
+				addScrollTarget(targets, element);
+			});
+
+			var current = control;
+			while (current && current !== document.body && current !== document.documentElement) {
+				addScrollTarget(targets, current);
+				current = current.parentElement;
+			}
+
+			return state;
 		}
 
 		function clearRestoreTimers() {
@@ -242,47 +301,51 @@
 		}
 
 		function isNavigationLink(control) {
-			if (!control || control.tagName?.toLowerCase() !== 'a') {
+			if (!control || (control.tagName ? control.tagName.toLowerCase() : '') !== 'a') {
 				return false;
 			}
 
-			var href = control.getAttribute('href') || '';
-			return href !== '' && href !== '#' && href.charAt(0) !== '#';
+			var href = (control.getAttribute('href') || '').trim();
+			if (href === '' || href === '#' || href.charAt(0) === '#') {
+				return false;
+			}
+
+			return href.indexOf('javascript:') !== 0;
 		}
 
-		function shouldWatchInteraction(target) {
-			var control = target?.closest?.(interactiveSelector);
+		function getWatchedControl(target) {
+			var control = target && typeof target.closest === 'function' ? target.closest(interactiveSelector) : null;
 			if (!control) {
-				return false;
+				return null;
 			}
 
-			if (container.contains(control)) {
-				return false;
+			if (container && container.contains(control)) {
+				return null;
 			}
 
 			if (isSubmitControl(control) || isNavigationLink(control)) {
-				return false;
+				return null;
 			}
 
-			var adminForm = control.closest('#post, #poststuff, .interface-interface-skeleton__content, .edit-post-layout');
-			return !!adminForm;
+			return control.closest('#post, #poststuff, .interface-interface-skeleton__content, .edit-post-layout, [class*="tribe"], [id*="tribe"]');
 		}
 
 		function rememberInteraction(event) {
-			if (!shouldWatchInteraction(event.target)) {
+			var control = getWatchedControl(event.target);
+			if (!control) {
 				return;
 			}
 
-			var position = currentScroll();
-			if (position.y < 120) {
+			var state = collectScrollState(control);
+			var hasMeaningfulScroll = state.y > 120 || state.targets.some(function (target) {
+				return target.y > 120;
+			});
+
+			if (!hasMeaningfulScroll) {
 				return;
 			}
 
-			lastState = {
-				x: position.x,
-				y: position.y,
-				at: Date.now(),
-			};
+			lastState = state;
 		}
 
 		function maybeRestore() {
@@ -290,14 +353,26 @@
 				return;
 			}
 
-			var position = currentScroll();
+			var position = windowScroll();
 			if (position.y <= 40 && lastState.y > 120) {
 				globalThis.scrollTo(lastState.x, lastState.y);
 			}
+
+			lastState.targets.forEach(function (target) {
+				if (!target.element || !document.documentElement.contains(target.element)) {
+					return;
+				}
+
+				var currentY = target.element.scrollTop || 0;
+				if (currentY <= 40 && target.y > 120) {
+					target.element.scrollTop = target.y;
+					target.element.scrollLeft = target.x;
+				}
+			});
 		}
 
 		function scheduleRestore(event) {
-			if (!shouldWatchInteraction(event.target) || !lastState) {
+			if (!getWatchedControl(event.target) || !lastState) {
 				return;
 			}
 
@@ -310,9 +385,11 @@
 			});
 		}
 
+		document.addEventListener('pointerdown', rememberInteraction, true);
 		document.addEventListener('mousedown', rememberInteraction, true);
 		document.addEventListener('focusin', rememberInteraction, true);
 		document.addEventListener('click', scheduleRestore, true);
+		document.addEventListener('pointerup', scheduleRestore, true);
 		document.addEventListener('change', scheduleRestore, true);
 	}
 
