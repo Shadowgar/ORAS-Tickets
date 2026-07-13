@@ -143,4 +143,13 @@ $product_sync_code = file_exists( $product_sync_file ) ? (string) file_get_conte
 oras_attention_assert( false !== strpos( $product_sync_code, 'Event_Question_Attention_Store::upsert_for_answer_snapshots' ), 'Ticket order snapshots generate event question attention items' );
 oras_attention_assert( false !== strpos( $product_sync_code, "source_type' => 'ticket'" ) || false !== strpos( $product_sync_code, "'ticket'," ), 'Ticket attention context uses ticket source type' );
 
+$board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php';
+$board_reports_code = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';
+oras_attention_assert( false !== strpos( $board_reports_code, 'Event_Question_Attention_Store' ), 'Board Reports uses attention store' );
+oras_attention_assert( false !== strpos( $board_reports_code, 'TAB_ATTENTION' ), 'Board Reports defines Attention Needed tab' );
+oras_attention_assert( false !== strpos( $board_reports_code, "'Attention Needed'" ), 'Board Reports exposes Attention Needed tab label' );
+oras_attention_assert( false !== strpos( $board_reports_code, 'render_attention_tab' ), 'Board Reports renders attention review tab' );
+oras_attention_assert( false !== strpos( $board_reports_code, 'handle_update_attention_status' ), 'Board Reports supports attention review actions' );
+oras_attention_assert( method_exists( '\ORAS\Tickets\Event_Question_Attention_Store', 'update_status' ), 'Attention store supports status updates' );
+
 echo "Event question attention checks passed.\n";

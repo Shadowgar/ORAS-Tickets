@@ -242,6 +242,38 @@ final class Event_Question_Attention_Store {
 		return max( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table_name() . ' WHERE ' . $where, $args ) ) );
 	}
 
+	public static function update_status( int $id, string $status, int $reviewer_user_id, string $note = '' ): bool {
+		if ( $id <= 0 ) {
+			return false;
+		}
+
+		$status = self::sanitize_status( $status );
+		if ( '' === $status ) {
+			return false;
+		}
+
+		self::maybe_upgrade();
+
+		global $wpdb;
+
+		$reviewed_at = self::STATUS_OPEN === $status ? null : current_time( 'mysql', true );
+		$updated = $wpdb->update(
+			self::table_name(),
+			array(
+				'status'        => $status,
+				'updated_at'    => current_time( 'mysql', true ),
+				'reviewed_by'   => self::STATUS_OPEN === $status ? 0 : max( 0, $reviewer_user_id ),
+				'reviewed_at'   => $reviewed_at,
+				'internal_note' => self::sanitize_body_snapshot( $note ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%d', '%s', '%s' ),
+			array( '%d' )
+		);
+
+		return false !== $updated;
+	}
+
 	public static function table_exists(): bool {
 		global $wpdb;
 

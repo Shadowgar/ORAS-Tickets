@@ -5,6 +5,7 @@ namespace ORAS\Tickets\Frontend;
 use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Communication_Recipients;
 use ORAS\Tickets\Domain\Ticket;
+use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
 use ORAS\Tickets\Waitlist_Store;
@@ -22,9 +23,12 @@ final class Board_Reports {
 	private const APPROVAL_ACTION = 'oras_board_reports_update_rsvp_approval';
 	private const WAITLIST_NONCE_ACTION = 'oras_board_reports_waitlist';
 	private const WAITLIST_ACTION = 'oras_board_reports_update_waitlist';
+	private const ATTENTION_NONCE_ACTION = 'oras_board_reports_attention';
+	private const ATTENTION_ACTION = 'oras_board_reports_update_attention_status';
 	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
+	private const TAB_ATTENTION = 'attention';
 	private const TAB_COMMUNICATIONS = 'communications';
 	private const TAB_ATTENDEES = 'attendees';
 	private const TAB_STATISTICS = 'statistics';
@@ -37,6 +41,7 @@ final class Board_Reports {
 		add_action( 'admin_post_' . self::COMMUNICATION_ACTION, array( self::class, 'handle_send_communication' ) );
 		add_action( 'admin_post_' . self::APPROVAL_ACTION, array( self::class, 'handle_update_rsvp_approval' ) );
 		add_action( 'admin_post_' . self::WAITLIST_ACTION, array( self::class, 'handle_update_waitlist' ) );
+		add_action( 'admin_post_' . self::ATTENTION_ACTION, array( self::class, 'handle_update_attention_status' ) );
 	}
 
 	/**
@@ -548,6 +553,7 @@ final class Board_Reports {
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
 			<?php self::render_rsvp_approval_notice(); ?>
 			<?php self::render_waitlist_notice(); ?>
+			<?php self::render_attention_notice(); ?>
 			<?php self::render_event_selector_shell( $page_id, $events, $filters['event_id'], $active_tab ); ?>
 			<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
 			<?php self::render_tabs( $active_tab ); ?>
@@ -557,6 +563,8 @@ final class Board_Reports {
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_RSVPS === $active_tab ) : ?>
 				<?php self::render_rsvps_tab( $page_id ); ?>
+			<?php elseif ( self::TAB_ATTENTION === $active_tab ) : ?>
+				<?php self::render_attention_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_COMMUNICATIONS === $active_tab ) : ?>
 				<?php self::render_communications_tab( $page_id ); ?>
 			<?php elseif ( self::TAB_ATTENDEES === $active_tab ) : ?>
@@ -604,6 +612,7 @@ final class Board_Reports {
 			__( 'On-site Attendance', 'oras-tickets' )    => (string) absint( $stats['onsite_attendance_count'] ?? 0 ),
 			__( 'Virtual Attendance', 'oras-tickets' )    => (string) absint( $stats['virtual_attendance_count'] ?? 0 ),
 			__( 'Waitlist', 'oras-tickets' )              => (string) absint( $stats['rsvp_waitlist_count'] ?? 0 ),
+			__( 'Open Attention Items', 'oras-tickets' )  => (string) Event_Question_Attention_Store::count_open( $event_id ),
 			__( 'Expected Attendance', 'oras-tickets' )   => (string) ( absint( $stats['onsite_attendance_count'] ?? 0 ) + absint( $stats['virtual_attendance_count'] ?? 0 ) ),
 			__( 'Communications Sent', 'oras-tickets' )   => (string) self::get_communication_count_for_event( $event_id ),
 		);
@@ -1141,6 +1150,138 @@ final class Board_Reports {
 			<?php
 		}
 
+	private static function render_attention_tab( int $page_id ): void {
+		$service = new Board_Report_Service();
+		$events = $service->get_events();
+		$filters = self::get_filters_from_request();
+		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
+			$filters['event_id'] = (int) $events[0]->ID;
+		}
+
+		$attention_filters = self::get_attention_filters( $filters['event_id'] );
+		$rows = $filters['event_id'] > 0 ? Event_Question_Attention_Store::query( $attention_filters ) : array();
+		?>
+			<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+				<?php if ( $page_id > 0 ) : ?>
+					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+				<?php endif; ?>
+				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_ATTENTION ); ?>" />
+				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
+
+				<label>
+					<?php echo esc_html__( 'Status', 'oras-tickets' ); ?>
+					<select name="oras_attention_status">
+						<?php foreach ( self::get_attention_status_options() as $status => $label ) : ?>
+							<option value="<?php echo esc_attr( $status ); ?>" <?php selected( (string) $attention_filters['status'], $status ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'Severity', 'oras-tickets' ); ?>
+					<select name="oras_attention_severity">
+						<option value=""><?php echo esc_html__( 'All', 'oras-tickets' ); ?></option>
+						<?php foreach ( \ORAS\Tickets\Event_Questions::attention_severity_options() as $severity => $label ) : ?>
+							<option value="<?php echo esc_attr( $severity ); ?>" <?php selected( (string) $attention_filters['severity'], $severity ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'Source', 'oras-tickets' ); ?>
+					<select name="oras_attention_source_type">
+						<option value=""><?php echo esc_html__( 'All', 'oras-tickets' ); ?></option>
+						<option value="rsvp" <?php selected( (string) $attention_filters['source_type'], 'rsvp' ); ?>><?php echo esc_html__( 'RSVP', 'oras-tickets' ); ?></option>
+						<option value="ticket" <?php selected( (string) $attention_filters['source_type'], 'ticket' ); ?>><?php echo esc_html__( 'Ticket', 'oras-tickets' ); ?></option>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'Search', 'oras-tickets' ); ?>
+					<input type="search" name="oras_attention_search" value="<?php echo esc_attr( (string) $attention_filters['search'] ); ?>" placeholder="<?php echo esc_attr__( 'Name, email, question, answer, reason', 'oras-tickets' ); ?>" />
+				</label>
+				<div class="oras-board-reports__actions">
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Attention Items', 'oras-tickets' ); ?></button>
+				</div>
+			</form>
+
+			<?php if ( empty( $events ) ) : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No events are available for attention review.', 'oras-tickets' ); ?></div>
+			<?php elseif ( empty( $rows ) ) : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching attention items found.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<div class="oras-board-reports__table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th><?php echo esc_html__( 'Created', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Person', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Question', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Answer', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Reason', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Severity', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $rows as $row ) : ?>
+								<tr>
+									<td><?php echo esc_html( self::row_scalar( $row, 'created_at' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'attendee_name' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
+									<td><?php echo esc_html( ucfirst( self::row_scalar( $row, 'source_type' ) ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'question_label' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'answer_value' ) ); ?></td>
+									<td><?php echo esc_html( self::row_scalar( $row, 'rule_label' ) ); ?></td>
+									<td><?php echo esc_html( self::get_attention_severity_label( self::row_scalar( $row, 'severity' ) ) ); ?></td>
+									<td><?php echo esc_html( self::get_attention_status_label( self::row_scalar( $row, 'status' ) ) ); ?></td>
+									<td><?php self::render_attention_row_actions( $row ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+			<?php endif; ?>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_attention_row_actions( array $row ): void {
+		if ( ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			echo esc_html__( 'View only', 'oras-tickets' );
+			return;
+		}
+
+		$id = absint( $row['id'] ?? 0 );
+		if ( $id <= 0 ) {
+			return;
+		}
+
+		echo '<div class="oras-board-reports__inline-actions">';
+		self::render_attention_action_form( $id, Event_Question_Attention_Store::STATUS_REVIEWED, __( 'Mark Reviewed', 'oras-tickets' ) );
+		self::render_attention_action_form( $id, Event_Question_Attention_Store::STATUS_RESOLVED, __( 'Resolve', 'oras-tickets' ) );
+		self::render_attention_action_form( $id, Event_Question_Attention_Store::STATUS_DISMISSED, __( 'Dismiss', 'oras-tickets' ) );
+		if ( Event_Question_Attention_Store::STATUS_OPEN !== self::row_scalar( $row, 'status' ) ) {
+			self::render_attention_action_form( $id, Event_Question_Attention_Store::STATUS_OPEN, __( 'Reopen', 'oras-tickets' ) );
+		}
+		echo '</div>';
+	}
+
+	private static function render_attention_action_form( int $id, string $status, string $label ): void {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( self::ATTENTION_NONCE_ACTION, 'oras_board_attention_nonce' ); ?>
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::ATTENTION_ACTION ); ?>" />
+			<input type="hidden" name="attention_id" value="<?php echo esc_attr( (string) $id ); ?>" />
+			<input type="hidden" name="attention_status" value="<?php echo esc_attr( $status ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_url() ); ?>" />
+			<button type="submit" class="button button-secondary"><?php echo esc_html( $label ); ?></button>
+		</form>
+		<?php
+	}
+
 	/**
 	 * @param array<string,mixed> $row
 	 */
@@ -1225,6 +1366,20 @@ final class Board_Reports {
 		<?php
 	}
 
+	private static function render_attention_notice(): void {
+		$status = isset( $_GET['oras_attention_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_attention_status'] ) ) : '';
+		if ( '' === $status ) {
+			return;
+		}
+
+		$message = 'updated' === $status
+			? __( 'Attention item updated.', 'oras-tickets' )
+			: __( 'Unable to update attention item.', 'oras-tickets' );
+		?>
+		<p class="oras-board-reports__notice"><?php echo esc_html( $message ); ?></p>
+		<?php
+	}
+
 	public static function handle_update_rsvp_approval(): void {
 		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
 			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
@@ -1281,6 +1436,29 @@ final class Board_Reports {
 		$status = is_wp_error( $result ) ? 'failed' : 'updated';
 
 		wp_safe_redirect( add_query_arg( 'oras_waitlist_status', $status, $redirect ) );
+		exit;
+	}
+
+	public static function handle_update_attention_status(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_rsvps' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'Not allowed.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		if (
+			! isset( $_POST['oras_board_attention_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['oras_board_attention_nonce'] ) ), self::ATTENTION_NONCE_ACTION )
+		) {
+			wp_die( esc_html__( 'Invalid request.', 'oras-tickets' ), '', array( 'response' => 400 ) );
+		}
+
+		$id = isset( $_POST['attention_id'] ) ? absint( wp_unslash( $_POST['attention_id'] ) ) : 0;
+		$status = isset( $_POST['attention_status'] ) && is_scalar( $_POST['attention_status'] ) ? sanitize_key( wp_unslash( $_POST['attention_status'] ) ) : '';
+		$note = isset( $_POST['attention_note'] ) && is_scalar( $_POST['attention_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['attention_note'] ) ) : '';
+		$redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : self::get_current_dashboard_url( self::TAB_ATTENTION, 0 );
+
+		$updated = Event_Question_Attention_Store::update_status( $id, $status, get_current_user_id(), $note );
+
+		wp_safe_redirect( add_query_arg( 'oras_attention_status', $updated ? 'updated' : 'failed', $redirect ) );
 		exit;
 	}
 
@@ -1428,6 +1606,7 @@ final class Board_Reports {
 			self::TAB_OVERVIEW      => __( 'Event Overview', 'oras-tickets' ),
 			self::TAB_TICKET_SALES  => __( 'Sales', 'oras-tickets' ),
 			self::TAB_RSVPS         => __( 'RSVP Management', 'oras-tickets' ),
+			self::TAB_ATTENTION     => __( 'Attention Needed', 'oras-tickets' ),
 			self::TAB_COMMUNICATIONS => __( 'Communications', 'oras-tickets' ),
 			self::TAB_ATTENDEES     => __( 'Roster', 'oras-tickets' ),
 		);
@@ -1463,6 +1642,10 @@ final class Board_Reports {
 				'title' => __( 'Communications', 'oras-tickets' ),
 				'body'  => __( 'Communications tools will be added in Phase 1D.', 'oras-tickets' ),
 			),
+			self::TAB_ATTENTION      => array(
+				'title' => __( 'Attention Needed', 'oras-tickets' ),
+				'body'  => __( 'Review event question answers that matched configured attention rules.', 'oras-tickets' ),
+			),
 			self::TAB_ATTENDEES      => array(
 				'title' => __( 'Roster', 'oras-tickets' ),
 				'body'  => __( 'Roster management will be added in Phase 1C.', 'oras-tickets' ),
@@ -1497,6 +1680,57 @@ final class Board_Reports {
 		$segment = isset( $_GET['oras_comm_segment'] ) ? sanitize_key( wp_unslash( $_GET['oras_comm_segment'] ) ) : Communication_Recipients::SEGMENT_ALL_ATTENDEES;
 
 		return Communication_Recipients::normalize_segment( $segment );
+	}
+
+	/**
+	 * @return array{event_id:int,status:string,severity:string,source_type:string,search:string,limit:int}
+	 */
+	private static function get_attention_filters( int $event_id ): array {
+		$status = isset( $_GET['oras_attention_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_attention_status'] ) ) : Event_Question_Attention_Store::STATUS_OPEN;
+		if ( ! isset( self::get_attention_status_options()[ $status ] ) ) {
+			$status = Event_Question_Attention_Store::STATUS_OPEN;
+		}
+
+		$severity = isset( $_GET['oras_attention_severity'] ) ? sanitize_key( wp_unslash( $_GET['oras_attention_severity'] ) ) : '';
+		if ( '' !== $severity && ! array_key_exists( $severity, \ORAS\Tickets\Event_Questions::attention_severity_options() ) ) {
+			$severity = '';
+		}
+
+		$source_type = isset( $_GET['oras_attention_source_type'] ) ? sanitize_key( wp_unslash( $_GET['oras_attention_source_type'] ) ) : '';
+		if ( ! in_array( $source_type, array( 'rsvp', 'ticket' ), true ) ) {
+			$source_type = '';
+		}
+
+		return array(
+			'event_id'     => max( 0, $event_id ),
+			'status'       => $status,
+			'severity'     => $severity,
+			'source_type'  => $source_type,
+			'search'       => isset( $_GET['oras_attention_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_attention_search'] ) ) : '',
+			'limit'        => 250,
+		);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private static function get_attention_status_options(): array {
+		return array(
+			Event_Question_Attention_Store::STATUS_OPEN      => __( 'Open', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_REVIEWED  => __( 'Reviewed', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_RESOLVED  => __( 'Resolved', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_DISMISSED => __( 'Dismissed', 'oras-tickets' ),
+		);
+	}
+
+	private static function get_attention_status_label( string $status ): string {
+		$options = self::get_attention_status_options();
+		return $options[ $status ] ?? $status;
+	}
+
+	private static function get_attention_severity_label( string $severity ): string {
+		$options = \ORAS\Tickets\Event_Questions::attention_severity_options();
+		return $options[ $severity ] ?? $severity;
 	}
 
 	/**
