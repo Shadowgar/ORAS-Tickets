@@ -4,6 +4,7 @@ namespace ORAS\Tickets\Reporting;
 
 use ORAS\Tickets\Commerce\Woo\Order_Item_Classifier;
 use ORAS\Tickets\Domain\Ticket;
+use ORAS\Tickets\Event_Questions;
 use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Integrations\QuickBooks\Settings;
 use ORAS\Tickets\Waitlist_Store;
@@ -477,6 +478,7 @@ final class Board_Report_Service {
 				'attendance_label' => __( 'On-site', 'oras-tickets' ),
 				'approval_status' => '',
 				'approval_label'  => '',
+				'question_answers' => $this->normalize_question_answer_snapshots( $item->get_meta( Event_Questions::ORDER_ITEM_KEY, true ) ),
 			),
 			$extra
 		);
@@ -488,6 +490,9 @@ final class Board_Report_Service {
 	private function build_rsvp_row( int $event_id, int $user_id, string $status ): array {
 		$contact_raw = get_user_meta( $user_id, '_oras_rsvp_event_' . $event_id . '_contact', true );
 		$contact = Contact_Normalizer::from_rsvp_contact( is_array( $contact_raw ) ? $contact_raw : array(), $user_id );
+		$question_answers = is_array( $contact_raw ) && isset( $contact_raw[ Event_Questions::RSVP_CONTACT_KEY ] ) && is_array( $contact_raw[ Event_Questions::RSVP_CONTACT_KEY ] )
+			? $this->normalize_question_answer_snapshots( $contact_raw[ Event_Questions::RSVP_CONTACT_KEY ] )
+			: array();
 		$attendance_mode = class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_attendance_type_for_report( $event_id, $user_id ) : Ticket::ATTENDANCE_MODE_ONSITE;
 		$approval_status = class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approval_status( $event_id, $user_id ) : Event_RSVP::APPROVAL_STATUS_APPROVED;
 		$label = 'waitlist' === $status ? __( 'Waitlist', 'oras-tickets' ) : __( 'RSVP Yes', 'oras-tickets' );
@@ -520,7 +525,37 @@ final class Board_Report_Service {
 			'approved_by'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_by_display( $event_id, $user_id ) : '',
 			'approved_at'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_at( $event_id, $user_id ) : '',
 			'rejection_reason' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_rejection_reason( $event_id, $user_id ) : '',
+			'question_answers' => $question_answers,
 		);
+	}
+
+	/**
+	 * @param mixed $value
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function normalize_question_answer_snapshots( $value ): array {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$answers = array();
+		foreach ( $value as $snapshot ) {
+			if ( ! is_array( $snapshot ) || empty( $snapshot['label'] ) ) {
+				continue;
+			}
+
+			$label = sanitize_text_field( (string) $snapshot['label'] );
+			$answer_map = Event_Questions::snapshots_to_label_map( array( $snapshot ) );
+			$answers[] = array(
+				'id'            => isset( $snapshot['id'] ) && is_scalar( $snapshot['id'] ) ? sanitize_key( (string) $snapshot['id'] ) : '',
+				'label'         => $label,
+				'type'          => isset( $snapshot['type'] ) && is_scalar( $snapshot['type'] ) ? sanitize_key( (string) $snapshot['type'] ) : 'text',
+				'value'         => $snapshot['value'] ?? '',
+				'display_value' => isset( $snapshot['display_value'] ) && is_scalar( $snapshot['display_value'] ) ? sanitize_text_field( (string) $snapshot['display_value'] ) : ( $answer_map[ $label ] ?? '' ),
+			);
+		}
+
+		return $answers;
 	}
 
 	/**
@@ -589,6 +624,11 @@ final class Board_Report_Service {
 			}
 		}
 
+		$question_text = strtolower( $this->format_question_answers_for_report( $row['question_answers'] ?? array() ) );
+		if ( '' !== $question_text && false !== strpos( $question_text, $search ) ) {
+			return true;
+		}
+
 		return false;
 	}
 
@@ -626,6 +666,11 @@ final class Board_Report_Service {
 				}
 			}
 
+			if ( ! empty( $row['question_answers'] ) && is_array( $row['question_answers'] ) ) {
+				$existing_answers = isset( $merged[ $key ]['question_answers'] ) && is_array( $merged[ $key ]['question_answers'] ) ? $merged[ $key ]['question_answers'] : array();
+				$merged[ $key ]['question_answers'] = array_merge( $existing_answers, $row['question_answers'] );
+			}
+
 			if ( 'waitlist' === (string) ( $row['order_status'] ?? '' ) ) {
 				$merged[ $key ]['order_status'] = 'waitlist';
 			}
@@ -637,6 +682,33 @@ final class Board_Report_Service {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * @param mixed $answers
+	 */
+	public function format_question_answers_for_report( $answers ): string {
+		if ( ! is_array( $answers ) ) {
+			return '';
+		}
+
+		$parts = array();
+		foreach ( $answers as $answer ) {
+			if ( ! is_array( $answer ) ) {
+				continue;
+			}
+
+			$label = isset( $answer['label'] ) && is_scalar( $answer['label'] ) ? sanitize_text_field( (string) $answer['label'] ) : '';
+			$answer_map = Event_Questions::snapshots_to_label_map( array( $answer ) );
+			$value = isset( $answer['display_value'] ) && is_scalar( $answer['display_value'] )
+				? sanitize_text_field( (string) $answer['display_value'] )
+				: ( $answer_map[ $label ] ?? '' );
+			if ( '' !== $label && '' !== $value ) {
+				$parts[] = $label . ': ' . $value;
+			}
+		}
+
+		return implode( '; ', $parts );
 	}
 
 	/**

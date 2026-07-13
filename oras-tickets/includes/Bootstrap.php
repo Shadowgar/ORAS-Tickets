@@ -6,6 +6,7 @@ use ORAS\Tickets\Security\CsvSafety;
 use ORAS\Tickets\Support\Logger;
 
 require_once ORAS_TICKETS_DIR . 'includes/Support/DbLock.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php'; // NOSONAR legacy include
@@ -20,6 +21,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Speaker_CPT.php'; // NOSONAR leg
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Event_Speakers_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Agenda_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Metabox.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Questions_Metabox.php'; // NOSONAR include: event-specific questions
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php'; // NOSONAR legacy include
@@ -169,6 +171,7 @@ final class Bootstrap
             $event_addon_metabox->register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::register();
+            \ORAS\Tickets\Admin\Metaboxes\Event_Questions_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox::register();
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php'; // NOSONAR legacy include
             \ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Attendees_Metabox::register();

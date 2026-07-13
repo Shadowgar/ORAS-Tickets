@@ -178,6 +178,52 @@
 	margin: 0;
 }
 
+.oras-event-questions-panel,
+.oras-event-questions {
+	margin: 18px 0;
+	padding: 18px;
+	border: 1px solid rgba(148, 163, 184, 0.35);
+	border-radius: 12px;
+	background: rgba(15, 23, 42, 0.03);
+}
+
+.oras-event-questions-panel h2,
+.oras-event-questions-panel h3 {
+	margin-top: 0;
+}
+
+.oras-event-question-field {
+	margin: 0 0 16px;
+}
+
+.oras-event-question-field__label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 700;
+}
+
+.oras-event-question-field input[type="text"],
+.oras-event-question-field input[type="email"],
+.oras-event-question-field input[type="number"],
+.oras-event-question-field input[type="tel"],
+.oras-event-question-field select,
+.oras-event-question-field textarea {
+	width: 100%;
+	max-width: 620px;
+}
+
+.oras-event-question-field__choices {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 18px;
+}
+
+.oras-event-question-field__choices label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
 /* Mobile */
 @media (max-width: 640px) {
 	.oras-tickets-display {

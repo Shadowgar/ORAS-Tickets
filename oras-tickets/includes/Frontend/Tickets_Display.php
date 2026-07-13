@@ -7,6 +7,7 @@ use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
+use ORAS\Tickets\Event_Questions;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -460,6 +461,91 @@ WC()->cart->remove_cart_item( $cart_item_key );
         return 0;
     }
 
+    /**
+     * @param array<int|string,mixed> $posted
+     * @param array<int,mixed>        $tickets
+     * @return array<int,array<string,mixed>>
+     */
+    private function get_ticket_questions_for_selection( int $event_id, array $posted, array $tickets ): array {
+        $definitions = Event_Questions::load_definitions( $event_id );
+        if ( empty( $definitions ) ) {
+            return array();
+        }
+
+        $modes = array();
+        foreach ( $posted as $raw_index => $raw_qty ) {
+            $index = absint( $raw_index );
+            $qty = absint( $raw_qty );
+            if ( $qty <= 0 || ! array_key_exists( $index, $tickets ) ) {
+                continue;
+            }
+
+            $ticket_obj = $tickets[ $index ];
+            $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : array() );
+            $modes[] = Ticket::normalizeAttendanceMode(
+                isset( $ticket['attendance_mode'] ) ? (string) $ticket['attendance_mode'] : Ticket::ATTENDANCE_MODE_ONSITE,
+                Ticket::ATTENDANCE_MODE_ONSITE
+            );
+        }
+
+        $modes = array_values( array_unique( $modes ) );
+        $attendance_scope = 1 === count( $modes ) ? (string) $modes[0] : Event_Questions::ATTENDANCE_ALL;
+
+        return Event_Questions::filter_questions( $definitions, Event_Questions::APPLIES_TICKETS, $attendance_scope );
+    }
+
+    /**
+     * @param array<int|string,mixed> $posted
+     * @return array<int,int>
+     */
+    private function normalize_posted_quantities( array $posted ): array {
+        $quantities = array();
+        foreach ( $posted as $raw_index => $raw_qty ) {
+            $index = absint( $raw_index );
+            $qty = absint( $raw_qty );
+            if ( $qty > 0 ) {
+                $quantities[ $index ] = $qty;
+            }
+        }
+
+        return $quantities;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $questions
+     * @param array<int,int>                 $quantities
+     * @param array<string,mixed>            $answers
+     */
+    private function render_ticket_question_step( int $event_id, array $questions, array $quantities, array $answers = array() ): string {
+        if ( empty( $questions ) || empty( $quantities ) ) {
+            return '';
+        }
+
+        ob_start();
+        echo '<section class="oras-tickets-section">';
+        echo '<div class="oras-tickets-display oras-event-questions-panel">';
+        echo '<h2>' . esc_html__( 'Event Questions', 'oras-tickets' ) . '</h2>';
+        echo '<p>' . esc_html__( 'Please answer these event questions before continuing to the cart.', 'oras-tickets' ) . '</p>';
+        if ( function_exists( 'wc_print_notices' ) ) {
+            wc_print_notices();
+        }
+        echo '<form method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
+        echo wp_nonce_field( 'oras_tickets_add_to_cart', 'oras_tickets_nonce', true, false );
+        echo '<input type="hidden" name="_oras_tickets" value="1" />';
+        echo '<input type="hidden" name="oras_ticket_questions_confirmed" value="1" />';
+        foreach ( $quantities as $index => $qty ) {
+            echo '<input type="hidden" name="oras_qty[' . esc_attr( (string) $index ) . ']" value="' . esc_attr( (string) $qty ) . '" />';
+        }
+        Event_Questions::render_fields( $questions, $answers );
+        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">' . esc_html__( 'Continue to Cart', 'oras-tickets' ) . '</button> ';
+        echo '<a class="button" href="' . esc_url( get_permalink( $event_id ) ) . '">' . esc_html__( 'Back to Tickets', 'oras-tickets' ) . '</a></p>';
+        echo '</form>';
+        echo '</div>';
+        echo '</section>';
+
+        return (string) ob_get_clean();
+    }
+
     private function get_cart_quantity_for_product( int $product_id ): int {
         if ( $product_id <= 0 || ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
             return 0;
@@ -636,6 +722,28 @@ WC()->cart->remove_cart_item( $cart_item_key );
             return (string) ob_get_clean();
         }
 
+        $posted_quantities_raw = isset( $_POST['_oras_tickets'], $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] )
+            ? wp_unslash( $_POST['oras_qty'] )
+            : array();
+        $posted_quantities = $this->normalize_posted_quantities( is_array( $posted_quantities_raw ) ? $posted_quantities_raw : array() );
+        $ticket_questions = $this->get_ticket_questions_for_selection( $event_id, $posted_quantities, $tickets );
+        $question_answers = isset( $_POST['oras_event_question_answers'] ) && is_array( $_POST['oras_event_question_answers'] )
+            ? wp_unslash( $_POST['oras_event_question_answers'] )
+            : array();
+        $is_question_step_request = ! empty( $posted_quantities )
+            && ! empty( $ticket_questions )
+            && empty( $_POST['oras_ticket_questions_confirmed'] );
+        $is_failed_question_submission = ! empty( $posted_quantities )
+            && ! empty( $ticket_questions )
+            && ! empty( $_POST['oras_ticket_questions_confirmed'] )
+            && function_exists( 'wc_notice_count' )
+            && wc_notice_count( 'error' ) > 0;
+
+        if ( $is_question_step_request || $is_failed_question_submission ) {
+            ob_end_clean();
+            return $this->render_ticket_question_step( $event_id, $ticket_questions, $posted_quantities, is_array( $question_answers ) ? $question_answers : array() );
+        }
+
         echo '<form method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo wp_nonce_field( 'oras_tickets_add_to_cart', 'oras_tickets_nonce', true, false );
@@ -783,7 +891,9 @@ if ( $product_id <= 0 ) {
 
         // Submit and view cart
         $cart_url = function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : '#';
-        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">Add selected tickets to cart</button> ';
+        $has_ticket_questions = ! empty( Event_Questions::filter_questions( Event_Questions::load_definitions( $event_id ), Event_Questions::APPLIES_TICKETS, Event_Questions::ATTENDANCE_ALL ) );
+        $button_label = $has_ticket_questions ? __( 'Continue to Event Questions', 'oras-tickets' ) : __( 'Add selected tickets to cart', 'oras-tickets' );
+        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">' . esc_html( $button_label ) . '</button> ';
         echo '<a class="button" href="' . esc_url( $cart_url ) . '">' . esc_html__( 'View cart', 'oras-tickets' ) . '</a></p>';
         echo '</form>';
 
@@ -837,6 +947,28 @@ if ( $product_id <= 0 ) {
         }
 
         $posted = isset( $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] ) ? wp_unslash( $_POST['oras_qty'] ) : array();
+        $posted_quantities = $this->normalize_posted_quantities( is_array( $posted ) ? $posted : array() );
+        $ticket_questions = $this->get_ticket_questions_for_selection( $event_id, $posted_quantities, $tickets );
+        $question_snapshots = array();
+
+        if ( ! empty( $ticket_questions ) && empty( $_POST['oras_ticket_questions_confirmed'] ) ) {
+            return;
+        }
+
+        if ( ! empty( $ticket_questions ) ) {
+            $raw_answers = isset( $_POST['oras_event_question_answers'] ) && is_array( $_POST['oras_event_question_answers'] )
+                ? wp_unslash( $_POST['oras_event_question_answers'] )
+                : array();
+            $validation = Event_Questions::validate_answers( $ticket_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+            if ( $validation instanceof \WP_Error ) {
+                if ( function_exists( 'wc_add_notice' ) ) {
+                    wc_add_notice( $validation->get_error_message(), 'error' );
+                }
+                return;
+            }
+
+            $question_snapshots = Event_Questions::build_answer_snapshots( $ticket_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+        }
 
         $added_any = false;
         $had_error = false;
@@ -989,7 +1121,12 @@ if ( $product_id <= 0 ) {
             $_POST['product_id']     = (string) $product_id;
             $_POST['quantity']       = (string) $qty_to_add;
 
-            $added = WC()->cart->add_to_cart( $product_id, $qty_to_add );
+            $cart_item_data = array();
+            if ( ! empty( $question_snapshots ) ) {
+                $cart_item_data[ Event_Questions::CART_ITEM_KEY ] = $question_snapshots;
+            }
+
+            $added = WC()->cart->add_to_cart( $product_id, $qty_to_add, 0, array(), $cart_item_data );
 
             if ( $request_has_add_to_cart ) {
                 $_REQUEST['add-to-cart'] = $request_prev_add_to_cart;
@@ -1075,6 +1212,11 @@ if ( $product_id <= 0 ) {
             wc_add_notice( __( 'No valid tickets were added.', 'oras-tickets' ), 'error' );
         }
         // phpcs:enable WordPress.WP.I18n.MissingTranslatorsComment
+
+        if ( $added_any && ! empty( $ticket_questions ) && function_exists( 'wc_get_cart_url' ) ) {
+            wp_safe_redirect( wc_get_cart_url() );
+            exit;
+        }
 
         wp_safe_redirect( get_permalink( $event_id ) );
         exit;

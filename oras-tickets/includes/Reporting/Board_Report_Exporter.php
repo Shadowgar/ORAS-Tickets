@@ -21,6 +21,7 @@ final class Board_Report_Exporter {
 		'order_date'      => 'Order Date',
 		'source'          => 'Source',
 		'note'            => 'Note',
+		'question_answers' => 'Event Questions',
 	);
 
 	/**
@@ -63,7 +64,7 @@ final class Board_Report_Exporter {
 		foreach ( $rows as $row ) {
 			echo '<tr>';
 			foreach ( self::COLUMNS as $key => $label ) {
-				$value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
+				$value = $this->get_column_value( $row, $key );
 				echo '<td>' . esc_html( $value ) . '</td>';
 			}
 			echo '</tr>';
@@ -91,11 +92,45 @@ final class Board_Report_Exporter {
 	public function row_to_csv_values( array $row ): array {
 		$values = array();
 		foreach ( self::COLUMNS as $key => $label ) {
-			$value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
-			$values[] = $value;
+			$values[] = $this->get_column_value( $row, $key );
 		}
 
 		return $values;
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private function get_column_value( array $row, string $key ): string {
+		if ( 'question_answers' === $key ) {
+			return $this->format_question_answers( $row[ $key ] ?? array() );
+		}
+
+		return isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
+	}
+
+	/**
+	 * @param mixed $answers
+	 */
+	private function format_question_answers( $answers ): string {
+		if ( ! is_array( $answers ) ) {
+			return '';
+		}
+
+		$parts = array();
+		foreach ( $answers as $answer ) {
+			if ( ! is_array( $answer ) ) {
+				continue;
+			}
+
+			$label = isset( $answer['label'] ) && is_scalar( $answer['label'] ) ? sanitize_text_field( (string) $answer['label'] ) : '';
+			$value = isset( $answer['display_value'] ) && is_scalar( $answer['display_value'] ) ? sanitize_text_field( (string) $answer['display_value'] ) : '';
+			if ( '' !== $label && '' !== $value ) {
+				$parts[] = $label . ': ' . $value;
+			}
+		}
+
+		return implode( '; ', $parts );
 	}
 
 	/**
@@ -112,7 +147,7 @@ final class Board_Report_Exporter {
 		$header_row_h = 20;
 		$data_line_h = 10;
 		$row_padding = 4;
-		$col_widths = array( 78, 120, 70, 120, 95, 40, 68, 78, 58, 55 );
+		$col_widths = array( 72, 108, 62, 105, 82, 36, 58, 70, 50, 48, 110 );
 		$body_height_available = ( $table_top_y - $table_bottom_y ) - $header_row_h;
 
 		$prepared_rows = array();
@@ -121,7 +156,7 @@ final class Board_Report_Exporter {
 			$row_max_lines = 1;
 			$col_index = 0;
 			foreach ( self::COLUMNS as $key => $label ) {
-				$raw_value = isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
+				$raw_value = $this->get_column_value( $row, $key );
 				$normalized = $this->normalize_pdf_cell( $raw_value );
 				$wrapped_lines = $this->wrap_for_column( $normalized, $col_widths[ $col_index ] );
 				$row_cells[] = $wrapped_lines;

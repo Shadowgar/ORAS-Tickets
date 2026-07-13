@@ -4,6 +4,7 @@ namespace ORAS\Tickets\Frontend;
 
 use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
+use ORAS\Tickets\Event_Questions;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -174,6 +175,18 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         echo '<label class="oras-rsvp-field">' . esc_html__( 'Note', 'oras-tickets' ) . '<textarea name="rsvp_note" rows="3">' . esc_textarea( $contact['note'] ) . '</textarea></label>';
         echo '</fieldset>';
 
+        $rsvp_questions = Event_Questions::filter_questions( Event_Questions::load_definitions( $event_id ), Event_Questions::APPLIES_RSVP, Event_Questions::ATTENDANCE_ALL );
+        if ( ! empty( $rsvp_questions ) ) {
+            $stored_answers = isset( $contact[ Event_Questions::RSVP_CONTACT_KEY ] ) && is_array( $contact[ Event_Questions::RSVP_CONTACT_KEY ] )
+                ? Event_Questions::snapshots_to_answer_values( $contact[ Event_Questions::RSVP_CONTACT_KEY ] )
+                : array();
+            echo '<fieldset class="oras-rsvp-event-questions">';
+            echo '<legend>' . esc_html__( 'Event Questions', 'oras-tickets' ) . '</legend>';
+            echo '<p class="description oras-rsvp-description">' . esc_html__( 'Please answer these event-specific questions for ORAS event planning.', 'oras-tickets' ) . '</p>';
+            Event_Questions::render_fields( $rsvp_questions, $stored_answers );
+            echo '</fieldset>';
+        }
+
         // Buttons
         echo '<p class="oras-rsvp-actions">';
         echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'RSVP Yes', 'oras-tickets' ) . '</button>';
@@ -273,6 +286,32 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'invalid' ) ), $redirect );
             wp_safe_redirect( $redirect );
             exit;
+        }
+
+        $question_snapshots = array();
+        if ( in_array( $intent, array( 'yes', 'waitlist' ), true ) ) {
+            $rsvp_questions = Event_Questions::filter_questions(
+                Event_Questions::load_definitions( $event_id ),
+                Event_Questions::APPLIES_RSVP,
+                $request_attendance_mode
+            );
+            if ( ! empty( $rsvp_questions ) ) {
+                $raw_answers = isset( $_POST['oras_event_question_answers'] ) && is_array( $_POST['oras_event_question_answers'] )
+                    ? wp_unslash( $_POST['oras_event_question_answers'] )
+                    : array();
+                $validation = Event_Questions::validate_answers( $rsvp_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+                if ( $validation instanceof \WP_Error ) {
+                    if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
+                        wp_send_json_error( array( 'message' => $validation->get_error_message() ) );
+                    }
+
+                    $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( $validation->get_error_message() ) ), $redirect );
+                    wp_safe_redirect( $redirect );
+                    exit;
+                }
+
+                $question_snapshots = Event_Questions::build_answer_snapshots( $rsvp_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+            }
         }
 
         $user_id = get_current_user_id();
@@ -435,6 +474,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         if ( in_array( (string) ( $operation['status'] ?? '' ), array( 'yes', 'waitlist' ), true ) ) {
+            if ( ! empty( $question_snapshots ) ) {
+                $posted_contact[ Event_Questions::RSVP_CONTACT_KEY ] = $question_snapshots;
+            } else {
+                unset( $posted_contact[ Event_Questions::RSVP_CONTACT_KEY ] );
+            }
             update_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CONTACT_SUFFIX, $posted_contact );
         }
 
@@ -499,7 +543,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     }
 
     /**
-     * @return array{first_name:string,last_name:string,email:string,phone:string,note:string}
+     * @return array<string,mixed>
      */
     private static function get_user_contact_defaults( int $event_id, int $user_id ): array {
         $contact = array(
@@ -508,6 +552,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             'email'      => '',
             'phone'      => '',
             'note'       => '',
+            Event_Questions::RSVP_CONTACT_KEY => array(),
         );
 
         if ( $user_id <= 0 ) {
@@ -517,6 +562,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $stored = get_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CONTACT_SUFFIX, true );
         if ( is_array( $stored ) ) {
             foreach ( $contact as $key => $value ) {
+                if ( Event_Questions::RSVP_CONTACT_KEY === $key ) {
+                    $contact[ $key ] = isset( $stored[ $key ] ) && is_array( $stored[ $key ] ) ? $stored[ $key ] : array();
+                    continue;
+                }
+
                 if ( isset( $stored[ $key ] ) && is_scalar( $stored[ $key ] ) ) {
                     $contact[ $key ] = 'email' === $key
                         ? sanitize_email( (string) $stored[ $key ] )
@@ -545,7 +595,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
     }
 
     /**
-     * @return array{first_name:string,last_name:string,email:string,phone:string,note:string}
+     * @return array<string,mixed>
      */
     private static function get_posted_contact(): array {
         return array(

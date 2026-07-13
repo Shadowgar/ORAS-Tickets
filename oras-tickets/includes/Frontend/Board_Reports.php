@@ -379,20 +379,22 @@ final class Board_Reports {
 				<div class="oras-board-reports__table-wrap">
 					<table>
 						<thead>
-							<tr>
-								<?php foreach ( Board_Report_Exporter::COLUMNS as $label ) : ?>
-									<th><?php echo esc_html( $label ); ?></th>
-								<?php endforeach; ?>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $row ) : ?>
 								<tr>
-									<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
-										<td><?php echo esc_html( isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '' ); ?></td>
+									<?php foreach ( Board_Report_Exporter::COLUMNS as $label ) : ?>
+										<th><?php echo esc_html( $label ); ?></th>
 									<?php endforeach; ?>
+									<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 								</tr>
-							<?php endforeach; ?>
+							</thead>
+							<tbody>
+								<?php foreach ( $rows as $row ) : ?>
+									<tr>
+										<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
+											<td><?php echo esc_html( self::format_report_cell( $row, $key ) ); ?></td>
+										<?php endforeach; ?>
+										<td><?php self::render_question_answers_details( $row ); ?></td>
+									</tr>
+								<?php endforeach; ?>
 						</tbody>
 						</table>
 					</div>
@@ -692,9 +694,10 @@ final class Board_Reports {
 								<th><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
 								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
-							</tr>
+									<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
+									<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
+								</tr>
 						</thead>
 						<tbody>
 							<?php foreach ( $rows as $row ) : ?>
@@ -706,9 +709,10 @@ final class Board_Reports {
 									<td><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
 									<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-								</tr>
+										<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
+										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
+										<td><?php self::render_question_answers_details( $row ); ?></td>
+									</tr>
 							<?php endforeach; ?>
 						</tbody>
 					</table>
@@ -888,6 +892,7 @@ final class Board_Reports {
 				<?php if ( '' !== $rejection_reason ) : ?>
 					<p><strong><?php echo esc_html__( 'Rejection reason:', 'oras-tickets' ); ?></strong> <?php echo esc_html( $rejection_reason ); ?></p>
 				<?php endif; ?>
+				<?php self::render_question_answers_summary( $row ); ?>
 				<p><strong><?php echo esc_html__( 'User ID:', 'oras-tickets' ); ?></strong> <?php echo esc_html( (string) $user_id ); ?></p>
 			</details>
 			<?php if ( current_user_can( 'oras_tickets_manage_rsvps' ) && $event_id > 0 && $user_id > 0 ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
@@ -1643,6 +1648,86 @@ final class Board_Reports {
 		}
 
 		return implode( ', ', $parts );
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function format_report_cell( array $row, string $key ): string {
+		if ( 'question_answers' === $key ) {
+			return self::format_question_answers( $row['question_answers'] ?? array() );
+		}
+
+		return self::row_scalar( $row, $key );
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_question_answers_details( array $row ): void {
+		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
+		if ( empty( $answers ) ) {
+			echo esc_html__( 'No event question answers.', 'oras-tickets' );
+			return;
+		}
+
+		echo '<details><summary>' . esc_html__( 'View Answers', 'oras-tickets' ) . '</summary>';
+		self::render_question_answers_summary( $row );
+		echo '</details>';
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_question_answers_summary( array $row ): void {
+		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
+		if ( empty( $answers ) ) {
+			return;
+		}
+
+		echo '<div class="oras-board-reports__question-answers">';
+		echo '<strong>' . esc_html__( 'Event question answers:', 'oras-tickets' ) . '</strong>';
+		echo '<dl>';
+		foreach ( $answers as $answer ) {
+			if ( ! is_array( $answer ) ) {
+				continue;
+			}
+
+			$label = isset( $answer['label'] ) && is_scalar( $answer['label'] ) ? sanitize_text_field( (string) $answer['label'] ) : '';
+			$value = isset( $answer['display_value'] ) && is_scalar( $answer['display_value'] ) ? sanitize_text_field( (string) $answer['display_value'] ) : '';
+			if ( '' === $label || '' === $value ) {
+				continue;
+			}
+
+			echo '<dt>' . esc_html( $label ) . '</dt>';
+			echo '<dd>' . esc_html( $value ) . '</dd>';
+		}
+		echo '</dl>';
+		echo '</div>';
+	}
+
+	/**
+	 * @param mixed $answers
+	 */
+	private static function format_question_answers( $answers ): string {
+		if ( ! is_array( $answers ) ) {
+			return '';
+		}
+
+		$parts = array();
+		foreach ( $answers as $answer ) {
+			if ( ! is_array( $answer ) ) {
+				continue;
+			}
+
+			$label = isset( $answer['label'] ) && is_scalar( $answer['label'] ) ? sanitize_text_field( (string) $answer['label'] ) : '';
+			$value = isset( $answer['display_value'] ) && is_scalar( $answer['display_value'] ) ? sanitize_text_field( (string) $answer['display_value'] ) : '';
+			if ( '' !== $label && '' !== $value ) {
+				$parts[] = $label . ': ' . $value;
+			}
+		}
+
+		return implode( '; ', $parts );
 	}
 
 	/**
