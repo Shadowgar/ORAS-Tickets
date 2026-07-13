@@ -15,6 +15,7 @@ use ORAS\Tickets\Admin\Event_Speakers_Metabox;
 use ORAS\Tickets\Admin\Speaker_CPT;
 use ORAS\Tickets\Bootstrap;
 use ORAS\Tickets\Communication_Log_Store;
+use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Waitlist_Store;
 
 if (! defined('ABSPATH')) {
@@ -56,4 +57,5 @@ register_activation_hook(ORAS_TICKETS_FILE, static function (): void {
     \ORAS\Tickets\Capabilities::add_caps();
     Waitlist_Store::install_schema();
     Communication_Log_Store::install_schema();
+    Event_Question_Attention_Store::install_schema();
 });
