@@ -287,6 +287,7 @@ $agenda_render      = file_exists( $agenda_render_file ) ? (string) file_get_con
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timecell' ), 'Agenda frontend renders a dedicated time column' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: 0 18px 48px' ), 'Agenda frontend uses card depth for readability' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timeline::before' ) && false !== strpos( $agenda_css, "display: none;\n}" ), 'Agenda frontend suppresses decorative timeline rail' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_render, 'oras-agenda__timecell' ), 'Agenda renderer outputs time column markup' );
 
