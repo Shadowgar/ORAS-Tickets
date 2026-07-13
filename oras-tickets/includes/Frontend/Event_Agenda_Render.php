@@ -176,8 +176,10 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
 
                 $items_html .= '<li id="' . esc_attr( $slot_id ) . '" class="oras-agenda__item"' . $data_attrs . '>';
                 $items_html .= '<div class="oras-agenda__node" aria-hidden="true"></div>';
-                $items_html .= '<div class="oras-agenda__body">';
+                $items_html .= '<div class="oras-agenda__timecell">';
                 $items_html .= '<div class="oras-agenda__time">' . esc_html( $time_display ) . '</div>';
+                $items_html .= '</div>';
+                $items_html .= '<div class="oras-agenda__body">';
                 $items_html .= '<div class="oras-agenda__title">' . esc_html( $slot_title !== '' ? $slot_title : __( 'Agenda Item', 'oras-tickets' ) ) . '</div>';
 
                 if ( ! empty( $speakers ) ) {

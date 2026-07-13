@@ -278,6 +278,18 @@ oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board
 oras_phase1h_assert( false !== strpos( $board_reports, 'Content-Type: text/html; charset=UTF-8' ), 'Board communications emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'build_communication_email_body' ), 'Board communications emails use a styled ORAS email body' );
 
+$agenda_css_file    = dirname( __DIR__ ) . '/assets/css/agenda.css';
+$agenda_css         = file_exists( $agenda_css_file ) ? (string) file_get_contents( $agenda_css_file ) : '';
+$agenda_colors_file = dirname( __DIR__ ) . '/assets/css/oras-agenda-colors.css';
+$agenda_colors      = file_exists( $agenda_colors_file ) ? (string) file_get_contents( $agenda_colors_file ) : '';
+$agenda_render_file = dirname( __DIR__ ) . '/includes/Frontend/Event_Agenda_Render.php';
+$agenda_render      = file_exists( $agenda_render_file ) ? (string) file_get_contents( $agenda_render_file ) : '';
+oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timecell' ), 'Agenda frontend renders a dedicated time column' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: 0 18px 48px' ), 'Agenda frontend uses card depth for readability' );
+oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
+oras_phase1h_assert( false !== strpos( $agenda_render, 'oras-agenda__timecell' ), 'Agenda renderer outputs time column markup' );
+
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
 $rsvp_js_file       = dirname( __DIR__ ) . '/assets/js/oras-rsvp-frontend.js';

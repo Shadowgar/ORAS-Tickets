@@ -1,19 +1,31 @@
 .oras-agenda {
+	--oras-agenda-surface: rgba(255, 255, 255, 0.94);
+	--oras-agenda-surface-soft: rgba(248, 250, 252, 0.96);
+	--oras-agenda-card: #ffffff;
 	--oras-agenda-text: rgba(15, 23, 42, 0.88);
 	--oras-agenda-muted: rgba(15, 23, 42, 0.62);
 	--oras-agenda-strong: rgba(15, 23, 42, 0.95);
-	--oras-agenda-line: rgba(15, 23, 42, 0.18);
-	--oras-agenda-tab-selected-bg: rgba(15, 23, 42, 0.06);
+	--oras-agenda-line: rgba(30, 58, 138, 0.28);
+	--oras-agenda-accent: #1e3a8a;
+	--oras-agenda-accent-soft: rgba(30, 58, 138, 0.1);
+	--oras-agenda-border: rgba(15, 23, 42, 0.12);
+	--oras-agenda-tab-selected-bg: rgba(30, 58, 138, 0.12);
 	--oras-agenda-pill-bg: rgba(15, 23, 42, 0.06);
 	--oras-agenda-pill-border: rgba(15, 23, 42, 0.14);
 	--oras-agenda-pill-text: rgba(15, 23, 42, 0.75);
-	--oras-agenda-now-bg: rgba(15, 23, 42, 0.08);
+	--oras-agenda-now-bg: rgba(30, 58, 138, 0.12);
 	--oras-agenda-modal-surface: #ffffff;
 	--oras-agenda-modal-border: rgba(15, 23, 42, 0.1);
 	--oras-agenda-modal-link-bg: rgba(15, 23, 42, 0.06);
 	--oras-agenda-modal-link-hover-bg: rgba(15, 23, 42, 0.14);
 	--oras-agenda-modal-overlay: rgba(0, 0, 0, 0.55);
 	margin-top: 1.5rem;
+	padding: clamp(20px, 4vw, 34px);
+	border: 1px solid var(--oras-agenda-border);
+	border-radius: 24px;
+	background:
+		linear-gradient(135deg, var(--oras-agenda-surface) 0%, var(--oras-agenda-surface-soft) 100%);
+	box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
 	color: var(--oras-agenda-text);
 }
 
@@ -40,11 +52,12 @@
 
 .oras-agenda__title {
 	margin: 0 0 0.5rem;
+	color: var(--oras-agenda-strong);
 }
 
 .oras-agenda__timezone {
 	margin: 0 0 1rem;
-	opacity: 0.8;
+	color: var(--oras-agenda-muted);
 }
 
 .oras-agenda__nav {
@@ -56,28 +69,35 @@
 
 .oras-agenda__tab {
 	text-decoration: none;
-	background: transparent;
-	color: inherit;
+	background: var(--oras-agenda-card);
+	color: var(--oras-agenda-strong);
 	font-size: 0.9rem;
-	padding: 0.25rem 0.5rem;
-	border: 1px solid currentcolor;
+	font-weight: 750;
+	padding: 0.42rem 0.85rem;
+	border: 1px solid var(--oras-agenda-border);
 	border-radius: 999px;
 	cursor: pointer;
+	box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
 }
 
 .oras-agenda__tab[aria-selected="true"] {
 	background: var(--oras-agenda-tab-selected-bg);
+	border-color: var(--oras-agenda-line);
+	color: var(--oras-agenda-accent);
 }
 
 .oras-agenda__panel {
-	margin: 0 0 1rem;
+	margin: 0;
 }
 
 .oras-agenda__day-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: baseline;
-	margin-bottom: 18px;
+	gap: 1rem;
+	margin: 22px 0 18px;
+	padding-bottom: 14px;
+	border-bottom: 1px solid var(--oras-agenda-border);
 }
 
 .oras-agenda__day-label {
@@ -87,12 +107,12 @@
 
 .oras-agenda__day-date {
 	font-size: 14px;
-	opacity: 0.7;
+	color: var(--oras-agenda-muted);
 }
 
 .oras-agenda__timeline {
 	position: relative;
-	margin: 16px 0 0;
+	margin: 0;
 	padding: 0;
 	list-style: none;
 }
@@ -100,10 +120,10 @@
 .oras-agenda__timeline::before {
 	content: "";
 	position: absolute;
-	left: 18px;
-	top: 6px;
-	bottom: 6px;
-	width: 3px;
+	left: 123px;
+	top: 18px;
+	bottom: 18px;
+	width: 2px;
 	background: var(--oras-agenda-line);
 	border-radius: 3px;
 }
@@ -112,9 +132,9 @@
 .oras-agenda__slot {
 	position: relative;
 	display: grid;
-	grid-template-columns: 52px 1fr;
-	column-gap: 18px;
-	padding: 10px 0 16px;
+	grid-template-columns: minmax(112px, 132px) minmax(0, 1fr);
+	column-gap: 26px;
+	padding: 0 0 18px;
 	border: 0;
 }
 
@@ -123,25 +143,41 @@
 	content: "";
 	grid-column: 1;
 	align-self: start;
-	margin-top: 16px;
-	justify-self: center;
-	width: 22px;
-	height: 3px;
-	background: var(--oras-agenda-line);
-	border-radius: 3px;
+	margin-top: 22px;
+	justify-self: end;
+	width: 13px;
+	height: 13px;
+	border: 3px solid var(--oras-agenda-card);
+	background: var(--oras-agenda-accent);
+	border-radius: 999px;
+	box-shadow: 0 0 0 3px var(--oras-agenda-line);
+	transform: translateX(8px);
 }
 
 .oras-agenda__node {
 	display: none;
 }
 
+.oras-agenda__timecell {
+	grid-column: 1;
+	grid-row: 1;
+	display: flex;
+	justify-content: flex-end;
+	padding-top: 16px;
+	min-width: 0;
+}
+
 .oras-agenda__body {
 	grid-column: 2;
+	grid-row: 1;
 	display: flex;
 	flex-direction: column;
-	row-gap: 6px;
-	padding-top: 7px;
-	margin-left: -27px;
+	row-gap: 10px;
+	padding: 18px 20px;
+	border: 1px solid var(--oras-agenda-border);
+	border-radius: 18px;
+	background: var(--oras-agenda-card);
+	box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
 	position: relative;
 	min-width: 0;
 }
@@ -157,18 +193,24 @@
 
 .oras-agenda__time {
 	display: block;
-	font-size: 14px;
-	font-weight: 650;
-	color: var(--oras-agenda-muted);
+	max-width: 116px;
+	padding: 6px 9px;
+	border-radius: 999px;
+	background: var(--oras-agenda-accent-soft);
+	color: var(--oras-agenda-strong);
+	font-size: 13px;
+	font-weight: 800;
+	line-height: 1.25;
+	text-align: right;
 }
 
 .oras-agenda__title {
 	display: block;
-	font-size: 18px;
+	font-size: clamp(19px, 2vw, 24px);
 	font-weight: 800;
 	color: var(--oras-agenda-strong);
 	line-height: 1.25;
-	padding-right: 140px;
+	padding-right: 0;
 }
 
 .oras-agenda__sub {
@@ -183,10 +225,8 @@
 }
 
 .oras-agenda__pill {
-	position: absolute;
-	left: 120px;
-	top: 6px;
 	font-size: 11px;
+	font-weight: 750;
 	padding: 3px 10px;
 	border-radius: 999px;
 	border: 1px solid var(--oras-agenda-pill-border);
@@ -206,9 +246,8 @@
 }
 
 .oras-agenda__desc {
-	font-size: 0.95rem;
-	line-height: 1.45;
-	opacity: 0.95;
+	font-size: 1rem;
+	line-height: 1.55;
 	color: var(--oras-agenda-text);
 }
 
@@ -228,9 +267,11 @@
 	display: inline-block;
 	margin-top: 6px;
 	font-size: 11px;
+	font-weight: 750;
 	padding: 3px 10px;
 	border-radius: 999px;
 	background: var(--oras-agenda-now-bg);
+	color: var(--oras-agenda-strong);
 }
 
 .oras-agenda__speakers {
@@ -238,9 +279,10 @@
 }
 
 .oras-agenda__speakers-label {
-	font-weight: 600;
+	display: block;
+	font-weight: 750;
 	margin-right: 6px;
-	color: color-mix(in srgb, var(--oras-agenda-text) 80%, transparent);
+	color: var(--oras-agenda-strong);
 }
 
 .oras-agenda__speaker-list {
@@ -260,6 +302,8 @@
 	margin: 0;
 	font: inherit;
 	cursor: pointer;
+	color: var(--oras-agenda-accent);
+	font-weight: 700;
 }
 
 .oras-agenda__speaker-role {
@@ -269,23 +313,64 @@
 }
 
 .oras-agenda-resources strong {
-	color: color-mix(in srgb, var(--oras-agenda-text) 80%, transparent);
-	font-weight: 600;
+	color: var(--oras-agenda-strong);
+	font-weight: 750;
 }
 
 @media (max-width: 640px) {
+	.oras-agenda {
+		padding: 18px 14px;
+		border-radius: 18px;
+	}
+
 	.oras-agenda__day-header {
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 0.2rem;
 	}
 
-	.oras-agenda__title {
-		padding-right: 0;
+	.oras-agenda__timeline::before {
+		left: 12px;
 	}
 
-	.oras-agenda__pill {
-		position: static;
+	.oras-agenda__item,
+	.oras-agenda__slot {
+		grid-template-columns: 26px minmax(0, 1fr);
+		column-gap: 12px;
+	}
+
+	.oras-agenda__item::before,
+	.oras-agenda__slot::before {
+		justify-self: center;
+		transform: none;
+		width: 11px;
+		height: 11px;
+		margin-top: 18px;
+	}
+
+	.oras-agenda__timecell {
+		grid-column: 2;
+		grid-row: 1;
+		justify-content: flex-start;
+		padding: 0 0 8px;
+	}
+
+	.oras-agenda__body {
+		grid-row: 2;
+		padding: 16px;
+	}
+
+	.oras-agenda__time {
+		max-width: none;
+		text-align: left;
+	}
+
+	.oras-agenda__speaker-list {
+		display: block;
+	}
+
+	.oras-agenda__speaker {
+		margin-top: 6px;
 	}
 }
 
