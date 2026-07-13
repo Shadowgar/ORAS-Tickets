@@ -155,8 +155,8 @@ $definitions = $class::normalize_definitions(
 oras_phase1h_assert( 1 === count( $definitions ), 'Empty labels are discarded during definition normalization' );
 oras_phase1h_assert( 'telescope-type' === $definitions[0]['id'], 'Question IDs are preserved when safe' );
 oras_phase1h_assert( true === $definitions[0]['required'], 'Required flag normalizes to boolean true' );
-oras_phase1h_assert( 'text' === $definitions[0]['type'], 'Question answer type is forced to short text' );
-oras_phase1h_assert( array() === $definitions[0]['options'], 'Question options are discarded because answers are short text only' );
+oras_phase1h_assert( 'select' === $definitions[0]['type'], 'Single-choice question type is preserved' );
+oras_phase1h_assert( array( 'Dobsonian', 'Refractor' ) === $definitions[0]['options'], 'Choice options are normalized and preserved' );
 
 $ticket_questions = $class::filter_questions( $definitions, 'tickets', 'onsite' );
 oras_phase1h_assert( 1 === count( $ticket_questions ), 'Questions applying to both are shown for ticket buyers' );
@@ -187,13 +187,32 @@ $yes_no_definitions = $class::normalize_definitions(
 	)
 );
 
-oras_phase1h_assert( 'text' === $yes_no_definitions[0]['type'], 'Legacy yes/no questions normalize to short text' );
+oras_phase1h_assert( 'yes_no' === $yes_no_definitions[0]['type'], 'Yes/no questions preserve controlled question type' );
 
 ob_start();
 $class::render_fields( $yes_no_definitions );
 $rendered = (string) ob_get_clean();
-oras_phase1h_assert( false !== strpos( $rendered, 'type="text"' ), 'Event questions render short text inputs' );
-oras_phase1h_assert( false === strpos( $rendered, 'type="radio"' ), 'Event questions do not render radio controls' );
+oras_phase1h_assert( false !== strpos( $rendered, 'type="radio"' ), 'Yes/no questions render radio controls' );
+
+$multi_choice_definitions = $class::normalize_definitions(
+	array(
+		array(
+			'label'   => 'Which workshops interest you?',
+			'type'    => 'checkbox',
+			'options' => "Solar\nImaging\nSolar",
+		),
+	)
+);
+oras_phase1h_assert( 'checkbox' === $multi_choice_definitions[0]['type'], 'Multiple-choice question type is preserved' );
+oras_phase1h_assert( array( 'Solar', 'Imaging' ) === $multi_choice_definitions[0]['options'], 'Multiple-choice options are normalized from newline text' );
+
+$choice_validation = $class::build_answer_snapshots(
+	$multi_choice_definitions,
+	array(
+		$multi_choice_definitions[0]['id'] => array( 'Solar', 'Bad Option', 'Imaging' ),
+	)
+);
+oras_phase1h_assert( 'Solar, Imaging' === $choice_validation[0]['display_value'], 'Multiple-choice answers only keep configured options' );
 
 $frontend_css_file = dirname( __DIR__ ) . '/assets/css/tickets-frontend.css';
 $frontend_css      = file_exists( $frontend_css_file ) ? (string) file_get_contents( $frontend_css_file ) : '';

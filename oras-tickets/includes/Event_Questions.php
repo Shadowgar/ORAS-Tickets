@@ -60,7 +60,7 @@ final class Event_Questions {
 				'required'         => ! empty( $row['required'] ),
 				'applies_to'       => self::normalize_applies_to( $row['applies_to'] ?? self::APPLIES_BOTH ),
 				'attendance_scope' => self::normalize_attendance_scope( $row['attendance_scope'] ?? self::ATTENDANCE_ALL ),
-				'options'          => array(),
+				'options'          => self::normalize_options( $row['options'] ?? array() ),
 			);
 		}
 
@@ -206,7 +206,12 @@ final class Event_Questions {
 	 */
 	public static function field_type_options(): array {
 		return array(
-			'text' => __( 'Short Text', 'oras-tickets' ),
+			'text'     => __( 'Short Text', 'oras-tickets' ),
+			'textarea' => __( 'Long Text', 'oras-tickets' ),
+			'yes_no'   => __( 'Yes / No', 'oras-tickets' ),
+			'select'   => __( 'Single Choice', 'oras-tickets' ),
+			'checkbox' => __( 'Multiple Choice', 'oras-tickets' ),
+			'number'   => __( 'Number', 'oras-tickets' ),
 		);
 	}
 
@@ -417,8 +422,8 @@ final class Event_Questions {
 	 * @param mixed $value
 	 */
 	private static function normalize_type( $value ): string {
-		unset( $value );
-		return 'text';
+		$value = function_exists( 'sanitize_key' ) ? sanitize_key( (string) $value ) : strtolower( (string) $value );
+		return array_key_exists( $value, self::field_type_options() ) ? $value : 'text';
 	}
 
 	/**
