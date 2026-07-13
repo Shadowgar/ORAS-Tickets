@@ -176,6 +176,132 @@
         }, 10000);
     }
 
+    function initQuestionWizard(form) {
+        var fieldset = form.querySelector('.oras-rsvp-event-questions');
+        if (!fieldset || fieldset.getAttribute('data-oras-question-wizard-ready') === '1') {
+            return null;
+        }
+
+        var questionPanel = fieldset.querySelector('.oras-event-questions');
+        var fields = questionPanel ? Array.prototype.slice.call(questionPanel.querySelectorAll('.oras-event-question-field')) : [];
+        if (!questionPanel || fields.length < 1) {
+            return null;
+        }
+
+        fieldset.setAttribute('data-oras-question-wizard-ready', '1');
+        fieldset.classList.add('oras-rsvp-question-wizard');
+        questionPanel.classList.add('oras-rsvp-question-slider');
+        form.classList.add('oras-rsvp-question-wizard-active');
+
+        var progress = document.createElement('div');
+        progress.className = 'oras-rsvp-question-progress';
+        progress.setAttribute('aria-live', 'polite');
+        fieldset.insertBefore(progress, questionPanel);
+
+        var controls = document.createElement('div');
+        controls.className = 'oras-rsvp-question-controls';
+        controls.innerHTML = '' +
+            '<button type="button" class="oras-rsvp-button oras-rsvp-button-secondary oras-rsvp-question-back">Back</button>' +
+            '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary oras-rsvp-question-next">Next</button>';
+        questionPanel.insertAdjacentElement('afterend', controls);
+
+        var back = controls.querySelector('.oras-rsvp-question-back');
+        var next = controls.querySelector('.oras-rsvp-question-next');
+        var primaryActions = Array.prototype.slice.call(form.querySelectorAll('button[name="intent"][value="yes"], button[name="intent"][value="waitlist"]'));
+        var currentIndex = 0;
+
+        function setPrimaryActionsVisible(visible) {
+            for (var i = 0; i < primaryActions.length; i++) {
+                primaryActions[i].style.display = visible ? '' : 'none';
+                primaryActions[i].disabled = !visible;
+            }
+        }
+
+        function setFieldEnabled(field, enabled) {
+            var controlsInField = field.querySelectorAll('input, select, textarea');
+            for (var i = 0; i < controlsInField.length; i++) {
+                controlsInField[i].disabled = !enabled;
+            }
+        }
+
+        function validateCurrentQuestion() {
+            var active = fields[currentIndex];
+            if (!active) {
+                return true;
+            }
+
+            var controlsInField = active.querySelectorAll('input, select, textarea');
+            for (var i = 0; i < controlsInField.length; i++) {
+                if (typeof controlsInField[i].checkValidity === 'function' && !controlsInField[i].checkValidity()) {
+                    if (typeof controlsInField[i].reportValidity === 'function') {
+                        controlsInField[i].reportValidity();
+                    } else {
+                        controlsInField[i].focus();
+                    }
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function showQuestion(index) {
+            currentIndex = Math.max(0, Math.min(index, fields.length - 1));
+            var isLast = currentIndex === fields.length - 1;
+
+            for (var i = 0; i < fields.length; i++) {
+                var isActive = i === currentIndex;
+                fields[i].hidden = !isActive;
+                fields[i].classList.toggle('is-active', isActive);
+                fields[i].classList.toggle('is-before', i < currentIndex);
+                fields[i].classList.toggle('is-after', i > currentIndex);
+                setFieldEnabled(fields[i], isActive || isLast);
+            }
+
+            progress.textContent = 'Question ' + (currentIndex + 1) + ' of ' + fields.length;
+            if (back) {
+                back.disabled = currentIndex === 0;
+            }
+            if (next) {
+                next.style.display = isLast ? 'none' : '';
+            }
+            setPrimaryActionsVisible(isLast);
+        }
+
+        if (back) {
+            back.addEventListener('click', function () {
+                showQuestion(currentIndex - 1);
+            });
+        }
+
+        if (next) {
+            next.addEventListener('click', function () {
+                if (!validateCurrentQuestion()) {
+                    return;
+                }
+                showQuestion(currentIndex + 1);
+            });
+        }
+
+        showQuestion(0);
+
+        return {
+            isReadyToSubmit: function () {
+                return currentIndex === fields.length - 1 && validateCurrentQuestion();
+            },
+            advanceOrValidate: function () {
+                if (!validateCurrentQuestion()) {
+                    return false;
+                }
+                if (currentIndex < fields.length - 1) {
+                    showQuestion(currentIndex + 1);
+                    return false;
+                }
+                return true;
+            }
+        };
+    }
+
     function initBlock(block) {
         if (!block) return;
         var form = block.querySelector('form');
@@ -183,6 +309,7 @@
         var virtualEmailModal = ensureVirtualEmailModal(block);
         var lastIntentButton = null;
         if (!form) return;
+        var questionWizard = initQuestionWizard(form);
 
         function submitRsvpAjax(submitter) {
             var fd = new FormData();
@@ -310,6 +437,11 @@
             var checkedAttendance = form.querySelector('input[name="attendance_mode"]:checked');
             var attendanceMode = checkedAttendance ? checkedAttendance.value : '';
             var intent = submitter && submitter.name === 'intent' ? submitter.value : '';
+
+            if (questionWizard && !questionWizard.isReadyToSubmit() && intent !== 'no' && intent !== 'leave_waitlist') {
+                questionWizard.advanceOrValidate();
+                return;
+            }
 
             if (intent === 'yes') {
                 openVirtualEmailModal(virtualEmailModal);

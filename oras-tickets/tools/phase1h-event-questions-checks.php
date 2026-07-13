@@ -261,6 +261,8 @@ oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-rsvp-event-question
 oras_phase1h_assert( false === strpos( $frontend_css, 'wp-dark-mode-loading' ), 'WP Dark Mode loading state does not force dark RSVP colors' );
 oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-modal-bg: #0f172a;' ), 'RSVP email modal has dark-mode dialog color variables' );
 oras_phase1h_assert( false !== strpos( $frontend_css, 'color: var(--oras-rsvp-modal-label);' ), 'RSVP email modal labels use theme-aware colors' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-rsvp-question-wizard' ), 'RSVP event questions have wizard styling' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '@keyframes oras-rsvp-question-slide-in' ), 'RSVP question wizard has slide movement styling' );
 
 $board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php';
 $board_reports      = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';
@@ -276,10 +278,16 @@ oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
+$rsvp_js_file       = dirname( __DIR__ ) . '/assets/js/oras-rsvp-frontend.js';
+$rsvp_js            = file_exists( $rsvp_js_file ) ? (string) file_get_contents( $rsvp_js_file ) : '';
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Submit RSVP'" ), 'Frontend RSVP submit button uses updated label' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Remove RSVP'" ), 'Frontend RSVP removal button uses updated label' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="no" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Remove RSVP bypasses required event-question browser validation' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Leave Waitlist bypasses required event-question browser validation' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'initQuestionWizard' ), 'RSVP frontend initializes one-question-at-a-time wizard' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'oras-rsvp-question-next' ), 'RSVP question wizard renders Next control' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'setPrimaryActionsVisible' ), 'RSVP question wizard hides submit actions until final question' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'validateCurrentQuestion' ), 'RSVP question wizard validates each question before moving next' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'Content-Type: text/html; charset=UTF-8' ), 'RSVP attendee emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'build_oras_email_template' ), 'RSVP attendee emails use shared ORAS email template' );
 

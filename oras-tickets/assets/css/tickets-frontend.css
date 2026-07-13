@@ -395,6 +395,68 @@
 	color: var(--oras-rsvp-description-text) !important;
 }
 
+.oras-rsvp-question-wizard {
+	overflow: hidden;
+}
+
+.oras-rsvp-question-progress {
+	display: inline-flex;
+	align-items: center;
+	margin: 1rem 0 0.85rem;
+	padding: 0.3rem 0.7rem;
+	border: 1px solid var(--oras-question-field-border);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--oras-question-field-bg) 88%, var(--oras-rsvp-button-primary-bg));
+	color: var(--oras-rsvp-label-text);
+	font-size: 0.88rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+.oras-rsvp-question-slider {
+	position: relative;
+	overflow: hidden;
+}
+
+.oras-rsvp-question-slider .oras-event-question-field {
+	margin: 0;
+	animation: oras-rsvp-question-slide-in 220ms ease-out;
+}
+
+.oras-rsvp-question-slider .oras-event-question-field[hidden] {
+	display: none !important;
+}
+
+.oras-rsvp-question-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	justify-content: flex-end;
+	margin-top: 1rem;
+}
+
+.oras-rsvp-question-controls .oras-rsvp-button[disabled] {
+	opacity: 0.48;
+	cursor: not-allowed;
+	transform: none;
+}
+
+.oras-rsvp-question-wizard-active .oras-rsvp-actions {
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--oras-rsvp-field-border);
+}
+
+@keyframes oras-rsvp-question-slide-in {
+	from {
+		opacity: 0;
+		transform: translateX(28px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
 .oras-rsvp-field {
 	display: grid;
 	gap: 0.35rem;
