@@ -278,6 +278,8 @@ $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Submit RSVP'" ), 'Frontend RSVP submit button uses updated label' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Remove RSVP'" ), 'Frontend RSVP removal button uses updated label' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="no" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Remove RSVP bypasses required event-question browser validation' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Leave Waitlist bypasses required event-question browser validation' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'Content-Type: text/html; charset=UTF-8' ), 'RSVP attendee emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'build_oras_email_template' ), 'RSVP attendee emails use shared ORAS email template' );
 
