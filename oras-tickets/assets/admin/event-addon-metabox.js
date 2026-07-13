@@ -11,6 +11,50 @@
 		}
 	}
 
+	function suppressAutofill(container) {
+		if (!container) {
+			return;
+		}
+
+		const fields = container.querySelectorAll('input, select, textarea');
+		fields.forEach(function (field) {
+			if (field.type === 'hidden' || field.type === 'checkbox' || field.type === 'radio') {
+				return;
+			}
+
+			field.setAttribute('autocomplete', 'new-password');
+			field.setAttribute('autocorrect', 'off');
+			field.setAttribute('autocapitalize', 'none');
+			field.setAttribute('data-lpignore', 'true');
+			field.setAttribute('data-1p-ignore', 'true');
+			field.setAttribute('data-bwignore', 'true');
+			field.setAttribute('data-form-type', 'other');
+		});
+	}
+
+	function setupAutofillSuppression(container) {
+		suppressAutofill(container);
+
+		if (typeof MutationObserver !== 'function') {
+			return;
+		}
+
+		const observer = new MutationObserver(function (mutations) {
+			mutations.forEach(function (mutation) {
+				mutation.addedNodes.forEach(function (node) {
+					if (node.nodeType === 1) {
+						suppressAutofill(node);
+					}
+				});
+			});
+		});
+
+		observer.observe(container, {
+			childList: true,
+			subtree: true,
+		});
+	}
+
 	function viewportStorageKey(container) {
 		const postId = container?.dataset?.postId || '';
 		return postId ? 'orasEventsAddonViewport:' + postId : '';
@@ -549,6 +593,7 @@
 		}
 
 		setupTabs(container);
+		setupAutofillSuppression(container);
 		setupResizeSuppression(container);
 		setupSaveTriggers(container);
 

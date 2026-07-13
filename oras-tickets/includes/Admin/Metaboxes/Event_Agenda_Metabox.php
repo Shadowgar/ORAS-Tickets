@@ -322,7 +322,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         return;
                     }
 
-                    var fields = scope.querySelectorAll('input[type="text"], input[type="url"], textarea');
+                    var fields = scope.querySelectorAll('input[type="text"], input[type="url"], select, textarea');
                     for (var i = 0; i < fields.length; i++) {
                         fields[i].setAttribute('autocomplete', 'new-password');
                         fields[i].setAttribute('autocorrect', 'off');
