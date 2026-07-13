@@ -78,13 +78,37 @@ final class Event_Questions_Metabox {
 
 				root.addEventListener('click', function (event) {
 					var remove = event.target.closest('[data-oras-remove-question]');
-					if (!remove || !rows) {
+					if (remove && rows) {
+						var row = remove.closest('.oras-event-question-admin-row');
+						if (row) {
+							row.remove();
+						}
 						return;
 					}
 
-					var row = remove.closest('.oras-event-question-admin-row');
-					if (row) {
-						row.remove();
+					var addRule = event.target.closest('[data-oras-add-attention-rule]');
+					if (addRule) {
+						var questionRow = addRule.closest('.oras-event-question-admin-row');
+						var ruleRows = questionRow ? questionRow.querySelector('[data-oras-attention-rule-rows]') : null;
+						var ruleTemplate = questionRow ? questionRow.querySelector('template[data-oras-attention-rule-template]') : null;
+						if (!ruleRows || !ruleTemplate) {
+							return;
+						}
+
+						var ruleIndex = ruleRows.querySelectorAll('.oras-event-question-attention-rule').length;
+						var html = ruleTemplate.innerHTML.replace(/__RULE_INDEX__/g, String(ruleIndex));
+						var wrapper = document.createElement('div');
+						wrapper.innerHTML = html;
+						ruleRows.appendChild(wrapper.firstElementChild);
+						return;
+					}
+
+					var removeRule = event.target.closest('[data-oras-remove-attention-rule]');
+					if (removeRule) {
+						var rule = removeRule.closest('.oras-event-question-attention-rule');
+						if (rule) {
+							rule.remove();
+						}
 					}
 				});
 			})();
@@ -104,6 +128,7 @@ final class Event_Questions_Metabox {
 		$applies_to = isset( $question['applies_to'] ) ? (string) $question['applies_to'] : Event_Questions::APPLIES_BOTH;
 		$attendance_scope = isset( $question['attendance_scope'] ) ? (string) $question['attendance_scope'] : Event_Questions::ATTENDANCE_ALL;
 		$options = isset( $question['options'] ) && is_array( $question['options'] ) ? implode( "\n", array_map( 'strval', $question['options'] ) ) : '';
+		$attention_rules = isset( $question['attention_rules'] ) && is_array( $question['attention_rules'] ) ? $question['attention_rules'] : array();
 		$name = 'oras_event_questions[questions][' . $index . ']';
 		?>
 		<div class="oras-event-question-admin-row">
@@ -150,6 +175,64 @@ final class Event_Questions_Metabox {
 					<textarea name="<?php echo esc_attr( $name ); ?>[options]" rows="4" placeholder="<?php echo esc_attr__( "One option per line. Used for Single Choice and Multiple Choice questions.", 'oras-tickets' ); ?>"><?php echo esc_textarea( $options ); ?></textarea>
 				</label>
 			</div>
+			<div class="oras-event-question-admin-row__attention">
+				<h4><?php echo esc_html__( 'Attention Rules', 'oras-tickets' ); ?></h4>
+				<p class="description"><?php echo esc_html__( 'Create dashboard review items when an answer needs coordinator attention.', 'oras-tickets' ); ?></p>
+				<div data-oras-attention-rule-rows>
+					<?php foreach ( $attention_rules as $rule_index => $rule ) : ?>
+						<?php self::render_attention_rule_row( is_array( $rule ) ? $rule : array(), $name, (int) $rule_index ); ?>
+					<?php endforeach; ?>
+				</div>
+				<p>
+					<button type="button" class="button" data-oras-add-attention-rule><?php echo esc_html__( 'Add Attention Rule', 'oras-tickets' ); ?></button>
+				</p>
+				<template data-oras-attention-rule-template>
+					<?php self::render_attention_rule_row( array(), $name, '__RULE_INDEX__' ); ?>
+				</template>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $rule
+	 * @param int|string $rule_index
+	 */
+	private static function render_attention_rule_row( array $rule, string $question_name, $rule_index ): void {
+		$name = $question_name . '[attention_rules][' . $rule_index . ']';
+		$id = isset( $rule['id'] ) ? (string) $rule['id'] : '';
+		$operator = isset( $rule['operator'] ) ? (string) $rule['operator'] : Event_Questions::ATTENTION_EQUALS;
+		$value = isset( $rule['value'] ) ? (string) $rule['value'] : '';
+		$label = isset( $rule['label'] ) ? (string) $rule['label'] : '';
+		$severity = isset( $rule['severity'] ) ? (string) $rule['severity'] : Event_Questions::SEVERITY_REVIEW;
+		?>
+		<div class="oras-event-question-attention-rule">
+			<input type="hidden" name="<?php echo esc_attr( $name ); ?>[id]" value="<?php echo esc_attr( $id ); ?>" />
+			<label>
+				<span><?php echo esc_html__( 'When', 'oras-tickets' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[operator]">
+					<?php foreach ( Event_Questions::attention_operator_options() as $option_value => $text ) : ?>
+						<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $operator, $option_value ); ?>><?php echo esc_html( $text ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<label>
+				<span><?php echo esc_html__( 'Match Value', 'oras-tickets' ); ?></span>
+				<input type="text" name="<?php echo esc_attr( $name ); ?>[value]" value="<?php echo esc_attr( $value ); ?>" placeholder="<?php echo esc_attr__( 'Example: Yes', 'oras-tickets' ); ?>" />
+			</label>
+			<label>
+				<span><?php echo esc_html__( 'Flag Label', 'oras-tickets' ); ?></span>
+				<input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $label ); ?>" placeholder="<?php echo esc_attr__( 'Example: Accommodation request', 'oras-tickets' ); ?>" />
+			</label>
+			<label>
+				<span><?php echo esc_html__( 'Severity', 'oras-tickets' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[severity]">
+					<?php foreach ( Event_Questions::attention_severity_options() as $option_value => $text ) : ?>
+						<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $severity, $option_value ); ?>><?php echo esc_html( $text ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<button type="button" class="button-link-delete" data-oras-remove-attention-rule><?php echo esc_html__( 'Remove Rule', 'oras-tickets' ); ?></button>
 		</div>
 		<?php
 	}

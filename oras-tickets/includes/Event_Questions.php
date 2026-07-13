@@ -20,6 +20,17 @@ final class Event_Questions {
 	public const ATTENDANCE_ONSITE = 'onsite';
 	public const ATTENDANCE_VIRTUAL = 'virtual';
 
+	public const ATTENTION_EQUALS = 'equals';
+	public const ATTENTION_CONTAINS = 'contains';
+	public const ATTENTION_IS_BLANK = 'is_blank';
+	public const ATTENTION_IS_NOT_BLANK = 'is_not_blank';
+	public const ATTENTION_GREATER_THAN = 'greater_than';
+	public const ATTENTION_LESS_THAN = 'less_than';
+	public const ATTENTION_ALWAYS = 'always';
+
+	public const SEVERITY_REVIEW = 'review';
+	public const SEVERITY_URGENT = 'urgent';
+
 	/**
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -61,6 +72,7 @@ final class Event_Questions {
 				'applies_to'       => self::normalize_applies_to( $row['applies_to'] ?? self::APPLIES_BOTH ),
 				'attendance_scope' => self::normalize_attendance_scope( $row['attendance_scope'] ?? self::ATTENDANCE_ALL ),
 				'options'          => self::normalize_options( $row['options'] ?? array() ),
+				'attention_rules'  => self::normalize_attention_rules( $row['attention_rules'] ?? array() ),
 			);
 		}
 
@@ -235,6 +247,52 @@ final class Event_Questions {
 			self::ATTENDANCE_ONSITE  => __( 'On-site only', 'oras-tickets' ),
 			self::ATTENDANCE_VIRTUAL => __( 'Virtual only', 'oras-tickets' ),
 		);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	public static function attention_operator_options(): array {
+		return array(
+			self::ATTENTION_EQUALS       => __( 'Answer equals', 'oras-tickets' ),
+			self::ATTENTION_CONTAINS     => __( 'Answer contains', 'oras-tickets' ),
+			self::ATTENTION_IS_BLANK     => __( 'Answer is blank', 'oras-tickets' ),
+			self::ATTENTION_IS_NOT_BLANK => __( 'Answer is not blank', 'oras-tickets' ),
+			self::ATTENTION_GREATER_THAN => __( 'Number is greater than', 'oras-tickets' ),
+			self::ATTENTION_LESS_THAN    => __( 'Number is less than', 'oras-tickets' ),
+			self::ATTENTION_ALWAYS       => __( 'Always flag when answered', 'oras-tickets' ),
+		);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	public static function attention_severity_options(): array {
+		return array(
+			self::SEVERITY_REVIEW => __( 'Needs Review', 'oras-tickets' ),
+			self::SEVERITY_URGENT => __( 'Urgent', 'oras-tickets' ),
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $question
+	 * @param mixed $answer
+	 * @return array<int,array<string,string>>
+	 */
+	public static function match_attention_rules( array $question, $answer ): array {
+		$rules = self::normalize_attention_rules( $question['attention_rules'] ?? array() );
+		if ( empty( $rules ) ) {
+			return array();
+		}
+
+		$matches = array();
+		foreach ( $rules as $rule ) {
+			if ( self::attention_rule_matches( $rule, $answer ) ) {
+				$matches[] = $rule;
+			}
+		}
+
+		return $matches;
 	}
 
 	/**
@@ -440,6 +498,96 @@ final class Event_Questions {
 	private static function normalize_attendance_scope( $value ): string {
 		$value = function_exists( 'sanitize_key' ) ? sanitize_key( (string) $value ) : strtolower( (string) $value );
 		return array_key_exists( $value, self::attendance_scope_options() ) ? $value : self::ATTENDANCE_ALL;
+	}
+
+	/**
+	 * @param mixed $value
+	 * @return array<int,array<string,string>>
+	 */
+	private static function normalize_attention_rules( $value ): array {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$rules = array();
+		foreach ( $value as $index => $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$operator = self::normalize_attention_operator( $row['operator'] ?? self::ATTENTION_EQUALS );
+			$match_value = self::clean_text( $row['value'] ?? '' );
+			if ( in_array( $operator, array( self::ATTENTION_EQUALS, self::ATTENTION_CONTAINS, self::ATTENTION_GREATER_THAN, self::ATTENTION_LESS_THAN ), true ) && '' === $match_value ) {
+				continue;
+			}
+
+			$label = self::clean_text( $row['label'] ?? '' );
+			if ( '' === $label ) {
+				$label = __( 'Needs review', 'oras-tickets' );
+			}
+
+			$rules[] = array(
+				'id'       => self::normalize_id( $row['id'] ?? '', $label, (int) $index, array() ),
+				'operator' => $operator,
+				'value'    => $match_value,
+				'label'    => $label,
+				'severity' => self::normalize_attention_severity( $row['severity'] ?? self::SEVERITY_REVIEW ),
+			);
+		}
+
+		return $rules;
+	}
+
+	/**
+	 * @param mixed $value
+	 */
+	private static function normalize_attention_operator( $value ): string {
+		$value = function_exists( 'sanitize_key' ) ? sanitize_key( (string) $value ) : strtolower( (string) $value );
+		return array_key_exists( $value, self::attention_operator_options() ) ? $value : self::ATTENTION_EQUALS;
+	}
+
+	/**
+	 * @param mixed $value
+	 */
+	private static function normalize_attention_severity( $value ): string {
+		$value = function_exists( 'sanitize_key' ) ? sanitize_key( (string) $value ) : strtolower( (string) $value );
+		return array_key_exists( $value, self::attention_severity_options() ) ? $value : self::SEVERITY_REVIEW;
+	}
+
+	/**
+	 * @param array<string,string> $rule
+	 * @param mixed $answer
+	 */
+	private static function attention_rule_matches( array $rule, $answer ): bool {
+		$answer_text = self::format_answer_value( $answer );
+		$operator = $rule['operator'] ?? self::ATTENTION_EQUALS;
+		$match_value = $rule['value'] ?? '';
+
+		if ( self::ATTENTION_IS_BLANK === $operator ) {
+			return self::is_empty_answer( $answer );
+		}
+
+		if ( self::is_empty_answer( $answer ) ) {
+			return false;
+		}
+
+		if ( self::ATTENTION_ALWAYS === $operator || self::ATTENTION_IS_NOT_BLANK === $operator ) {
+			return true;
+		}
+
+		if ( self::ATTENTION_CONTAINS === $operator ) {
+			return false !== stripos( $answer_text, $match_value );
+		}
+
+		if ( self::ATTENTION_GREATER_THAN === $operator ) {
+			return is_numeric( $answer_text ) && is_numeric( $match_value ) && (float) $answer_text > (float) $match_value;
+		}
+
+		if ( self::ATTENTION_LESS_THAN === $operator ) {
+			return is_numeric( $answer_text ) && is_numeric( $match_value ) && (float) $answer_text < (float) $match_value;
+		}
+
+		return 0 === strcasecmp( $answer_text, $match_value );
 	}
 
 	/**

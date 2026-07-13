@@ -214,6 +214,45 @@ $choice_validation = $class::build_answer_snapshots(
 );
 oras_phase1h_assert( 'Solar, Imaging' === $choice_validation[0]['display_value'], 'Multiple-choice answers only keep configured options' );
 
+$attention_definitions = $class::normalize_definitions(
+	array(
+		array(
+			'label'           => 'Will you need accommodations?',
+			'type'            => 'yes_no',
+			'attention_rules' => array(
+				array(
+					'operator' => 'equals',
+					'value'    => 'Yes',
+					'label'    => 'Accommodation request',
+					'severity' => 'urgent',
+				),
+			),
+		),
+		array(
+			'label'           => 'How many guests?',
+			'type'            => 'number',
+			'attention_rules' => array(
+				array(
+					'operator' => 'greater_than',
+					'value'    => '4',
+					'label'    => 'Large group',
+					'severity' => 'review',
+				),
+			),
+		),
+	)
+);
+oras_phase1h_assert( isset( $attention_definitions[0]['attention_rules'] ) && 1 === count( $attention_definitions[0]['attention_rules'] ), 'Attention rules are normalized with question definitions' );
+oras_phase1h_assert( 'Accommodation request' === $attention_definitions[0]['attention_rules'][0]['label'], 'Attention rule label is preserved' );
+oras_phase1h_assert( 'urgent' === $attention_definitions[0]['attention_rules'][0]['severity'], 'Attention rule severity is preserved' );
+
+oras_phase1h_assert( method_exists( $class, 'match_attention_rules' ), 'Attention rule matcher exists' );
+$attention_matches = $class::match_attention_rules( $attention_definitions[0], 'Yes' );
+oras_phase1h_assert( 1 === count( $attention_matches ), 'Equals attention rule matches controlled yes answer' );
+oras_phase1h_assert( 'Accommodation request' === $attention_matches[0]['label'], 'Matched attention rule keeps board-facing label' );
+oras_phase1h_assert( 0 === count( $class::match_attention_rules( $attention_definitions[0], 'No' ) ), 'Equals attention rule ignores nonmatching answer' );
+oras_phase1h_assert( 1 === count( $class::match_attention_rules( $attention_definitions[1], '5' ) ), 'Greater-than attention rule matches numeric answers' );
+
 $frontend_css_file = dirname( __DIR__ ) . '/assets/css/tickets-frontend.css';
 $frontend_css      = file_exists( $frontend_css_file ) ? (string) file_get_contents( $frontend_css_file ) : '';
 oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-label-text: #111827;' ), 'RSVP labels use readable light-mode text color' );
