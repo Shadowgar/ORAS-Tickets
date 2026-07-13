@@ -285,6 +285,8 @@ $agenda_colors      = file_exists( $agenda_colors_file ) ? (string) file_get_con
 $agenda_render_file = dirname( __DIR__ ) . '/includes/Frontend/Event_Agenda_Render.php';
 $agenda_render      = file_exists( $agenda_render_file ) ? (string) file_get_contents( $agenda_render_file ) : '';
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'clear: both;' ), 'Agenda frontend clears preceding floated event content' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'display: flow-root;' ), 'Agenda frontend creates an independent layout context' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timecell' ), 'Agenda frontend renders a dedicated time column' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: 0 18px 48px' ), 'Agenda frontend uses card depth for readability' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timeline::before' ) && false !== strpos( $agenda_css, "display: none;\n}" ), 'Agenda frontend suppresses decorative timeline rail' );

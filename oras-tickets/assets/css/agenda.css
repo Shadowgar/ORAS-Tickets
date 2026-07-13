@@ -19,8 +19,10 @@
 	--oras-agenda-modal-link-bg: rgba(15, 23, 42, 0.06);
 	--oras-agenda-modal-link-hover-bg: rgba(15, 23, 42, 0.14);
 	--oras-agenda-modal-overlay: rgba(0, 0, 0, 0.55);
+	display: flow-root;
+	clear: both;
 	max-width: 1120px;
-	margin: 1.5rem auto;
+	margin: 2.5rem auto 1.5rem;
 	padding: clamp(20px, 4vw, 34px);
 	border: 1px solid var(--oras-agenda-border);
 	border-radius: 24px;
