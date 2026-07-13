@@ -1093,10 +1093,10 @@ final class Board_Reports {
 			self::redirect_communication_result( $redirect, 'failed', 0 );
 		}
 
-		$sender = wp_get_current_user();
-		$sender_user_id = get_current_user_id();
-		$sender_display_name = $sender instanceof \WP_User ? (string) $sender->display_name : '';
-		$sender_email = $sender instanceof \WP_User ? (string) $sender->user_email : '';
+			$sender = wp_get_current_user();
+			$sender_user_id = get_current_user_id();
+			$sender_display_name = (string) $sender->display_name;
+			$sender_email = (string) $sender->user_email;
 		$recipients = ( new Communication_Recipients() )->resolve( $event_id, $segment );
 		$recipient_count = count( $recipients );
 

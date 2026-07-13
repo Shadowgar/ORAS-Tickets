@@ -975,12 +975,8 @@ final class Bootstrap
             } while ($count === $limit);
         }
 
-        foreach ($orders_by_id as $order) {
-            if (! $order instanceof \WC_Order) {
-                continue;
-            }
-
-            $user_id = (int) $order->get_user_id();
+	        foreach ($orders_by_id as $order) {
+	            $user_id = (int) $order->get_user_id();
             $order_id = $order->get_id();
             $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
             $email = $order->get_billing_email();

@@ -28,6 +28,10 @@ if (! defined('DAY_IN_SECONDS')) {
   define('DAY_IN_SECONDS', 86400);
 }
 
+if (! defined('YEAR_IN_SECONDS')) {
+  define('YEAR_IN_SECONDS', 31536000);
+}
+
 if (! defined('MINUTE_IN_SECONDS')) {
   define('MINUTE_IN_SECONDS', 60);
 }

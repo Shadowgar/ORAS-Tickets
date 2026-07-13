@@ -310,7 +310,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     exit;
                 }
 
-                $question_snapshots = Event_Questions::build_answer_snapshots( $rsvp_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+	                $question_snapshots = Event_Questions::build_answer_snapshots( $rsvp_questions, $raw_answers );
             }
         }
 
@@ -848,7 +848,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 $promoted_user_id = 0;
                 if ( $auto_promote && 'yes' === $previous_status ) {
                     $promoted = self::promote_next_waitlisted_attendee_unlocked( $event_id, $previous_mode, $actor_user_id, 'waitlist-auto-promote' );
-                    if ( is_array( $promoted ) && empty( $promoted['error'] ) ) {
+	                    if ( empty( $promoted['error'] ) ) {
                         $promoted_user_id = absint( $promoted['user_id'] ?? 0 );
                     }
                 }

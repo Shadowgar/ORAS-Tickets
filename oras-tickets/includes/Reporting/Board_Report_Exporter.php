@@ -347,10 +347,6 @@ final class Board_Report_Exporter {
 		}
 
 		$wrapped = wordwrap( $safe_value, $max_chars, "\n", true );
-		if ( ! is_string( $wrapped ) ) {
-			return array( $safe_value );
-		}
-
 		return explode( "\n", $wrapped );
 	}
 }

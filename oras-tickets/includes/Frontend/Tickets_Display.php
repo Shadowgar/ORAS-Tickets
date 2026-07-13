@@ -959,7 +959,7 @@ if ( $product_id <= 0 ) {
             $raw_answers = isset( $_POST['oras_event_question_answers'] ) && is_array( $_POST['oras_event_question_answers'] )
                 ? wp_unslash( $_POST['oras_event_question_answers'] )
                 : array();
-            $validation = Event_Questions::validate_answers( $ticket_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+            $validation = Event_Questions::validate_answers( $ticket_questions, $raw_answers );
             if ( $validation instanceof \WP_Error ) {
                 if ( function_exists( 'wc_add_notice' ) ) {
                     wc_add_notice( $validation->get_error_message(), 'error' );
@@ -967,7 +967,7 @@ if ( $product_id <= 0 ) {
                 return;
             }
 
-            $question_snapshots = Event_Questions::build_answer_snapshots( $ticket_questions, is_array( $raw_answers ) ? $raw_answers : array() );
+            $question_snapshots = Event_Questions::build_answer_snapshots( $ticket_questions, $raw_answers );
         }
 
         $added_any = false;
