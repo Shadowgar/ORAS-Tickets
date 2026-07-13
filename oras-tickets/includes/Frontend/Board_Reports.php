@@ -59,7 +59,17 @@ final class Board_Reports {
 		<div class="oras-board-reports">
 			<style>
 				.oras-board-reports {
-					margin: 24px 0;
+					box-sizing: border-box;
+					max-width: min(1600px, calc(100vw - 40px));
+					margin: 24px auto;
+					color: #111827;
+					font-size: 15px;
+					line-height: 1.45;
+				}
+				.oras-board-reports *,
+				.oras-board-reports *::before,
+				.oras-board-reports *::after {
+					box-sizing: border-box;
 				}
 				.oras-board-reports .oras-board-reports__notice {
 					background: rgba(10, 16, 28, 0.75);
@@ -109,7 +119,7 @@ final class Board_Reports {
 				}
 				.oras-board-reports .oras-board-reports__filters {
 					display: grid;
-					grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+					grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 					gap: 12px;
 					align-items: end;
 					margin: 16px 0;
@@ -128,8 +138,10 @@ final class Board_Reports {
 				.oras-board-reports select {
 					max-width: 100%;
 					min-height: 36px;
+					padding: 6px 10px;
 					color: #111827;
 					background: #ffffff;
+					font-size: 0.95rem;
 				}
 				.oras-board-reports .oras-board-reports__actions {
 					grid-column: 1 / -1;
@@ -143,14 +155,15 @@ final class Board_Reports {
 					display: inline-flex;
 					align-items: center;
 					justify-content: center;
-					min-height: 40px;
-					padding: 0 18px;
+					min-height: 38px;
+					padding: 0 14px;
 					border: 1px solid #35516e;
 					border-radius: 6px;
 					background: #1f3953;
 					color: #f5f8fc;
 					text-decoration: none;
 					font-weight: 600;
+					font-size: 0.95rem;
 					line-height: 1;
 					white-space: nowrap;
 					text-align: center;
@@ -174,26 +187,96 @@ final class Board_Reports {
 				}
 				.oras-board-reports .oras-board-reports__table-wrap {
 					overflow-x: auto;
+					max-height: min(72vh, 780px);
 					border: 1px solid #dcdcde;
-					border-radius: 8px;
+					border-radius: 12px;
 					background: #fff;
+					box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 				}
 				.oras-board-reports table {
-					width: 100%;
-					border-collapse: collapse;
-					min-width: 900px;
+					width: max-content;
+					min-width: 100%;
+					border-collapse: separate;
+					border-spacing: 0;
+					font-size: 0.92rem;
+					line-height: 1.38;
 				}
 				.oras-board-reports th,
 				.oras-board-reports td {
-					border-top: 1px solid #f0f0f1;
-					padding: 9px 8px;
+					border-top: 1px solid #e5e7eb;
+					border-right: 1px solid #edf0f4;
+					padding: 11px 10px;
 					text-align: left;
 					vertical-align: top;
+					overflow-wrap: anywhere;
 				}
 				.oras-board-reports th {
+					position: sticky;
+					top: 0;
+					z-index: 2;
 					border-top: 0;
+					background: #f8fafc;
 					color: #1d2327;
 					font-weight: 700;
+					white-space: nowrap;
+				}
+				.oras-board-reports tr:nth-child(even) > td {
+					background: #fbfdff;
+				}
+				.oras-board-reports tbody tr:hover > td {
+					background: #f1f7ff;
+				}
+				.oras-board-reports .oras-board-reports__cell--name {
+					min-width: 170px;
+					max-width: 220px;
+					font-weight: 650;
+				}
+				.oras-board-reports .oras-board-reports__cell--email {
+					min-width: 230px;
+					max-width: 280px;
+				}
+				.oras-board-reports .oras-board-reports__cell--phone {
+					min-width: 135px;
+					max-width: 160px;
+					white-space: nowrap;
+				}
+				.oras-board-reports .oras-board-reports__cell--address_summary,
+				.oras-board-reports .oras-board-reports__cell--address {
+					min-width: 230px;
+					max-width: 300px;
+				}
+				.oras-board-reports .oras-board-reports__cell--item_label {
+					min-width: 210px;
+					max-width: 280px;
+				}
+				.oras-board-reports .oras-board-reports__cell--quantity,
+				.oras-board-reports .oras-board-reports__cell--qty {
+					min-width: 82px;
+					max-width: 95px;
+					text-align: center;
+				}
+				.oras-board-reports .oras-board-reports__cell--order_status,
+				.oras-board-reports .oras-board-reports__cell--approval_status,
+				.oras-board-reports .oras-board-reports__cell--rsvp_status,
+				.oras-board-reports .oras-board-reports__cell--attendance_type,
+				.oras-board-reports .oras-board-reports__cell--source {
+					min-width: 125px;
+					max-width: 170px;
+				}
+				.oras-board-reports .oras-board-reports__cell--order_date,
+				.oras-board-reports .oras-board-reports__cell--approved_date {
+					min-width: 145px;
+					max-width: 170px;
+				}
+				.oras-board-reports .oras-board-reports__cell--note {
+					min-width: 170px;
+					max-width: 260px;
+				}
+				.oras-board-reports .oras-board-reports__cell--question_answers,
+				.oras-board-reports .oras-board-reports__cell--details,
+				.oras-board-reports .oras-board-reports__cell--actions {
+					min-width: 145px;
+					max-width: 190px;
 				}
 				.oras-board-reports .oras-board-reports__empty {
 					border: 1px solid #dcdcde;
@@ -270,6 +353,37 @@ final class Board_Reports {
 				html[data-wp-dark-mode-active] .oras-board-reports label,
 				body.wp-dark-mode-active .oras-board-reports label {
 					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__table-wrap,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__table-wrap,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__table-wrap {
+					background: #050a12;
+					border-color: rgba(148, 163, 184, 0.32);
+					box-shadow: 0 20px 44px rgba(0, 0, 0, 0.35);
+				}
+				html.oras-dark-on .oras-board-reports th,
+				html[data-wp-dark-mode-active] .oras-board-reports th,
+				body.wp-dark-mode-active .oras-board-reports th {
+					background: #101827;
+					border-color: rgba(148, 163, 184, 0.24);
+					color: #f8fafc;
+				}
+				html.oras-dark-on .oras-board-reports td,
+				html[data-wp-dark-mode-active] .oras-board-reports td,
+				body.wp-dark-mode-active .oras-board-reports td {
+					background: rgba(2, 6, 23, 0.7);
+					border-color: rgba(148, 163, 184, 0.22);
+					color: #f8fafc;
+				}
+				html.oras-dark-on .oras-board-reports tr:nth-child(even) > td,
+				html[data-wp-dark-mode-active] .oras-board-reports tr:nth-child(even) > td,
+				body.wp-dark-mode-active .oras-board-reports tr:nth-child(even) > td {
+					background: rgba(15, 23, 42, 0.76);
+				}
+				html.oras-dark-on .oras-board-reports tbody tr:hover > td,
+				html[data-wp-dark-mode-active] .oras-board-reports tbody tr:hover > td,
+				body.wp-dark-mode-active .oras-board-reports tbody tr:hover > td {
+					background: rgba(30, 64, 111, 0.62);
 				}
 				html.oras-dark-on .oras-board-reports .oras-board-reports__tab,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__tab,
@@ -467,19 +581,19 @@ final class Board_Reports {
 						<table>
 							<thead>
 								<tr>
-									<?php foreach ( Board_Report_Exporter::COLUMNS as $label ) : ?>
-										<th><?php echo esc_html( $label ); ?></th>
+									<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
+										<th class="<?php echo esc_attr( self::report_cell_class( (string) $key ) ); ?>"><?php echo esc_html( $label ); ?></th>
 									<?php endforeach; ?>
-									<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
 								<?php foreach ( $rows as $row ) : ?>
 									<tr>
 										<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
-											<td><?php echo esc_html( self::format_report_cell( $row, $key ) ); ?></td>
+											<td class="<?php echo esc_attr( self::report_cell_class( (string) $key ) ); ?>"><?php echo esc_html( self::format_report_cell( $row, $key ) ); ?></td>
 										<?php endforeach; ?>
-										<td><?php self::render_question_answers_details( $row ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php self::render_question_answers_details( $row ); ?></td>
 									</tr>
 									<?php self::render_question_answers_table_row( $row, count( Board_Report_Exporter::COLUMNS ) + 1 ); ?>
 								<?php endforeach; ?>
@@ -775,31 +889,31 @@ final class Board_Reports {
 					<table>
 						<thead>
 								<tr>
-									<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Item / Status', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
-									<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'item_label' ) ); ?>"><?php echo esc_html__( 'Item / Status', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'qty' ) ); ?>"><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
+									<th class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
 								<?php foreach ( $rows as $row ) : ?>
 									<tr>
-										<td><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-										<td><?php self::render_question_answers_details( $row ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'item_label' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'qty' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php self::render_question_answers_details( $row ); ?></td>
 									</tr>
 									<?php self::render_question_answers_table_row( $row, 10 ); ?>
 								<?php endforeach; ?>
@@ -922,33 +1036,33 @@ final class Board_Reports {
 					<table>
 						<thead>
 							<tr>
-								<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'RSVP Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Approved By', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Approved Date', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'rsvp_status' ) ); ?>"><?php echo esc_html__( 'RSVP Status', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'approved_by' ) ); ?>"><?php echo esc_html__( 'Approved By', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'approved_date' ) ); ?>"><?php echo esc_html__( 'Approved Date', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
+								<th class="<?php echo esc_attr( self::report_cell_class( 'actions' ) ); ?>"><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
 							<?php foreach ( $rows as $row ) : ?>
 								<tr>
-									<td><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-										<td><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-										<td><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-										<td><?php self::render_rsvp_row_actions( $row ); ?></td>
+									<td class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
+									<td class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
+									<td class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'rsvp_status' ) ); ?>"><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'approved_by' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'approved_date' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
+										<td class="<?php echo esc_attr( self::report_cell_class( 'actions' ) ); ?>"><?php self::render_rsvp_row_actions( $row ); ?></td>
 									</tr>
 									<?php self::render_question_answers_table_row( $row, 11 ); ?>
 								<?php endforeach; ?>
@@ -1839,6 +1953,10 @@ final class Board_Reports {
 	 */
 	private static function row_scalar( array $row, string $key ): string {
 		return isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
+	}
+
+	private static function report_cell_class( string $key ): string {
+		return 'oras-board-reports__cell oras-board-reports__cell--' . sanitize_html_class( $key );
 	}
 
 	private static function get_form_action_url(): string {

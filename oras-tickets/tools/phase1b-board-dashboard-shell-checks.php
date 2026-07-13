@@ -84,6 +84,8 @@ function orasPhase1bRunChecks(): void
     orasPhase1bAssert(str_contains($default_html, 'oras_board_after'), 'Existing date filters remain present');
     orasPhase1bAssert(str_contains($default_html, 'oras_board_status'), 'Existing status filter remains present');
     orasPhase1bAssert(str_contains($default_html, 'oras_board_search'), 'Existing search filter remains present');
+    orasPhase1bAssert(str_contains($default_html, 'oras-board-reports__cell--email'), 'Board report table email column styling remains available');
+    orasPhase1bAssert(str_contains($default_html, 'max-height: min(72vh, 780px)'), 'Board report table uses bounded scrollable data grid styling');
 
     $_GET = array('oras_board_tab' => 'communications');
     $communications_html = Board_Reports::render_shortcode();
