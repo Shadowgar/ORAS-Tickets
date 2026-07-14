@@ -412,14 +412,25 @@
             hiddenEmail.value = email;
         }
 
+        function getSubmitterIntent(submitter) {
+            return submitter && submitter.name === 'intent' ? submitter.value : '';
+        }
+
+        function isRemovalIntent(intent) {
+            return intent === 'no' || intent === 'leave_waitlist';
+        }
+
         function setSubmittingState(isSubmitting, submitter) {
             block.classList.toggle('is-submitting', isSubmitting);
 
             if (notice && isSubmitting) {
                 notice.innerHTML = '';
                 var saving = document.createElement('div');
+                var intent = getSubmitterIntent(submitter);
                 saving.className = 'oras-rsvp-notice oras-rsvp-notice-progress';
-                saving.textContent = 'Saving your RSVP and sending your confirmation email...';
+                saving.textContent = isRemovalIntent(intent)
+                    ? 'Removing your RSVP and sending your cancellation email...'
+                    : 'Saving your RSVP and sending your confirmation email...';
                 notice.appendChild(saving);
                 notice.scrollIntoView({
                     behavior: 'smooth',
@@ -498,6 +509,7 @@
                     var badge = block.querySelector('.oras-rsvp-badge');
                     var yes = form.querySelector('button[name="intent"][value="yes"]');
                     var no = form.querySelector('button[name="intent"][value="no"]');
+                    var leaveWaitlist = form.querySelector('button[name="intent"][value="leave_waitlist"]');
 
                     var s = data.data && data.data.status ? data.data.status : null;
                     if (s === 'none' || s === null && msg.toLowerCase().indexOf('removed') !== -1) {
@@ -509,6 +521,18 @@
                             yes.disabled = false;
                             yes.removeAttribute('aria-pressed');
                         }
+                        if (no) {
+                            no.disabled = true;
+                            no.style.display = 'none';
+                        }
+                        if (leaveWaitlist) {
+                            leaveWaitlist.disabled = true;
+                            leaveWaitlist.style.display = 'none';
+                        }
+                        block.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
                     } else if (s === 'yes') {
                         var attendanceMode = data.data && data.data.attendance_mode ? attendanceModeLabel(data.data.attendance_mode) : '';
                         updateStatus(block, 'yes', msg);
@@ -579,6 +603,15 @@
             var checkedAttendance = form.querySelector('input[name="attendance_mode"]:checked');
             var attendanceMode = checkedAttendance ? checkedAttendance.value : '';
             var intent = submitter && submitter.name === 'intent' ? submitter.value : '';
+
+            if (isRemovalIntent(intent)) {
+                var confirmation = intent === 'leave_waitlist'
+                    ? 'Are you sure you want to leave the waitlist?'
+                    : 'Are you sure you want to remove your RSVP?';
+                if (!window.confirm(confirmation)) {
+                    return;
+                }
+            }
 
             if (questionWizard && !questionWizard.isReadyToSubmit() && intent !== 'no' && intent !== 'leave_waitlist') {
                 questionWizard.advanceOrValidate();

@@ -93,6 +93,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         if ( 'error' === $oras_rsvp ) {
             $text = self::humanize_error_message( $oras_msg );
             $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . $text . '</div>';
+        } elseif ( 'cancelled' === $oras_rsvp ) {
+            $flash = '<div class="oras-rsvp-notice oras-rsvp-notice-success">' . esc_html__( 'Your RSVP was removed. ORAS emailed you a cancellation confirmation.', 'oras-tickets' ) . '</div>';
         }
 
         if ( self::is_cancellation_confirmation_request() ) {
@@ -102,6 +104,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             echo self::render_cancellation_confirmation( $cancel_event_id, $cancel_user_id, $cancel_token ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo '</div>';
             return $content . ob_get_clean();
+        }
+
+        $cancellation_result_notice = self::render_cancellation_result_notice();
+        if ( '' !== $cancellation_result_notice ) {
+            echo $cancellation_result_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         }
 
         if ( ! is_user_logged_in() ) {
@@ -189,17 +196,18 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         // Buttons
+        $show_remove_action = 'yes' === $status;
         echo '<p class="oras-rsvp-actions">';
         echo '<button type="submit" name="intent" value="yes" class="oras-rsvp-button oras-rsvp-button-primary">' . esc_html__( 'Submit RSVP', 'oras-tickets' ) . '</button>';
-        echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate>' . esc_html__( 'Remove RSVP', 'oras-tickets' ) . '</button>';
+        if ( $show_remove_action ) {
+            echo '<button type="submit" name="intent" value="no" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate>' . esc_html__( 'Remove RSVP', 'oras-tickets' ) . '</button>';
+        }
 
         $is_full = ( $capacity > 0 && $yes_count >= $capacity );
-        if ( $is_full && $waitlist_enabled ) {
-            if ( 'waitlist' === $status ) {
-                echo '<button type="submit" name="intent" value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate>' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button>';
-            } else {
-                echo '<button type="submit" name="intent" value="waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button>';
-            }
+        if ( 'waitlist' === $status ) {
+            echo '<button type="submit" name="intent" value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate>' . esc_html__( 'Leave Waitlist', 'oras-tickets' ) . '</button>';
+        } elseif ( $is_full && $waitlist_enabled ) {
+            echo '<button type="submit" name="intent" value="waitlist" class="oras-rsvp-button oras-rsvp-button-secondary">' . esc_html__( 'Join Waitlist', 'oras-tickets' ) . '</button>';
         }
 
         echo '</p>';
@@ -386,6 +394,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 }
 
                 if ( 'no' === $intent ) {
+                    $previous_attendance_mode = '' !== $current_attendance_mode ? $current_attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE;
                     if ( $was_waitlisted ) {
                         Waitlist_Store::mark_left( $event_id, $user_id, 'frontend-no', $user_id );
                     }
@@ -396,6 +405,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                             'ok'      => true,
                             'status'  => 'none',
                             'message' => esc_html__( 'RSVP already removed.', 'oras-tickets' ),
+                            'previous_attendance_mode' => $previous_attendance_mode,
                         );
                     }
 
@@ -409,11 +419,21 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX );
 
+                    $promoted_user_id = 0;
+                    if ( 'yes' === $current ) {
+                        $promoted = self::promote_next_waitlisted_attendee_unlocked( $event_id, $previous_attendance_mode, $user_id, 'waitlist-auto-promote' );
+                        if ( empty( $promoted['error'] ) ) {
+                            $promoted_user_id = absint( $promoted['user_id'] ?? 0 );
+                        }
+                    }
+
                     return array(
                         'ok'      => true,
                         'status'  => 'none',
-                        'message' => esc_html__( 'RSVP removed.', 'oras-tickets' ),
+                        'message' => esc_html__( 'Your RSVP was removed. We emailed you a cancellation confirmation.', 'oras-tickets' ),
                         'attendance_mode' => '',
+                        'previous_attendance_mode' => $previous_attendance_mode,
+                        'promoted_user_id' => $promoted_user_id,
                     );
                 }
 
@@ -499,6 +519,20 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             }
         }
 
+        $operation_status = (string) ( $operation['status'] ?? '' );
+        $sent_cancellation_email = true;
+        if ( 'none' === $operation_status ) {
+            $cancellation_email = self::resolve_cancellation_recipient_email( $event_id, $user_id, $virtual_email );
+            if ( '' !== $cancellation_email ) {
+                $sent_cancellation_email = self::send_rsvp_cancellation_email(
+                    $event_id,
+                    $cancellation_email,
+                    (string) ( $operation['previous_attendance_mode'] ?? $request_attendance_mode ),
+                    $user_id
+                );
+            }
+        }
+
         if ( isset( $_POST['oras_ajax'] ) && ! empty( $_POST['oras_ajax'] ) ) {
             if ( 'yes' === (string) ( $operation['status'] ?? '' ) ) {
                 $attendance_mode = (string) ( $operation['attendance_mode'] ?? $request_attendance_mode );
@@ -510,6 +544,13 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                         )
                     );
                 }
+            }
+            if ( 'none' === $operation_status && ! $sent_cancellation_email ) {
+                wp_send_json_error(
+                    array(
+                        'message' => esc_html__( 'RSVP removed, but we could not send the cancellation email. Please contact ORAS if you need confirmation.', 'oras-tickets' ),
+                    )
+                );
             }
 
             wp_send_json_success(
@@ -531,7 +572,13 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             }
         }
 
-        $redirect = add_query_arg( array( 'oras_rsvp' => 'updated' ), $redirect );
+        if ( 'none' === $operation_status && ! $sent_cancellation_email ) {
+            $redirect = add_query_arg( array( 'oras_rsvp' => 'error', 'msg' => rawurlencode( 'cancellation_email_send_failed' ) ), $redirect );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        $redirect = add_query_arg( array( 'oras_rsvp' => 'none' === $operation_status ? 'cancelled' : 'updated' ), $redirect );
 
         wp_safe_redirect( $redirect );
         exit;
@@ -863,6 +910,116 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         );
     }
 
+    /**
+     * @return array{subject:string,body:string,email:string}
+     */
+    public static function build_rsvp_cancellation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): array {
+        if ( $event_id <= 0 || '' === $recipient_email || ! is_email( $recipient_email ) ) {
+            return array(
+                'subject' => '',
+                'body'    => '',
+                'email'   => '',
+            );
+        }
+
+        $event_title = self::get_email_event_title( $event_id );
+        $event_url = get_permalink( $event_id );
+        if ( ! is_string( $event_url ) || '' === $event_url ) {
+            $event_url = home_url();
+        }
+
+        $events_url = self::get_events_archive_url();
+        $normalized_mode = Ticket::normalizeAttendanceMode( $attendance_mode, Ticket::ATTENDANCE_MODE_ONSITE );
+        $subject = sprintf(
+            /* translators: %s: event title */
+            __( 'Your RSVP was cancelled for %s', 'oras-tickets' ),
+            $event_title
+        );
+        $details = array(
+            array(
+                'label' => __( 'Event', 'oras-tickets' ),
+                'value' => $event_title,
+            ),
+            array(
+                'label' => __( 'Attendance', 'oras-tickets' ),
+                'value' => self::get_attendance_mode_label( $normalized_mode ),
+            ),
+            array(
+                'label' => __( 'Date & Time', 'oras-tickets' ),
+                'value' => self::get_event_datetime_text( $event_id ),
+            ),
+        );
+        $actions = array(
+            array(
+                'label' => __( 'Sign Back Up', 'oras-tickets' ),
+                'url'   => $event_url,
+            ),
+            array(
+                'label' => __( 'Check Other Events', 'oras-tickets' ),
+                'url'   => $events_url,
+                'style' => 'secondary',
+            ),
+        );
+
+        return array(
+            'subject' => $subject,
+            'body'    => self::build_oras_email_template(
+                __( 'Your RSVP was cancelled', 'oras-tickets' ),
+                __( 'ORAS has removed your RSVP for this event.', 'oras-tickets' ),
+                $details,
+                array(),
+                $actions,
+                '',
+                __( 'If this was a mistake, use Sign Back Up to submit a new RSVP.', 'oras-tickets' )
+            ),
+            'email'   => $recipient_email,
+        );
+    }
+
+    private static function send_rsvp_cancellation_email( int $event_id, string $recipient_email, string $attendance_mode, int $user_id = 0 ): bool {
+        $email = self::build_rsvp_cancellation_email( $event_id, $recipient_email, $attendance_mode, $user_id );
+        if ( '' === $email['email'] || '' === $email['subject'] ) {
+            return false;
+        }
+
+        return (bool) wp_mail(
+            $email['email'],
+            $email['subject'],
+            $email['body'],
+            self::VIRTUAL_EMAIL_HEADERS
+        );
+    }
+
+    private static function resolve_cancellation_recipient_email( int $event_id, int $user_id, string $fallback_email = '' ): string {
+        if ( '' !== $fallback_email && is_email( $fallback_email ) ) {
+            return $fallback_email;
+        }
+
+        $contact = self::get_user_contact_defaults( $event_id, $user_id );
+        $contact_email = isset( $contact['email'] ) && is_scalar( $contact['email'] ) ? sanitize_email( (string) $contact['email'] ) : '';
+        if ( '' !== $contact_email && is_email( $contact_email ) ) {
+            return $contact_email;
+        }
+
+        $user = get_user_by( 'id', $user_id );
+        if ( $user instanceof \WP_User ) {
+            $user_email = sanitize_email( (string) $user->user_email );
+            if ( '' !== $user_email && is_email( $user_email ) ) {
+                return $user_email;
+            }
+        }
+
+        return '';
+    }
+
+    private static function get_events_archive_url(): string {
+        $url = home_url( '/orasevents/' );
+
+        $filtered = apply_filters( 'oras_tickets_events_archive_url', $url );
+
+        return is_string( $filtered ) && '' !== $filtered ? $filtered : $url;
+    }
+
     public static function create_cancellation_url( int $event_id, int $user_id ): string {
         if ( $event_id <= 0 || $user_id <= 0 ) {
             return '';
@@ -905,6 +1062,21 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         return hash_equals( $stored_hash, wp_hash( $token ) );
+    }
+
+    public static function render_cancellation_result_notice(): string {
+        $status = isset( $_GET['oras_rsvp_cancelled'] ) && is_scalar( $_GET['oras_rsvp_cancelled'] )
+            ? sanitize_text_field( wp_unslash( $_GET['oras_rsvp_cancelled'] ) )
+            : '';
+        if ( '' === $status ) {
+            return '';
+        }
+
+        if ( in_array( $status, array( '1', 'success' ), true ) ) {
+            return '<div class="oras-rsvp-notice oras-rsvp-notice-success">' . esc_html__( 'Your RSVP has been cancelled. ORAS emailed you a cancellation confirmation.', 'oras-tickets' ) . '</div>';
+        }
+
+        return '<div class="oras-rsvp-notice oras-rsvp-notice-error">' . esc_html__( 'This RSVP cancellation link is invalid, expired, or has already been used.', 'oras-tickets' ) . '</div>';
     }
 
     public static function render_cancellation_confirmation( int $event_id, int $user_id, string $token ): string {
@@ -1020,6 +1192,17 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
 
         if ( isset( $result['error'] ) ) {
             return new \WP_Error( 'oras_rsvp_cancel_failed', (string) $result['error'] );
+        }
+
+        $recipient_email = self::resolve_cancellation_recipient_email( $event_id, $user_id );
+        $result['cancellation_email_sent'] = false;
+        if ( '' !== $recipient_email ) {
+            $result['cancellation_email_sent'] = self::send_rsvp_cancellation_email(
+                $event_id,
+                $recipient_email,
+                (string) ( $result['previous_attendance_mode'] ?? Ticket::ATTENDANCE_MODE_ONSITE ),
+                $user_id
+            );
         }
 
         return $result;
@@ -1978,6 +2161,8 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 return esc_html__( 'Please provide a valid email address to receive event details.', 'oras-tickets' );
             case 'confirmation_email_send_failed':
                 return esc_html__( 'RSVP saved, but we could not send your confirmation email. Please try again.', 'oras-tickets' );
+            case 'cancellation_email_send_failed':
+                return esc_html__( 'RSVP removed, but we could not send your cancellation email. Please contact ORAS if you need confirmation.', 'oras-tickets' );
             case 'invalid_value':
                 return esc_html__( 'Invalid RSVP value.', 'oras-tickets' );
             case 'invalid':
