@@ -403,6 +403,11 @@ final class Board_Reports {
 					gap: 12px;
 					margin: 0 0 18px;
 				}
+				.oras-board-reports .oras-board-reports__report-list {
+					display: grid;
+					gap: 12px;
+					margin: 0 0 18px;
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card {
 					display: grid;
 					grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
@@ -413,10 +418,29 @@ final class Board_Reports {
 					background: #ffffff;
 					box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 				}
+				.oras-board-reports .oras-board-reports__report-card {
+					display: grid;
+					grid-template-columns: minmax(0, 1fr) minmax(190px, auto);
+					gap: 16px;
+					padding: 16px;
+					border: 1px solid #d8dee9;
+					border-radius: 14px;
+					background: #ffffff;
+					box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card-main {
 					min-width: 0;
 				}
+				.oras-board-reports .oras-board-reports__report-card-main {
+					min-width: 0;
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card-name {
+					margin: 0 0 6px;
+					color: #0f172a;
+					font-size: 1.14rem;
+					font-weight: 850;
+				}
+				.oras-board-reports .oras-board-reports__report-card-title {
 					margin: 0 0 6px;
 					color: #0f172a;
 					font-size: 1.14rem;
@@ -428,12 +452,25 @@ final class Board_Reports {
 					margin: 0;
 					color: #334155;
 				}
+				.oras-board-reports .oras-board-reports__report-card-contact {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px 14px;
+					margin: 0;
+					color: #334155;
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card-contact {
 					display: flex;
 					flex-wrap: wrap;
 					gap: 8px 14px;
 				}
 				.oras-board-reports .oras-board-reports__rsvp-card-badges {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px;
+					margin: 12px 0;
+				}
+				.oras-board-reports .oras-board-reports__report-card-badges {
 					display: flex;
 					flex-wrap: wrap;
 					gap: 8px;
@@ -466,7 +503,42 @@ final class Board_Reports {
 					border-color: #fca5a5;
 					color: #991b1b;
 				}
+				.oras-board-reports .oras-board-reports__report-card-fields {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+					gap: 10px;
+					margin: 12px 0 0;
+				}
+				.oras-board-reports .oras-board-reports__report-card-fields div {
+					min-width: 0;
+					padding: 10px 12px;
+					border: 1px solid #e5e7eb;
+					border-radius: 10px;
+					background: #f8fafc;
+				}
+				.oras-board-reports .oras-board-reports__report-card-fields dt {
+					margin: 0 0 4px;
+					color: #475569;
+					font-size: 0.76rem;
+					font-weight: 800;
+					letter-spacing: 0.04em;
+					text-transform: uppercase;
+				}
+				.oras-board-reports .oras-board-reports__report-card-fields dd {
+					margin: 0;
+					color: #0f172a;
+					font-weight: 650;
+					overflow-wrap: anywhere;
+					white-space: pre-wrap;
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card-actions {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					align-items: stretch;
+					justify-content: flex-start;
+				}
+				.oras-board-reports .oras-board-reports__report-card-actions {
 					display: flex;
 					flex-direction: column;
 					gap: 8px;
@@ -478,7 +550,16 @@ final class Board_Reports {
 					grid-template-columns: 1fr;
 					gap: 8px;
 				}
+				.oras-board-reports .oras-board-reports__report-card-actions .oras-board-reports__inline-actions {
+					display: grid;
+					grid-template-columns: 1fr;
+					gap: 8px;
+				}
 				.oras-board-reports .oras-board-reports__rsvp-card-actions .button {
+					width: 100%;
+					justify-content: center;
+				}
+				.oras-board-reports .oras-board-reports__report-card-actions .button {
 					width: 100%;
 					justify-content: center;
 				}
@@ -650,7 +731,10 @@ final class Board_Reports {
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-item,
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card,
-				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card {
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card {
 					background: rgba(15, 23, 42, 0.92);
 					border-color: rgba(148, 163, 184, 0.35);
 					color: #e6edf7;
@@ -659,6 +743,9 @@ final class Board_Reports {
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-name,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-name,
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-name,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card-title,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card-title,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card-title,
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-summary-value,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-summary-value,
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-value {
@@ -673,10 +760,29 @@ final class Board_Reports {
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-note,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-note,
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-note,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card-contact,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card-contact,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card-contact,
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-summary-label,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-summary-label,
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-label {
 					color: #cbd5e1;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card-fields div,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card-fields div,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card-fields div {
+					background: rgba(2, 6, 23, 0.72);
+					border-color: rgba(148, 163, 184, 0.28);
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card-fields dt,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card-fields dt,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card-fields dt {
+					color: #cbd5e1;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__report-card-fields dd,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__report-card-fields dd,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__report-card-fields dd {
+					color: #f8fafc;
 				}
 				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-badge,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-badge,
@@ -718,6 +824,9 @@ final class Board_Reports {
 						grid-template-columns: 1fr;
 					}
 					.oras-board-reports .oras-board-reports__rsvp-card {
+						grid-template-columns: 1fr;
+					}
+					.oras-board-reports .oras-board-reports__report-card {
 						grid-template-columns: 1fr;
 					}
 				}
@@ -911,29 +1020,12 @@ final class Board_Reports {
 			<?php if ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching rows found for this report.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-						<table>
-							<thead>
-								<tr>
-									<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
-										<th class="<?php echo esc_attr( self::report_cell_class( (string) $key ) ); ?>"><?php echo esc_html( $label ); ?></th>
-									<?php endforeach; ?>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $rows as $row ) : ?>
-									<tr>
-										<?php foreach ( Board_Report_Exporter::COLUMNS as $key => $label ) : ?>
-											<td class="<?php echo esc_attr( self::report_cell_class( (string) $key ) ); ?>"><?php echo esc_html( self::format_report_cell( $row, $key ) ); ?></td>
-										<?php endforeach; ?>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php self::render_question_answers_details( $row ); ?></td>
-									</tr>
-									<?php self::render_question_answers_table_row( $row, count( Board_Report_Exporter::COLUMNS ) + 1 ); ?>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
-					</div>
+				<?php self::render_sales_summary_bar( $rows ); ?>
+				<div class="oras-board-reports__report-list oras-board-reports__sales-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php self::render_sales_card( $row ); ?>
+					<?php endforeach; ?>
+				</div>
 				<?php endif; ?>
 			<?php
 		}
@@ -948,43 +1040,11 @@ final class Board_Reports {
 			<?php if ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No one is currently waiting for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-					<table>
-						<thead>
-							<tr>
-								<th><?php echo esc_html__( 'Position', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Joined Date', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Contact Note', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $row ) : ?>
-								<?php
-								$user_id = isset( $row->user_id ) ? absint( $row->user_id ) : 0;
-								$user = $user_id > 0 ? get_user_by( 'id', $user_id ) : false;
-								$contact = self::get_waitlist_contact( $event_id, $user_id );
-								$attendance_mode = Event_RSVP::get_user_attendance_type_for_report( $event_id, $user_id );
-								$approval_status = Event_RSVP::get_user_approval_status( $event_id, $user_id );
-								?>
-								<tr>
-									<td><?php echo esc_html( (string) $position ); ?></td>
-									<td><?php echo esc_html( $contact['name'] !== '' ? $contact['name'] : ( $user instanceof \WP_User ? (string) $user->display_name : 'User #' . $user_id ) ); ?></td>
-									<td><?php echo esc_html( $contact['email'] !== '' ? $contact['email'] : ( $user instanceof \WP_User ? (string) $user->user_email : '' ) ); ?></td>
-									<td><?php echo esc_html( Event_RSVP::get_attendance_mode_label( $attendance_mode ) ); ?></td>
-									<td><?php echo esc_html( Event_RSVP::get_approval_status_label( $approval_status ) ); ?></td>
-									<td><?php echo esc_html( isset( $row->joined_at ) ? (string) $row->joined_at : '' ); ?></td>
-									<td><?php echo esc_html( $contact['note'] ); ?></td>
-									<td><?php self::render_waitlist_row_actions( $event_id, $user_id, $row, $contact, $attendance_mode, $approval_status ); ?></td>
-								</tr>
-								<?php ++$position; ?>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
+				<div class="oras-board-reports__report-list oras-board-reports__waitlist-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php self::render_waitlist_card( $event_id, $row, $position ); ?>
+						<?php ++$position; ?>
+					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
 		</section>
@@ -1219,41 +1279,12 @@ final class Board_Reports {
 			<?php elseif ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching roster rows found for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-					<table>
-						<thead>
-								<tr>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'item_label' ) ); ?>"><?php echo esc_html__( 'Item / Status', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'qty' ) ); ?>"><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
-									<th class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $rows as $row ) : ?>
-									<tr>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'item_label' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'qty' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'quantity' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'details' ) ); ?>"><?php self::render_question_answers_details( $row ); ?></td>
-									</tr>
-									<?php self::render_question_answers_table_row( $row, 10 ); ?>
-								<?php endforeach; ?>
-						</tbody>
-					</table>
-					</div>
+				<?php self::render_roster_summary_bar( $rows ); ?>
+				<div class="oras-board-reports__report-list oras-board-reports__roster-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php self::render_roster_card( $row ); ?>
+					<?php endforeach; ?>
+				</div>
 				<?php endif; ?>
 			<?php
 		}
@@ -1388,39 +1419,10 @@ final class Board_Reports {
 			<?php elseif ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching attention items found.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-					<table>
-						<thead>
-							<tr>
-								<th><?php echo esc_html__( 'Created', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Person', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Question', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Answer', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Reason', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Severity', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
-								<th><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $row ) : ?>
-								<tr>
-									<td><?php echo esc_html( self::row_scalar( $row, 'created_at' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'attendee_name' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-									<td><?php echo esc_html( ucfirst( self::row_scalar( $row, 'source_type' ) ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'question_label' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'answer_value' ) ); ?></td>
-									<td><?php echo esc_html( self::row_scalar( $row, 'rule_label' ) ); ?></td>
-									<td><?php echo esc_html( self::get_attention_severity_label( self::row_scalar( $row, 'severity' ) ) ); ?></td>
-									<td><?php echo esc_html( self::get_attention_status_label( self::row_scalar( $row, 'status' ) ) ); ?></td>
-									<td><?php self::render_attention_row_actions( $row ); ?></td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
+				<div class="oras-board-reports__report-list oras-board-reports__attention-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php self::render_attention_card( $row ); ?>
+					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
 		<?php
@@ -1460,6 +1462,212 @@ final class Board_Reports {
 			<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_url() ); ?>" />
 			<button type="submit" class="button button-secondary"><?php echo esc_html( $label ); ?></button>
 		</form>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 */
+	private static function render_sales_summary_bar( array $rows ): void {
+		$order_ids = array();
+		$quantity = 0;
+		foreach ( $rows as $row ) {
+			$order_id = absint( $row['order_id'] ?? 0 );
+			if ( $order_id > 0 ) {
+				$order_ids[ $order_id ] = true;
+			}
+			$quantity += absint( $row['quantity'] ?? 0 );
+		}
+
+		self::render_compact_summary_bar(
+			array(
+				__( 'Rows Shown', 'oras-tickets' )     => count( $rows ),
+				__( 'Unique Orders', 'oras-tickets' )  => count( $order_ids ),
+				__( 'Ticket Quantity', 'oras-tickets' ) => $quantity,
+			),
+			__( 'Sales result summary', 'oras-tickets' )
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_sales_card( array $row ): void {
+		$name = self::row_scalar( $row, 'name' );
+		$email = self::row_scalar( $row, 'email' );
+		$phone = self::row_scalar( $row, 'phone' );
+		$status = self::row_scalar( $row, 'order_status' );
+		$source = self::row_scalar( $row, 'source' );
+		$quantity = self::row_scalar( $row, 'quantity' );
+		$item = self::row_scalar( $row, 'item_label' );
+		?>
+		<article class="oras-board-reports__report-card oras-board-reports__sales-card">
+			<div class="oras-board-reports__report-card-main">
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( '' !== $name ? $name : __( 'Unnamed purchaser', 'oras-tickets' ) ); ?></h3>
+				<?php self::render_report_card_contact( $email, $phone ); ?>
+				<?php self::render_report_card_badges( array_filter( array( $status, $source, '' !== $quantity ? sprintf( __( 'Qty %s', 'oras-tickets' ), $quantity ) : '' ) ) ); ?>
+				<?php
+				self::render_report_card_fields(
+					array(
+						__( 'Item / Ticket / Pass', 'oras-tickets' ) => $item,
+						__( 'Order Date', 'oras-tickets' ) => self::row_scalar( $row, 'order_date' ),
+						__( 'Address', 'oras-tickets' ) => self::row_scalar( $row, 'address_summary' ),
+						__( 'Note', 'oras-tickets' ) => self::row_scalar( $row, 'note' ),
+					)
+				);
+				?>
+				<?php self::render_question_answers_summary( $row ); ?>
+			</div>
+		</article>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 */
+	private static function render_roster_summary_bar( array $rows ): void {
+		$ticket_rows = 0;
+		$rsvp_rows = 0;
+		$virtual_rows = 0;
+		foreach ( $rows as $row ) {
+			$source = strtolower( self::row_scalar( $row, 'source' ) );
+			if ( str_contains( $source, 'ticket' ) ) {
+				++$ticket_rows;
+			}
+			if ( str_contains( $source, 'rsvp' ) ) {
+				++$rsvp_rows;
+			}
+			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === strtolower( self::row_scalar( $row, 'attendance_type' ) ) ) {
+				++$virtual_rows;
+			}
+		}
+
+		self::render_compact_summary_bar(
+			array(
+				__( 'Roster Rows', 'oras-tickets' ) => count( $rows ),
+				__( 'Ticket Rows', 'oras-tickets' ) => $ticket_rows,
+				__( 'RSVP Rows', 'oras-tickets' )   => $rsvp_rows,
+				__( 'Virtual', 'oras-tickets' )     => $virtual_rows,
+			),
+			__( 'Roster result summary', 'oras-tickets' )
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_roster_card( array $row ): void {
+		$name = self::row_scalar( $row, 'name' );
+		$email = self::row_scalar( $row, 'email' );
+		$phone = self::row_scalar( $row, 'phone' );
+		$item = trim( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) );
+		?>
+		<article class="oras-board-reports__report-card oras-board-reports__roster-card">
+			<div class="oras-board-reports__report-card-main">
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( '' !== $name ? $name : __( 'Unnamed attendee', 'oras-tickets' ) ); ?></h3>
+				<?php self::render_report_card_contact( $email, $phone ); ?>
+				<?php self::render_report_card_badges( array_filter( array( self::row_scalar( $row, 'source' ), self::row_scalar( $row, 'attendance_label' ), self::row_scalar( $row, 'approval_label' ) ) ) ); ?>
+				<?php
+				self::render_report_card_fields(
+					array(
+						__( 'Item / Status', 'oras-tickets' ) => $item,
+						__( 'Quantity', 'oras-tickets' ) => self::row_scalar( $row, 'quantity' ),
+						__( 'Note', 'oras-tickets' )     => self::row_scalar( $row, 'note' ),
+					)
+				);
+				?>
+				<?php self::render_question_answers_summary( $row ); ?>
+			</div>
+		</article>
+		<?php
+	}
+
+	private static function render_waitlist_card( int $event_id, object $row, int $position ): void {
+		$user_id = isset( $row->user_id ) ? absint( $row->user_id ) : 0;
+		$user = $user_id > 0 ? get_user_by( 'id', $user_id ) : false;
+		$contact = self::get_waitlist_contact( $event_id, $user_id );
+		$name = $contact['name'] !== '' ? $contact['name'] : ( $user instanceof \WP_User ? (string) $user->display_name : 'User #' . $user_id );
+		$email = $contact['email'] !== '' ? $contact['email'] : ( $user instanceof \WP_User ? (string) $user->user_email : '' );
+		$attendance_mode = Event_RSVP::get_user_attendance_type_for_report( $event_id, $user_id );
+		$approval_status = Event_RSVP::get_user_approval_status( $event_id, $user_id );
+		?>
+		<article class="oras-board-reports__report-card oras-board-reports__waitlist-card">
+			<div class="oras-board-reports__report-card-main">
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( $name ); ?></h3>
+				<?php self::render_report_card_contact( $email, $contact['phone'] ); ?>
+				<?php self::render_report_card_badges( array( sprintf( __( 'Position %d', 'oras-tickets' ), $position ), Event_RSVP::get_attendance_mode_label( $attendance_mode ), Event_RSVP::get_approval_status_label( $approval_status ) ) ); ?>
+				<?php
+				self::render_report_card_fields(
+					array(
+						__( 'Joined Date', 'oras-tickets' )  => isset( $row->joined_at ) ? (string) $row->joined_at : '',
+						__( 'Contact Note', 'oras-tickets' ) => $contact['note'],
+					)
+				);
+				?>
+			</div>
+			<div class="oras-board-reports__report-card-actions">
+				<?php self::render_waitlist_row_actions( $event_id, $user_id, $row, $contact, $attendance_mode, $approval_status ); ?>
+			</div>
+		</article>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_attention_card( array $row ): void {
+		$question = self::row_scalar( $row, 'question_label' );
+		$answer = self::row_scalar( $row, 'answer_value' );
+		$severity = self::get_attention_severity_label( self::row_scalar( $row, 'severity' ) );
+		$status = self::get_attention_status_label( self::row_scalar( $row, 'status' ) );
+		?>
+		<article class="oras-board-reports__report-card oras-board-reports__attention-card">
+			<div class="oras-board-reports__report-card-main">
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( '' !== $question ? $question : __( 'Attention item', 'oras-tickets' ) ); ?></h3>
+				<?php self::render_report_card_contact( self::row_scalar( $row, 'email' ), '' ); ?>
+				<?php self::render_report_card_badges( array_filter( array( ucfirst( self::row_scalar( $row, 'source_type' ) ), $severity, $status ) ) ); ?>
+				<?php
+				self::render_report_card_fields(
+					array(
+						__( 'Person', 'oras-tickets' )  => self::row_scalar( $row, 'attendee_name' ),
+						__( 'Answer', 'oras-tickets' )  => $answer,
+						__( 'Reason', 'oras-tickets' )  => self::row_scalar( $row, 'rule_label' ),
+						__( 'Created', 'oras-tickets' ) => self::row_scalar( $row, 'created_at' ),
+					)
+				);
+				?>
+			</div>
+			<div class="oras-board-reports__report-card-actions">
+				<?php self::render_attention_row_actions( $row ); ?>
+			</div>
+		</article>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_communication_history_card( array $row ): void {
+		$detail_url = self::build_communication_detail_url( absint( $row['id'] ?? 0 ) );
+		?>
+		<article class="oras-board-reports__report-card oras-board-reports__communication-card">
+			<div class="oras-board-reports__report-card-main">
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( self::row_scalar( $row, 'email_subject' ) ); ?></h3>
+				<?php self::render_report_card_badges( array_filter( array( Communication_Recipients::get_segment_label( self::row_scalar( $row, 'recipient_segment' ) ), self::row_scalar( $row, 'send_status' ) ) ) ); ?>
+				<?php
+				self::render_report_card_fields(
+					array(
+						__( 'Date Sent', 'oras-tickets' )       => self::row_scalar( $row, 'sent_at' ),
+						__( 'Sent By', 'oras-tickets' )         => trim( self::row_scalar( $row, 'sender_display_name' ) . ' <' . self::row_scalar( $row, 'sender_email' ) . '>' ),
+						__( 'Recipient Count', 'oras-tickets' ) => self::row_scalar( $row, 'recipient_count' ),
+					)
+				);
+				?>
+			</div>
+			<div class="oras-board-reports__report-card-actions">
+				<a class="button button-secondary" href="<?php echo esc_url( $detail_url ); ?>"><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></a>
+			</div>
+		</article>
 		<?php
 	}
 
@@ -2152,33 +2360,10 @@ final class Board_Reports {
 			return;
 		}
 		?>
-		<div class="oras-board-reports__table-wrap">
-			<table>
-				<thead>
-					<tr>
-						<th><?php echo esc_html__( 'Date Sent', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Sent By', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Recipient Segment', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Recipient Count', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Subject', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ( $rows as $row ) : ?>
-						<tr>
-							<td><?php echo esc_html( self::row_scalar( $row, 'sent_at' ) ); ?></td>
-							<td><?php echo esc_html( self::row_scalar( $row, 'sender_display_name' ) . ' <' . self::row_scalar( $row, 'sender_email' ) . '>' ); ?></td>
-							<td><?php echo esc_html( Communication_Recipients::get_segment_label( self::row_scalar( $row, 'recipient_segment' ) ) ); ?></td>
-							<td><?php echo esc_html( self::row_scalar( $row, 'recipient_count' ) ); ?></td>
-							<td><?php echo esc_html( self::row_scalar( $row, 'email_subject' ) ); ?></td>
-							<td><?php echo esc_html( self::row_scalar( $row, 'send_status' ) ); ?></td>
-							<td><a href="<?php echo esc_url( self::build_communication_detail_url( absint( $row['id'] ?? 0 ) ) ); ?>"><?php echo esc_html__( 'View Details', 'oras-tickets' ); ?></a></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
+		<div class="oras-board-reports__report-list oras-board-reports__communication-history-list">
+			<?php foreach ( $rows as $row ) : ?>
+				<?php self::render_communication_history_card( $row ); ?>
+			<?php endforeach; ?>
 		</div>
 		<?php
 	}
@@ -2502,44 +2687,6 @@ final class Board_Reports {
 	/**
 	 * @param array<string,mixed> $row
 	 */
-	private static function format_report_cell( array $row, string $key ): string {
-		if ( 'question_answers' === $key ) {
-			return self::format_question_answer_count( $row['question_answers'] ?? array() );
-		}
-
-		return self::row_scalar( $row, $key );
-	}
-
-	/**
-	 * @param array<string,mixed> $row
-	 */
-	private static function render_question_answers_details( array $row ): void {
-		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
-		if ( empty( $answers ) ) {
-			echo esc_html__( 'No event question answers.', 'oras-tickets' );
-			return;
-		}
-
-		echo esc_html( self::format_question_answer_count( $answers ) );
-	}
-
-	/**
-	 * @param array<string,mixed> $row
-	 */
-	private static function render_question_answers_table_row( array $row, int $colspan ): void {
-		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
-		if ( empty( $answers ) ) {
-			return;
-		}
-
-		echo '<tr class="oras-board-reports__answer-row"><td colspan="' . esc_attr( (string) max( 1, $colspan ) ) . '">';
-		self::render_question_answers_summary( $row );
-		echo '</td></tr>';
-	}
-
-	/**
-	 * @param array<string,mixed> $row
-	 */
 	private static function render_question_answers_summary( array $row ): void {
 		$answers = isset( $row['question_answers'] ) && is_array( $row['question_answers'] ) ? $row['question_answers'] : array();
 		if ( empty( $answers ) ) {
@@ -2566,6 +2713,84 @@ final class Board_Reports {
 		}
 		echo '</dl>';
 		echo '</details>';
+	}
+
+	private static function render_report_card_contact( string $email, string $phone ): void {
+		if ( '' === $email && '' === $phone ) {
+			return;
+		}
+
+		echo '<p class="oras-board-reports__report-card-contact">';
+		if ( '' !== $email ) {
+			echo '<span>' . esc_html( $email ) . '</span>';
+		}
+		if ( '' !== $phone ) {
+			echo '<span>' . esc_html( $phone ) . '</span>';
+		}
+		echo '</p>';
+	}
+
+	/**
+	 * @param array<int,string> $badges
+	 */
+	private static function render_report_card_badges( array $badges ): void {
+		$badges = array_values(
+			array_filter(
+				array_map( 'strval', $badges ),
+				static function ( string $badge ): bool {
+					return '' !== trim( $badge );
+				}
+			)
+		);
+		if ( empty( $badges ) ) {
+			return;
+		}
+
+		echo '<div class="oras-board-reports__report-card-badges" aria-label="' . esc_attr__( 'Report row summary', 'oras-tickets' ) . '">';
+		foreach ( $badges as $badge ) {
+			echo '<span class="oras-board-reports__rsvp-badge">' . esc_html( $badge ) . '</span>';
+		}
+		echo '</div>';
+	}
+
+	/**
+	 * @param array<string,string> $fields
+	 */
+	private static function render_report_card_fields( array $fields ): void {
+		$fields = array_filter(
+			$fields,
+			static function ( string $value ): bool {
+				return '' !== trim( $value );
+			}
+		);
+		if ( empty( $fields ) ) {
+			return;
+		}
+
+		echo '<dl class="oras-board-reports__report-card-fields">';
+		foreach ( $fields as $label => $value ) {
+			echo '<div>';
+			echo '<dt>' . esc_html( (string) $label ) . '</dt>';
+			echo '<dd>' . esc_html( $value ) . '</dd>';
+			echo '</div>';
+		}
+		echo '</dl>';
+	}
+
+	/**
+	 * @param array<string,int> $items
+	 */
+	private static function render_compact_summary_bar( array $items, string $aria_label ): void {
+		?>
+		<div class="oras-board-reports__rsvp-summary" aria-label="<?php echo esc_attr( $aria_label ); ?>">
+			<?php foreach ( $items as $label => $value ) : ?>
+				<div class="oras-board-reports__rsvp-summary-item">
+					<span class="oras-board-reports__rsvp-summary-label"><?php echo esc_html( $label ); ?></span>
+					<span class="oras-board-reports__rsvp-summary-value"><?php echo esc_html( (string) $value ); ?></span>
+				</div>
+			<?php endforeach; ?>
+		</div>
+		<?php
 	}
 
 	/**
@@ -2599,10 +2824,6 @@ final class Board_Reports {
 	 */
 	private static function row_scalar( array $row, string $key ): string {
 		return isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) ? (string) $row[ $key ] : '';
-	}
-
-	private static function report_cell_class( string $key ): string {
-		return 'oras-board-reports__cell oras-board-reports__cell--' . sanitize_html_class( $key );
 	}
 
 	private static function get_form_action_url(): string {

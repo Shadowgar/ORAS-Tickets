@@ -149,6 +149,19 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             printf( '<p class="oras-rsvp-capacity">%s: <strong>%d</strong> / <strong>%d</strong></p>', esc_html__( 'Attending', 'oras-tickets' ), absint( $yes_count ), absint( $capacity ) );
         }
 
+        if ( in_array( $status, array( 'none', 'no' ), true ) ) {
+            echo '<section class="oras-rsvp-guidance" aria-label="' . esc_attr__( 'How to submit your RSVP', 'oras-tickets' ) . '">';
+            echo '<p class="oras-rsvp-guidance__eyebrow">' . esc_html__( 'Start here', 'oras-tickets' ) . '</p>';
+            echo '<h3>' . esc_html__( 'Complete these steps to reserve your spot', 'oras-tickets' ) . '</h3>';
+            echo '<ol>';
+            echo '<li>' . esc_html__( 'Choose On-site or Virtual attendance.', 'oras-tickets' ) . '</li>';
+            echo '<li>' . esc_html__( 'Enter your contact details.', 'oras-tickets' ) . '</li>';
+            echo '<li>' . esc_html__( 'Answer any event questions.', 'oras-tickets' ) . '</li>';
+            echo '<li>' . esc_html__( 'Press Submit RSVP at the bottom.', 'oras-tickets' ) . '</li>';
+            echo '</ol>';
+            echo '</section>';
+        }
+
         // Form
         $nonce = wp_create_nonce( 'oras_rsvp_' . $event_id );
         $action_url = admin_url( 'admin-post.php' );

@@ -281,6 +281,12 @@ oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__rsvp
 oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__rsvp-card-actions' ), 'RSVP Management keeps approval actions visible in each card' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'render_rsvp_card' ), 'RSVP Management rows are rendered through dedicated card markup' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'render_rsvp_summary_bar' ), 'RSVP Management includes a compact count summary for large groups' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_sales_card' ), 'Sales tab rows render as board report cards' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_roster_card' ), 'Roster tab rows render as board report cards' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_waitlist_card' ), 'Waitlist rows render as board report cards' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_attention_card' ), 'Attention items render as board report cards' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_communication_history_card' ), 'Communication history rows render as board report cards' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__report-list' ), 'Board Reports uses reusable card lists outside RSVP Management' );
 
 $agenda_css_file    = dirname( __DIR__ ) . '/assets/css/agenda.css';
 $agenda_css         = file_exists( $agenda_css_file ) ? (string) file_get_contents( $agenda_css_file ) : '';
@@ -303,6 +309,7 @@ $rsvp_js_file       = dirname( __DIR__ ) . '/assets/js/oras-rsvp-frontend.js';
 $rsvp_js            = file_exists( $rsvp_js_file ) ? (string) file_get_contents( $rsvp_js_file ) : '';
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Submit RSVP'" ), 'Frontend RSVP submit button uses updated label' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, "'Remove RSVP'" ), 'Frontend RSVP removal button uses updated label' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'oras-rsvp-guidance' ), 'Frontend RSVP form renders a clear start-here guidance panel' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, '$show_remove_action = \'yes\' === $status;' ), 'Frontend Remove RSVP controls are only rendered for confirmed RSVP state' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="no" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Remove RSVP bypasses required event-question browser validation' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'value="leave_waitlist" class="oras-rsvp-button oras-rsvp-button-secondary" formnovalidate' ), 'Leave Waitlist bypasses required event-question browser validation' );
