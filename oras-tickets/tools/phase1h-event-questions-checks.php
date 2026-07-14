@@ -298,7 +298,10 @@ oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 
 oras_phase1h_assert( false !== strpos( $agenda_css, 'clear: both;' ), 'Agenda frontend clears preceding floated event content' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'display: flow-root;' ), 'Agenda frontend creates an independent layout context' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timecell' ), 'Agenda frontend renders a dedicated time column' );
-oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: 0 18px 48px' ), 'Agenda frontend uses card depth for readability' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-item-gap: 10px;' ), 'Agenda frontend keeps schedule rows compact' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-card-padding: 14px 16px;' ), 'Agenda frontend uses compact agenda card padding' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'border-left: 3px solid var(--oras-agenda-accent);' ), 'Agenda frontend uses a slim accent rail' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: 0 6px 16px' ), 'Agenda frontend uses light card depth for readability' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timeline::before' ) && false !== strpos( $agenda_css, "display: none;\n}" ), 'Agenda frontend suppresses decorative timeline rail' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_render, 'oras-agenda__timecell' ), 'Agenda renderer outputs time column markup' );
