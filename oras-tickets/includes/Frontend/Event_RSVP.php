@@ -747,7 +747,15 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             return __( 'ORAS Event', 'oras-tickets' );
         }
 
-        return wp_specialchars_decode( trim( $event_title ), ENT_QUOTES );
+        return self::decode_email_header_text( $event_title );
+    }
+
+    private static function decode_email_header_text( string $text ): string {
+        $decoded = wp_specialchars_decode( trim( $text ), ENT_QUOTES );
+        $decoded = html_entity_decode( $decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $decoded = preg_replace( '/[\r\n\t ]+/', ' ', $decoded );
+
+        return is_string( $decoded ) && '' !== trim( $decoded ) ? trim( $decoded ) : __( 'ORAS Event', 'oras-tickets' );
     }
 
     /**

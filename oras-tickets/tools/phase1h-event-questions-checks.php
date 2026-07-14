@@ -315,6 +315,7 @@ oras_phase1h_assert( false !== strpos( $rsvp_js, 'scrollIntoView' ), 'RSVP front
 oras_phase1h_assert( false === strpos( $rsvp_js, 'window.location.reload();' ), 'RSVP frontend does not force a page reload after AJAX success' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'Content-Type: text/html; charset=UTF-8' ), 'RSVP attendee emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'build_oras_email_template' ), 'RSVP attendee emails use shared ORAS email template' );
+oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'html_entity_decode' ), 'RSVP email subjects decode numeric title entities for email headers' );
 
 $bootstrap_file = dirname( __DIR__ ) . '/includes/Bootstrap.php';
 $bootstrap      = file_exists( $bootstrap_file ) ? (string) file_get_contents( $bootstrap_file ) : '';
@@ -328,5 +329,6 @@ oras_phase1h_assert( false !== strpos( $virtual_ticket_email, '_oras_ticket_atte
 oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'Ticket::ATTENDANCE_MODE_VIRTUAL' ), 'Virtual ticket access email only targets virtual ticket rows' );
 oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'Event_RSVP::get_virtual_join_link' ), 'Virtual ticket access email reuses ORAS virtual join link resolver' );
 oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'virtual_ticket_access' ), 'Virtual ticket access email logs its action type' );
+oras_phase1h_assert( false !== strpos( $virtual_ticket_email, 'html_entity_decode' ), 'Virtual ticket access email subjects decode numeric title entities for email headers' );
 
 echo "Event question checks passed.\n";

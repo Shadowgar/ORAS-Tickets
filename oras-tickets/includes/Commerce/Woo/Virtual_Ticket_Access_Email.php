@@ -181,7 +181,11 @@ final class Virtual_Ticket_Access_Email {
 			return __( 'ORAS Event', 'oras-tickets' );
 		}
 
-		return wp_specialchars_decode( trim( $title ), ENT_QUOTES );
+		$decoded = wp_specialchars_decode( trim( $title ), ENT_QUOTES );
+		$decoded = html_entity_decode( $decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$decoded = preg_replace( '/[\r\n\t ]+/', ' ', $decoded );
+
+		return is_string( $decoded ) && '' !== trim( $decoded ) ? trim( $decoded ) : __( 'ORAS Event', 'oras-tickets' );
 	}
 
 	private function get_event_datetime_text( int $event_id ): string {
