@@ -427,6 +427,23 @@
 	display: none !important;
 }
 
+.oras-rsvp-question-final-prompt {
+	margin: 1rem 0 0;
+	padding: 1rem 1.1rem;
+	border: 1px solid color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 55%, var(--oras-rsvp-field-border));
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--oras-question-field-bg) 72%, var(--oras-rsvp-button-primary-bg));
+	color: var(--oras-rsvp-label-text) !important;
+	font-size: 1rem;
+	line-height: 1.45;
+}
+
+.oras-rsvp-question-final-prompt span {
+	font-weight: 800;
+	text-decoration: underline;
+	text-underline-offset: 0.16em;
+}
+
 .oras-rsvp-question-controls {
 	display: flex;
 	flex-wrap: wrap;
@@ -435,10 +452,24 @@
 	margin-top: 1rem;
 }
 
+.oras-rsvp-question-submit {
+	min-width: 220px;
+	font-size: 1.02rem;
+}
+
+.oras-rsvp-question-submit.is-ready {
+	border-color: color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 72%, #fff);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 24%, transparent);
+}
+
 .oras-rsvp-question-controls .oras-rsvp-button[disabled] {
 	opacity: 0.48;
 	cursor: not-allowed;
 	transform: none;
+}
+
+.oras-rsvp-question-submit.is-ready-pulse {
+	animation: oras-rsvp-submit-ready 760ms ease-out;
 }
 
 .oras-rsvp-question-wizard-active .oras-rsvp-actions {
@@ -454,6 +485,24 @@
 	to {
 		opacity: 1;
 		transform: translateX(0);
+	}
+}
+
+@keyframes oras-rsvp-submit-ready {
+	0% {
+		transform: scale(1);
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 34%, transparent);
+	}
+	35% {
+		transform: scale(1.045);
+		box-shadow: 0 0 0 8px color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 16%, transparent);
+	}
+	70% {
+		transform: scale(0.99);
+	}
+	100% {
+		transform: scale(1);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 24%, transparent);
 	}
 }
 
@@ -503,6 +552,16 @@
 .oras-rsvp-button:focus-visible {
 	outline: 2px solid currentColor;
 	outline-offset: 2px;
+}
+
+.oras-rsvp-block.is-submitting {
+	cursor: progress;
+}
+
+.oras-rsvp-notice-progress {
+	background: color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 18%, var(--oras-question-field-bg));
+	color: var(--oras-rsvp-label-text) !important;
+	border: 1px solid color-mix(in srgb, var(--oras-rsvp-button-primary-bg) 42%, var(--oras-rsvp-field-border));
 }
 
 .oras-rsvp-button-primary {

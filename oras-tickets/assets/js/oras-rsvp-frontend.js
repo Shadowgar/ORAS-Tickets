@@ -29,7 +29,7 @@
         return modal;
     }
 
-    function openVirtualEmailModal(modal) {
+    function openVirtualEmailModal(modal, initialEmail) {
         modal.setAttribute('aria-hidden', 'false');
         var input = modal.querySelector('.oras-rsvp-email-input');
         var error = modal.querySelector('.oras-rsvp-email-error');
@@ -37,7 +37,7 @@
             error.textContent = '';
         }
         if (input) {
-            input.value = '';
+            input.value = initialEmail || '';
             input.focus();
         }
     }
@@ -199,22 +199,42 @@
         fieldset.insertBefore(progress, questionPanel);
 
         var controls = document.createElement('div');
+        var finalPrompt = document.createElement('div');
+        finalPrompt.className = 'oras-rsvp-question-final-prompt';
+        finalPrompt.setAttribute('aria-live', 'polite');
+        finalPrompt.hidden = true;
+        finalPrompt.innerHTML = '<strong>Last question.</strong> Answer this question, then press <span>Submit RSVP</span>.';
+        questionPanel.insertAdjacentElement('afterend', finalPrompt);
+
         controls.className = 'oras-rsvp-question-controls';
         controls.innerHTML = '' +
             '<button type="button" class="oras-rsvp-button oras-rsvp-button-secondary oras-rsvp-question-back">Back</button>' +
-            '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary oras-rsvp-question-next">Next</button>';
-        questionPanel.insertAdjacentElement('afterend', controls);
+            '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary oras-rsvp-question-next">Next</button>' +
+            '<button type="button" class="oras-rsvp-button oras-rsvp-button-primary oras-rsvp-question-submit" hidden disabled>Answer the questions to Submit</button>';
+        finalPrompt.insertAdjacentElement('afterend', controls);
 
         var back = controls.querySelector('.oras-rsvp-question-back');
         var next = controls.querySelector('.oras-rsvp-question-next');
+        var finalSubmit = controls.querySelector('.oras-rsvp-question-submit');
         var primaryActions = Array.prototype.slice.call(form.querySelectorAll('button[name="intent"][value="yes"], button[name="intent"][value="waitlist"]'));
         var currentIndex = 0;
+        var readyPulseSent = false;
 
-        function setPrimaryActionsVisible(visible) {
+        function setPrimaryActionsVisible(visible, ready) {
             for (var i = 0; i < primaryActions.length; i++) {
-                primaryActions[i].style.display = visible ? '' : 'none';
-                primaryActions[i].disabled = !visible;
+                primaryActions[i].style.display = 'none';
+                primaryActions[i].disabled = !(visible && ready);
             }
+        }
+
+        function getPrimarySubmitAction() {
+            for (var i = 0; i < primaryActions.length; i++) {
+                if (primaryActions[i]) {
+                    return primaryActions[i];
+                }
+            }
+
+            return null;
         }
 
         function setFieldEnabled(field, enabled) {
@@ -224,7 +244,8 @@
             }
         }
 
-        function validateCurrentQuestion() {
+        function validateCurrentQuestion(report) {
+            var shouldReport = report !== false;
             var active = fields[currentIndex];
             if (!active) {
                 return true;
@@ -233,9 +254,9 @@
             var controlsInField = active.querySelectorAll('input, select, textarea');
             for (var i = 0; i < controlsInField.length; i++) {
                 if (typeof controlsInField[i].checkValidity === 'function' && !controlsInField[i].checkValidity()) {
-                    if (typeof controlsInField[i].reportValidity === 'function') {
+                    if (shouldReport && typeof controlsInField[i].reportValidity === 'function') {
                         controlsInField[i].reportValidity();
-                    } else {
+                    } else if (shouldReport) {
                         controlsInField[i].focus();
                     }
                     return false;
@@ -243,6 +264,39 @@
             }
 
             return true;
+        }
+
+        function setFinalSubmitState() {
+            var isLast = currentIndex === fields.length - 1;
+            var ready = isLast && validateCurrentQuestion(false);
+
+            if (finalPrompt) {
+                finalPrompt.hidden = !isLast;
+                finalPrompt.innerHTML = ready ?
+                    '<strong>You are done.</strong> Press <span>Submit RSVP</span> to send your RSVP.' :
+                    '<strong>Last question.</strong> Answer this question, then press <span>Submit RSVP</span>.';
+            }
+
+            if (finalSubmit) {
+                finalSubmit.hidden = !isLast;
+                finalSubmit.disabled = !ready;
+                finalSubmit.textContent = ready ? 'Submit RSVP' : 'Answer the questions to Submit';
+                finalSubmit.classList.toggle('is-ready', ready);
+
+                if (ready && !readyPulseSent) {
+                    readyPulseSent = true;
+                    finalSubmit.classList.add('is-ready-pulse');
+                    window.setTimeout(function () {
+                        finalSubmit.classList.remove('is-ready-pulse');
+                    }, 900);
+                }
+
+                if (!ready) {
+                    readyPulseSent = false;
+                }
+            }
+
+            setPrimaryActionsVisible(isLast, ready);
         }
 
         function showQuestion(index) {
@@ -265,7 +319,7 @@
             if (next) {
                 next.style.display = isLast ? 'none' : '';
             }
-            setPrimaryActionsVisible(isLast);
+            setFinalSubmitState();
         }
 
         if (back) {
@@ -281,6 +335,34 @@
                 }
                 showQuestion(currentIndex + 1);
             });
+        }
+
+        if (finalSubmit) {
+            finalSubmit.addEventListener('click', function () {
+                if (!validateCurrentQuestion()) {
+                    setFinalSubmitState();
+                    return;
+                }
+
+                var submitAction = getPrimarySubmitAction();
+                if (!submitAction) {
+                    return;
+                }
+
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit(submitAction);
+                } else {
+                    submitAction.click();
+                }
+            });
+        }
+
+        for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+            var controlsInQuestion = fields[fieldIndex].querySelectorAll('input, select, textarea');
+            for (var controlIndex = 0; controlIndex < controlsInQuestion.length; controlIndex++) {
+                controlsInQuestion[controlIndex].addEventListener('input', setFinalSubmitState);
+                controlsInQuestion[controlIndex].addEventListener('change', setFinalSubmitState);
+            }
         }
 
         showQuestion(0);
@@ -311,6 +393,58 @@
         if (!form) return;
         var questionWizard = initQuestionWizard(form);
 
+        function getContactEmailForSubmission() {
+            var contactEmail = form.querySelector('input[name="rsvp_email"]');
+            var email = contactEmail && typeof contactEmail.value === 'string' ? contactEmail.value.trim() : '';
+            var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            return emailPattern.test(email) ? email : '';
+        }
+
+        function setVirtualEmailValue(email) {
+            var hiddenEmail = form.querySelector('input[name="virtual_email"]');
+            if (!hiddenEmail) {
+                hiddenEmail = document.createElement('input');
+                hiddenEmail.type = 'hidden';
+                hiddenEmail.name = 'virtual_email';
+                form.appendChild(hiddenEmail);
+            }
+            hiddenEmail.value = email;
+        }
+
+        function setSubmittingState(isSubmitting, submitter) {
+            block.classList.toggle('is-submitting', isSubmitting);
+
+            if (notice && isSubmitting) {
+                notice.innerHTML = '';
+                var saving = document.createElement('div');
+                saving.className = 'oras-rsvp-notice oras-rsvp-notice-progress';
+                saving.textContent = 'Saving your RSVP and sending your confirmation email...';
+                notice.appendChild(saving);
+                notice.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+
+            if (!submitter) {
+                return;
+            }
+
+            if (isSubmitting) {
+                submitter.setAttribute('data-oras-original-label', submitter.textContent);
+                submitter.textContent = 'Submitting...';
+                submitter.disabled = true;
+            } else {
+                var originalLabel = submitter.getAttribute('data-oras-original-label');
+                if (originalLabel) {
+                    submitter.textContent = originalLabel;
+                    submitter.removeAttribute('data-oras-original-label');
+                }
+                submitter.disabled = false;
+            }
+        }
+
         function submitRsvpAjax(submitter) {
             var fd = new FormData();
             var elts = form.elements;
@@ -338,6 +472,8 @@
                 postUrl = window.location.href;
             }
 
+            setSubmittingState(true, submitter);
+
             fetch(postUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -348,6 +484,7 @@
             }).then(function (r) {
                 return r.json();
             }).then(function (data) {
+                setSubmittingState(false, submitter);
                 if (!notice) return;
                 notice.innerHTML = '';
                 if (data && data.success) {
@@ -395,23 +532,27 @@
                             badge.textContent = 'Status: RSVPed for ' + attendanceMode + ' ✅';
                         }
 
-                        window.location.reload();
-                        return;
+                        block.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
                     } else if (s === 'waitlist') {
                         updateStatus(block, 'waitlist', msg);
                         if (yes) {
                             yes.disabled = false;
                             yes.removeAttribute('aria-pressed');
                         }
-                        window.location.reload();
-                        return;
+                        block.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
                     } else {
                         updateStatus(block, s, msg);
                     }
                 } else {
                     var err = (data && data.data && data.data.message) ? data.data.message : 'Unable to update RSVP.';
                     if (err.indexOf('Please enter a valid email address to receive event details.') !== -1) {
-                        openVirtualEmailModal(virtualEmailModal);
+                        openVirtualEmailModal(virtualEmailModal, getContactEmailForSubmission());
                         return;
                     }
                     var el = document.createElement('div');
@@ -420,6 +561,7 @@
                     notice.appendChild(el);
                 }
             }).catch(function () {
+                setSubmittingState(false, submitter);
                 if (!notice) return;
                 var el = document.createElement('div');
                 el.className = 'oras-rsvp-notice oras-rsvp-notice-error';
@@ -444,7 +586,14 @@
             }
 
             if (intent === 'yes') {
-                openVirtualEmailModal(virtualEmailModal);
+                var contactEmail = getContactEmailForSubmission();
+                if (contactEmail) {
+                    setVirtualEmailValue(contactEmail);
+                    submitRsvpAjax(submitter);
+                    return;
+                }
+
+                openVirtualEmailModal(virtualEmailModal, contactEmail);
                 return;
             }
 
@@ -483,14 +632,7 @@
                     return;
                 }
 
-                var hiddenEmail = form.querySelector('input[name="virtual_email"]');
-                if (!hiddenEmail) {
-                    hiddenEmail = document.createElement('input');
-                    hiddenEmail.type = 'hidden';
-                    hiddenEmail.name = 'virtual_email';
-                    form.appendChild(hiddenEmail);
-                }
-                hiddenEmail.value = email;
+                setVirtualEmailValue(email);
 
                 closeVirtualEmailModal(virtualEmailModal);
                 submitRsvpAjax(form.querySelector('button[name="intent"][value="yes"]'));

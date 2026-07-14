@@ -305,6 +305,14 @@ oras_phase1h_assert( false !== strpos( $rsvp_js, 'initQuestionWizard' ), 'RSVP f
 oras_phase1h_assert( false !== strpos( $rsvp_js, 'oras-rsvp-question-next' ), 'RSVP question wizard renders Next control' );
 oras_phase1h_assert( false !== strpos( $rsvp_js, 'setPrimaryActionsVisible' ), 'RSVP question wizard hides submit actions until final question' );
 oras_phase1h_assert( false !== strpos( $rsvp_js, 'validateCurrentQuestion' ), 'RSVP question wizard validates each question before moving next' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'oras-rsvp-question-final-prompt' ), 'RSVP question wizard shows a clear final-step completion prompt' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'Answer the questions to Submit' ), 'RSVP question wizard labels incomplete final submit state' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'You are done.' ), 'RSVP question wizard clearly announces completion when ready to submit' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'setFinalSubmitState' ), 'RSVP question wizard updates final submit state as answers change' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'getContactEmailForSubmission' ), 'RSVP frontend reuses entered contact email before asking again' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'Saving your RSVP and sending your confirmation email' ), 'RSVP frontend gives immediate saving feedback during AJAX submission' );
+oras_phase1h_assert( false !== strpos( $rsvp_js, 'scrollIntoView' ), 'RSVP frontend returns users to the inline result after submission' );
+oras_phase1h_assert( false === strpos( $rsvp_js, 'window.location.reload();' ), 'RSVP frontend does not force a page reload after AJAX success' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'Content-Type: text/html; charset=UTF-8' ), 'RSVP attendee emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $rsvp_frontend, 'build_oras_email_template' ), 'RSVP attendee emails use shared ORAS email template' );
 
