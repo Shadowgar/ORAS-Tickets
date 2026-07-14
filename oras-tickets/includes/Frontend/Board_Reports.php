@@ -369,6 +369,119 @@ final class Board_Reports {
 					min-height: 32px;
 					padding: 0 10px;
 				}
+				.oras-board-reports .oras-board-reports__rsvp-summary {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+					gap: 10px;
+					margin: 0 0 14px;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-summary-item {
+					padding: 12px 14px;
+					border: 1px solid #d8dee9;
+					border-radius: 12px;
+					background: #ffffff;
+					box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+				}
+				.oras-board-reports .oras-board-reports__rsvp-summary-label {
+					display: block;
+					color: #475569;
+					font-size: 0.78rem;
+					font-weight: 800;
+					letter-spacing: 0.04em;
+					text-transform: uppercase;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-summary-value {
+					display: block;
+					margin-top: 4px;
+					color: #0f172a;
+					font-size: 1.5rem;
+					font-weight: 850;
+					line-height: 1;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-list {
+					display: grid;
+					gap: 12px;
+					margin: 0 0 18px;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card {
+					display: grid;
+					grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+					gap: 16px;
+					padding: 16px;
+					border: 1px solid #d8dee9;
+					border-radius: 14px;
+					background: #ffffff;
+					box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-main {
+					min-width: 0;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-name {
+					margin: 0 0 6px;
+					color: #0f172a;
+					font-size: 1.14rem;
+					font-weight: 850;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-contact,
+				.oras-board-reports .oras-board-reports__rsvp-card-meta,
+				.oras-board-reports .oras-board-reports__rsvp-card-note {
+					margin: 0;
+					color: #334155;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-contact {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px 14px;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-badges {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px;
+					margin: 12px 0;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-badge {
+					display: inline-flex;
+					align-items: center;
+					min-height: 28px;
+					padding: 4px 9px;
+					border: 1px solid #cbd5e1;
+					border-radius: 999px;
+					background: #f8fafc;
+					color: #1f2937;
+					font-size: 0.84rem;
+					font-weight: 800;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-badge--pending {
+					background: #fffbeb;
+					border-color: #fbbf24;
+					color: #78350f;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-badge--approved {
+					background: #ecfdf5;
+					border-color: #6ee7b7;
+					color: #065f46;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-badge--rejected {
+					background: #fef2f2;
+					border-color: #fca5a5;
+					color: #991b1b;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-actions {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					align-items: stretch;
+					justify-content: flex-start;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-actions .oras-board-reports__inline-actions {
+					display: grid;
+					grid-template-columns: 1fr;
+					gap: 8px;
+				}
+				.oras-board-reports .oras-board-reports__rsvp-card-actions .button {
+					width: 100%;
+					justify-content: center;
+				}
 				.oras-board-reports details summary {
 					cursor: pointer;
 					font-weight: 700;
@@ -532,6 +645,46 @@ final class Board_Reports {
 					border-color: rgba(148, 163, 184, 0.35);
 					color: #e6edf7;
 				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-summary-item,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-summary-item,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-item,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card {
+					background: rgba(15, 23, 42, 0.92);
+					border-color: rgba(148, 163, 184, 0.35);
+					color: #e6edf7;
+					box-shadow: 0 20px 44px rgba(0, 0, 0, 0.35);
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-name,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-name,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-name,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-summary-value,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-summary-value,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-value {
+					color: #f8fafc;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-contact,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-contact,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-contact,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-meta,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-meta,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-meta,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-card-note,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-card-note,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-card-note,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-summary-label,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-summary-label,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-summary-label {
+					color: #cbd5e1;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__rsvp-badge,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__rsvp-badge,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__rsvp-badge {
+					background: rgba(51, 65, 85, 0.78);
+					border-color: rgba(148, 163, 184, 0.35);
+					color: #e2e8f0;
+				}
 				html.oras-dark-on .oras-board-reports .oras-board-reports__metric-label,
 				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__metric-label,
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__metric-label {
@@ -562,6 +715,9 @@ final class Board_Reports {
 						grid-template-columns: 1fr;
 					}
 					.oras-board-reports .oras-board-reports__event-shell {
+						grid-template-columns: 1fr;
+					}
+					.oras-board-reports .oras-board-reports__rsvp-card {
 						grid-template-columns: 1fr;
 					}
 				}
@@ -1162,43 +1318,12 @@ final class Board_Reports {
 			<?php elseif ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching RSVP rows found for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<div class="oras-board-reports__table-wrap">
-					<table>
-						<thead>
-							<tr>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html__( 'Name', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'rsvp_status' ) ); ?>"><?php echo esc_html__( 'RSVP Status', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html__( 'Attendance Type', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html__( 'Approval Status', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'approved_by' ) ); ?>"><?php echo esc_html__( 'Approved By', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'approved_date' ) ); ?>"><?php echo esc_html__( 'Approved Date', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html__( 'Note', 'oras-tickets' ); ?></th>
-								<th class="<?php echo esc_attr( self::report_cell_class( 'actions' ) ); ?>"><?php echo esc_html__( 'Actions', 'oras-tickets' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $row ) : ?>
-								<tr>
-									<td class="<?php echo esc_attr( self::report_cell_class( 'name' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'name' ) ); ?></td>
-									<td class="<?php echo esc_attr( self::report_cell_class( 'email' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'email' ) ); ?></td>
-									<td class="<?php echo esc_attr( self::report_cell_class( 'phone' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'phone' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'rsvp_status' ) ); ?>"><?php echo esc_html( self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'attendance_type' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'attendance_label' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'approval_status' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approval_label' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'approved_by' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approved_by' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'approved_date' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'approved_at' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'source' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'source' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'note' ) ); ?>"><?php echo esc_html( self::row_scalar( $row, 'note' ) ); ?></td>
-										<td class="<?php echo esc_attr( self::report_cell_class( 'actions' ) ); ?>"><?php self::render_rsvp_row_actions( $row ); ?></td>
-									</tr>
-									<?php self::render_question_answers_table_row( $row, 11 ); ?>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
-					</div>
+				<?php self::render_rsvp_summary_bar( $rows ); ?>
+				<div class="oras-board-reports__rsvp-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php self::render_rsvp_card( $row ); ?>
+					<?php endforeach; ?>
+				</div>
 				<?php endif; ?>
 				<?php if ( ! empty( $events ) && $filters['event_id'] > 0 ) : ?>
 					<?php self::render_waitlist_section( $filters['event_id'] ); ?>
@@ -1335,6 +1460,127 @@ final class Board_Reports {
 			<input type="hidden" name="redirect_to" value="<?php echo esc_url( self::get_current_url() ); ?>" />
 			<button type="submit" class="button button-secondary"><?php echo esc_html( $label ); ?></button>
 		</form>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function render_rsvp_card( array $row ): void {
+		$name = self::row_scalar( $row, 'name' );
+		$email = self::row_scalar( $row, 'email' );
+		$phone = self::row_scalar( $row, 'phone' );
+		$rsvp_status = self::get_rsvp_status_label( self::row_scalar( $row, 'order_status' ) );
+		$attendance_label = self::row_scalar( $row, 'attendance_label' );
+		$approval_status = Event_RSVP::normalize_approval_status( self::row_scalar( $row, 'approval_status' ), Event_RSVP::APPROVAL_STATUS_APPROVED );
+		$approval_label = self::row_scalar( $row, 'approval_label' );
+		$approved_by = self::row_scalar( $row, 'approved_by' );
+		$approved_at = self::row_scalar( $row, 'approved_at' );
+		$source = self::row_scalar( $row, 'source' );
+		$note = self::row_scalar( $row, 'note' );
+		?>
+		<article class="oras-board-reports__rsvp-card">
+			<div class="oras-board-reports__rsvp-card-main">
+				<h3 class="oras-board-reports__rsvp-card-name"><?php echo esc_html( '' !== $name ? $name : __( 'Unnamed attendee', 'oras-tickets' ) ); ?></h3>
+				<p class="oras-board-reports__rsvp-card-contact">
+					<?php if ( '' !== $email ) : ?>
+						<span><?php echo esc_html( $email ); ?></span>
+					<?php endif; ?>
+					<?php if ( '' !== $phone ) : ?>
+						<span><?php echo esc_html( $phone ); ?></span>
+					<?php endif; ?>
+				</p>
+				<div class="oras-board-reports__rsvp-card-badges" aria-label="<?php echo esc_attr__( 'RSVP status summary', 'oras-tickets' ); ?>">
+					<span class="oras-board-reports__rsvp-badge"><?php echo esc_html( $rsvp_status ); ?></span>
+					<span class="oras-board-reports__rsvp-badge"><?php echo esc_html( $attendance_label ); ?></span>
+					<span class="oras-board-reports__rsvp-badge oras-board-reports__rsvp-badge--<?php echo esc_attr( sanitize_html_class( $approval_status ) ); ?>"><?php echo esc_html( $approval_label ); ?></span>
+					<?php if ( '' !== $source ) : ?>
+						<span class="oras-board-reports__rsvp-badge"><?php echo esc_html( $source ); ?></span>
+					<?php endif; ?>
+				</div>
+				<?php if ( '' !== $approved_by || '' !== $approved_at ) : ?>
+					<p class="oras-board-reports__rsvp-card-meta">
+						<?php if ( '' !== $approved_at ) : ?>
+							<?php
+							printf(
+								/* translators: 1: approver name, 2: approved date. */
+								esc_html__( 'Approved by %1$s on %2$s', 'oras-tickets' ),
+								esc_html( '' !== $approved_by ? $approved_by : __( 'Unknown', 'oras-tickets' ) ),
+								esc_html( $approved_at )
+							);
+							?>
+						<?php else : ?>
+							<?php
+							printf(
+								/* translators: %s: approver name. */
+								esc_html__( 'Approved by %s', 'oras-tickets' ),
+								esc_html( $approved_by )
+							);
+							?>
+						<?php endif; ?>
+					</p>
+				<?php endif; ?>
+				<?php if ( '' !== $note ) : ?>
+					<details class="oras-board-reports__rsvp-card-note">
+						<summary><?php echo esc_html__( 'View note', 'oras-tickets' ); ?></summary>
+						<p><?php echo esc_html( $note ); ?></p>
+					</details>
+				<?php endif; ?>
+				<?php self::render_question_answers_summary( $row ); ?>
+			</div>
+			<div class="oras-board-reports__rsvp-card-actions" aria-label="<?php echo esc_attr__( 'RSVP approval actions', 'oras-tickets' ); ?>">
+				<?php self::render_rsvp_row_actions( $row ); ?>
+			</div>
+		</article>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 */
+	private static function render_rsvp_summary_bar( array $rows ): void {
+		$counts = array(
+			'pending_virtual'  => 0,
+			'approved_virtual' => 0,
+			'onsite'           => 0,
+			'rejected'         => 0,
+			'total'            => count( $rows ),
+		);
+
+		foreach ( $rows as $row ) {
+			$attendance_type = strtolower( self::row_scalar( $row, 'attendance_type' ) );
+			$approval_status = Event_RSVP::normalize_approval_status( self::row_scalar( $row, 'approval_status' ), Event_RSVP::APPROVAL_STATUS_APPROVED );
+
+			if ( Ticket::ATTENDANCE_MODE_ONSITE === $attendance_type ) {
+				++$counts['onsite'];
+			}
+			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_type && Event_RSVP::APPROVAL_STATUS_PENDING === $approval_status ) {
+				++$counts['pending_virtual'];
+			}
+			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_type && Event_RSVP::APPROVAL_STATUS_APPROVED === $approval_status ) {
+				++$counts['approved_virtual'];
+			}
+			if ( Event_RSVP::APPROVAL_STATUS_REJECTED === $approval_status ) {
+				++$counts['rejected'];
+			}
+		}
+
+		$items = array(
+			__( 'Total Shown', 'oras-tickets' )      => $counts['total'],
+			__( 'Pending Virtual', 'oras-tickets' )  => $counts['pending_virtual'],
+			__( 'Approved Virtual', 'oras-tickets' ) => $counts['approved_virtual'],
+			__( 'On-site', 'oras-tickets' )          => $counts['onsite'],
+			__( 'Rejected', 'oras-tickets' )         => $counts['rejected'],
+		);
+		?>
+		<div class="oras-board-reports__rsvp-summary" aria-label="<?php echo esc_attr__( 'RSVP result summary', 'oras-tickets' ); ?>">
+			<?php foreach ( $items as $label => $value ) : ?>
+				<div class="oras-board-reports__rsvp-summary-item">
+					<span class="oras-board-reports__rsvp-summary-label"><?php echo esc_html( $label ); ?></span>
+					<span class="oras-board-reports__rsvp-summary-value"><?php echo esc_html( (string) $value ); ?></span>
+				</div>
+			<?php endforeach; ?>
+		</div>
 		<?php
 	}
 

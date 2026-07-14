@@ -152,6 +152,6 @@ oras_attention_assert( false !== strpos( $board_reports_code, 'render_attention_
 oras_attention_assert( false !== strpos( $board_reports_code, 'handle_update_attention_status' ), 'Board Reports supports attention review actions' );
 oras_attention_assert( false !== strpos( $board_reports_code, 'render_attention_notification_center' ), 'Board Reports renders dashboard attention notification center' );
 oras_attention_assert( false !== strpos( $board_reports_code, 'Open event coordination items need review' ), 'Board Reports notification center explains open attention items' );
-oras_attention_assert( method_exists( '\ORAS\Tickets\Event_Question_Attention_Store', 'update_status' ), 'Attention store supports status updates' );
+oras_attention_assert( is_callable( array( '\ORAS\Tickets\Event_Question_Attention_Store', 'update_status' ) ), 'Attention store supports status updates' );
 
 echo "Event question attention checks passed.\n";

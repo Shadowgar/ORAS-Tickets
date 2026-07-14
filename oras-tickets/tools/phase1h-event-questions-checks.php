@@ -246,7 +246,7 @@ oras_phase1h_assert( isset( $attention_definitions[0]['attention_rules'] ) && 1 
 oras_phase1h_assert( 'Accommodation request' === $attention_definitions[0]['attention_rules'][0]['label'], 'Attention rule label is preserved' );
 oras_phase1h_assert( 'urgent' === $attention_definitions[0]['attention_rules'][0]['severity'], 'Attention rule severity is preserved' );
 
-oras_phase1h_assert( method_exists( $class, 'match_attention_rules' ), 'Attention rule matcher exists' );
+oras_phase1h_assert( is_callable( array( $class, 'match_attention_rules' ) ), 'Attention rule matcher exists' );
 $attention_matches = $class::match_attention_rules( $attention_definitions[0], 'Yes' );
 oras_phase1h_assert( 1 === count( $attention_matches ), 'Equals attention rule matches controlled yes answer' );
 oras_phase1h_assert( 'Accommodation request' === $attention_matches[0]['label'], 'Matched attention rule keeps board-facing label' );
@@ -277,6 +277,10 @@ oras_phase1h_assert( false !== strpos( $board_reports, '$filters[\'type\'] = Boa
 oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board_report_type">' ), 'Ticket Sales tab no longer exposes generic report type dropdown' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'Content-Type: text/html; charset=UTF-8' ), 'Board communications emails use HTML content type' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'build_communication_email_body' ), 'Board communications emails use a styled ORAS email body' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__rsvp-list' ), 'RSVP Management renders a card list instead of a wide action table' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'oras-board-reports__rsvp-card-actions' ), 'RSVP Management keeps approval actions visible in each card' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_rsvp_card' ), 'RSVP Management rows are rendered through dedicated card markup' );
+oras_phase1h_assert( false !== strpos( $board_reports, 'render_rsvp_summary_bar' ), 'RSVP Management includes a compact count summary for large groups' );
 
 $agenda_css_file    = dirname( __DIR__ ) . '/assets/css/agenda.css';
 $agenda_css         = file_exists( $agenda_css_file ) ? (string) file_get_contents( $agenda_css_file ) : '';
