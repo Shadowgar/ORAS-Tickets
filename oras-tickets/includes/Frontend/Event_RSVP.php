@@ -419,21 +419,12 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_HASH_SUFFIX );
                     delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_CANCEL_TOKEN_EXPIRES_SUFFIX );
 
-                    $promoted_user_id = 0;
-                    if ( 'yes' === $current ) {
-                        $promoted = self::promote_next_waitlisted_attendee_unlocked( $event_id, $previous_attendance_mode, $user_id, 'waitlist-auto-promote' );
-                        if ( empty( $promoted['error'] ) ) {
-                            $promoted_user_id = absint( $promoted['user_id'] ?? 0 );
-                        }
-                    }
-
                     return array(
                         'ok'      => true,
                         'status'  => 'none',
                         'message' => esc_html__( 'Your RSVP was removed. We emailed you a cancellation confirmation.', 'oras-tickets' ),
                         'attendance_mode' => '',
                         'previous_attendance_mode' => $previous_attendance_mode,
-                        'promoted_user_id' => $promoted_user_id,
                     );
                 }
 
