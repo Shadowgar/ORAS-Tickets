@@ -14,6 +14,7 @@ html[data-wp-dark-mode-loading] .oras-agenda {
 	--oras-agenda-accent: #5cc1e8;
 	--oras-agenda-accent-strong: #8bd8f4;
 	--oras-agenda-accent-soft: #18394a;
+	--oras-agenda-on-accent: #071522;
 	--oras-agenda-border: #344255;
 	--oras-agenda-border-strong: #526277;
 	--oras-agenda-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);

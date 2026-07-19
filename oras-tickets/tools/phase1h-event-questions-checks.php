@@ -324,7 +324,7 @@ oras_phase1h_assert( false !== strpos( $agenda_ui_code, "card.dataset.agendaType
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "'.oras-agenda__time-band, .oras-agenda__ongoing, .oras-agenda__unscheduled'" ), 'Agenda filtering evaluates every session container type' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "group.querySelector( '.oras-agenda__session-card:not([hidden])' )" ), 'Agenda filtering hides only empty time and activity groups' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'function resetFilters(agenda)' ) && false !== strpos( $agenda_ui_code, 'select.value = \'\';' ), 'Agenda filter reset clears and reapplies all controls' );
-oras_phase1h_assert( false !== strpos( $agenda_ui_code, "status.textContent = visibleCount + ( visibleCount === 1 ? ' session shown' : ' sessions shown' );" ), 'Agenda filter status announces the active-day result count' );
+oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'labels.sessionSingular' ) && false !== strpos( $agenda_ui_code, 'labels.sessionPlural' ) && false !== strpos( $agenda_ui_code, 'status.textContent = visibleCount' ), 'Agenda filter status announces a localized active-day result count' );
 oras_phase1h_assert( false !== strpos( $agenda_now, 'function findActiveSlots(' ) && false !== strpos( $agenda_now, 'for ( const activeSlot of activeSlots )' ), 'Agenda current-session highlighting supports concurrent sessions' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'clear: both;' ), 'Agenda frontend clears preceding floated event content' );
@@ -341,6 +341,7 @@ oras_phase1h_assert( false !== strpos( $agenda_css, 'overflow-x: auto;' ) && fal
 oras_phase1h_assert( false !== strpos( $agenda_css, '@media (max-width: 720px)' ) && false !== strpos( $agenda_css, 'grid-template-columns: 1fr;' ), 'Agenda session grids stack on mobile screens' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '@media (prefers-reduced-motion: reduce)' ), 'Agenda frontend respects reduced-motion preferences' );
 oras_phase1h_assert( false === strpos( $agenda_css, '.oras-agenda__timeline::before' ), 'Agenda frontend removes the obsolete continuous timeline rail' );
+oras_phase1h_assert( substr_count( $agenda_css, 'min-height: 44px;' ) >= 6, 'Agenda frontend provides accessible interactive touch targets' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, 'html.wp-dark-mode-active .oras-agenda' ) && false !== strpos( $agenda_colors, 'body.wp-dark-mode-active .oras-agenda' ), 'Agenda colors cover WP Dark Mode class-based activation' );
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'document.body.appendChild( drawer )' ), 'Speaker drawer is mounted beneath the document body' );

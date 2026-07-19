@@ -10,7 +10,10 @@
 			return;
 		}
 
-		status.textContent = visibleCount + ( visibleCount === 1 ? ' session shown' : ' sessions shown' );
+		const labels = typeof ORAS_AGENDA_UI === 'object' && ORAS_AGENDA_UI ? ORAS_AGENDA_UI : {};
+		const singular = typeof labels.sessionSingular === 'string' ? labels.sessionSingular : 'session shown';
+		const plural = typeof labels.sessionPlural === 'string' ? labels.sessionPlural : 'sessions shown';
+		status.textContent = visibleCount + ' ' + ( visibleCount === 1 ? singular : plural );
 	}
 
 	function applyFilters(agenda) {

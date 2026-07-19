@@ -70,6 +70,15 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
             true
         );
 
+        wp_localize_script(
+            'oras-agenda-ui',
+            'ORAS_AGENDA_UI',
+            array(
+                'sessionSingular' => __( 'session shown', 'oras-tickets' ),
+                'sessionPlural'   => __( 'sessions shown', 'oras-tickets' ),
+            )
+        );
+
         wp_enqueue_style(
             'oras-agenda-colors',
             ORAS_TICKETS_URL . 'assets/css/oras-agenda-colors.css',

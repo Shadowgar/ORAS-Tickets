@@ -10,6 +10,7 @@
 	--oras-agenda-accent: #155f86;
 	--oras-agenda-accent-strong: #0d4768;
 	--oras-agenda-accent-soft: #e2f2f8;
+	--oras-agenda-on-accent: #ffffff;
 	--oras-agenda-border: #d5dde8;
 	--oras-agenda-border-strong: #b9c6d6;
 	--oras-agenda-shadow: 0 10px 28px rgba(25, 44, 72, 0.08);
@@ -155,7 +156,7 @@
 .oras-agenda__tab[aria-selected="true"] {
 	border-color: var(--oras-agenda-accent);
 	background: var(--oras-agenda-accent);
-	color: #ffffff;
+	color: var(--oras-agenda-on-accent);
 }
 
 .oras-agenda__panel {
@@ -379,7 +380,7 @@
 }
 
 .oras-agenda__speaker-link {
-	min-height: 32px;
+	min-height: 44px;
 	margin: 0;
 	padding: 3px 0;
 	border: 0;
@@ -408,7 +409,7 @@
 .oras-agenda__resource-action {
 	display: inline-flex;
 	align-items: center;
-	min-height: 36px;
+	min-height: 44px;
 	padding: 6px 10px;
 	border: 1px solid var(--oras-agenda-border-strong);
 	border-radius: 7px;
@@ -445,7 +446,7 @@
 	padding: 4px 9px;
 	border-radius: 999px;
 	background: var(--oras-agenda-accent);
-	color: #ffffff;
+	color: var(--oras-agenda-on-accent);
 	font-size: 0.7rem;
 	font-weight: 850;
 	text-transform: uppercase;
@@ -472,6 +473,10 @@
 
 .oras-speaker-drawer[hidden] {
 	display: none;
+}
+
+.oras-speaker-drawer [hidden] {
+	display: none !important;
 }
 
 .oras-speaker-drawer__backdrop {

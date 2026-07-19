@@ -55,6 +55,12 @@
 
 	function setOptionalLink(link, url) {
 		const safeUrl = typeof url === 'string' ? url.trim() : '';
+		if ( safeUrl === '' ) {
+			link.removeAttribute( 'href' );
+			link.hidden = true;
+			return;
+		}
+
 		let parsedUrl = null;
 		try {
 			parsedUrl = new URL( safeUrl, globalThis.location.href );
