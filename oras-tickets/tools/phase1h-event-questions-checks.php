@@ -306,6 +306,10 @@ $agenda_ui_file     = dirname( __DIR__ ) . '/assets/js/agenda-ui.js';
 $agenda_ui          = file_exists( $agenda_ui_file ) ? (string) file_get_contents( $agenda_ui_file ) : '';
 $agenda_ui_code     = preg_replace( '#/\*.*?\*/|(^|\s)//[^\r\n]*#ms', '$1', $agenda_ui );
 $agenda_ui_code     = is_string( $agenda_ui_code ) ? $agenda_ui_code : '';
+$speaker_ui_file    = dirname( __DIR__ ) . '/assets/js/speaker-modal.js';
+$speaker_ui         = file_exists( $speaker_ui_file ) ? (string) file_get_contents( $speaker_ui_file ) : '';
+$speaker_ui_code    = preg_replace( '#/\*.*?\*/|(^|\s)//[^\r\n]*#ms', '$1', $speaker_ui );
+$speaker_ui_code    = is_string( $speaker_ui_code ) ? $speaker_ui_code : '';
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "document.querySelectorAll( '.oras-agenda' )" ), 'Agenda UI initializes every agenda instance' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'function activateDay(agenda, dayIndex, shouldFocus)' ), 'Agenda day activation supports optional keyboard focus' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "tab.setAttribute( 'aria-selected', tabSelected ? 'true' : 'false' );" ), 'Agenda day activation updates tab selection state' );
@@ -336,6 +340,12 @@ oras_phase1h_assert( false !== strpos( $agenda_css, '@media (prefers-reduced-mot
 oras_phase1h_assert( false === strpos( $agenda_css, '.oras-agenda__timeline::before' ), 'Agenda frontend removes the obsolete continuous timeline rail' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, 'html.wp-dark-mode-active .oras-agenda' ) && false !== strpos( $agenda_colors, 'body.wp-dark-mode-active .oras-agenda' ), 'Agenda colors cover WP Dark Mode class-based activation' );
+oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'document.body.appendChild( drawer )' ), 'Speaker drawer is mounted beneath the document body' );
+oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'function getFocusableElements()' ), 'Speaker drawer collects focusable controls' );
+oras_phase1h_assert( false !== strpos( $speaker_ui_code, "event.key === 'Tab'" ), 'Speaker drawer traps keyboard focus' );
+oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'lastTrigger.focus()' ), 'Speaker drawer restores focus to its trigger' );
+oras_phase1h_assert( false !== strpos( $speaker_ui_code, "document.body.classList.add( 'oras-speaker-drawer-open' )" ), 'Speaker drawer locks body scrolling while open' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'background: var(--oras-speaker-drawer-surface);' ), 'Speaker drawer uses a fully opaque controlled surface' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';

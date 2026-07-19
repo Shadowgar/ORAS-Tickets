@@ -21,3 +21,18 @@ html[data-wp-dark-mode-loading] .oras-agenda {
 	--oras-agenda-focus: #8bd8f4;
 	--oras-agenda-overlay: rgba(0, 0, 0, 0.78);
 }
+
+html[data-wp-dark-mode-active] .oras-speaker-drawer,
+html.wp-dark-mode-active .oras-speaker-drawer,
+body.wp-dark-mode-active .oras-speaker-drawer,
+html.oras-dark-on .oras-speaker-drawer,
+html[data-wp-dark-mode-loading] .oras-speaker-drawer {
+	--oras-speaker-drawer-surface: #151e2c;
+	--oras-speaker-drawer-elevated: #202c3d;
+	--oras-speaker-drawer-text: #d9e1ec;
+	--oras-speaker-drawer-strong: #f8fafc;
+	--oras-speaker-drawer-muted: #a8b4c4;
+	--oras-speaker-drawer-accent: #8bd8f4;
+	--oras-speaker-drawer-border: #435268;
+	--oras-speaker-drawer-overlay: rgba(0, 0, 0, 0.82);
+}

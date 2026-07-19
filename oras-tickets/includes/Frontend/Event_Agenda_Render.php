@@ -198,7 +198,7 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
 
         if ( ! empty( $speaker_payload ) ) {
             $html .= self::render_speaker_payload_script( $speaker_payload );
-            $html .= self::render_speaker_modal_markup();
+            $html .= self::render_speaker_drawer_markup();
         }
 
         return $content . $html;
@@ -512,7 +512,7 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
             }
 
             $affiliation = (string) get_post_meta( $speaker_id, '_oras_speaker_affiliation', true );
-            $website_url = (string) get_post_meta( $speaker_id, '_oras_speaker_website_url', true );
+            $website_url = esc_url_raw( (string) get_post_meta( $speaker_id, '_oras_speaker_website_url', true ) );
             $headshot_id = absint( get_post_meta( $speaker_id, '_oras_speaker_headshot_id', true ) );
             if ( ! $headshot_id ) {
                 $headshot_id = get_post_thumbnail_id( $speaker_id );
@@ -551,24 +551,27 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
         return '<script type="application/json" id="oras-speaker-data">' . $json . '</script>';
     }
 
-    private static function render_speaker_modal_markup(): string {
-        return '<div class="oras-modal" id="oras-speaker-modal" hidden>'
-        . '<div class="oras-modal__backdrop" data-close></div>'
-        . '<div class="oras-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="oras-modal-title">'
-        . '<button type="button" class="oras-modal__close" data-close aria-label="Close">×</button>'
-        . '<div class="oras-modal__content">'
-        . '<img class="oras-modal__headshot" alt="" hidden>'
-        . '<div class="oras-modal__right">'
-        . '<h3 class="oras-modal__name" id="oras-modal-title"></h3>'
-        . '<div class="oras-modal__affiliation"></div>'
-        . '<div class="oras-modal__bio"></div>'
-        . '<div class="oras-modal__links">'
-        . '<a class="oras-modal__website" target="_blank" rel="noopener" hidden>Website</a>'
-        . '<a class="oras-modal__profile" hidden>View full profile</a>'
+    private static function render_speaker_drawer_markup(): string {
+        return '<div class="oras-speaker-drawer" id="oras-speaker-drawer" hidden>'
+        . '<div class="oras-speaker-drawer__backdrop" data-speaker-close aria-hidden="true"></div>'
+        . '<aside class="oras-speaker-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="oras-speaker-drawer-title">'
+        . '<header class="oras-speaker-drawer__header">'
+        . '<span class="oras-speaker-drawer__label">' . esc_html__( 'Speaker profile', 'oras-tickets' ) . '</span>'
+        . '<button type="button" class="oras-speaker-drawer__close" data-speaker-close aria-label="' . esc_attr__( 'Close speaker profile', 'oras-tickets' ) . '">' . esc_html__( 'Close', 'oras-tickets' ) . '</button>'
+        . '</header>'
+        . '<div class="oras-speaker-drawer__content">'
+        . '<img class="oras-speaker-drawer__headshot" alt="" hidden>'
+        . '<div class="oras-speaker-drawer__details">'
+        . '<h3 class="oras-speaker-drawer__name" id="oras-speaker-drawer-title"></h3>'
+        . '<div class="oras-speaker-drawer__affiliation"></div>'
+        . '<div class="oras-speaker-drawer__bio"></div>'
+        . '<div class="oras-speaker-drawer__links">'
+        . '<a class="oras-speaker-drawer__website" target="_blank" rel="noopener" hidden>' . esc_html__( 'Website', 'oras-tickets' ) . '</a>'
+        . '<a class="oras-speaker-drawer__profile" hidden>' . esc_html__( 'View full profile', 'oras-tickets' ) . '</a>'
         . '</div>'
         . '</div>'
         . '</div>'
-        . '</div>'
+        . '</aside>'
         . '</div>';
     }
 

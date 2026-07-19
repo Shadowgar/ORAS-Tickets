@@ -198,10 +198,12 @@ function phase4RunSurfaceChecks(): void {
         $payload_script = $render_payload_method->invoke( null, $payload );
         phase4SurfaceAssert( is_string( $payload_script ) && strpos( $payload_script, 'id="oras-speaker-data"' ) !== false, 'Frontend speaker payload JSON script markup is generated' );
 
-        $render_modal_method = new ReflectionMethod( Event_Agenda_Render::class, 'render_speaker_modal_markup' );
-        $render_modal_method->setAccessible( true );
-        $modal_markup = $render_modal_method->invoke( null );
-        phase4SurfaceAssert( is_string( $modal_markup ) && strpos( $modal_markup, 'oras-modal__dialog' ) !== false, 'Frontend speaker modal markup is generated' );
+        $render_drawer_method = new ReflectionMethod( Event_Agenda_Render::class, 'render_speaker_drawer_markup' );
+        $render_drawer_method->setAccessible( true );
+        $drawer_markup = $render_drawer_method->invoke( null );
+        phase4SurfaceAssert( is_string( $drawer_markup ) && strpos( $drawer_markup, 'id="oras-speaker-drawer"' ) !== false, 'Frontend speaker drawer markup is generated' );
+        phase4SurfaceAssert( strpos( $drawer_markup, 'role="dialog"' ) !== false && strpos( $drawer_markup, 'aria-modal="true"' ) !== false, 'Speaker drawer exposes accessible dialog semantics' );
+        phase4SurfaceAssert( strpos( $drawer_markup, 'Close speaker profile' ) !== false, 'Speaker drawer has a clearly labeled close control' );
 
 		update_post_meta(
 			$event_id,
