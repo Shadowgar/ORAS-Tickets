@@ -328,7 +328,14 @@ oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__sess
 oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__session-card' ), 'Agenda frontend styles session cards' );
 oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__filters' ), 'Agenda frontend styles conference filters' );
 oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-speaker-drawer' ), 'Agenda frontend styles the speaker profile drawer' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-page:' ) && false !== strpos( $agenda_css, '--oras-agenda-card-muted:' ) && false !== strpos( $agenda_css, '--oras-agenda-elevated:' ), 'Agenda frontend defines distinct conference surface levels' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));' ), 'Agenda concurrent sessions use a responsive conference grid' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'overflow-x: auto;' ) && false !== strpos( $agenda_css, 'flex-wrap: nowrap;' ), 'Agenda day navigation remains horizontally usable on small screens' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '@media (max-width: 720px)' ) && false !== strpos( $agenda_css, 'grid-template-columns: 1fr;' ), 'Agenda session grids stack on mobile screens' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '@media (prefers-reduced-motion: reduce)' ), 'Agenda frontend respects reduced-motion preferences' );
+oras_phase1h_assert( false === strpos( $agenda_css, '.oras-agenda__timeline::before' ), 'Agenda frontend removes the obsolete continuous timeline rail' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
+oras_phase1h_assert( false !== strpos( $agenda_colors, 'html.wp-dark-mode-active .oras-agenda' ) && false !== strpos( $agenda_colors, 'body.wp-dark-mode-active .oras-agenda' ), 'Agenda colors cover WP Dark Mode class-based activation' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';

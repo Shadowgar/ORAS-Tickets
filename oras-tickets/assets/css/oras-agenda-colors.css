@@ -1,24 +1,23 @@
 html[data-wp-dark-mode-active] .oras-agenda,
-html[data-wp-dark-mode-loading] .oras-agenda,
-html.oras-dark-on .oras-agenda {
-	--oras-agenda-surface: rgba(8, 13, 24, 0.94);
-	--oras-agenda-surface-soft: rgba(15, 23, 42, 0.92);
-	--oras-agenda-card: rgba(17, 24, 39, 0.96);
-	--oras-agenda-text: var(--wpdm-text-color, rgba(232, 230, 227, 0.92));
-	--oras-agenda-muted: rgba(232, 230, 227, 0.68);
-	--oras-agenda-strong: rgba(255, 255, 255, 0.96);
-	--oras-agenda-line: rgba(125, 211, 252, 0.42);
-	--oras-agenda-accent: #7dd3fc;
-	--oras-agenda-accent-soft: rgba(125, 211, 252, 0.14);
-	--oras-agenda-border: rgba(226, 232, 240, 0.16);
-	--oras-agenda-tab-selected-bg: rgba(125, 211, 252, 0.14);
-	--oras-agenda-pill-bg: rgba(255, 255, 255, 0.08);
-	--oras-agenda-pill-border: rgba(255, 255, 255, 0.18);
-	--oras-agenda-pill-text: rgba(255, 255, 255, 0.86);
-	--oras-agenda-now-bg: rgba(125, 211, 252, 0.16);
-	--oras-agenda-modal-surface: #1f2328;
-	--oras-agenda-modal-border: rgba(255, 255, 255, 0.16);
-	--oras-agenda-modal-link-bg: rgba(255, 255, 255, 0.1);
-	--oras-agenda-modal-link-hover-bg: rgba(255, 255, 255, 0.2);
-	--oras-agenda-modal-overlay: rgba(0, 0, 0, 0.7);
+html.wp-dark-mode-active .oras-agenda,
+body.wp-dark-mode-active .oras-agenda,
+html.oras-dark-on .oras-agenda,
+html[data-wp-dark-mode-loading] .oras-agenda {
+	--oras-agenda-page: #0e1521;
+	--oras-agenda-surface: #151e2c;
+	--oras-agenda-card: #1b2534;
+	--oras-agenda-card-muted: #121d2b;
+	--oras-agenda-elevated: #202c3d;
+	--oras-agenda-text: #d9e1ec;
+	--oras-agenda-strong: #f8fafc;
+	--oras-agenda-muted: #a8b4c4;
+	--oras-agenda-accent: #5cc1e8;
+	--oras-agenda-accent-strong: #8bd8f4;
+	--oras-agenda-accent-soft: #18394a;
+	--oras-agenda-border: #344255;
+	--oras-agenda-border-strong: #526277;
+	--oras-agenda-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);
+	--oras-agenda-shadow-soft: 0 5px 18px rgba(0, 0, 0, 0.22);
+	--oras-agenda-focus: #8bd8f4;
+	--oras-agenda-overlay: rgba(0, 0, 0, 0.78);
 }
