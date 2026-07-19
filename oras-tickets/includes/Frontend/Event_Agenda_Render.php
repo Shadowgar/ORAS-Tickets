@@ -433,6 +433,132 @@ $hidden    = $first_panel ? '' : ' hidden';
         . '</div>';
     }
 
+    private static function normalize_public_slots( array $slots ): array {
+        $normalized_slots = array();
+
+        foreach ( $slots as $source_index => $slot ) {
+            if ( ! is_array( $slot ) ) {
+                continue;
+            }
+
+            $visibility = isset( $slot['visibility'] ) ? (string) $slot['visibility'] : 'public';
+            if ( $visibility === 'hidden' ) {
+                continue;
+            }
+
+            $start = isset( $slot['start'] ) ? (string) $slot['start'] : '';
+            $end   = isset( $slot['end'] ) ? (string) $slot['end'] : '';
+            $title = isset( $slot['title'] ) ? (string) $slot['title'] : '';
+            if ( $start === '' && $title === '' ) {
+                continue;
+            }
+
+            $start_24     = self::normalize_time_24h( $start );
+            $end_24       = self::normalize_time_24h( $end );
+            $start_parts  = $start_24 !== '' ? explode( ':', $start_24 ) : array();
+            $end_parts    = $end_24 !== '' ? explode( ':', $end_24 ) : array();
+            $start_minutes = count( $start_parts ) === 2
+                ? ( (int) $start_parts[0] * 60 ) + (int) $start_parts[1]
+                : -1;
+            $end_minutes = count( $end_parts ) === 2
+                ? ( (int) $end_parts[0] * 60 ) + (int) $end_parts[1]
+                : -1;
+            if ( $start_minutes >= 0 && $end_minutes >= 0 && $end_minutes < $start_minutes ) {
+                $end_minutes += 1440;
+            }
+
+            $normalized                 = $slot;
+            $normalized['source_index'] = (int) $source_index;
+            $normalized['start_24']      = $start_24;
+            $normalized['end_24']        = $end_24;
+            $normalized['start_minutes'] = $start_minutes;
+            $normalized['end_minutes']   = $end_minutes;
+            $normalized_slots[]          = $normalized;
+        }
+
+        return $normalized_slots;
+    }
+
+    private static function partition_day_program( array $slots ): array {
+        $timed       = array();
+        $unscheduled = array();
+
+        foreach ( self::normalize_public_slots( $slots ) as $slot ) {
+            if ( (int) $slot['start_minutes'] < 0 ) {
+                $unscheduled[] = $slot;
+                continue;
+            }
+
+            $timed[] = $slot;
+        }
+
+        usort(
+            $timed,
+            static function ( array $first, array $second ): int {
+                $start_comparison = (int) $first['start_minutes'] <=> (int) $second['start_minutes'];
+                if ( $start_comparison !== 0 ) {
+                    return $start_comparison;
+                }
+
+                return (int) $first['source_index'] <=> (int) $second['source_index'];
+            }
+        );
+
+        $ongoing_indices = array();
+        $timed_count      = count( $timed );
+        for ( $index = 0; $index < $timed_count; ++$index ) {
+            if ( self::slot_duration_minutes( $timed[ $index ] ) < 120 ) {
+                continue;
+            }
+
+            for ( $later_index = $index + 1; $later_index < $timed_count; ++$later_index ) {
+                if ( self::slots_overlap( $timed[ $index ], $timed[ $later_index ] ) ) {
+                    $ongoing_indices[ $index ] = true;
+                    break;
+                }
+            }
+        }
+
+        $ongoing     = array();
+        $time_groups = array();
+        foreach ( $timed as $index => $slot ) {
+            if ( isset( $ongoing_indices[ $index ] ) ) {
+                $ongoing[] = $slot;
+                continue;
+            }
+
+            $time_groups[ $slot['start_24'] ][] = $slot;
+        }
+
+        return array(
+            'ongoing'     => $ongoing,
+            'time_groups' => $time_groups,
+            'unscheduled' => $unscheduled,
+        );
+    }
+
+    private static function slot_duration_minutes( array $slot ): int {
+        $start_minutes = isset( $slot['start_minutes'] ) ? (int) $slot['start_minutes'] : -1;
+        $end_minutes   = isset( $slot['end_minutes'] ) ? (int) $slot['end_minutes'] : -1;
+        if ( $start_minutes < 0 || $end_minutes <= $start_minutes ) {
+            return 0;
+        }
+
+        return $end_minutes - $start_minutes;
+    }
+
+    private static function slots_overlap( array $first, array $second ): bool {
+        $first_start  = isset( $first['start_minutes'] ) ? (int) $first['start_minutes'] : -1;
+        $first_end    = isset( $first['end_minutes'] ) ? (int) $first['end_minutes'] : -1;
+        $second_start = isset( $second['start_minutes'] ) ? (int) $second['start_minutes'] : -1;
+        $second_end   = isset( $second['end_minutes'] ) ? (int) $second['end_minutes'] : -1;
+        if ( $first_start < 0 || $second_start < 0 || $first_end <= $first_start || $second_end <= $second_start ) {
+            return false;
+        }
+
+        return $first_start < $second_end && $second_start < $first_end;
+    }
+
     private static function is_valid_day_date( string $date ): bool {
         return $date !== '' && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) === 1;
     }

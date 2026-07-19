@@ -291,6 +291,174 @@ function phase4RunSurfaceChecks(): void {
 			)
 		);
 
+		$agenda_fixture = get_post_meta( $event_id, '_oras_agenda_v1', true );
+		phase4SurfaceAssert( is_array( $agenda_fixture ), 'Conference agenda fixture is available for program partition checks' );
+		$partition_input = $agenda_fixture['days'][0]['slots'] ?? array();
+		$partition_input[] = array(
+			'start'      => '13:30',
+			'end'        => '14:30',
+			'title'      => 'Hidden Staff Briefing',
+			'visibility' => 'hidden',
+		);
+		$partition_input[] = array(
+			'start'      => '',
+			'end'        => '',
+			'title'      => '',
+			'visibility' => 'public',
+		);
+
+		$agenda_reflection = new ReflectionClass( Event_Agenda_Render::class );
+		$program_helper_names = array( 'normalize_public_slots', 'partition_day_program', 'slot_duration_minutes', 'slots_overlap' );
+		foreach ( $program_helper_names as $program_helper_name ) {
+			phase4SurfaceAssert( $agenda_reflection->hasMethod( $program_helper_name ), 'Agenda renderer exposes the ' . $program_helper_name . ' helper' );
+			phase4SurfaceAssert( $agenda_reflection->getMethod( $program_helper_name )->isPrivate(), 'Agenda helper ' . $program_helper_name . ' remains private' );
+		}
+		$partition_method = $agenda_reflection->getMethod( 'partition_day_program' );
+		$partition_method->setAccessible( true );
+		$normalize_method = $agenda_reflection->getMethod( 'normalize_public_slots' );
+		$normalize_method->setAccessible( true );
+		$duration_method = $agenda_reflection->getMethod( 'slot_duration_minutes' );
+		$duration_method->setAccessible( true );
+		$overlap_method = $agenda_reflection->getMethod( 'slots_overlap' );
+		$overlap_method->setAccessible( true );
+		$day_program = $partition_method->invoke( null, $partition_input );
+		phase4SurfaceAssert( is_array( $day_program ), 'Agenda program partition helper returns an array' );
+
+		$ongoing_titles = array_column( $day_program['ongoing'] ?? array(), 'title' );
+		phase4SurfaceAssert( $ongoing_titles === array( 'Registration', 'Astronomy Flea Market' ), 'Registration and Astronomy Flea Market are the ordered ongoing activities' );
+		phase4SurfaceAssert( (int) ( $day_program['ongoing'][0]['source_index'] ?? -1 ) === 0, 'Normalized agenda slots preserve their original source index' );
+		phase4SurfaceAssert( (string) ( $day_program['ongoing'][0]['start_24'] ?? '' ) === '10:00', 'Normalized agenda slots include their 24-hour start time' );
+		phase4SurfaceAssert( (int) ( $day_program['ongoing'][0]['start_minutes'] ?? -1 ) === 600, 'Normalized agenda slots include start minutes' );
+		phase4SurfaceAssert( (int) ( $day_program['ongoing'][0]['end_minutes'] ?? -1 ) === 1080, 'Normalized agenda slots include end minutes' );
+
+		$eleven_group = $day_program['time_groups']['11:00'] ?? array();
+		phase4SurfaceAssert( array_column( $eleven_group, 'title' ) === array( 'Observatory Tour', 'Beginning Astrophotography' ), 'Both 11:00 sessions share one stable time group' );
+		phase4SurfaceAssert( isset( $day_program['time_groups']['12:30'] ), 'The 12:30 session occupies a separate time group' );
+		phase4SurfaceAssert( array_column( $day_program['time_groups']['12:30'], 'title' ) === array( 'Solar System Science' ), 'The 12:30 time group contains Solar System Science' );
+
+		$unscheduled_titles = array_column( $day_program['unscheduled'] ?? array(), 'title' );
+		phase4SurfaceAssert( $unscheduled_titles === array( 'Weather-dependent Observing' ), 'Weather-dependent Observing survives in the unscheduled program' );
+		$partitioned_titles = array_merge(
+			$ongoing_titles,
+			array_column( $eleven_group, 'title' ),
+			array_column( $day_program['time_groups']['12:30'] ?? array(), 'title' ),
+			$unscheduled_titles
+		);
+		phase4SurfaceAssert( ! in_array( 'Hidden Staff Briefing', $partitioned_titles, true ), 'Hidden agenda slots are excluded from the public program' );
+
+		$normalized_fixture = $normalize_method->invoke( null, $partition_input );
+		$observatory_rows   = array_values(
+			array_filter(
+				$normalized_fixture,
+				static function ( array $slot ): bool {
+					return (string) ( $slot['title'] ?? '' ) === 'Observatory Tour';
+				}
+			)
+		);
+		phase4SurfaceAssert( count( $observatory_rows ) === 1, 'Observatory Tour has one normalized row' );
+		$observatory_source = $partition_input[2];
+		$observatory_row    = $observatory_rows[0];
+		foreach ( array( 'desc', 'type', 'location', 'speakers', 'resources', 'visibility' ) as $preserved_field ) {
+			phase4SurfaceAssert( $observatory_row[ $preserved_field ] === $observatory_source[ $preserved_field ], 'Normalized Observatory Tour preserves ' . $preserved_field );
+		}
+
+		$threshold_program = $partition_method->invoke(
+			null,
+			array(
+				array(
+					'start'      => '10:00',
+					'end'        => '11:59',
+					'title'      => '119 Minute Session',
+					'visibility' => 'public',
+				),
+				array(
+					'start'      => '11:00',
+					'end'        => '11:30',
+					'title'      => 'Overlapping Session',
+					'visibility' => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( ! in_array( '119 Minute Session', array_column( $threshold_program['ongoing'], 'title' ), true ), 'A 119-minute overlapping slot is not ongoing' );
+		phase4SurfaceAssert( isset( $threshold_program['time_groups']['10:00'] ), 'A 119-minute overlapping slot remains in its time group' );
+
+		$threshold_program = $partition_method->invoke(
+			null,
+			array(
+				array(
+					'start'      => '10:00',
+					'end'        => '12:00',
+					'title'      => '120 Minute Session',
+					'visibility' => 'public',
+				),
+				array(
+					'start'      => '11:00',
+					'end'        => '11:30',
+					'title'      => 'Overlapping Session',
+					'visibility' => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( in_array( '120 Minute Session', array_column( $threshold_program['ongoing'], 'title' ), true ), 'A 120-minute overlapping slot is ongoing' );
+
+		$touching_first = array(
+			'start_minutes' => 600,
+			'end_minutes'   => 660,
+		);
+		$touching_second = array(
+			'start_minutes' => 660,
+			'end_minutes'   => 720,
+		);
+		phase4SurfaceAssert( ! $overlap_method->invoke( null, $touching_first, $touching_second ), 'Sessions whose boundaries only touch do not overlap' );
+
+		$overnight_rows = $normalize_method->invoke(
+			null,
+			array(
+				array(
+					'start'      => '23:00',
+					'end'        => '01:00',
+					'title'      => 'Overnight Observing',
+					'visibility' => 'public',
+				),
+				array(
+					'start'      => '23:30',
+					'end'        => '00:30',
+					'title'      => 'Late Night Workshop',
+					'visibility' => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( (int) $overnight_rows[0]['end_minutes'] === 1500, 'A 23:00-01:00 slot normalizes its end into the next day' );
+		phase4SurfaceAssert( (int) $duration_method->invoke( null, $overnight_rows[0] ) === 120, 'A 23:00-01:00 slot has a 120-minute duration' );
+		phase4SurfaceAssert( (int) $overnight_rows[1]['end_minutes'] === 1470, 'A 23:30-00:30 slot normalizes its end into the next day' );
+		phase4SurfaceAssert( $overlap_method->invoke( null, $overnight_rows[0], $overnight_rows[1] ), 'Overnight slots overlap across midnight' );
+
+		$invalid_end_rows = $normalize_method->invoke(
+			null,
+			array(
+				array(
+					'start'      => '21:00',
+					'end'        => 'invalid',
+					'title'      => 'Open-ended Observing',
+					'visibility' => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( (int) $duration_method->invoke( null, $invalid_end_rows[0] ) === 0, 'A slot with an invalid end has zero duration' );
+
+		$equal_time_rows = $normalize_method->invoke(
+			null,
+			array(
+				array(
+					'start'      => '09:00',
+					'end'        => '09:00',
+					'title'      => 'Zero Duration Marker',
+					'visibility' => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( (int) $duration_method->invoke( null, $equal_time_rows[0] ) === 0, 'Equal start and end times remain zero duration' );
+
 		$agenda_html = phase4RenderAgendaForEvent( $event_id, $admin_id );
 		phase4SurfaceAssert( strpos( $agenda_html, 'Conference Program' ) !== false, 'Conference agenda fixture renders through the frontend renderer' );
 		phase4SurfaceAssert( strpos( $agenda_html, 'Observatory Tour' ) !== false, 'Conference agenda fixture renders its session content' );
