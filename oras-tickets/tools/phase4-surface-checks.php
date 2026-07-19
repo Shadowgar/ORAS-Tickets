@@ -114,8 +114,28 @@ function phase4RunSurfaceChecks(): void {
                 'post_type'   => 'oras_speaker',
             )
         );
-        phase4SurfaceAssert( is_int( $speaker_id ) && $speaker_id > 0, 'Surface speaker fixture created' );
-        $created_posts[] = $speaker_id;
+		phase4SurfaceAssert( is_int( $speaker_id ) && $speaker_id > 0, 'Surface speaker fixture created' );
+		$created_posts[] = $speaker_id;
+
+		$draft_speaker_id = wp_insert_post(
+			array(
+				'post_title'  => 'ORAS Draft Agenda Speaker ' . $suffix,
+				'post_status' => 'draft',
+				'post_type'   => 'oras_speaker',
+			)
+		);
+		phase4SurfaceAssert( is_int( $draft_speaker_id ) && $draft_speaker_id > 0, 'Draft speaker security fixture created' );
+		$created_posts[] = $draft_speaker_id;
+
+		$wrong_type_speaker_id = wp_insert_post(
+			array(
+				'post_title'  => 'ORAS Wrong Type Agenda Speaker ' . $suffix,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+		phase4SurfaceAssert( is_int( $wrong_type_speaker_id ) && $wrong_type_speaker_id > 0, 'Wrong-post-type speaker security fixture created' );
+		$created_posts[] = $wrong_type_speaker_id;
 
         $event_id = wp_insert_post(
             array(
@@ -231,6 +251,14 @@ function phase4RunSurfaceChecks(): void {
 										'speaker_id' => $speaker_id,
 										'role'       => 'Guide',
 									),
+									array(
+										'speaker_id' => $draft_speaker_id,
+										'role'       => 'Draft presenter',
+									),
+									array(
+										'speaker_id' => $wrong_type_speaker_id,
+										'role'       => 'Invalid presenter',
+									),
 								),
 								'resources'  => array(
 									array(
@@ -240,6 +268,21 @@ function phase4RunSurfaceChecks(): void {
 										'type'          => 'handout',
 										'visibility'    => 'public',
 										'speaker_ids'   => array( $speaker_id ),
+									),
+									array(
+										'attachment_id' => 0,
+										'url'           => 'https://example.org/internal-speaker-notes',
+										'label'         => 'Internal Speaker Notes',
+										'type'          => 'notes',
+										'visibility'    => 'internal',
+										'speaker_ids'   => array( $speaker_id ),
+									),
+									array(
+										'attachment_id' => 0,
+										'url'           => 'javascript:alert(1)',
+										'label'         => 'Unsafe Agenda Resource',
+										'type'          => 'link',
+										'visibility'    => 'public',
 									),
 								),
 							),
@@ -272,19 +315,37 @@ function phase4RunSurfaceChecks(): void {
 							),
 						),
 					),
-					array(
-						'day_label' => 'Saturday',
-						'date'      => '2026-07-18',
-						'slots'     => array(
-							array(
-								'start'      => '09:00',
-								'end'        => '10:00',
-								'title'      => 'Saturday Welcome',
-								'desc'       => 'Preview the second day of conference programming.',
-								'type'       => 'talk',
-								'location'   => 'Main Hall',
-								'visibility' => 'public',
-							),
+				array(
+					'day_label' => 'Saturday',
+					'date'      => '2026-07-17',
+					'slots'     => array(
+						array(
+							'start'      => '09:00',
+							'end'        => '13:00',
+							'title'      => 'Registration',
+							'desc'       => 'A second-day registration window with a repeated title and date.',
+							'type'       => 'other',
+							'location'   => 'Welcome Tent',
+							'visibility' => 'public',
+						),
+						array(
+							'start'      => '09:00',
+							'end'        => '12:00',
+							'title'      => 'Astronomy Flea Market',
+							'desc'       => 'A repeated activity that would collide without a day namespace.',
+							'type'       => 'social',
+							'location'   => 'Vendor Field',
+							'visibility' => 'public',
+						),
+						array(
+							'start'      => '10:00',
+							'end'        => '11:00',
+							'title'      => 'Saturday Welcome',
+							'desc'       => 'Preview the second day of conference programming.',
+							'type'       => 'talk',
+							'location'   => 'Main Hall',
+							'visibility' => 'public',
+						),
 						),
 					),
 				),
@@ -472,6 +533,42 @@ function phase4RunSurfaceChecks(): void {
 		phase4SurfaceAssert( $agenda_loaded, 'Rendered conference agenda is parseable HTML' );
 
 		$agenda_xpath = new DOMXPath( $agenda_document );
+		$id_nodes     = $agenda_xpath->query( '//*[@id != ""]' );
+		$id_counts    = array();
+		foreach ( $id_nodes as $id_node ) {
+			if ( ! ( $id_node instanceof DOMElement ) ) {
+				continue;
+			}
+
+			$node_id = $id_node->getAttribute( 'id' );
+			$id_counts[ $node_id ] = ( $id_counts[ $node_id ] ?? 0 ) + 1;
+		}
+		$duplicate_ids = array_filter(
+			$id_counts,
+			static function ( int $count ): bool {
+				return $count > 1;
+			}
+		);
+		phase4SurfaceAssert( empty( $duplicate_ids ), 'Every non-empty agenda ID is unique across repeated day data' );
+
+		$labelled_regions = $agenda_xpath->query( '//*[@aria-labelledby != ""]' );
+		foreach ( $labelled_regions as $labelled_region ) {
+			if ( ! ( $labelled_region instanceof DOMElement ) ) {
+				continue;
+			}
+
+			$label_id       = $labelled_region->getAttribute( 'aria-labelledby' );
+			$label_matches  = $agenda_xpath->query( '//*[@id="' . $label_id . '"]' );
+			$region_classes = $labelled_region->getAttribute( 'class' );
+			phase4SurfaceAssert( $label_matches instanceof DOMNodeList && $label_matches->length === 1, 'Agenda region aria-labelledby resolves exactly once for ' . $region_classes );
+		}
+
+		$panel_headers = $agenda_xpath->query( '//section[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__panel ")]/header[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__day-header ")]' );
+		phase4SurfaceAssert( $panel_headers instanceof DOMNodeList && $panel_headers->length === 2, 'Each rendered agenda day has a semantic panel header' );
+		$program_lists = $agenda_xpath->query( '//ol[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__program ")]' );
+		phase4SurfaceAssert( $program_lists instanceof DOMNodeList && $program_lists->length === 2, 'Each rendered agenda day has an ordered conference program' );
+		$time_bands = $agenda_xpath->query( '//ol[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__program ")]/li[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__time-band ")]' );
+		phase4SurfaceAssert( $time_bands instanceof DOMNodeList && $time_bands->length === 3, 'Timed sessions render inside semantic time bands' );
 		$eleven_nodes = $agenda_xpath->query( '//*[@data-start-group="11:00"]' );
 		phase4SurfaceAssert( $eleven_nodes instanceof DOMNodeList && $eleven_nodes->length === 1, 'Concurrent sessions share exactly one 11:00 time band' );
 		$eleven_band = $eleven_nodes->item( 0 );
@@ -488,8 +585,55 @@ function phase4RunSurfaceChecks(): void {
 
 		$observatory_cards = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__session-card ") and .//*[normalize-space(.)="Observatory Tour"]]' );
 		phase4SurfaceAssert( $observatory_cards instanceof DOMNodeList && $observatory_cards->length === 1, 'Observatory Tour renders in one session card' );
+		$observatory_card = $observatory_cards->item( 0 );
+		phase4SurfaceAssert( $observatory_card instanceof DOMElement && $observatory_card->tagName === 'article', 'Observatory Tour uses semantic article markup' );
+		phase4SurfaceAssert( $observatory_card instanceof DOMElement && strpos( ' ' . $observatory_card->getAttribute( 'class' ) . ' ', ' oras-agenda__item ' ) !== false, 'Timed cards retain the agenda-now compatibility class' );
+		phase4SurfaceAssert( $observatory_card instanceof DOMElement && $observatory_card->getAttribute( 'data-agenda-date' ) === '2026-07-17', 'Timed cards retain their agenda date' );
+		phase4SurfaceAssert( $observatory_card instanceof DOMElement && $observatory_card->getAttribute( 'data-start' ) === '11:00', 'Timed cards retain their normalized start time' );
+		phase4SurfaceAssert( $observatory_card instanceof DOMElement && $observatory_card->getAttribute( 'data-end' ) === '12:00', 'Timed cards retain their normalized end time' );
+		$observatory_hierarchy = array();
+		if ( $observatory_card instanceof DOMElement ) {
+			foreach ( $observatory_card->childNodes as $child_node ) {
+				if ( ! ( $child_node instanceof DOMElement ) ) {
+					continue;
+				}
+
+				$observatory_hierarchy[] = $child_node->getAttribute( 'class' );
+			}
+		}
+		phase4SurfaceAssert(
+			$observatory_hierarchy === array(
+				'oras-agenda__session-eyebrow',
+				'oras-agenda__session-title',
+				'oras-agenda__session-time',
+				'oras-agenda__session-description',
+				'oras-agenda__speakers',
+				'oras-agenda__resources',
+			),
+			'Session cards render the approved information hierarchy'
+		);
+		$observatory_speaker = $agenda_xpath->query( './/button[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__speaker-link ") and @data-speaker-id="' . (int) $speaker_id . '"]', $observatory_card );
+		phase4SurfaceAssert( $observatory_speaker instanceof DOMNodeList && $observatory_speaker->length === 1, 'Session speaker buttons preserve their validated payload ID' );
+		$observatory_role = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__speaker-role ") and normalize-space(.)="(Guide)"]', $observatory_card );
+		phase4SurfaceAssert( $observatory_role instanceof DOMNodeList && $observatory_role->length === 1, 'Session speaker role labels remain visible' );
 		$observatory_resources = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__resource-action ") and normalize-space(.)="Observatory Guide"]', $observatory_cards->item( 0 ) );
 		phase4SurfaceAssert( $observatory_resources instanceof DOMNodeList && $observatory_resources->length === 1, 'Observatory Tour includes its labeled public resource action' );
+		$observatory_resource = $observatory_resources->item( 0 );
+		phase4SurfaceAssert( $observatory_resource instanceof DOMElement && $observatory_resource->getAttribute( 'href' ) === 'https://example.org/observatory-guide', 'Public resource actions retain their safe URL' );
+		phase4SurfaceAssert( $observatory_resource instanceof DOMElement && $observatory_resource->getAttribute( 'target' ) === '_blank', 'Public resource actions open in a new tab' );
+		phase4SurfaceAssert( $observatory_resource instanceof DOMElement && $observatory_resource->getAttribute( 'rel' ) === 'noopener', 'Public resource actions prevent opener access' );
+		$resource_types = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__resource-type ") and normalize-space(.)="Handout"]', $observatory_card );
+		phase4SurfaceAssert( $resource_types instanceof DOMNodeList && $resource_types->length === 1, 'Resource actions retain their configured type label' );
+		$internal_resources = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__resource-action ") and normalize-space(.)="Internal Speaker Notes"]', $observatory_card );
+		phase4SurfaceAssert( $internal_resources instanceof DOMNodeList && $internal_resources->length === 1, 'Logged-in users can access internal agenda resources' );
+		phase4SurfaceAssert( strpos( $agenda_html, 'Unsafe Agenda Resource' ) === false, 'Unsafe-scheme agenda resource labels are not rendered' );
+		phase4SurfaceAssert( strpos( $agenda_html, 'javascript:alert(1)' ) === false, 'Unsafe-scheme agenda resource URLs are not rendered' );
+		$draft_speaker_buttons = $agenda_xpath->query( '//button[@data-speaker-id="' . (int) $draft_speaker_id . '"]' );
+		phase4SurfaceAssert( $draft_speaker_buttons instanceof DOMNodeList && $draft_speaker_buttons->length === 0, 'Draft speakers are excluded from agenda speaker buttons' );
+		$wrong_type_speaker_buttons = $agenda_xpath->query( '//button[@data-speaker-id="' . (int) $wrong_type_speaker_id . '"]' );
+		phase4SurfaceAssert( $wrong_type_speaker_buttons instanceof DOMNodeList && $wrong_type_speaker_buttons->length === 0, 'Wrong-post-type IDs are excluded from agenda speaker buttons' );
+		phase4SurfaceAssert( strpos( $agenda_html, 'ORAS Draft Agenda Speaker ' . $suffix ) === false, 'Draft speakers are excluded from the speaker payload' );
+		phase4SurfaceAssert( strpos( $agenda_html, 'ORAS Wrong Type Agenda Speaker ' . $suffix ) === false, 'Wrong-post-type IDs are excluded from the speaker payload' );
 
 		$ongoing_nodes = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__ongoing ")]' );
 		phase4SurfaceAssert( $ongoing_nodes instanceof DOMNodeList && $ongoing_nodes->length > 0, 'Long overlapping activities render in the ongoing region' );
@@ -501,6 +645,36 @@ function phase4RunSurfaceChecks(): void {
 		phase4SurfaceAssert( $unscheduled_nodes instanceof DOMNodeList && $unscheduled_nodes->length > 0, 'Untimed sessions render in the unscheduled region' );
 		$unscheduled_text = (string) $unscheduled_nodes->item( 0 )->textContent;
 		phase4SurfaceAssert( strpos( $unscheduled_text, 'Weather-dependent Observing' ) !== false, 'The unscheduled region contains Weather-dependent Observing' );
+
+		$type_filters = $agenda_xpath->query( '//*[@data-agenda-filter="type"]' );
+		phase4SurfaceAssert( $type_filters instanceof DOMNodeList && $type_filters->length === 1, 'Agenda renders one useful session-type filter' );
+		$type_options = $agenda_xpath->query( './option', $type_filters->item( 0 ) );
+		$type_labels  = array();
+		foreach ( $type_options as $type_option ) {
+			$type_labels[] = trim( (string) $type_option->textContent );
+		}
+		phase4SurfaceAssert( $type_labels === array( 'All session types', 'Other', 'Social', 'Observation', 'Workshop', 'Talk' ), 'Session-type filter preserves exact public option labels' );
+
+		$location_filters = $agenda_xpath->query( '//*[@data-agenda-filter="location"]' );
+		phase4SurfaceAssert( $location_filters instanceof DOMNodeList && $location_filters->length === 1, 'Agenda renders one useful location filter' );
+		$location_options = $agenda_xpath->query( './option', $location_filters->item( 0 ) );
+		$location_labels  = array();
+		foreach ( $location_options as $location_option ) {
+			$location_labels[] = trim( (string) $location_option->textContent );
+		}
+		phase4SurfaceAssert(
+			$location_labels === array( 'All locations', 'Welcome Tent', 'Vendor Field', 'Observatory', 'Education Center', 'Main Hall', 'Observing Field' ),
+			'Location filter preserves exact public option labels'
+		);
+		$filter_resets = $agenda_xpath->query( '//*[@data-agenda-filter-reset]' );
+		phase4SurfaceAssert( $filter_resets instanceof DOMNodeList && $filter_resets->length === 1, 'Agenda filters provide a reset control' );
+		$filter_statuses = $agenda_xpath->query( '//*[@data-agenda-filter-status and @aria-live="polite"]' );
+		phase4SurfaceAssert( $filter_statuses instanceof DOMNodeList && $filter_statuses->length === 1, 'Agenda filters provide an accessible live status' );
+
+		$logged_out_agenda = phase4RenderAgendaForEvent( $event_id, 0 );
+		phase4SurfaceAssert( strpos( $logged_out_agenda, 'Observatory Guide' ) !== false, 'Logged-out visitors can access public agenda resources' );
+		phase4SurfaceAssert( strpos( $logged_out_agenda, 'Internal Speaker Notes' ) === false, 'Logged-out visitors cannot access internal agenda resources' );
+		phase4SurfaceAssert( strpos( $logged_out_agenda, 'https://example.org/internal-speaker-notes' ) === false, 'Logged-out HTML excludes the exact internal agenda resource URL' );
 
         echo "PASS: Phase 4 frontend/admin surface checks completed\n";
     } finally {
