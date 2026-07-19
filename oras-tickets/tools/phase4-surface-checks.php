@@ -205,6 +205,19 @@ function phase4RunSurfaceChecks(): void {
         phase4SurfaceAssert( strpos( $drawer_markup, 'role="dialog"' ) !== false && strpos( $drawer_markup, 'aria-modal="true"' ) !== false, 'Speaker drawer exposes accessible dialog semantics' );
         phase4SurfaceAssert( strpos( $drawer_markup, 'Close speaker profile' ) !== false, 'Speaker drawer has a clearly labeled close control' );
 
+        $render_payload_method = new ReflectionMethod( Event_Agenda_Render::class, 'render_speaker_payload_script' );
+        $render_payload_method->setAccessible( true );
+        $payload_script = $render_payload_method->invoke(
+            null,
+            array(
+                array(
+                    'id'   => 1,
+                    'name' => '</script><script>alert(1)</script>',
+                ),
+            )
+        );
+        phase4SurfaceAssert( is_string( $payload_script ) && strpos( $payload_script, '</script><script>' ) === false, 'Speaker payload cannot terminate its JSON script element' );
+
 		update_post_meta(
 			$event_id,
 			'_oras_agenda_v1',

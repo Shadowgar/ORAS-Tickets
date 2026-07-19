@@ -543,7 +543,7 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
     }
 
     private static function render_speaker_payload_script( array $speaker_payload ): string {
-        $json = wp_json_encode( $speaker_payload );
+        $json = wp_json_encode( $speaker_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
         if ( ! is_string( $json ) ) {
             return '';
         }
