@@ -345,7 +345,7 @@ oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'function getFocusableE
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, "event.key === 'Tab'" ), 'Speaker drawer traps keyboard focus' );
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'lastTrigger.focus()' ), 'Speaker drawer restores focus to its trigger' );
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, "document.body.classList.add( 'oras-speaker-drawer-open' )" ), 'Speaker drawer locks body scrolling while open' );
-oras_phase1h_assert( false !== strpos( $agenda_css, 'background: var(--oras-speaker-drawer-surface);' ), 'Speaker drawer uses a fully opaque controlled surface' );
+oras_phase1h_assert( false !== strpos( $agenda_css, 'background-color: var(--oras-speaker-drawer-surface);' ) && false !== strpos( $agenda_css, 'isolation: isolate;' ), 'Speaker drawer uses an isolated fully opaque controlled surface' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';
