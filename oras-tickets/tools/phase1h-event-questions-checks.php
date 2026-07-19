@@ -129,6 +129,16 @@ function oras_phase1h_assert( bool $condition, string $message ): void {
 	echo "PASS: {$message}\n";
 }
 
+function oras_phase1h_css_has_rule( string $css, string $selector ): bool {
+	$without_comments = preg_replace( '#/\*.*?\*/#s', '', $css );
+	if ( ! is_string( $without_comments ) ) {
+		return false;
+	}
+
+	$pattern = '/' . preg_quote( $selector, '/' ) . '\s*\{/m';
+	return preg_match( $pattern, $without_comments ) === 1;
+}
+
 oras_phase1h_assert( class_exists( '\ORAS\Tickets\Event_Questions' ), 'Event_Questions service exists' );
 
 $class = '\ORAS\Tickets\Event_Questions';
@@ -292,19 +302,16 @@ $agenda_css_file    = dirname( __DIR__ ) . '/assets/css/agenda.css';
 $agenda_css         = file_exists( $agenda_css_file ) ? (string) file_get_contents( $agenda_css_file ) : '';
 $agenda_colors_file = dirname( __DIR__ ) . '/assets/css/oras-agenda-colors.css';
 $agenda_colors      = file_exists( $agenda_colors_file ) ? (string) file_get_contents( $agenda_colors_file ) : '';
-$agenda_render_file = dirname( __DIR__ ) . '/includes/Frontend/Event_Agenda_Render.php';
-$agenda_render      = file_exists( $agenda_render_file ) ? (string) file_get_contents( $agenda_render_file ) : '';
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'clear: both;' ), 'Agenda frontend clears preceding floated event content' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'display: flow-root;' ), 'Agenda frontend creates an independent layout context' );
-oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timecell' ), 'Agenda frontend renders a dedicated time column' );
-oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-item-gap: 2px;' ), 'Agenda frontend keeps schedule rows compact' );
-oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-card-padding: 10px 0 10px 14px;' ), 'Agenda frontend uses compact agenda row padding' );
-oras_phase1h_assert( false !== strpos( $agenda_css, 'border-left: 2px solid var(--oras-agenda-accent);' ), 'Agenda frontend uses a slim accent rail' );
-oras_phase1h_assert( false !== strpos( $agenda_css, 'box-shadow: none;' ), 'Agenda frontend avoids bulky agenda card shadows' );
-oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__timeline::before' ) && false !== strpos( $agenda_css, "display: none;\n}" ), 'Agenda frontend suppresses decorative timeline rail' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__program' ), 'Agenda frontend styles the conference program' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__time-band' ), 'Agenda frontend styles distinct time bands' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__session-grid--concurrent' ), 'Agenda frontend styles concurrent session grids' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__session-card' ), 'Agenda frontend styles session cards' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__filters' ), 'Agenda frontend styles conference filters' );
+oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-speaker-drawer' ), 'Agenda frontend styles the speaker profile drawer' );
 oras_phase1h_assert( false !== strpos( $agenda_colors, '--oras-agenda-surface:' ), 'Agenda dark mode defines a readable surface color' );
-oras_phase1h_assert( false !== strpos( $agenda_render, 'oras-agenda__timecell' ), 'Agenda renderer outputs time column markup' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';

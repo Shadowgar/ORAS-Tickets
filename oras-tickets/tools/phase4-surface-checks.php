@@ -183,6 +183,157 @@ function phase4RunSurfaceChecks(): void {
         $modal_markup = $render_modal_method->invoke( null );
         phase4SurfaceAssert( is_string( $modal_markup ) && strpos( $modal_markup, 'oras-modal__dialog' ) !== false, 'Frontend speaker modal markup is generated' );
 
+		update_post_meta(
+			$event_id,
+			'_oras_agenda_v1',
+			array(
+				'version'  => 1,
+				'settings' => array(
+					'enabled'            => true,
+					'title'              => 'Conference Program',
+					'show_timezone_note' => true,
+					'show_end_times'     => true,
+					'show_descriptions'  => true,
+				),
+				'days'     => array(
+					array(
+						'day_label' => 'Friday',
+						'date'      => '2026-07-17',
+						'slots'     => array(
+							array(
+								'start'      => '10:00',
+								'end'        => '18:00',
+								'title'      => 'Registration',
+								'desc'       => 'Registration remains open throughout the day.',
+								'type'       => 'other',
+								'location'   => 'Welcome Tent',
+								'visibility' => 'public',
+							),
+							array(
+								'start'      => '10:00',
+								'end'        => '14:00',
+								'title'      => 'Astronomy Flea Market',
+								'desc'       => 'Browse astronomy equipment and accessories.',
+								'type'       => 'social',
+								'location'   => 'Vendor Field',
+								'visibility' => 'public',
+							),
+							array(
+								'start'      => '11:00',
+								'end'        => '12:00',
+								'title'      => 'Observatory Tour',
+								'desc'       => 'Tour the ORAS observatory and main telescope.',
+								'type'       => 'observation',
+								'location'   => 'Observatory',
+								'visibility' => 'public',
+								'speakers'   => array(
+									array(
+										'speaker_id' => $speaker_id,
+										'role'       => 'Guide',
+									),
+								),
+								'resources'  => array(
+									array(
+										'attachment_id' => 0,
+										'url'           => 'https://example.org/observatory-guide',
+										'label'         => 'Observatory Guide',
+										'type'          => 'handout',
+										'visibility'    => 'public',
+										'speaker_ids'   => array( $speaker_id ),
+									),
+								),
+							),
+							array(
+								'start'      => '11:00',
+								'end'        => '12:00',
+								'title'      => 'Beginning Astrophotography',
+								'desc'       => 'Learn the basics of capturing the night sky.',
+								'type'       => 'workshop',
+								'location'   => 'Education Center',
+								'visibility' => 'public',
+							),
+							array(
+								'start'      => '12:30',
+								'end'        => '13:30',
+								'title'      => 'Solar System Science',
+								'desc'       => 'A guided presentation about our solar system.',
+								'type'       => 'talk',
+								'location'   => 'Main Hall',
+								'visibility' => 'public',
+							),
+							array(
+								'start'      => 'not-a-time',
+								'end'        => '',
+								'title'      => 'Weather-dependent Observing',
+								'desc'       => 'Timing will be announced when conditions are known.',
+								'type'       => 'observation',
+								'location'   => 'Observing Field',
+								'visibility' => 'public',
+							),
+						),
+					),
+					array(
+						'day_label' => 'Saturday',
+						'date'      => '2026-07-18',
+						'slots'     => array(
+							array(
+								'start'      => '09:00',
+								'end'        => '10:00',
+								'title'      => 'Saturday Welcome',
+								'desc'       => 'Preview the second day of conference programming.',
+								'type'       => 'talk',
+								'location'   => 'Main Hall',
+								'visibility' => 'public',
+							),
+						),
+					),
+				),
+			)
+		);
+
+		$agenda_html = phase4RenderAgendaForEvent( $event_id, $admin_id );
+		phase4SurfaceAssert( strpos( $agenda_html, 'Conference Program' ) !== false, 'Conference agenda fixture renders through the frontend renderer' );
+		phase4SurfaceAssert( strpos( $agenda_html, 'Observatory Tour' ) !== false, 'Conference agenda fixture renders its session content' );
+		phase4SurfaceAssert( class_exists( DOMDocument::class ), 'DOM extension is available for agenda markup assertions' );
+
+		$agenda_document = new DOMDocument();
+		$previous_errors = libxml_use_internal_errors( true );
+		$agenda_loaded   = $agenda_document->loadHTML( '<?xml encoding="utf-8" ?>' . $agenda_html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		libxml_clear_errors();
+		libxml_use_internal_errors( $previous_errors );
+		phase4SurfaceAssert( $agenda_loaded, 'Rendered conference agenda is parseable HTML' );
+
+		$agenda_xpath = new DOMXPath( $agenda_document );
+		$eleven_nodes = $agenda_xpath->query( '//*[@data-start-group="11:00"]' );
+		phase4SurfaceAssert( $eleven_nodes instanceof DOMNodeList && $eleven_nodes->length === 1, 'Concurrent sessions share exactly one 11:00 time band' );
+		$eleven_band = $eleven_nodes->item( 0 );
+		$eleven_text = (string) $eleven_band->textContent;
+		phase4SurfaceAssert( strpos( $eleven_text, 'Observatory Tour' ) !== false, 'The 11:00 time band contains Observatory Tour' );
+		phase4SurfaceAssert( strpos( $eleven_text, 'Beginning Astrophotography' ) !== false, 'The 11:00 time band contains Beginning Astrophotography' );
+		$concurrent_grids = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__session-grid--concurrent ")]', $eleven_band );
+		phase4SurfaceAssert( $concurrent_grids instanceof DOMNodeList && $concurrent_grids->length === 1, 'The concurrent session grid is contained by the 11:00 time band' );
+
+		$session_cards = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__session-card ")]' );
+		phase4SurfaceAssert( $session_cards instanceof DOMNodeList && $session_cards->length > 0, 'Conference sessions render as session cards' );
+		$cards_missing_filter_data = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__session-card ") and (not(@data-agenda-type) or not(@data-agenda-location))]' );
+		phase4SurfaceAssert( $cards_missing_filter_data instanceof DOMNodeList && $cards_missing_filter_data->length === 0, 'Every session card exposes type and location filter data' );
+
+		$observatory_cards = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__session-card ") and .//*[normalize-space(.)="Observatory Tour"]]' );
+		phase4SurfaceAssert( $observatory_cards instanceof DOMNodeList && $observatory_cards->length === 1, 'Observatory Tour renders in one session card' );
+		$observatory_resources = $agenda_xpath->query( './/*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__resource-action ") and normalize-space(.)="Observatory Guide"]', $observatory_cards->item( 0 ) );
+		phase4SurfaceAssert( $observatory_resources instanceof DOMNodeList && $observatory_resources->length === 1, 'Observatory Tour includes its labeled public resource action' );
+
+		$ongoing_nodes = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__ongoing ")]' );
+		phase4SurfaceAssert( $ongoing_nodes instanceof DOMNodeList && $ongoing_nodes->length > 0, 'Long overlapping activities render in the ongoing region' );
+		$ongoing_text = (string) $ongoing_nodes->item( 0 )->textContent;
+		phase4SurfaceAssert( strpos( $ongoing_text, 'Registration' ) !== false, 'The ongoing region contains Registration' );
+		phase4SurfaceAssert( strpos( $ongoing_text, 'Astronomy Flea Market' ) !== false, 'The ongoing region contains Astronomy Flea Market' );
+
+		$unscheduled_nodes = $agenda_xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " oras-agenda__unscheduled ")]' );
+		phase4SurfaceAssert( $unscheduled_nodes instanceof DOMNodeList && $unscheduled_nodes->length > 0, 'Untimed sessions render in the unscheduled region' );
+		$unscheduled_text = (string) $unscheduled_nodes->item( 0 )->textContent;
+		phase4SurfaceAssert( strpos( $unscheduled_text, 'Weather-dependent Observing' ) !== false, 'The unscheduled region contains Weather-dependent Observing' );
+
         echo "PASS: Phase 4 frontend/admin surface checks completed\n";
     } finally {
         wp_set_current_user( $admin_id );
@@ -206,4 +357,3 @@ try {
     fwrite( STDERR, 'FAIL: Unexpected exception: ' . $e->getMessage() . "\n" );
     exit( 1 );
 }
-
