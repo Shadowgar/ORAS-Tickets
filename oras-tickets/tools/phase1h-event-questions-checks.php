@@ -310,6 +310,8 @@ $speaker_ui_file    = dirname( __DIR__ ) . '/assets/js/speaker-modal.js';
 $speaker_ui         = file_exists( $speaker_ui_file ) ? (string) file_get_contents( $speaker_ui_file ) : '';
 $speaker_ui_code    = preg_replace( '#/\*.*?\*/|(^|\s)//[^\r\n]*#ms', '$1', $speaker_ui );
 $speaker_ui_code    = is_string( $speaker_ui_code ) ? $speaker_ui_code : '';
+$agenda_now_file    = dirname( __DIR__ ) . '/assets/js/agenda-now.js';
+$agenda_now         = file_exists( $agenda_now_file ) ? (string) file_get_contents( $agenda_now_file ) : '';
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "document.querySelectorAll( '.oras-agenda' )" ), 'Agenda UI initializes every agenda instance' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'function activateDay(agenda, dayIndex, shouldFocus)' ), 'Agenda day activation supports optional keyboard focus' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "tab.setAttribute( 'aria-selected', tabSelected ? 'true' : 'false' );" ), 'Agenda day activation updates tab selection state' );
@@ -323,6 +325,7 @@ oras_phase1h_assert( false !== strpos( $agenda_ui_code, "'.oras-agenda__time-ban
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "group.querySelector( '.oras-agenda__session-card:not([hidden])' )" ), 'Agenda filtering hides only empty time and activity groups' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'function resetFilters(agenda)' ) && false !== strpos( $agenda_ui_code, 'select.value = \'\';' ), 'Agenda filter reset clears and reapplies all controls' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "status.textContent = visibleCount + ( visibleCount === 1 ? ' session shown' : ' sessions shown' );" ), 'Agenda filter status announces the active-day result count' );
+oras_phase1h_assert( false !== strpos( $agenda_now, 'function findActiveSlots(' ) && false !== strpos( $agenda_now, 'for ( const activeSlot of activeSlots )' ), 'Agenda current-session highlighting supports concurrent sessions' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-surface:' ), 'Agenda frontend defines a readable surface color' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'clear: both;' ), 'Agenda frontend clears preceding floated event content' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'display: flow-root;' ), 'Agenda frontend creates an independent layout context' );

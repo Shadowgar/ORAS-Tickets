@@ -74,7 +74,8 @@
 		}
 	}
 
-	function findActiveSlot(slots, todayDate, nowMinutes) {
+	function findActiveSlots(slots, todayDate, nowMinutes) {
+		const activeSlots = [];
 		for ( const slot of slots ) {
 			const dateText = slot.dataset.agendaDate || '';
 			const startText = slot.dataset.start || '';
@@ -93,11 +94,11 @@
 			}
 
 			if ( startMinutes <= nowMinutes && nowMinutes < endMinutes ) {
-				return slot;
+				activeSlots.push( slot );
 			}
 		}
 
-		return null;
+		return activeSlots;
 	}
 
 	document.addEventListener(
@@ -124,18 +125,20 @@
 				const nowMinutes = toMinutes( today.hour, today.minute );
 
 				clearNowMarkers( slots );
-				const activeSlot = findActiveSlot( slots, today.date, nowMinutes );
-				if ( ! activeSlot ) {
+				const activeSlots = findActiveSlots( slots, today.date, nowMinutes );
+				if ( activeSlots.length === 0 ) {
 					isInitialRun = false;
 					return;
 				}
 
-				activeSlot.classList.add( 'oras-agenda__item--now' );
-				ensureBadge( activeSlot, label );
+				for ( const activeSlot of activeSlots ) {
+					activeSlot.classList.add( 'oras-agenda__item--now' );
+					ensureBadge( activeSlot, label );
+				}
 
 				if ( autoscroll && isInitialRun && ! didAutoscroll ) {
 					didAutoscroll = true;
-					activeSlot.scrollIntoView( { block: 'center', behavior: 'smooth' } );
+					activeSlots[0].scrollIntoView( { block: 'center', behavior: 'smooth' } );
 				}
 
 				isInitialRun = false;
