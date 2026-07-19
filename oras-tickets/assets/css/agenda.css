@@ -254,7 +254,7 @@
 	min-width: 0;
 }
 
-.oras-agenda__session-grid:not(.oras-agenda__session-grid--concurrent) {
+.oras-agenda__program .oras-agenda__session-grid:not(.oras-agenda__session-grid--concurrent) {
 	grid-template-columns: minmax(0, 1fr);
 }
 

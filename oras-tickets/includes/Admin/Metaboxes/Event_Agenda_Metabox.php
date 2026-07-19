@@ -99,6 +99,34 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 </label>
             </p>
 
+            <div class="oras-agenda-editor-toolbar" aria-label="<?php echo esc_attr__('Agenda editor tools', 'oras-tickets'); ?>">
+                <label>
+                    <span><?php echo esc_html__('Find a session', 'oras-tickets'); ?></span>
+                    <input type="search" class="oras-agenda-admin-search" placeholder="<?php echo esc_attr__('Search title, speaker, or location', 'oras-tickets'); ?>" />
+                </label>
+                <label>
+                    <span><?php echo esc_html__('Session type', 'oras-tickets'); ?></span>
+                    <select class="oras-agenda-admin-type-filter">
+                        <option value=""><?php echo esc_html__('All types', 'oras-tickets'); ?></option>
+                        <?php foreach (self::allowed_types() as $allowed_type) : ?>
+                            <option value="<?php echo esc_attr($allowed_type); ?>"><?php echo esc_html(ucfirst($allowed_type)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>
+                    <span><?php echo esc_html__('Location', 'oras-tickets'); ?></span>
+                    <select class="oras-agenda-admin-location-filter">
+                        <option value=""><?php echo esc_html__('All locations', 'oras-tickets'); ?></option>
+                    </select>
+                </label>
+                <div class="oras-agenda-editor-toolbar__actions">
+                    <button type="button" class="button oras-agenda-expand-days"><?php echo esc_html__('Expand days', 'oras-tickets'); ?></button>
+                    <button type="button" class="button oras-agenda-collapse-days"><?php echo esc_html__('Collapse days', 'oras-tickets'); ?></button>
+                    <a class="button" href="<?php echo esc_url(get_permalink($post->ID)); ?>" target="_blank" rel="noopener"><?php echo esc_html__('Preview agenda', 'oras-tickets'); ?></a>
+                </div>
+                <p class="oras-agenda-editor-status" aria-live="polite"></p>
+            </div>
+
             <p class="oras-agenda-days-toolbar">
                 <button type="button" class="button button-secondary oras-agenda-add-day"><?php echo esc_html__('Add Day', 'oras-tickets'); ?></button>
             </p>
@@ -140,6 +168,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         <table class="widefat striped oras-agenda-slots-table">
                             <thead>
                                 <tr>
+                                    <th><?php echo esc_html__('Schedule', 'oras-tickets'); ?></th>
                                     <th><?php echo esc_html__('Start', 'oras-tickets'); ?></th>
                                     <th><?php echo esc_html__('End', 'oras-tickets'); ?></th>
                                     <th><?php echo esc_html__('Title', 'oras-tickets'); ?></th>
@@ -163,11 +192,20 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                     $title         = isset($slot['title']) ? (string) $slot['title'] : '';
                                     $desc          = isset($slot['desc']) ? (string) $slot['desc'] : '';
                                     $type          = isset($slot['type']) ? (string) $slot['type'] : 'talk';
+                                    $schedule_mode = isset($slot['schedule_mode']) ? (string) $slot['schedule_mode'] : '';
                                     $location      = isset($slot['location']) ? (string) $slot['location'] : '';
                                     $visibility    = isset($slot['visibility']) ? (string) $slot['visibility'] : 'public';
                                     $slot_speakers = isset($slot['speakers']) && is_array($slot['speakers']) ? $slot['speakers'] : array();
                                     ?>
                                     <tr class="oras-agenda-slot-row" data-slot-index="<?php echo esc_attr((string) $slot_index); ?>">
+                                        <td>
+                                            <select class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][schedule_mode]">
+                                                <option value="" <?php selected($schedule_mode, ''); ?>><?php echo esc_html__('Legacy / automatic', 'oras-tickets'); ?></option>
+                                                <option value="scheduled" <?php selected($schedule_mode, 'scheduled'); ?>><?php echo esc_html__('Scheduled time', 'oras-tickets'); ?></option>
+                                                <option value="ongoing" <?php selected($schedule_mode, 'ongoing'); ?>><?php echo esc_html__('All-day / ongoing', 'oras-tickets'); ?></option>
+                                                <option value="tbd" <?php selected($schedule_mode, 'tbd'); ?>><?php echo esc_html__('Time to be announced', 'oras-tickets'); ?></option>
+                                            </select>
+                                        </td>
                                         <td><input type="time" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][start]" value="<?php echo esc_attr($start_hm); ?>" /></td>
                                         <td><input type="time" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][end]" value="<?php echo esc_attr($end_hm); ?>" /></td>
                                         <td><input type="text" class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][title]" value="<?php echo esc_attr($title); ?>" /></td>
@@ -211,8 +249,8 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                         $attachment_id       = isset($resource['attachment_id']) ? absint($resource['attachment_id']) : 0;
                                                         $url                 = isset($resource['url']) ? (string) $resource['url'] : '';
                                                         $label               = isset($resource['label']) ? (string) $resource['label'] : '';
-                                                        $type                = isset($resource['type']) ? (string) $resource['type'] : 'link';
-                                                        $visibility          = isset($resource['visibility']) ? (string) $resource['visibility'] : 'public';
+                                                        $resource_type       = isset($resource['type']) ? (string) $resource['type'] : 'link';
+                                                        $resource_visibility = isset($resource['visibility']) ? (string) $resource['visibility'] : 'public';
                                                         $resource_speaker_ids = isset($resource['speaker_ids']) && is_array($resource['speaker_ids']) ? $resource['speaker_ids'] : array();
                                                         $filename            = '';
                                                         if ($attachment_id > 0) {
@@ -240,17 +278,17 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                                                             <p>
                                                                 <span class="oras-field-label"><?php echo esc_html__('Type', 'oras-tickets'); ?></span><br />
                                                                 <select class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][resources][<?php echo esc_attr((string) $resource_index); ?>][type]">
-                                                                    <option value="slides" <?php selected($type, 'slides'); ?>><?php echo esc_html__('Slides', 'oras-tickets'); ?></option>
-                                                                    <option value="handout" <?php selected($type, 'handout'); ?>><?php echo esc_html__('Handout', 'oras-tickets'); ?></option>
-                                                                    <option value="video" <?php selected($type, 'video'); ?>><?php echo esc_html__('Video', 'oras-tickets'); ?></option>
-                                                                    <option value="link" <?php selected($type, 'link'); ?>><?php echo esc_html__('Link', 'oras-tickets'); ?></option>
+                                                                    <option value="slides" <?php selected($resource_type, 'slides'); ?>><?php echo esc_html__('Slides', 'oras-tickets'); ?></option>
+                                                                    <option value="handout" <?php selected($resource_type, 'handout'); ?>><?php echo esc_html__('Handout', 'oras-tickets'); ?></option>
+                                                                    <option value="video" <?php selected($resource_type, 'video'); ?>><?php echo esc_html__('Video', 'oras-tickets'); ?></option>
+                                                                    <option value="link" <?php selected($resource_type, 'link'); ?>><?php echo esc_html__('Link', 'oras-tickets'); ?></option>
                                                                 </select>
                                                             </p>
                                                             <p>
                                                                 <span class="oras-field-label"><?php echo esc_html__('Visibility', 'oras-tickets'); ?></span><br />
                                                                 <select class="widefat" name="oras_agenda[days][<?php echo esc_attr((string) $day_index); ?>][slots][<?php echo esc_attr((string) $slot_index); ?>][resources][<?php echo esc_attr((string) $resource_index); ?>][visibility]">
-                                                                    <option value="public" <?php selected($visibility, 'public'); ?>><?php echo esc_html__('Public', 'oras-tickets'); ?></option>
-                                                                    <option value="internal" <?php selected($visibility, 'internal'); ?>><?php echo esc_html__('Internal', 'oras-tickets'); ?></option>
+                                                                    <option value="public" <?php selected($resource_visibility, 'public'); ?>><?php echo esc_html__('Public', 'oras-tickets'); ?></option>
+                                                                    <option value="internal" <?php selected($resource_visibility, 'internal'); ?>><?php echo esc_html__('Internal', 'oras-tickets'); ?></option>
                                                                 </select>
                                                             </p>
                                                             <p>
@@ -346,6 +384,11 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 function slotRowHtml(dayIndex, slotIndex) {
                     return '' +
                         '<tr class="oras-agenda-slot-row" data-slot-index="' + slotIndex + '">' +
+                        '<td><select class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][schedule_mode]">' +
+                        '<option value="scheduled"><?php echo esc_js(__('Scheduled time', 'oras-tickets')); ?></option>' +
+                        '<option value="ongoing"><?php echo esc_js(__('All-day / ongoing', 'oras-tickets')); ?></option>' +
+                        '<option value="tbd"><?php echo esc_js(__('Time to be announced', 'oras-tickets')); ?></option>' +
+                        '</select></td>' +
                         '<td><input type="time" class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][start]" value="" /></td>' +
                         '<td><input type="time" class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][end]" value="" /></td>' +
                         '<td><input type="text" class="widefat" name="oras_agenda[days][' + dayIndex + '][slots][' + slotIndex + '][title]" value="" /></td>' +
@@ -432,6 +475,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         '<input type="date" class="widefat" name="oras_agenda[days][' + dayIndex + '][date]" value="" /></p>' +
                         '<table class="widefat striped oras-agenda-slots-table">' +
                         '<thead><tr>' +
+                        '<th><?php echo esc_js(__('Schedule', 'oras-tickets')); ?></th>' +
                         '<th><?php echo esc_js(__('Start', 'oras-tickets')); ?></th>' +
                         '<th><?php echo esc_js(__('End', 'oras-tickets')); ?></th>' +
                         '<th><?php echo esc_js(__('Title', 'oras-tickets')); ?></th>' +
@@ -690,6 +734,7 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                 $slot_title   = isset($raw_slot['title']) ? sanitize_text_field(wp_unslash($raw_slot['title'])) : '';
                 $desc         = isset($raw_slot['desc']) ? sanitize_textarea_field(wp_unslash($raw_slot['desc'])) : '';
                 $type         = isset($raw_slot['type']) ? sanitize_text_field(wp_unslash($raw_slot['type'])) : 'talk';
+                $schedule_mode = isset($raw_slot['schedule_mode']) ? sanitize_key(wp_unslash($raw_slot['schedule_mode'])) : '';
                 $location     = isset($raw_slot['location']) ? sanitize_text_field(wp_unslash($raw_slot['location'])) : '';
                 $visibility   = isset($raw_slot['visibility']) ? sanitize_text_field(wp_unslash($raw_slot['visibility'])) : 'public';
                 $raw_speakers = isset($raw_slot['speakers']) && is_array($raw_slot['speakers']) ? $raw_slot['speakers'] : array();
@@ -701,6 +746,10 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
 
                 if (! in_array($visibility, self::allowed_visibility(), true)) {
                     $visibility = 'public';
+                }
+
+                if (! in_array($schedule_mode, array('', 'scheduled', 'ongoing', 'tbd'), true)) {
+                    $schedule_mode = '';
                 }
 
                 if ($start === '' && $slot_title === '') {
@@ -746,8 +795,8 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     $attachment_id = isset($raw_resource['attachment_id']) ? absint($raw_resource['attachment_id']) : 0;
                     $url           = isset($raw_resource['url']) ? esc_url_raw(wp_unslash($raw_resource['url'])) : '';
                     $label         = isset($raw_resource['label']) ? sanitize_text_field(wp_unslash($raw_resource['label'])) : '';
-                    $type          = isset($raw_resource['type']) ? sanitize_text_field(wp_unslash($raw_resource['type'])) : 'link';
-                    $visibility    = isset($raw_resource['visibility']) ? sanitize_text_field(wp_unslash($raw_resource['visibility'])) : 'public';
+                    $resource_type = isset($raw_resource['type']) ? sanitize_text_field(wp_unslash($raw_resource['type'])) : 'link';
+                    $resource_visibility = isset($raw_resource['visibility']) ? sanitize_text_field(wp_unslash($raw_resource['visibility'])) : 'public';
                     $raw_speaker_ids = isset($raw_resource['speaker_ids']) && is_array($raw_resource['speaker_ids']) ? $raw_resource['speaker_ids'] : array();
                     $speaker_ids   = array_map('absint', $raw_speaker_ids);
                     $speaker_ids   = array_filter($speaker_ids, function ($id) {
@@ -755,12 +804,12 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     });
                     $speaker_ids   = array_unique($speaker_ids);
 
-                    if (! in_array($type, array('slides', 'handout', 'video', 'link'), true)) {
-                        $type = 'link';
+                    if (! in_array($resource_type, array('slides', 'handout', 'video', 'link'), true)) {
+                        $resource_type = 'link';
                     }
 
-                    if (! in_array($visibility, array('public', 'internal'), true)) {
-                        $visibility = 'public';
+                    if (! in_array($resource_visibility, array('public', 'internal'), true)) {
+                        $resource_visibility = 'public';
                     }
 
                     if ($attachment_id <= 0 && $url === '') {
@@ -771,8 +820,8 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                         'attachment_id' => $attachment_id,
                         'url'           => $url,
                         'label'         => $label,
-                        'type'          => $type,
-                        'visibility'    => $visibility,
+                        'type'          => $resource_type,
+                        'visibility'    => $resource_visibility,
                         'speaker_ids'   => array_values($speaker_ids),
                     );
 
@@ -788,6 +837,10 @@ final class Event_Agenda_Metabox // NOSONAR legacy WP class naming
                     'location'   => $location,
                     'visibility' => $visibility,
                 );
+
+                if ($schedule_mode !== '') {
+                    $slot_data['schedule_mode'] = $schedule_mode;
+                }
 
                 if (! empty($speakers)) {
                     $slot_data['speakers'] = $speakers;

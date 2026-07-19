@@ -635,6 +635,12 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
         $unscheduled = array();
 
         foreach ( self::normalize_public_slots( $slots ) as $slot ) {
+            $schedule_mode = isset( $slot['schedule_mode'] ) ? (string) $slot['schedule_mode'] : '';
+            if ( $schedule_mode === 'tbd' ) {
+                $unscheduled[] = $slot;
+                continue;
+            }
+
             if ( (int) $slot['start_minutes'] < 0 ) {
                 $unscheduled[] = $slot;
                 continue;
@@ -658,6 +664,16 @@ final class Event_Agenda_Render { // NOSONAR legacy WP class naming
         $ongoing_indices = array();
         $timed_count      = count( $timed );
         for ( $index = 0; $index < $timed_count; ++$index ) {
+            $schedule_mode = isset( $timed[ $index ]['schedule_mode'] ) ? (string) $timed[ $index ]['schedule_mode'] : '';
+            if ( $schedule_mode === 'ongoing' ) {
+                $ongoing_indices[ $index ] = true;
+                continue;
+            }
+
+            if ( $schedule_mode === 'scheduled' ) {
+                continue;
+            }
+
             if ( self::slot_duration_minutes( $timed[ $index ] ) < 120 ) {
                 continue;
             }

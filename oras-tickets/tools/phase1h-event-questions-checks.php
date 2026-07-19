@@ -312,6 +312,12 @@ $speaker_ui_code    = preg_replace( '#/\*.*?\*/|(^|\s)//[^\r\n]*#ms', '$1', $spe
 $speaker_ui_code    = is_string( $speaker_ui_code ) ? $speaker_ui_code : '';
 $agenda_now_file    = dirname( __DIR__ ) . '/assets/js/agenda-now.js';
 $agenda_now         = file_exists( $agenda_now_file ) ? (string) file_get_contents( $agenda_now_file ) : '';
+$agenda_admin_file  = dirname( __DIR__ ) . '/assets/admin/event-addon-metabox.js';
+$agenda_admin       = file_exists( $agenda_admin_file ) ? (string) file_get_contents( $agenda_admin_file ) : '';
+$agenda_admin_css_file = dirname( __DIR__ ) . '/assets/admin/event-addon-metabox.css';
+$agenda_admin_css   = file_exists( $agenda_admin_css_file ) ? (string) file_get_contents( $agenda_admin_css_file ) : '';
+$agenda_metabox_file = dirname( __DIR__ ) . '/includes/Admin/Metaboxes/Event_Agenda_Metabox.php';
+$agenda_metabox     = file_exists( $agenda_metabox_file ) ? (string) file_get_contents( $agenda_metabox_file ) : '';
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "document.querySelectorAll( '.oras-agenda' )" ), 'Agenda UI initializes every agenda instance' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, 'function activateDay(agenda, dayIndex, shouldFocus)' ), 'Agenda day activation supports optional keyboard focus' );
 oras_phase1h_assert( false !== strpos( $agenda_ui_code, "tab.setAttribute( 'aria-selected', tabSelected ? 'true' : 'false' );" ), 'Agenda day activation updates tab selection state' );
@@ -337,6 +343,7 @@ oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-agenda__filt
 oras_phase1h_assert( oras_phase1h_css_has_rule( $agenda_css, '.oras-speaker-drawer' ), 'Agenda frontend styles the speaker profile drawer' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '--oras-agenda-page:' ) && false !== strpos( $agenda_css, '--oras-agenda-card-muted:' ) && false !== strpos( $agenda_css, '--oras-agenda-elevated:' ), 'Agenda frontend defines distinct conference surface levels' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));' ), 'Agenda concurrent sessions use a responsive conference grid' );
+oras_phase1h_assert( false !== strpos( $agenda_css, '.oras-agenda__program .oras-agenda__session-grid:not(.oras-agenda__session-grid--concurrent)' ), 'Agenda keeps single timed sessions full width without stacking all-day sessions' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'overflow-x: auto;' ) && false !== strpos( $agenda_css, 'flex-wrap: nowrap;' ), 'Agenda day navigation remains horizontally usable on small screens' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '@media (max-width: 720px)' ) && false !== strpos( $agenda_css, 'grid-template-columns: 1fr;' ), 'Agenda session grids stack on mobile screens' );
 oras_phase1h_assert( false !== strpos( $agenda_css, '@media (prefers-reduced-motion: reduce)' ), 'Agenda frontend respects reduced-motion preferences' );
@@ -350,6 +357,14 @@ oras_phase1h_assert( false !== strpos( $speaker_ui_code, "event.key === 'Tab'" )
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, 'lastTrigger.focus()' ), 'Speaker drawer restores focus to its trigger' );
 oras_phase1h_assert( false !== strpos( $speaker_ui_code, "document.body.classList.add( 'oras-speaker-drawer-open' )" ), 'Speaker drawer locks body scrolling while open' );
 oras_phase1h_assert( false !== strpos( $agenda_css, 'background-color: var(--oras-speaker-drawer-surface);' ) && false !== strpos( $agenda_css, 'isolation: isolate;' ), 'Speaker drawer uses an isolated fully opaque controlled surface' );
+oras_phase1h_assert( false !== strpos( $agenda_metabox, '[schedule_mode]' ) && false !== strpos( $agenda_metabox, "'ongoing'" ) && false !== strpos( $agenda_metabox, "'tbd'" ), 'Agenda editor exposes explicit scheduled, ongoing, and time-TBD modes' );
+oras_phase1h_assert( false !== strpos( $agenda_metabox, "'type'          => \$resource_type" ), 'Agenda resources cannot overwrite their parent session type while saving' );
+oras_phase1h_assert( false !== strpos( $agenda_admin_css, '.oras-agenda-editor-toolbar' ) && false !== strpos( $agenda_admin_css, '.oras-agenda-slot-summary' ), 'Agenda editor uses scalable toolbar and compact session summaries' );
+oras_phase1h_assert( false !== strpos( $agenda_admin_css, '.oras-agenda-editor-drawer' ), 'Agenda session details use a focused editor drawer' );
+oras_phase1h_assert( false !== strpos( $agenda_admin, 'function applyAgendaAdminFilters(' ), 'Agenda editor supports session search and filtering' );
+oras_phase1h_assert( false !== strpos( $agenda_admin, 'function openAgendaEditorDrawer(' ) && false !== strpos( $agenda_admin, 'function closeAgendaEditorDrawer(' ), 'Agenda editor drawer has explicit open and close behavior' );
+oras_phase1h_assert( false !== strpos( $agenda_admin, 'function duplicateAgendaSlot(' ) && false !== strpos( $agenda_admin, 'function moveAgendaSlot(' ), 'Agenda editor supports session duplication and ordering' );
+oras_phase1h_assert( false !== strpos( $agenda_admin, 'function validateAgendaConflicts(' ), 'Agenda editor surfaces scheduling conflicts' );
 
 $rsvp_frontend_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
 $rsvp_frontend      = file_exists( $rsvp_frontend_file ) ? (string) file_get_contents( $rsvp_frontend_file ) : '';

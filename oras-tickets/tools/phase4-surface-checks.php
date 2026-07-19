@@ -7,6 +7,7 @@
  */
 
 use ORAS\Tickets\Admin\Event_Speakers_Metabox;
+use ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox;
 use ORAS\Tickets\Frontend\Event_Agenda_Render;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -43,23 +44,27 @@ function phase4RenderAgendaForEvent( int $event_id, int $user_id ): string {
 
     wp_set_current_user( $user_id );
 
-    $query = new WP_Query(
-        array(
-            'post_type'      => 'tribe_events',
-            'p'              => $event_id,
-            'posts_per_page' => 1,
-        )
-    );
+    $event_post = get_post( $event_id );
+    $query      = new WP_Query();
+
+    if ( $event_post instanceof WP_Post && $event_post->post_type === 'tribe_events' ) {
+        $query->posts             = array( $event_post );
+        $query->post_count        = 1;
+        $query->found_posts       = 1;
+        $query->max_num_pages     = 1;
+        $query->queried_object    = $event_post;
+        $query->queried_object_id = $event_id;
+        $query->is_singular       = true;
+        $query->is_single         = true;
+    }
 
     $output = '<p>base content</p>';
     if ( $query->have_posts() ) {
         $query->the_post();
-        $query->is_singular  = true;
-        $query->is_single    = true;
-        $query->in_the_loop  = true;
-        $wp_query = $query;
-        $wp_the_query = $query;
-        $output   = Event_Agenda_Render::append_to_content( $output );
+        $query->in_the_loop = true;
+        $wp_query           = $query;
+        $wp_the_query       = $query;
+        $output             = Event_Agenda_Render::append_to_content( $output );
     }
 
     wp_reset_postdata();
@@ -369,7 +374,66 @@ function phase4RunSurfaceChecks(): void {
 
 		$agenda_fixture = get_post_meta( $event_id, '_oras_agenda_v1', true );
 		phase4SurfaceAssert( is_array( $agenda_fixture ), 'Conference agenda fixture is available for program partition checks' );
-		$partition_input = $agenda_fixture['days'][0]['slots'] ?? array();
+
+		ob_start();
+		Event_Agenda_Metabox::render( $event_post );
+		$agenda_editor_html = (string) ob_get_clean();
+		$editor_document    = new DOMDocument();
+		$previous_errors    = libxml_use_internal_errors( true );
+		$editor_loaded      = $editor_document->loadHTML( '<?xml encoding="utf-8" ?>' . $agenda_editor_html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		libxml_clear_errors();
+		libxml_use_internal_errors( $previous_errors );
+		phase4SurfaceAssert( $editor_loaded, 'Agenda editor fixture is parseable HTML' );
+
+		$editor_xpath = new DOMXPath( $editor_document );
+			$slot_type_options = $editor_xpath->query( '//select[@name="oras_agenda[days][0][slots][2][type]"]/option[@selected and @value="observation"]' );
+			phase4SurfaceAssert( $slot_type_options instanceof DOMNodeList && $slot_type_options->length === 1, 'Agenda resources do not overwrite their session type in the editor' );
+
+			$_POST = array(
+				'oras_agenda_metabox_nonce' => wp_create_nonce( 'oras_agenda_metabox' ),
+				'oras_agenda'               => array(
+					'settings' => array(
+						'enabled' => '1',
+						'title'   => 'Save-cycle Agenda',
+					),
+					'days'     => array(
+						array(
+							'day_label' => 'Save-cycle Day',
+							'date'      => '2026-07-18',
+							'slots'     => array(
+								array(
+									'schedule_mode' => 'ongoing',
+									'start'         => '09:00',
+									'end'           => '17:00',
+									'title'         => 'Save-cycle Session',
+									'type'          => 'talk',
+									'location'      => 'Main Hall',
+									'visibility'    => 'public',
+									'resources'     => array(
+										array(
+											'url'        => 'https://example.org/save-cycle-slides',
+											'label'      => 'Slides',
+											'type'       => 'slides',
+											'visibility' => 'internal',
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			);
+			Event_Agenda_Metabox::save( $event_id );
+			$saved_agenda = get_post_meta( $event_id, '_oras_agenda_v1', true );
+			$saved_slot   = $saved_agenda['days'][0]['slots'][0] ?? array();
+			phase4SurfaceAssert( ( $saved_slot['type'] ?? '' ) === 'talk', 'Agenda save keeps the parent session type when resources are present' );
+			phase4SurfaceAssert( ( $saved_slot['visibility'] ?? '' ) === 'public', 'Agenda save keeps the parent session visibility when internal resources are present' );
+			phase4SurfaceAssert( ( $saved_slot['schedule_mode'] ?? '' ) === 'ongoing', 'Agenda save persists an explicit schedule mode' );
+			phase4SurfaceAssert( ( $saved_slot['resources'][0]['type'] ?? '' ) === 'slides', 'Agenda save independently persists the resource type' );
+			update_post_meta( $event_id, '_oras_agenda_v1', $agenda_fixture );
+			$_POST = array();
+
+			$partition_input = $agenda_fixture['days'][0]['slots'] ?? array();
 		$partition_input[] = array(
 			'start'      => '13:30',
 			'end'        => '14:30',
@@ -534,6 +598,43 @@ function phase4RunSurfaceChecks(): void {
 			)
 		);
 		phase4SurfaceAssert( (int) $duration_method->invoke( null, $equal_time_rows[0] ) === 0, 'Equal start and end times remain zero duration' );
+
+		$explicit_mode_program = $partition_method->invoke(
+			null,
+			array(
+				array(
+					'start'         => '08:00',
+					'end'           => '08:30',
+					'title'         => 'Explicit Welcome Desk',
+					'schedule_mode' => 'ongoing',
+					'visibility'    => 'public',
+				),
+				array(
+					'start'         => '09:00',
+					'end'           => '13:00',
+					'title'         => 'Explicit Scheduled Workshop',
+					'schedule_mode' => 'scheduled',
+					'visibility'    => 'public',
+				),
+				array(
+					'start'         => '10:00',
+					'end'           => '11:00',
+					'title'         => 'Overlapping Talk',
+					'schedule_mode' => 'scheduled',
+					'visibility'    => 'public',
+				),
+				array(
+					'start'         => '12:00',
+					'end'           => '13:00',
+					'title'         => 'Weather Call',
+					'schedule_mode' => 'tbd',
+					'visibility'    => 'public',
+				),
+			)
+		);
+		phase4SurfaceAssert( (string) ( $explicit_mode_program['ongoing'][0]['title'] ?? '' ) === 'Explicit Welcome Desk', 'Explicit ongoing mode overrides short duration' );
+		phase4SurfaceAssert( isset( $explicit_mode_program['time_groups']['09:00'][0] ) && (string) $explicit_mode_program['time_groups']['09:00'][0]['title'] === 'Explicit Scheduled Workshop', 'Explicit scheduled mode prevents long overlapping sessions from becoming ongoing' );
+		phase4SurfaceAssert( (string) ( $explicit_mode_program['unscheduled'][0]['title'] ?? '' ) === 'Weather Call', 'Explicit time-TBD mode renders in the unscheduled region' );
 
 		$agenda_html = phase4RenderAgendaForEvent( $event_id, $admin_id );
 		phase4SurfaceAssert( strpos( $agenda_html, 'Conference Program' ) !== false, 'Conference agenda fixture renders through the frontend renderer' );

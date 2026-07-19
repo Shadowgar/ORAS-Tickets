@@ -590,45 +590,233 @@
 		}
 	}
 
-	function setSlotExpanded(slotRow, expand) {
-		var detailsCell = slotRow.querySelector('.oras-agenda-slot-details');
-		var toggle = slotRow.querySelector('.oras-agenda-toggle-slot');
-		if (!detailsCell || !toggle) {
+	function agendaField(slotRow, suffix) {
+		return slotRow.querySelector('[name$="[' + suffix + ']"]');
+	}
+
+	function agendaFieldValue(slotRow, suffix) {
+		var field = agendaField(slotRow, suffix);
+		return field ? String(field.value || '').trim() : '';
+	}
+
+	function agendaTimeLabel(slotRow) {
+		var mode = agendaFieldValue(slotRow, 'schedule_mode');
+		if (mode === 'ongoing') {
+			return 'All-day / ongoing';
+		}
+		if (mode === 'tbd') {
+			return 'Time TBD';
+		}
+		var start = agendaFieldValue(slotRow, 'start');
+		var end = agendaFieldValue(slotRow, 'end');
+		return start ? start + (end ? ' - ' + end : '') : 'Time not set';
+	}
+
+	function updateAgendaSlotSummary(slotRow) {
+		var summaryRow = slotRow.previousElementSibling;
+		if (!summaryRow || !summaryRow.classList.contains('oras-agenda-slot-summary')) {
 			return;
 		}
 
-		detailsCell.hidden = !expand;
-		toggle.setAttribute('aria-expanded', expand ? 'true' : 'false');
-		toggle.textContent = expand ? 'Hide' : 'Edit';
+		var title = agendaFieldValue(slotRow, 'title') || 'Untitled session';
+		var type = agendaFieldValue(slotRow, 'type') || 'other';
+		var location = agendaFieldValue(slotRow, 'location') || 'Location not set';
+		var visibility = agendaFieldValue(slotRow, 'visibility') || 'public';
+		summaryRow.querySelector('.oras-agenda-slot-summary__time').textContent = agendaTimeLabel(slotRow);
+		summaryRow.querySelector('.oras-agenda-slot-summary__title').textContent = title;
+		summaryRow.querySelector('.oras-agenda-slot-summary__type').textContent = type;
+		summaryRow.querySelector('.oras-agenda-slot-summary__location').textContent = location;
+		summaryRow.querySelector('.oras-agenda-slot-summary__visibility').textContent = visibility;
+		summaryRow.setAttribute('data-search-text', (title + ' ' + type + ' ' + location + ' ' + slotRow.textContent).toLowerCase());
+		summaryRow.setAttribute('data-session-type', type.toLowerCase());
+		summaryRow.setAttribute('data-location', location.toLowerCase());
+	}
+
+	function closeAgendaEditorDrawer(slotRow) {
+		var activeRow = slotRow || document.querySelector('.oras-agenda-slot-row.is-editor-open');
+		if (!activeRow) {
+			return;
+		}
+		activeRow.classList.remove('is-editor-open');
+		activeRow.hidden = true;
+		document.body.classList.remove('oras-agenda-editor-is-open');
+		var backdrop = document.querySelector('.oras-agenda-editor-backdrop');
+		if (backdrop) {
+			backdrop.hidden = true;
+		}
+		updateAgendaSlotSummary(activeRow);
+		var trigger = activeRow.previousElementSibling && activeRow.previousElementSibling.querySelector('.oras-agenda-open-editor');
+		if (trigger) {
+			trigger.focus();
+		}
+	}
+
+	function openAgendaEditorDrawer(slotRow) {
+		closeAgendaEditorDrawer();
+		if (!slotRow) {
+			return;
+		}
+		slotRow.classList.add('is-editor-open');
+		slotRow.hidden = false;
+		document.body.classList.add('oras-agenda-editor-is-open');
+		var backdrop = document.querySelector('.oras-agenda-editor-backdrop');
+		if (backdrop) {
+			backdrop.hidden = false;
+		}
+		var titleField = agendaField(slotRow, 'title');
+		if (titleField) {
+			titleField.focus();
+		}
+	}
+
+	function agendaSummaryHtml() {
+		return '<td colspan="9"><div class="oras-agenda-slot-summary__main">' +
+			'<span class="oras-agenda-slot-summary__time"></span>' +
+			'<strong class="oras-agenda-slot-summary__title"></strong>' +
+			'<span class="oras-agenda-slot-summary__badges"><span class="oras-agenda-slot-summary__type"></span>' +
+			'<span class="oras-agenda-slot-summary__location"></span><span class="oras-agenda-slot-summary__visibility"></span>' +
+			'<span class="oras-agenda-slot-summary__conflict" hidden>Conflict</span></span></div>' +
+			'<div class="oras-agenda-slot-summary__actions"><button type="button" class="button button-primary oras-agenda-open-editor">Edit</button>' +
+			'<button type="button" class="button oras-agenda-duplicate-slot">Duplicate</button>' +
+			'<button type="button" class="button oras-agenda-move-slot-up" aria-label="Move session up">Up</button>' +
+			'<button type="button" class="button oras-agenda-move-slot-down" aria-label="Move session down">Down</button>' +
+			'<button type="button" class="button-link-delete oras-agenda-admin-remove">Remove</button></div></td>';
 	}
 
 	function enhanceSlotRow(slotRow) {
 		if (!slotRow || slotRow.getAttribute('data-oras-slot-enhanced') === '1') {
 			return;
 		}
-
-		var detailsCell = slotRow.querySelector('td:nth-child(4)');
-		var actionsCell = slotRow.querySelector('td:last-child');
-		if (!detailsCell || !actionsCell) {
+		var cells = slotRow.querySelectorAll(':scope > td');
+		if (cells.length < 9) {
 			return;
 		}
 
-		detailsCell.classList.add('oras-agenda-slot-details');
-		var slotIndex = slotRow.getAttribute('data-slot-index') || String(Math.floor(Math.random() * 100000));
-		var panelId = slotRow.id || ('oras-agenda-slot-details-' + slotIndex + '-' + Math.floor(Math.random() * 10000));
-		detailsCell.id = panelId;
+		var labels = ['Schedule', 'Start time', 'End time', 'Session title', 'Description, speakers, and resources', 'Session type', 'Location', 'Visibility', 'Actions'];
+		toArray(cells).forEach(function (cell, index) {
+			cell.setAttribute('data-field-label', labels[index] || 'Session field');
+		});
+		cells[4].classList.add('oras-agenda-slot-details');
 
-		var toggle = actionsCell.querySelector('.oras-agenda-toggle-slot');
-		if (!toggle) {
-			toggle = document.createElement('button');
-			toggle.type = 'button';
-			toggle.className = 'button button-small oras-agenda-toggle-slot';
-			actionsCell.insertBefore(toggle, actionsCell.firstChild);
-		}
+		var heading = document.createElement('td');
+		heading.className = 'oras-agenda-editor-drawer__heading';
+		heading.colSpan = 9;
+		heading.innerHTML = '<div><strong>Edit session</strong><span>Changes are saved when you update the event.</span></div>' +
+			'<button type="button" class="button oras-agenda-close-editor">Done</button>';
+		slotRow.insertBefore(heading, slotRow.firstChild);
 
-		toggle.setAttribute('aria-controls', panelId);
+		var summaryRow = document.createElement('tr');
+		summaryRow.className = 'oras-agenda-slot-summary';
+		summaryRow.innerHTML = agendaSummaryHtml();
+		slotRow.parentNode.insertBefore(summaryRow, slotRow);
 		slotRow.setAttribute('data-oras-slot-enhanced', '1');
-		setSlotExpanded(slotRow, false);
+		updateAgendaSlotSummary(slotRow);
+	}
+
+	function nextAgendaSlotIndex(day) {
+		var maximum = -1;
+		toArray(day.querySelectorAll('.oras-agenda-slot-row')).forEach(function (row) {
+			maximum = Math.max(maximum, Number.parseInt(row.getAttribute('data-slot-index') || '-1', 10));
+		});
+		return maximum + 1;
+	}
+
+	function duplicateAgendaSlot(slotRow) {
+		var day = slotRow.closest('.oras-agenda-day');
+		if (!day) {
+			return;
+		}
+		var oldIndex = slotRow.getAttribute('data-slot-index');
+		var newIndex = String(nextAgendaSlotIndex(day));
+		var clone = slotRow.cloneNode(true);
+		clone.classList.remove('is-editor-open');
+		clone.removeAttribute('data-oras-slot-enhanced');
+		clone.setAttribute('data-slot-index', newIndex);
+		var heading = clone.querySelector('.oras-agenda-editor-drawer__heading');
+		if (heading) {
+			heading.remove();
+		}
+		toArray(clone.querySelectorAll('[name]')).forEach(function (field) {
+			field.name = field.name.replace('[slots][' + oldIndex + ']', '[slots][' + newIndex + ']');
+		});
+		slotRow.parentNode.insertBefore(clone, slotRow.nextSibling);
+		enhanceSlotRow(clone);
+		updateDaySummary(day);
+		validateAgendaConflicts(day);
+		var agenda = day.closest('#oras-agenda-metabox');
+		if (agenda) {
+			refreshAgendaLocationFilter(agenda);
+			applyAgendaAdminFilters(agenda);
+		}
+		openAgendaEditorDrawer(clone);
+	}
+
+	function moveAgendaSlot(slotRow, direction) {
+		var summary = slotRow.previousElementSibling;
+		var rows = toArray(slotRow.parentNode.querySelectorAll('.oras-agenda-slot-row'));
+		var index = rows.indexOf(slotRow);
+		var target = rows[index + direction];
+		if (!summary || !target) {
+			return;
+		}
+		var targetSummary = target.previousElementSibling;
+		if (direction < 0) {
+			slotRow.parentNode.insertBefore(summary, targetSummary);
+			slotRow.parentNode.insertBefore(slotRow, targetSummary);
+		} else {
+			slotRow.parentNode.insertBefore(summary, target.nextSibling);
+			slotRow.parentNode.insertBefore(slotRow, summary.nextSibling);
+		}
+	}
+
+	function agendaMinutes(value) {
+		var parts = String(value || '').split(':');
+		return parts.length === 2 ? Number.parseInt(parts[0], 10) * 60 + Number.parseInt(parts[1], 10) : -1;
+	}
+
+	function validateAgendaConflicts(day) {
+		var rows = toArray(day.querySelectorAll('.oras-agenda-slot-row'));
+		var conflicts = new Map();
+		rows.forEach(function (row) {
+			conflicts.set(row, []);
+		});
+		rows.forEach(function (first, firstIndex) {
+			if (agendaFieldValue(first, 'schedule_mode') === 'tbd') {
+				return;
+			}
+			var firstStart = agendaMinutes(agendaFieldValue(first, 'start'));
+			var firstEnd = agendaMinutes(agendaFieldValue(first, 'end'));
+			if (firstStart < 0 || firstEnd <= firstStart) {
+				return;
+			}
+			rows.slice(firstIndex + 1).forEach(function (second) {
+				var secondStart = agendaMinutes(agendaFieldValue(second, 'start'));
+				var secondEnd = agendaMinutes(agendaFieldValue(second, 'end'));
+				if (secondStart < 0 || secondEnd <= secondStart || firstStart >= secondEnd || secondStart >= firstEnd) {
+					return;
+				}
+				var firstLocation = agendaFieldValue(first, 'location').toLowerCase();
+				var secondLocation = agendaFieldValue(second, 'location').toLowerCase();
+				var firstSpeakers = toArray(first.querySelectorAll('[name*="[speakers]"][name$="[speaker_id]"]')).map(function (field) { return field.value; }).filter(Boolean);
+				var secondSpeakers = toArray(second.querySelectorAll('[name*="[speakers]"][name$="[speaker_id]"]')).map(function (field) { return field.value; }).filter(Boolean);
+				var sameSpeaker = firstSpeakers.some(function (speakerId) { return secondSpeakers.indexOf(speakerId) !== -1; });
+				if ((firstLocation && firstLocation === secondLocation) || sameSpeaker) {
+					var reason = sameSpeaker ? 'Speaker is scheduled twice' : 'Location is double-booked';
+					conflicts.get(first).push(reason);
+					conflicts.get(second).push(reason);
+				}
+			});
+		});
+		conflicts.forEach(function (reasons, row) {
+			var summary = row.previousElementSibling;
+			var badge = summary && summary.querySelector('.oras-agenda-slot-summary__conflict');
+			if (!badge) {
+				return;
+			}
+			badge.hidden = reasons.length === 0;
+			badge.title = Array.from(new Set(reasons)).join('; ');
+			summary.classList.toggle('has-agenda-conflict', reasons.length > 0);
+		});
 	}
 
 	function setDayExpanded(day, expand) {
@@ -675,10 +863,65 @@
 
 		toArray(day.querySelectorAll('tr.oras-agenda-slot-row')).forEach(enhanceSlotRow);
 		updateDaySummary(day);
+		validateAgendaConflicts(day);
 
 		if (!day.hasAttribute('data-oras-day-initialized')) {
 			day.setAttribute('data-oras-day-initialized', '1');
-			setDayExpanded(day, true);
+			setDayExpanded(day, false);
+		}
+	}
+
+	function refreshAgendaLocationFilter(agenda) {
+		var filter = agenda.querySelector('.oras-agenda-admin-location-filter');
+		if (!filter) {
+			return;
+		}
+		var selected = filter.value;
+		var locations = new Set();
+		toArray(agenda.querySelectorAll('.oras-agenda-slot-row')).forEach(function (row) {
+			var location = agendaFieldValue(row, 'location');
+			if (location) {
+				locations.add(location);
+			}
+		});
+		filter.innerHTML = '<option value="">All locations</option>';
+		Array.from(locations).sort().forEach(function (location) {
+			var option = document.createElement('option');
+			option.value = location.toLowerCase();
+			option.textContent = location;
+			filter.appendChild(option);
+		});
+		filter.value = selected;
+	}
+
+	function applyAgendaAdminFilters(agenda) {
+		var search = agenda.querySelector('.oras-agenda-admin-search');
+		var typeFilter = agenda.querySelector('.oras-agenda-admin-type-filter');
+		var locationFilter = agenda.querySelector('.oras-agenda-admin-location-filter');
+		var query = search ? search.value.trim().toLowerCase() : '';
+		var type = typeFilter ? typeFilter.value.toLowerCase() : '';
+		var location = locationFilter ? locationFilter.value.toLowerCase() : '';
+		var shown = 0;
+		var total = 0;
+
+		toArray(agenda.querySelectorAll('.oras-agenda-slot-summary')).forEach(function (summary) {
+			total++;
+			var matches = (!query || (summary.getAttribute('data-search-text') || '').indexOf(query) !== -1) &&
+				(!type || summary.getAttribute('data-session-type') === type) &&
+				(!location || summary.getAttribute('data-location') === location);
+			summary.hidden = !matches;
+			var row = summary.nextElementSibling;
+			if (row && row.classList.contains('oras-agenda-slot-row') && !row.classList.contains('is-editor-open')) {
+				row.hidden = true;
+			}
+			if (matches) {
+				shown++;
+			}
+		});
+
+		var status = agenda.querySelector('.oras-agenda-editor-status');
+		if (status) {
+			status.textContent = shown === total ? total + ' sessions' : 'Showing ' + shown + ' of ' + total + ' sessions';
 		}
 	}
 
@@ -693,8 +936,19 @@
 			return;
 		}
 
+		if (!agenda.querySelector('.oras-agenda-editor-backdrop')) {
+			var backdrop = document.createElement('button');
+			backdrop.type = 'button';
+			backdrop.className = 'oras-agenda-editor-backdrop';
+			backdrop.setAttribute('aria-label', 'Close session editor');
+			backdrop.hidden = true;
+			agenda.appendChild(backdrop);
+		}
+
 		var refresh = function () {
 			toArray(daysWrap.querySelectorAll('.oras-agenda-day')).forEach(enhanceAgendaDay);
+			refreshAgendaLocationFilter(agenda);
+			applyAgendaAdminFilters(agenda);
 		};
 		var refreshQueued = false;
 		var scheduleRefresh = function () {
@@ -721,15 +975,58 @@
 				return;
 			}
 
-			var slotToggle = event.target.closest('.oras-agenda-toggle-slot');
-			if (slotToggle) {
+			var openEditor = event.target.closest('.oras-agenda-open-editor');
+			if (openEditor) {
 				event.preventDefault();
-				var row = slotToggle.closest('tr.oras-agenda-slot-row');
+				var summary = openEditor.closest('.oras-agenda-slot-summary');
+				var row = summary ? summary.nextElementSibling : null;
 				if (!row) {
 					return;
 				}
-				var expanded = slotToggle.getAttribute('aria-expanded') === 'true';
-				setSlotExpanded(row, !expanded);
+				openAgendaEditorDrawer(row);
+				return;
+			}
+
+			var closeEditor = event.target.closest('.oras-agenda-close-editor');
+			if (closeEditor || event.target.closest('.oras-agenda-editor-backdrop')) {
+				event.preventDefault();
+				closeAgendaEditorDrawer();
+				return;
+			}
+
+			var duplicate = event.target.closest('.oras-agenda-duplicate-slot');
+			if (duplicate) {
+				var duplicateSummary = duplicate.closest('.oras-agenda-slot-summary');
+				duplicateAgendaSlot(duplicateSummary ? duplicateSummary.nextElementSibling : null);
+				return;
+			}
+
+			var moveUp = event.target.closest('.oras-agenda-move-slot-up');
+			var moveDown = event.target.closest('.oras-agenda-move-slot-down');
+			if (moveUp || moveDown) {
+				var moveSummary = (moveUp || moveDown).closest('.oras-agenda-slot-summary');
+				moveAgendaSlot(moveSummary ? moveSummary.nextElementSibling : null, moveUp ? -1 : 1);
+				return;
+			}
+
+			var remove = event.target.closest('.oras-agenda-admin-remove');
+			if (remove) {
+				var removeSummary = remove.closest('.oras-agenda-slot-summary');
+				var removeRow = removeSummary ? removeSummary.nextElementSibling : null;
+				if (removeRow && window.confirm('Remove this agenda session?')) {
+					var removeDay = removeRow.closest('.oras-agenda-day');
+					removeRow.remove();
+					removeSummary.remove();
+					updateDaySummary(removeDay);
+					validateAgendaConflicts(removeDay);
+					applyAgendaAdminFilters(agenda);
+				}
+				return;
+			}
+
+			if (event.target.closest('.oras-agenda-expand-days') || event.target.closest('.oras-agenda-collapse-days')) {
+				var expand = !!event.target.closest('.oras-agenda-expand-days');
+				toArray(daysWrap.querySelectorAll('.oras-agenda-day')).forEach(function (day) { setDayExpanded(day, expand); });
 				return;
 			}
 
@@ -760,7 +1057,35 @@
 					updateDaySummary(day);
 				}
 			}
+
+			var slotRow = target.closest('.oras-agenda-slot-row');
+			if (slotRow) {
+				updateAgendaSlotSummary(slotRow);
+				validateAgendaConflicts(slotRow.closest('.oras-agenda-day'));
+			}
+			applyAgendaAdminFilters(agenda);
 		});
+
+		agenda.addEventListener('change', function (event) {
+			var row = event.target.closest('.oras-agenda-slot-row');
+			if (row) {
+				updateAgendaSlotSummary(row);
+				validateAgendaConflicts(row.closest('.oras-agenda-day'));
+				refreshAgendaLocationFilter(agenda);
+			}
+			applyAgendaAdminFilters(agenda);
+		});
+
+		toArray(agenda.querySelectorAll('.oras-agenda-admin-search, .oras-agenda-admin-type-filter, .oras-agenda-admin-location-filter')).forEach(function (filter) {
+			filter.addEventListener('input', function () { applyAgendaAdminFilters(agenda); });
+			filter.addEventListener('change', function () { applyAgendaAdminFilters(agenda); });
+		});
+
+		document.addEventListener('keydown', function (event) {
+			if (event.key === 'Escape' && document.body.classList.contains('oras-agenda-editor-is-open')) {
+				closeAgendaEditorDrawer();
+			}
+		}, true);
 
 		refresh();
 	}

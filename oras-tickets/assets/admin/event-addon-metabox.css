@@ -230,6 +230,43 @@
 	margin: 0;
 }
 
+#oras-events-addon-root .oras-agenda-editor-toolbar {
+	display: grid;
+	grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 0.7fr) minmax(170px, 0.8fr) auto;
+	gap: 12px;
+	align-items: end;
+	margin: 18px 0;
+	padding: 16px;
+	border: 1px solid var(--oras-border);
+	border-radius: 8px;
+	background: var(--oras-bg-soft);
+}
+
+#oras-events-addon-root .oras-agenda-editor-toolbar label {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	font-weight: 600;
+}
+
+#oras-events-addon-root .oras-agenda-editor-toolbar input,
+#oras-events-addon-root .oras-agenda-editor-toolbar select {
+	width: 100%;
+	max-width: none;
+}
+
+#oras-events-addon-root .oras-agenda-editor-toolbar__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+#oras-events-addon-root .oras-agenda-editor-status {
+	grid-column: 1 / -1;
+	margin: 0;
+	color: var(--oras-text-muted);
+}
+
 #oras-events-addon-root #oras-agenda-metabox > p {
 	margin: 0 0 var(--oras-space-2);
 }
@@ -254,16 +291,199 @@
 }
 
 #oras-events-addon-root .oras-agenda-slots-table {
+	display: table;
+	width: 100%;
 	margin-top: var(--oras-space-2);
+	border: 0;
+	background: transparent;
 }
 
-#oras-events-addon-root .oras-agenda-slots-table th,
-#oras-events-addon-root .oras-agenda-slots-table td {
-	vertical-align: top;
+#oras-events-addon-root .oras-agenda-slots-table thead,
+#oras-events-addon-root .oras-agenda-slot-row {
+	display: none;
 }
 
-#oras-events-addon-root .oras-agenda-slots-table .oras-agenda-slot-details {
-	min-width: 320px;
+#oras-events-addon-root .oras-agenda-slot-summary[hidden] {
+	display: none;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary td {
+	padding: 0;
+	border: 0;
+	background: #fff;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__main {
+	display: grid;
+	grid-template-columns: 125px minmax(180px, 1fr) auto;
+	gap: 14px;
+	align-items: center;
+	padding: 13px 14px 6px;
+	border: 1px solid var(--oras-border);
+	border-bottom: 0;
+	border-radius: 8px 8px 0 0;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__time {
+	color: #135e96;
+	font-weight: 700;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__title {
+	font-size: 14px;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__badges {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 5px;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__badges span {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: #f0f0f1;
+	color: #3c434a;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: capitalize;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__badges .oras-agenda-slot-summary__conflict {
+	background: #fcf0f1;
+	color: #8a2424;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary__actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	margin-bottom: 9px;
+	padding: 6px 14px 10px;
+	border: 1px solid var(--oras-border);
+	border-top: 0;
+	border-radius: 0 0 8px 8px;
+	background: #fff;
+}
+
+#oras-events-addon-root .oras-agenda-slot-summary.has-agenda-conflict .oras-agenda-slot-summary__main,
+#oras-events-addon-root .oras-agenda-slot-summary.has-agenda-conflict .oras-agenda-slot-summary__actions {
+	border-color: #d63638;
+}
+
+#oras-events-addon-root .oras-agenda-editor-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 100100;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: rgba(15, 23, 42, 0.55);
+	cursor: default;
+}
+
+#oras-events-addon-root .oras-agenda-editor-backdrop[hidden] {
+	display: none;
+}
+
+body.oras-agenda-editor-is-open {
+	overflow: hidden;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open {
+	position: fixed;
+	top: 32px;
+	right: 0;
+	bottom: 0;
+	z-index: 100110;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-content: start;
+	gap: 14px;
+	width: min(680px, calc(100vw - 40px));
+	padding: 0 20px 28px;
+	overflow-y: auto;
+	border: 0;
+	background: #fff;
+	box-shadow: -20px 0 45px rgba(15, 23, 42, 0.24);
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td {
+	display: block;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td:not(.oras-agenda-editor-drawer__heading)::before {
+	display: block;
+	margin-bottom: 5px;
+	color: #1d2327;
+	font-weight: 600;
+	content: attr(data-field-label);
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open .oras-agenda-editor-drawer__heading {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin: 0 -20px 4px;
+	padding: 18px 20px;
+	border-bottom: 1px solid var(--oras-border);
+	background: #fff;
+}
+
+#oras-events-addon-root .oras-agenda-editor-drawer__heading div {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+#oras-events-addon-root .oras-agenda-editor-drawer__heading strong {
+	font-size: 20px;
+}
+
+#oras-events-addon-root .oras-agenda-editor-drawer__heading span {
+	color: var(--oras-text-muted);
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open .oras-agenda-slot-details {
+	grid-column: 1 / -1;
+	order: 20;
+	min-width: 0;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td:nth-child(7),
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td:nth-child(8),
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td:nth-child(9) {
+	order: 10;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open > td:last-child {
+	display: none;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open input,
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open select,
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open textarea {
+	width: 100%;
+	max-width: none;
+}
+
+#oras-events-addon-root .oras-agenda-slot-row.is-editor-open textarea {
+	min-height: 110px;
 }
 
 #oras-events-addon-root .oras-agenda-speaker-row,
@@ -273,6 +493,39 @@
 	border: 1px solid var(--oras-border-soft);
 	border-radius: 4px;
 	background: #fff;
+}
+
+@media (max-width: 1100px) {
+	#oras-events-addon-root .oras-agenda-editor-toolbar {
+		grid-template-columns: repeat(2, minmax(180px, 1fr));
+	}
+
+	#oras-events-addon-root .oras-agenda-editor-toolbar__actions {
+		grid-column: 1 / -1;
+	}
+}
+
+@media (max-width: 782px) {
+	#oras-events-addon-root .oras-agenda-editor-toolbar,
+	#oras-events-addon-root .oras-agenda-slot-summary__main {
+		grid-template-columns: 1fr;
+	}
+
+	#oras-events-addon-root .oras-agenda-slot-summary__badges,
+	#oras-events-addon-root .oras-agenda-slot-summary__actions {
+		justify-content: flex-start;
+	}
+
+	#oras-events-addon-root .oras-agenda-slot-row.is-editor-open {
+		top: 46px;
+		grid-template-columns: 1fr;
+		width: 100vw;
+	}
+
+	#oras-events-addon-root .oras-agenda-slot-row.is-editor-open .oras-agenda-slot-details,
+	#oras-events-addon-root .oras-agenda-slot-row.is-editor-open .oras-agenda-editor-drawer__heading {
+		grid-column: 1;
+	}
 }
 
 #oras-events-addon-root .oras-agenda-group {
