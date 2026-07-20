@@ -199,6 +199,14 @@ final class Tickets_Display { // NOSONAR legacy WP class naming
             array(),
             ORAS_TICKETS_VERSION
         );
+
+        wp_enqueue_script(
+            'oras-ticket-selection',
+            ORAS_TICKETS_URL . 'assets/js/ticket-selection.js',
+            array(),
+            ORAS_TICKETS_VERSION,
+            true
+        );
     }
 
     /**
@@ -744,7 +752,7 @@ WC()->cart->remove_cart_item( $cart_item_key );
             return $this->render_ticket_question_step( $event_id, $ticket_questions, $posted_quantities, is_array( $question_answers ) ? $question_answers : array() );
         }
 
-        echo '<form method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
+        echo '<form class="oras-ticket-selection-form" method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo wp_nonce_field( 'oras_tickets_add_to_cart', 'oras_tickets_nonce', true, false );
         // marker to make remote HTML checks easier
@@ -893,7 +901,11 @@ if ( $product_id <= 0 ) {
         $cart_url = function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : '#';
         $has_ticket_questions = ! empty( Event_Questions::filter_questions( Event_Questions::load_definitions( $event_id ), Event_Questions::APPLIES_TICKETS, Event_Questions::ATTENDANCE_ALL ) );
         $button_label = $has_ticket_questions ? __( 'Continue to Event Questions', 'oras-tickets' ) : __( 'Add selected tickets to cart', 'oras-tickets' );
-        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">' . esc_html( $button_label ) . '</button> ';
+        $ready_message = $has_ticket_questions
+            ? __( 'Ticket selected. Continue to answer the event questions.', 'oras-tickets' )
+            : __( 'Ticket selected. Add it to your cart when ready.', 'oras-tickets' );
+        echo '<p id="oras-ticket-selection-help" class="oras-ticket-selection-help" aria-live="polite" data-empty-message="' . esc_attr__( 'Select at least one ticket quantity to continue.', 'oras-tickets' ) . '" data-ready-message="' . esc_attr( $ready_message ) . '">' . esc_html__( 'Select at least one ticket quantity to continue.', 'oras-tickets' ) . '</p>';
+        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button oras-ticket-selection-submit" aria-describedby="oras-ticket-selection-help" aria-disabled="true">' . esc_html( $button_label ) . '</button> ';
         echo '<a class="button" href="' . esc_url( $cart_url ) . '">' . esc_html__( 'View cart', 'oras-tickets' ) . '</a></p>';
         echo '</form>';
 
@@ -948,6 +960,14 @@ if ( $product_id <= 0 ) {
 
         $posted = isset( $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] ) ? wp_unslash( $_POST['oras_qty'] ) : array();
         $posted_quantities = $this->normalize_posted_quantities( is_array( $posted ) ? $posted : array() );
+
+        if ( empty( $posted_quantities ) ) {
+            if ( function_exists( 'wc_add_notice' ) ) {
+                wc_add_notice( __( 'Please select at least one ticket before continuing.', 'oras-tickets' ), 'error' );
+            }
+            return;
+        }
+
         $ticket_questions = $this->get_ticket_questions_for_selection( $event_id, $posted_quantities, $tickets );
         $question_snapshots = array();
 

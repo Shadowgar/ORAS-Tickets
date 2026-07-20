@@ -141,6 +141,17 @@ function oras_phase1h_css_has_rule( string $css, string $selector ): bool {
 
 oras_phase1h_assert( class_exists( '\ORAS\Tickets\Event_Questions' ), 'Event_Questions service exists' );
 
+$tickets_display_source  = (string) file_get_contents( dirname( __DIR__ ) . '/includes/Frontend/Tickets_Display.php' );
+$ticket_selection_script = (string) file_get_contents( dirname( __DIR__ ) . '/assets/js/ticket-selection.js' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'oras-ticket-selection-help' ), 'Ticket form explains that a quantity must be selected' );
+oras_phase1h_assert(
+	1 === preg_match( '/oras-ticket-selection-form[^>]*>.*?<table class="oras-tickets-table">/s', $tickets_display_source ),
+	'Ticket selection behavior is attached to the quantity table form'
+);
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'Please select at least one ticket before continuing.' ), 'Server-side ticket selection validation has a visible message' );
+oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'oras_qty[' ), 'Ticket selection script monitors quantity controls' );
+oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'aria-disabled' ), 'Ticket selection script exposes disabled state accessibly' );
+
 $class = '\ORAS\Tickets\Event_Questions';
 
 $definitions = $class::normalize_definitions(
