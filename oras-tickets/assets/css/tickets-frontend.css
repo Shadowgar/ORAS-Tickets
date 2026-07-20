@@ -349,6 +349,10 @@
 	cursor: not-allowed;
 }
 
+.oras-ticket-question-controls .oras-ticket-question-next[hidden] {
+	display: none !important;
+}
+
 .oras-ticket-question-final-prompt {
 	margin-top: 1.25rem;
 	padding: 1rem;
