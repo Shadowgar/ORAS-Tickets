@@ -284,6 +284,16 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+	color: var(--oras-question-label-text);
+	font-weight: 600;
+}
+
+.oras-event-question-field__choices input {
+	accent-color: var(--oras-rsvp-button-primary-bg);
+}
+
+.oras-event-question-field__choices label:has(input:checked) {
+	color: var(--oras-ticket-text);
 }
 
 .oras-ticket-question-page {
@@ -900,13 +910,28 @@ html.oras-dark-on .oras-rsvp-block {
 	--oras-rsvp-modal-input-border: rgba(203, 213, 225, 0.7);
 	--oras-rsvp-modal-input-text: #f8fafc;
 	--oras-rsvp-modal-error: #fca5a5;
-	--oras-question-panel-bg: rgba(15, 23, 42, 0.76);
-	--oras-question-panel-border: rgba(148, 163, 184, 0.3);
-	--oras-question-field-bg: rgba(2, 6, 23, 0.72);
-	--oras-question-field-border: rgba(148, 163, 184, 0.35);
+	--oras-question-panel-bg: #182131;
+	--oras-question-panel-border: #3d4b61;
+	--oras-question-field-bg: #101827;
+	--oras-question-field-border: #64748b;
 	--oras-question-field-text: #f8fafc;
 	--oras-question-label-text: #f8fafc;
-	--oras-question-help-text: rgba(226, 232, 240, 0.86);
+	--oras-question-help-text: #d4deeb;
+}
+
+html[data-wp-dark-mode-active] .oras-ticket-question-page .oras-event-question-field input,
+html.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field input,
+body.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field input,
+html.oras-dark-on .oras-ticket-question-page .oras-event-question-field input,
+html[data-wp-dark-mode-active] .oras-ticket-question-page .oras-event-question-field select,
+html.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field select,
+body.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field select,
+html.oras-dark-on .oras-ticket-question-page .oras-event-question-field select,
+html[data-wp-dark-mode-active] .oras-ticket-question-page .oras-event-question-field textarea,
+html.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field textarea,
+body.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field textarea,
+html.oras-dark-on .oras-ticket-question-page .oras-event-question-field textarea {
+	color-scheme: dark;
 }
 
 html[data-wp-dark-mode-active] .oras-rsvp-field input,
