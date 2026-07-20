@@ -4,7 +4,7 @@
  * Plugin Name: ORAS Tickets
  * Plugin URI: https://github.com/Shadowgar/ORAS-Tickets
  * Description: Internal Event Tickets add-on for ORAS (Phase 1 MVP).
- * Version: 0.4.37
+ * Version: 0.4.38
  * Author: Paul Rocco
  * Requires at least: 6.0
  * Requires PHP: 8.0
