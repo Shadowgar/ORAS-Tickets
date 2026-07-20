@@ -934,6 +934,20 @@ html.oras-dark-on .oras-ticket-question-page .oras-event-question-field textarea
 	color-scheme: dark;
 }
 
+html[data-wp-dark-mode-active] .oras-ticket-question-page .oras-event-question-field__choices label,
+html.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field__choices label,
+body.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field__choices label,
+html.oras-dark-on .oras-ticket-question-page .oras-event-question-field__choices label {
+	color: #f8fafc !important;
+}
+
+html[data-wp-dark-mode-active] .oras-ticket-question-page .oras-event-question-field__choices label:has(input:checked),
+html.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field__choices label:has(input:checked),
+body.wp-dark-mode-active .oras-ticket-question-page .oras-event-question-field__choices label:has(input:checked),
+html.oras-dark-on .oras-ticket-question-page .oras-event-question-field__choices label:has(input:checked) {
+	color: #ffffff !important;
+}
+
 html[data-wp-dark-mode-active] .oras-rsvp-field input,
 html.wp-dark-mode-active .oras-rsvp-field input,
 body.wp-dark-mode-active .oras-rsvp-field input,
