@@ -151,6 +151,14 @@ oras_phase1h_assert(
 oras_phase1h_assert( false !== strpos( $tickets_display_source, 'Please select at least one ticket before continuing.' ), 'Server-side ticket selection validation has a visible message' );
 oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'oras_qty[' ), 'Ticket selection script monitors quantity controls' );
 oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'aria-disabled' ), 'Ticket selection script exposes disabled state accessibly' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'oras_ticket_question_flow' ), 'Ticket questions use a server-side purchase flow marker' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'QUESTION_FLOW_SESSION_KEY' ), 'Ticket questions persist pending selections in the WooCommerce session' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'oras_ticket_questions' ), 'Ticket questions render at a dedicated event URL' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'Thank you for answering all of the questions, continue to your purchase.' ), 'Ticket questions show the requested completion message' );
+oras_phase1h_assert( false !== strpos( $tickets_display_source, 'Go to purchase ticket' ), 'Ticket questions use the requested purchase button label' );
+oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'initializeTicketQuestionWizard' ), 'Ticket questions initialize a one-question-at-a-time wizard' );
+oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'oras-ticket-question-next' ), 'Ticket question wizard includes next navigation' );
+oras_phase1h_assert( false !== strpos( $ticket_selection_script, 'is-slide-forward' ) && false !== strpos( $ticket_selection_script, 'is-slide-back' ), 'Ticket question wizard supports directional transitions' );
 
 $class = '\ORAS\Tickets\Event_Questions';
 
@@ -284,6 +292,9 @@ oras_phase1h_assert( false !== strpos( $frontend_css, '--oras-rsvp-modal-bg: #0f
 oras_phase1h_assert( false !== strpos( $frontend_css, 'color: var(--oras-rsvp-modal-label);' ), 'RSVP email modal labels use theme-aware colors' );
 oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-rsvp-question-wizard' ), 'RSVP event questions have wizard styling' );
 oras_phase1h_assert( false !== strpos( $frontend_css, '@keyframes oras-rsvp-question-slide-in' ), 'RSVP question wizard has slide movement styling' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '.oras-ticket-question-wizard' ), 'Ticket questions have dedicated wizard styling' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '@keyframes oras-ticket-question-slide-forward' ) && false !== strpos( $frontend_css, '@keyframes oras-ticket-question-slide-back' ), 'Ticket question wizard has directional slide animations' );
+oras_phase1h_assert( false !== strpos( $frontend_css, '@media (prefers-reduced-motion: reduce)' ), 'Ticket question wizard respects reduced-motion preferences' );
 
 $board_reports_file = dirname( __DIR__ ) . '/includes/Frontend/Board_Reports.php';
 $board_reports      = file_exists( $board_reports_file ) ? (string) file_get_contents( $board_reports_file ) : '';

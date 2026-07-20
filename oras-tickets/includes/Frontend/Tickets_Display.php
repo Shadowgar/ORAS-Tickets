@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Tickets_Display { // NOSONAR legacy WP class naming
 
     private const CART_HOLD_SECONDS_DEFAULT = 900;
+    private const QUESTION_FLOW_SESSION_KEY = 'oras_ticket_question_flow';
 
 
 
@@ -42,6 +43,9 @@ final class Tickets_Display { // NOSONAR legacy WP class naming
         // Handle POST submissions early in the request lifecycle.
         add_action( 'template_redirect', array( $this, 'handle_post' ), 10 );
 
+        // Allow the dedicated event-question page to use a registered query variable.
+        add_filter( 'query_vars', array( $this, 'register_query_vars' ) );
+
         // Revalidate cart items on cart/checkout views.
         add_action( 'woocommerce_check_cart_items', array( $this, 'revalidate_cart_items' ), 10 );
         add_action( 'woocommerce_before_checkout_process', array( $this, 'revalidate_cart_items' ), 10 );
@@ -52,6 +56,16 @@ final class Tickets_Display { // NOSONAR legacy WP class naming
 
         // Stamp hold start in cart item data; reuse existing hold timestamp so merge keys stay stable.
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_oras_hold_timestamp' ), 10, 4 );
+    }
+
+    /**
+     * @param string[] $vars
+     * @return string[]
+     */
+    public function register_query_vars( array $vars ): array {
+        $vars[] = 'oras_ticket_questions';
+
+        return $vars;
     }
 
     /**
@@ -531,27 +545,106 @@ WC()->cart->remove_cart_item( $cart_item_key );
 
         ob_start();
         echo '<section class="oras-tickets-section">';
-        echo '<div class="oras-tickets-display oras-event-questions-panel">';
+        echo '<div class="oras-tickets-display oras-event-questions-panel oras-ticket-question-page">';
         echo '<h2>' . esc_html__( 'Event Questions', 'oras-tickets' ) . '</h2>';
         echo '<p>' . esc_html__( 'Please answer these event questions before continuing to the cart.', 'oras-tickets' ) . '</p>';
         if ( function_exists( 'wc_print_notices' ) ) {
             wc_print_notices();
         }
-        echo '<form method="post" action="' . esc_url( get_permalink( $event_id ) ) . '">';
+        echo '<form class="oras-ticket-question-form" method="post" action="' . esc_url( $this->get_ticket_question_url( $event_id ) ) . '">';
         echo wp_nonce_field( 'oras_tickets_add_to_cart', 'oras_tickets_nonce', true, false );
         echo '<input type="hidden" name="_oras_tickets" value="1" />';
+        echo '<input type="hidden" name="oras_ticket_question_flow" value="1" />';
         echo '<input type="hidden" name="oras_ticket_questions_confirmed" value="1" />';
-        foreach ( $quantities as $index => $qty ) {
-            echo '<input type="hidden" name="oras_qty[' . esc_attr( (string) $index ) . ']" value="' . esc_attr( (string) $qty ) . '" />';
-        }
+        echo '<div class="oras-ticket-question-wizard">';
+        echo '<div class="oras-ticket-question-progress" aria-live="polite"></div>';
         Event_Questions::render_fields( $questions, $answers );
-        echo '<p><button type="submit" name="oras_tickets_add_to_cart" class="button">' . esc_html__( 'Continue to Cart', 'oras-tickets' ) . '</button> ';
+        echo '<div class="oras-ticket-question-final-prompt" aria-live="polite" hidden>' . esc_html__( 'Thank you for answering all of the questions, continue to your purchase.', 'oras-tickets' ) . '</div>';
+        echo '<div class="oras-ticket-question-controls"></div>';
+        echo '</div>';
+        echo '<p class="oras-ticket-question-purchase"><button type="submit" name="oras_tickets_add_to_cart" class="button">' . esc_html__( 'Go to purchase ticket', 'oras-tickets' ) . '</button> ';
         echo '<a class="button" href="' . esc_url( get_permalink( $event_id ) ) . '">' . esc_html__( 'Back to Tickets', 'oras-tickets' ) . '</a></p>';
         echo '</form>';
         echo '</div>';
         echo '</section>';
 
         return (string) ob_get_clean();
+    }
+
+    private function is_ticket_question_page(): bool {
+        return '1' === (string) get_query_var( 'oras_ticket_questions' );
+    }
+
+    private function get_ticket_question_url( int $event_id ): string {
+        return add_query_arg( 'oras_ticket_questions', '1', get_permalink( $event_id ) );
+    }
+
+    /**
+     * @param array<int,int> $quantities
+     */
+    private function store_ticket_question_flow( int $event_id, array $quantities ): bool {
+        if ( $event_id <= 0 || empty( $quantities ) || ! function_exists( 'WC' ) || ! WC() || ! WC()->session ) {
+            return false;
+        }
+
+        WC()->session->set(
+            self::QUESTION_FLOW_SESSION_KEY,
+            array(
+                'event_id'   => $event_id,
+                'quantities' => $quantities,
+            )
+        );
+
+        return true;
+    }
+
+    /**
+     * @return array{event_id:int,quantities:array<int,int>}|null
+     */
+    private function get_ticket_question_flow(): ?array {
+        if ( ! function_exists( 'WC' ) || ! WC() || ! WC()->session ) {
+            return null;
+        }
+
+        $flow = WC()->session->get( self::QUESTION_FLOW_SESSION_KEY, array() );
+        if ( ! is_array( $flow ) || empty( $flow['event_id'] ) || empty( $flow['quantities'] ) || ! is_array( $flow['quantities'] ) ) {
+            return null;
+        }
+
+        $quantities = $this->normalize_posted_quantities( $flow['quantities'] );
+        if ( empty( $quantities ) ) {
+            return null;
+        }
+
+        return array(
+            'event_id'   => absint( $flow['event_id'] ),
+            'quantities' => $quantities,
+        );
+    }
+
+    private function clear_ticket_question_flow(): void {
+        if ( function_exists( 'WC' ) && WC() && WC()->session ) {
+            WC()->session->__unset( self::QUESTION_FLOW_SESSION_KEY );
+        }
+    }
+
+    private function render_ticket_question_page( int $event_id ): string {
+        $flow = $this->get_ticket_question_flow();
+        if ( ! $flow || $flow['event_id'] !== $event_id ) {
+            return '<section class="oras-tickets-section"><div class="oras-tickets-display oras-event-questions-panel"><p>' . esc_html__( 'Choose your ticket before answering event questions.', 'oras-tickets' ) . '</p><p><a class="button" href="' . esc_url( get_permalink( $event_id ) ) . '">' . esc_html__( 'Back to Tickets', 'oras-tickets' ) . '</a></p></div></section>';
+        }
+
+        $tickets   = Ticket_Collection::load_for_event( $event_id )->all();
+        $questions = $this->get_ticket_questions_for_selection( $event_id, $flow['quantities'], $tickets );
+        if ( empty( $questions ) ) {
+            return '<section class="oras-tickets-section"><div class="oras-tickets-display oras-event-questions-panel"><p>' . esc_html__( 'There are no event questions for this ticket selection.', 'oras-tickets' ) . '</p><p><a class="button" href="' . esc_url( get_permalink( $event_id ) ) . '">' . esc_html__( 'Back to Tickets', 'oras-tickets' ) . '</a></p></div></section>';
+        }
+
+        $answers = isset( $_POST['oras_event_question_answers'] ) && is_array( $_POST['oras_event_question_answers'] )
+            ? wp_unslash( $_POST['oras_event_question_answers'] )
+            : array();
+
+        return $this->render_ticket_question_step( $event_id, $questions, $flow['quantities'], is_array( $answers ) ? $answers : array() );
     }
 
     private function get_cart_quantity_for_product( int $product_id ): int {
@@ -657,6 +750,10 @@ WC()->cart->remove_cart_item( $cart_item_key );
         $event_id = get_the_ID();
         if ( ! $event_id || $event_id <= 0 ) {
             return $content;
+        }
+
+        if ( $this->is_ticket_question_page() ) {
+            return $this->render_ticket_question_page( $event_id );
         }
 
         $form = $this->render_form_html( $event_id );
@@ -958,7 +1055,19 @@ if ( $product_id <= 0 ) {
             $map = array();
         }
 
-        $posted = isset( $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] ) ? wp_unslash( $_POST['oras_qty'] ) : array();
+        $is_question_flow_submission = isset( $_POST['oras_ticket_question_flow'] ) && '1' === (string) wp_unslash( $_POST['oras_ticket_question_flow'] );
+        $flow = $is_question_flow_submission ? $this->get_ticket_question_flow() : null;
+        if ( $is_question_flow_submission && ( ! $flow || $flow['event_id'] !== $event_id ) ) {
+            if ( function_exists( 'wc_add_notice' ) ) {
+                wc_add_notice( __( 'Your ticket selection has expired. Please choose your tickets again.', 'oras-tickets' ), 'error' );
+            }
+            wp_safe_redirect( get_permalink( $event_id ) );
+            exit;
+        }
+
+        $posted = $is_question_flow_submission
+            ? $flow['quantities']
+            : ( isset( $_POST['oras_qty'] ) && is_array( $_POST['oras_qty'] ) ? wp_unslash( $_POST['oras_qty'] ) : array() );
         $posted_quantities = $this->normalize_posted_quantities( is_array( $posted ) ? $posted : array() );
 
         if ( empty( $posted_quantities ) ) {
@@ -971,7 +1080,15 @@ if ( $product_id <= 0 ) {
         $ticket_questions = $this->get_ticket_questions_for_selection( $event_id, $posted_quantities, $tickets );
         $question_snapshots = array();
 
-        if ( ! empty( $ticket_questions ) && empty( $_POST['oras_ticket_questions_confirmed'] ) ) {
+        if ( ! empty( $ticket_questions ) && ! $is_question_flow_submission ) {
+            if ( $this->store_ticket_question_flow( $event_id, $posted_quantities ) ) {
+                wp_safe_redirect( $this->get_ticket_question_url( $event_id ) );
+                exit;
+            }
+
+            if ( function_exists( 'wc_add_notice' ) ) {
+                wc_add_notice( __( 'Unable to start event questions. Please try again.', 'oras-tickets' ), 'error' );
+            }
             return;
         }
 
@@ -1234,6 +1351,7 @@ if ( $product_id <= 0 ) {
         // phpcs:enable WordPress.WP.I18n.MissingTranslatorsComment
 
         if ( $added_any && ! empty( $ticket_questions ) && function_exists( 'wc_get_cart_url' ) ) {
+            $this->clear_ticket_question_flow();
             wp_safe_redirect( wc_get_cart_url() );
             exit;
         }

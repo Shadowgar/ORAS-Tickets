@@ -286,6 +286,102 @@
 	gap: 6px;
 }
 
+.oras-ticket-question-page {
+	max-width: 720px;
+	margin: 2rem auto;
+}
+
+.oras-ticket-question-wizard.is-ready .oras-event-questions {
+	margin: 0;
+}
+
+.oras-ticket-question-progress {
+	display: inline-flex;
+	margin: 0 0 1rem;
+	padding: 0.3rem 0.7rem;
+	border: 1px solid var(--oras-question-field-border);
+	border-radius: 999px;
+	background: var(--oras-question-field-bg);
+	color: var(--oras-ticket-text);
+	font-size: 0.9rem;
+	font-weight: 700;
+}
+
+.oras-ticket-question-slider {
+	overflow: hidden;
+}
+
+.oras-ticket-question-slider .oras-event-question-field {
+	margin: 0;
+}
+
+.oras-ticket-question-slider .oras-event-question-field[hidden] {
+	display: none !important;
+}
+
+.oras-ticket-question-slider .oras-event-question-field.is-slide-forward {
+	animation: oras-ticket-question-slide-forward 220ms ease-out;
+}
+
+.oras-ticket-question-slider .oras-event-question-field.is-slide-back {
+	animation: oras-ticket-question-slide-back 220ms ease-out;
+}
+
+.oras-ticket-question-controls {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+
+.oras-ticket-question-controls .button[disabled] {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.oras-ticket-question-final-prompt {
+	margin-top: 1.25rem;
+	padding: 1rem;
+	border: 1px solid var(--oras-question-panel-border);
+	border-radius: 6px;
+	background: var(--oras-question-field-bg);
+	color: var(--oras-ticket-text);
+	font-weight: 700;
+}
+
+.oras-ticket-question-purchase[hidden] {
+	display: none;
+}
+
+@keyframes oras-ticket-question-slide-forward {
+	from {
+		opacity: 0;
+		transform: translateX(28px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes oras-ticket-question-slide-back {
+	from {
+		opacity: 0;
+		transform: translateX(-28px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.oras-ticket-question-slider .oras-event-question-field.is-slide-forward,
+	.oras-ticket-question-slider .oras-event-question-field.is-slide-back {
+		animation: none;
+	}
+}
+
 /* Mobile */
 @media (max-width: 640px) {
 	.oras-tickets-display {
