@@ -1199,6 +1199,14 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         }
 
         $recipient_email = self::resolve_cancellation_recipient_email( $event_id, $user_id );
+        do_action(
+            'oras_tickets_rsvp_cancelled',
+            $event_id,
+            $user_id,
+            $recipient_email,
+            (string) ( $result['previous_attendance_mode'] ?? Ticket::ATTENDANCE_MODE_ONSITE )
+        );
+
         $result['cancellation_email_sent'] = false;
         if ( '' !== $recipient_email ) {
             $result['cancellation_email_sent'] = self::send_rsvp_cancellation_email(
@@ -1926,6 +1934,16 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             delete_user_meta( $user_id, self::USERMETA_PREFIX . $event_id . self::USERMETA_REJECTION_REASON_SUFFIX );
         }
 
+        $contact = self::get_user_contact_defaults( $event_id, $user_id );
+        do_action(
+            'oras_tickets_rsvp_approval_status_changed',
+            $event_id,
+            $user_id,
+            $normalized_status,
+            $contact,
+            self::get_user_attendance_type_for_report( $event_id, $user_id )
+        );
+
         $email_sent = self::send_virtual_approval_status_email( $event_id, $user_id, $normalized_status, $reason );
         self::log_approval_status_change( $event_id, $user_id, $normalized_status, $reason, $approver, $email_sent );
 
@@ -1952,7 +1970,23 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 __( 'Your virtual RSVP was approved for %s', 'oras-tickets' ),
                 $event_title
             );
-            $virtual_link = self::get_virtual_join_link( $event_id );
+            $access = apply_filters(
+                'oras_tickets_virtual_rsvp_access_details',
+                array(
+                    'join_url'         => self::get_virtual_join_link( $event_id ),
+                    'meeting_id'       => '',
+                    'passcode'         => '',
+                    'one_tap_mobile'   => array(),
+                    'local_number_url' => '',
+                    'managed'          => false,
+                ),
+                $event_id,
+                $user_id,
+                $normalized_status,
+                $recipient_email
+            );
+            $access = is_array( $access ) ? $access : array();
+            $virtual_link = esc_url_raw( (string) ( $access['join_url'] ?? '' ) );
             $details = array(
                 array(
                     'label' => __( 'Event', 'oras-tickets' ),
@@ -1968,6 +2002,35 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     'url'   => $virtual_link,
                 ),
             );
+            if ( '' !== (string) ( $access['meeting_id'] ?? '' ) ) {
+                $details[] = array(
+                    'label' => __( 'Meeting ID', 'oras-tickets' ),
+                    'value' => (string) $access['meeting_id'],
+                );
+            }
+            if ( '' !== (string) ( $access['passcode'] ?? '' ) ) {
+                $details[] = array(
+                    'label' => __( 'Passcode', 'oras-tickets' ),
+                    'value' => (string) $access['passcode'],
+                );
+            }
+            $one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
+                ? array_filter( array_map( 'sanitize_text_field', $access['one_tap_mobile'] ) )
+                : array();
+            if ( ! empty( $one_tap ) ) {
+                $details[] = array(
+                    'label' => __( 'One tap mobile', 'oras-tickets' ),
+                    'value' => implode( ' | ', $one_tap ),
+                );
+            }
+            $local_number_url = esc_url_raw( (string) ( $access['local_number_url'] ?? '' ) );
+            if ( '' !== $local_number_url ) {
+                $details[] = array(
+                    'label' => __( 'Local dial-in numbers', 'oras-tickets' ),
+                    'value' => $local_number_url,
+                    'url'   => $local_number_url,
+                );
+            }
             $actions = array(
                 array(
                     'label' => __( 'Join Virtual Event', 'oras-tickets' ),

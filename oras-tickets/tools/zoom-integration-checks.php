@@ -183,6 +183,7 @@ $api_interface_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Api_Interface
 $repository_interface_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Repository.php';
 $registration_store_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Store.php';
 $registration_service_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Service.php';
+$rsvp_lifecycle_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Rsvp_Lifecycle.php';
 
 require_once $settings_file;
 require_once $oauth_file;
@@ -192,6 +193,7 @@ require_once $meeting_file;
 require_once $repository_interface_file;
 require_once $registration_store_file;
 require_once $registration_service_file;
+require_once $rsvp_lifecycle_file;
 
 use ORAS\Tickets\Integrations\Zoom\Api_Client;
 use ORAS\Tickets\Integrations\Zoom\Api_Interface;
@@ -200,6 +202,7 @@ use ORAS\Tickets\Integrations\Zoom\OAuth_Client;
 use ORAS\Tickets\Integrations\Zoom\Registration_Repository;
 use ORAS\Tickets\Integrations\Zoom\Registration_Service;
 use ORAS\Tickets\Integrations\Zoom\Registration_Store;
+use ORAS\Tickets\Integrations\Zoom\Rsvp_Lifecycle;
 use ORAS\Tickets\Integrations\Zoom\Settings;
 
 final class Oras_Zoom_Fake_Api implements Api_Interface {
@@ -478,6 +481,53 @@ try {
 	oras_zoom_assert( 1 === $fake_api->cancellations, 'Final entitlement cancellation cancels Zoom registration' );
 	oras_zoom_assert( 'cancelled' === $fake_repository->registration['status'], 'Cancelled registration state is persisted' );
 
+	$rsvp_api = new Oras_Zoom_Fake_Api();
+	$rsvp_repository = new Oras_Zoom_Fake_Repository();
+	$rsvp_registrations = new Registration_Service( $rsvp_api, $rsvp_repository );
+	$rsvp_lifecycle = new Rsvp_Lifecycle(
+		$rsvp_registrations,
+		new Meeting_Service( $rsvp_api )
+	);
+	$rsvp_lifecycle->handle_approval_status_changed(
+		42,
+		22,
+		'approved',
+		array(
+			'email'      => 'rsvp@example.org',
+			'first_name' => 'Stella',
+			'last_name'  => 'Observer',
+		),
+		'virtual'
+	);
+	oras_zoom_assert( 1 === $rsvp_api->registrations, 'Approved virtual RSVP creates a Zoom registrant' );
+	$rsvp_access = $rsvp_lifecycle->filter_access_details(
+		array( 'join_url' => 'https://us02web.zoom.us/j/89821762143?pwd=shared' ),
+		42,
+		22,
+		'approved',
+		'rsvp@example.org'
+	);
+	oras_zoom_assert(
+		false !== strpos( (string) $rsvp_access['join_url'], 'tk=private-1' ),
+		'Approved virtual RSVP receives its attendee-specific join URL'
+	);
+	$rsvp_lifecycle->handle_approval_status_changed(
+		42,
+		22,
+		'rejected',
+		array( 'email' => 'rsvp@example.org' ),
+		'virtual'
+	);
+	oras_zoom_assert( 1 === $rsvp_api->cancellations, 'Rejected virtual RSVP cancels its Zoom registrant' );
+	$rejected_access = $rsvp_lifecycle->filter_access_details(
+		array( 'join_url' => '' ),
+		42,
+		22,
+		'rejected',
+		'rsvp@example.org'
+	);
+	oras_zoom_assert( '' === $rejected_access['join_url'], 'Rejected virtual RSVP never receives a Zoom join URL' );
+
 	$ticket_email_file = dirname( __DIR__ ) . '/includes/Commerce/Woo/Virtual_Ticket_Access_Email.php';
 	$ticket_email_source = file_get_contents( $ticket_email_file );
 	oras_zoom_assert(
@@ -498,6 +548,31 @@ try {
 		&& false !== strpos( $ticket_email_source, "'Passcode'" )
 		&& false !== strpos( $ticket_email_source, "'One tap mobile'" ),
 		'Paid virtual ticket email renders complete Zoom invitation details'
+	);
+
+	$rsvp_file = dirname( __DIR__ ) . '/includes/Frontend/Event_RSVP.php';
+	$rsvp_lifecycle_source = is_file( $rsvp_lifecycle_file ) ? file_get_contents( $rsvp_lifecycle_file ) : '';
+	$rsvp_source = file_get_contents( $rsvp_file );
+	oras_zoom_assert(
+		is_string( $rsvp_lifecycle_source )
+		&& false !== strpos( $rsvp_lifecycle_source, 'oras_tickets_rsvp_approval_status_changed' )
+		&& false !== strpos( $rsvp_lifecycle_source, 'oras_tickets_rsvp_cancelled' ),
+		'Zoom RSVP lifecycle listens for approval and cancellation changes'
+	);
+	oras_zoom_assert(
+		false !== strpos( $rsvp_lifecycle_source, "'rsvp',")
+		&& false !== strpos( $rsvp_lifecycle_source, "'user-' . \$user_id" ),
+		'Zoom RSVP registration uses a stable RSVP entitlement source'
+	);
+	oras_zoom_assert(
+		is_string( $rsvp_source )
+		&& false !== strpos( $rsvp_source, "do_action(\n            'oras_tickets_rsvp_approval_status_changed'" )
+		&& false !== strpos( $rsvp_source, "do_action(\n            'oras_tickets_rsvp_cancelled'" ),
+		'RSVP workflow publishes lifecycle events after state changes'
+	);
+	oras_zoom_assert(
+		false !== strpos( $rsvp_source, 'oras_tickets_virtual_rsvp_access_details' ),
+		'Approved virtual RSVP email can receive attendee-specific Zoom details'
 	);
 
 	$module_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Module.php';

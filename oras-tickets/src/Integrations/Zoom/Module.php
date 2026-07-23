@@ -10,6 +10,7 @@ require_once __DIR__ . '/Meeting_Service.php'; // NOSONAR include: Zoom meeting 
 require_once __DIR__ . '/Registration_Repository.php'; // NOSONAR include: repository contract
 require_once __DIR__ . '/Registration_Store.php'; // NOSONAR include: registration persistence
 require_once __DIR__ . '/Registration_Service.php'; // NOSONAR include: registration lifecycle
+require_once __DIR__ . '/Rsvp_Lifecycle.php'; // NOSONAR include: RSVP registration lifecycle
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -25,6 +26,7 @@ final class Module {
 
 	public function register(): void {
 		Registration_Store::maybe_install_schema();
+		( new Rsvp_Lifecycle() )->register();
 
 		if ( is_admin() ) {
 			add_action(
