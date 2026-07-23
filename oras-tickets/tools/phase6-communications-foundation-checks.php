@@ -119,13 +119,25 @@ function orasPhase6RunFoundationChecks(): void
         $created_board_role = true;
     }
 
+    $board_role = get_role('board');
+    $board_role->add_cap('oras_tickets_manage_settings');
+    $board_role->add_cap('oras_tickets_manage_events');
+    $board_role->add_cap('oras_tickets_manage_attendees');
+    $board_role->add_cap('oras_tickets_export_reports');
+
     Capabilities::ensure_board_communication_caps();
 
     $board_role = get_role('board');
     orasPhase6Assert($board_role instanceof WP_Role, 'Board role exists for capability test');
     orasPhase6Assert($board_role->has_cap('oras_tickets_view_board_dashboard'), 'Board role can view board dashboard');
+    orasPhase6Assert($board_role->has_cap('oras_tickets_view_reports'), 'Board role can view reports');
+    orasPhase6Assert($board_role->has_cap('oras_tickets_view_attendees'), 'Board role can view attendee information');
     orasPhase6Assert($board_role->has_cap('oras_tickets_send_notifications'), 'Board role can send notifications');
     orasPhase6Assert($board_role->has_cap('oras_tickets_manage_rsvps'), 'Board role can manage RSVP approvals');
+    orasPhase6Assert(! $board_role->has_cap('oras_tickets_manage_settings'), 'Board role cannot manage ORAS settings');
+    orasPhase6Assert(! $board_role->has_cap('oras_tickets_manage_events'), 'Board role cannot manage events');
+    orasPhase6Assert(! $board_role->has_cap('oras_tickets_manage_attendees'), 'Board role cannot modify attendee records');
+    orasPhase6Assert(! $board_role->has_cap('oras_tickets_export_reports'), 'Board role cannot export reports');
 
     $board_user_suffix = wp_generate_password(8, false);
     $board_user_id = wp_create_user(
@@ -148,6 +160,16 @@ function orasPhase6RunFoundationChecks(): void
     } else {
         echo "SKIP: Board Member role does not exist in this environment.\n";
     }
+
+    $coordinator_role = get_role(Capabilities::EVENT_COORDINATOR_ROLE);
+    orasPhase6Assert($coordinator_role instanceof WP_Role, 'Event Coordinator role exists');
+    orasPhase6Assert($coordinator_role->has_cap('edit_tribe_events'), 'Event Coordinator can edit events');
+    orasPhase6Assert($coordinator_role->has_cap('publish_tribe_events'), 'Event Coordinator can publish events');
+    orasPhase6Assert($coordinator_role->has_cap('delete_tribe_events'), 'Event Coordinator can delete events');
+    orasPhase6Assert($coordinator_role->has_cap('upload_files'), 'Event Coordinator can upload event media');
+    orasPhase6Assert($coordinator_role->has_cap('oras_tickets_view_board_dashboard'), 'Event Coordinator can view Board Reports');
+    orasPhase6Assert(! $coordinator_role->has_cap('oras_tickets_manage_settings'), 'Event Coordinator cannot manage ORAS settings');
+    orasPhase6Assert(! $coordinator_role->has_cap('manage_options'), 'Event Coordinator cannot access general settings');
 
     wp_delete_user((int) $board_user_id);
     if ($created_board_role) {

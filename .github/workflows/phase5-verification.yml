@@ -28,6 +28,12 @@ jobs:
     - name: Install PHP dependencies
       run: composer install --no-interaction --prefer-dist
 
+    - name: Version consistency
+      run: composer version-check
+
+    - name: Role capability model
+      run: composer role-check
+
     - name: PHPCS
       run: composer phpcs
 

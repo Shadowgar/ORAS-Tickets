@@ -64,7 +64,7 @@ final class Settings_Page
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">
                     <?php wp_nonce_field('oras_repair_caps', 'oras_repair_caps_nonce'); ?>
                     <input type="hidden" name="action" value="oras_tickets_repair_caps" />
-                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will add permissions to the Administrator role. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
+                    <button class="button button-secondary" type="submit" onclick="return confirm('<?php echo esc_js('Repairing capabilities will reconcile Administrator, Board, Board Member, Treasurer, and Event Coordinator permissions. Continue?'); ?>');"><?php echo esc_html__('Repair Capabilities', 'oras-tickets'); ?></button>
                 </form>
 
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:1em;">

@@ -78,8 +78,7 @@ final class Bootstrap
         \ORAS\Tickets\Communication_Log_Store::maybe_upgrade();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
-            \ORAS\Tickets\Capabilities::ensure_board_communication_caps();
-            \ORAS\Tickets\Capabilities::ensure_event_creator_role();
+            \ORAS\Tickets\Capabilities::reconcile_roles();
         }
 
         // Hard deps: TEC (tribe_events) and WooCommerce.

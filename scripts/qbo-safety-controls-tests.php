@@ -60,6 +60,7 @@ try {
             'sandbox'                 => true,
             'dry_run_mode'            => true,
             'require_manual_approval' => true,
+            'posting_mode'            => 'clearing',
             'strict_mapping_mode'     => true,
             'allow_unmapped_fallback' => false,
             'sync_cutoff_date'        => gmdate( 'Y-m-d', time() - DAY_IN_SECONDS ),
