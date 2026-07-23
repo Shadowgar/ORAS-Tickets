@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Frontend;
 
 use ORAS\Tickets\Communication_Log_Store;
+use ORAS\Tickets\Communication_Queue;
 use ORAS\Tickets\Communication_Recipients;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
@@ -407,6 +408,18 @@ final class Board_Reports {
 					display: grid;
 					gap: 12px;
 					margin: 0 0 18px;
+				}
+				.oras-board-reports .oras-board-reports__pagination {
+					display: flex;
+					align-items: center;
+					justify-content: flex-end;
+					gap: 10px;
+					flex-wrap: wrap;
+					margin-top: 16px;
+				}
+				.oras-board-reports .oras-board-reports__pagination span {
+					margin-right: auto;
+					font-weight: 700;
 				}
 				.oras-board-reports .oras-board-reports__rsvp-card {
 					display: grid;
@@ -972,6 +985,9 @@ final class Board_Reports {
 		}
 
 		$rows = $service->get_rows( $filters['type'], $filters );
+		$summary_rows = $rows;
+		$page_data = self::paginate_rows( $rows, $filters );
+		$rows = $page_data['rows'];
 		$spreadsheet_export_url = self::build_export_url( $filters, 'spreadsheet' );
 		$pdf_export_url = self::build_export_url( $filters, 'pdf' );
 		?>
@@ -981,6 +997,7 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_TICKET_SALES ); ?>" />
+				<?php self::render_page_size_field( $filters['per_page'] ); ?>
 
 				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
@@ -1020,12 +1037,13 @@ final class Board_Reports {
 			<?php if ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching rows found for this report.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<?php self::render_sales_summary_bar( $rows ); ?>
+				<?php self::render_sales_summary_bar( $summary_rows ); ?>
 				<div class="oras-board-reports__report-list oras-board-reports__sales-list">
 					<?php foreach ( $rows as $row ) : ?>
 						<?php self::render_sales_card( $row ); ?>
 					<?php endforeach; ?>
 				</div>
+				<?php self::render_pagination( $page_data ); ?>
 				<?php endif; ?>
 			<?php
 		}
@@ -1206,6 +1224,9 @@ final class Board_Reports {
 		}
 
 		$rows = $service->get_unified_attendees( $filters['event_id'], $filters );
+		$summary_rows = $rows;
+		$page_data = self::paginate_rows( $rows, $filters );
+		$rows = $page_data['rows'];
 		$ticket_export_filters = array_merge(
 			$filters,
 			array(
@@ -1227,6 +1248,7 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_ATTENDEES ); ?>" />
+				<?php self::render_page_size_field( $filters['per_page'] ); ?>
 				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
 				<label>
@@ -1279,12 +1301,13 @@ final class Board_Reports {
 			<?php elseif ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching roster rows found for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<?php self::render_roster_summary_bar( $rows ); ?>
+				<?php self::render_roster_summary_bar( $summary_rows ); ?>
 				<div class="oras-board-reports__report-list oras-board-reports__roster-list">
 					<?php foreach ( $rows as $row ) : ?>
 						<?php self::render_roster_card( $row ); ?>
 					<?php endforeach; ?>
 				</div>
+				<?php self::render_pagination( $page_data ); ?>
 				<?php endif; ?>
 			<?php
 		}
@@ -1301,6 +1324,9 @@ final class Board_Reports {
 		}
 
 		$rows = $service->get_rows( Board_Report_Service::TYPE_RSVP, $filters );
+		$summary_rows = $rows;
+		$page_data = self::paginate_rows( $rows, $filters );
+		$rows = $page_data['rows'];
 		$spreadsheet_export_url = self::build_export_url( $filters, 'spreadsheet' );
 		$pdf_export_url = self::build_export_url( $filters, 'pdf' );
 		?>
@@ -1310,6 +1336,7 @@ final class Board_Reports {
 					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 				<?php endif; ?>
 				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_RSVPS ); ?>" />
+				<?php self::render_page_size_field( $filters['per_page'] ); ?>
 				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
 
 				<label>
@@ -1349,12 +1376,13 @@ final class Board_Reports {
 			<?php elseif ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No matching RSVP rows found for this event.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<?php self::render_rsvp_summary_bar( $rows ); ?>
+				<?php self::render_rsvp_summary_bar( $summary_rows ); ?>
 				<div class="oras-board-reports__rsvp-list">
 					<?php foreach ( $rows as $row ) : ?>
 						<?php self::render_rsvp_card( $row ); ?>
 					<?php endforeach; ?>
 				</div>
+				<?php self::render_pagination( $page_data ); ?>
 				<?php endif; ?>
 				<?php if ( ! empty( $events ) && $filters['event_id'] > 0 ) : ?>
 					<?php self::render_waitlist_section( $filters['event_id'] ); ?>
@@ -2056,25 +2084,11 @@ final class Board_Reports {
 		$recipients = ( new Communication_Recipients() )->resolve( $event_id, $segment );
 		$recipient_count = count( $recipients );
 
-		$failed_count = 0;
 		$body = self::build_communication_email_body( $message, $sender, $event_id, $segment );
 		if ( $recipient_count <= 0 ) {
-			$failed_count = 0;
 			$status = 'failed';
 		} else {
-			foreach ( $recipients as $recipient ) {
-				$email = isset( $recipient['email'] ) && is_scalar( $recipient['email'] ) ? sanitize_email( (string) $recipient['email'] ) : '';
-				if ( '' === $email || ! is_email( $email ) ) {
-					++$failed_count;
-					continue;
-				}
-				$sent = wp_mail( $email, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
-				if ( ! $sent ) {
-					++$failed_count;
-				}
-			}
-
-			$status = 0 === $failed_count ? 'sent' : ( $failed_count >= $recipient_count ? 'failed' : 'partial' );
+			$status = 'queued';
 		}
 
 		$log_id = Communication_Log_Store::insert(
@@ -2089,10 +2103,14 @@ final class Board_Reports {
 				'email_body_snapshot'    => $message,
 				'sent_at'                => current_time( 'mysql', true ),
 				'send_status'            => $status,
-				'failed_recipient_count' => $failed_count,
+				'failed_recipient_count' => 0,
 				'related_action_type'    => self::get_related_action_type( $segment ),
 			)
 		);
+		if ( $log_id > 0 && 'queued' === $status && ! Communication_Queue::enqueue( $log_id, $recipients, $subject, $body ) ) {
+			Communication_Log_Store::update_delivery( $log_id, 'failed', 0, $recipient_count );
+			$status = 'failed';
+		}
 
 		self::redirect_communication_result( $redirect, $status, $log_id );
 	}
@@ -2298,6 +2316,8 @@ final class Board_Reports {
 		$message = __( 'Communication send attempt was recorded.', 'oras-tickets' );
 		if ( 'sent' === $status ) {
 			$message = __( 'Communication sent and logged.', 'oras-tickets' );
+		} elseif ( 'queued' === $status ) {
+			$message = __( 'Communication queued for background delivery. Progress is shown in Communication History.', 'oras-tickets' );
 		} elseif ( 'partial' === $status ) {
 			$message = __( 'Communication partially sent; failures were logged.', 'oras-tickets' );
 		} elseif ( 'failed' === $status ) {
@@ -2509,7 +2529,7 @@ final class Board_Reports {
 	}
 
 	/**
-	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string,attendance_type:string,approval_status:string,attendee_source:string,ticket_status:string,rsvp_status:string}
+	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string,attendance_type:string,approval_status:string,attendee_source:string,ticket_status:string,rsvp_status:string,page:int,per_page:int}
 	 */
 	private static function get_filters_from_request(): array {
 		$type = isset( $_GET['oras_board_report_type'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_report_type'] ) ) : Board_Report_Service::TYPE_TICKETS;
@@ -2548,7 +2568,63 @@ final class Board_Reports {
 			'attendee_source' => $attendee_source,
 			'ticket_status'   => $ticket_status,
 			'rsvp_status'     => $rsvp_status,
+			'page'            => isset( $_GET['oras_board_page'] ) ? max( 1, absint( $_GET['oras_board_page'] ) ) : 1,
+			'per_page'        => isset( $_GET['oras_board_per_page'] ) && in_array( absint( $_GET['oras_board_per_page'] ), array( 25, 50, 100 ), true ) ? absint( $_GET['oras_board_per_page'] ) : 25,
 		);
+	}
+
+	/**
+	 * @param array<int,mixed>     $rows
+	 * @param array<string,mixed> $filters
+	 * @return array{rows:array<int,mixed>,page:int,per_page:int,total:int,total_pages:int}
+	 */
+	private static function paginate_rows( array $rows, array $filters ): array {
+		$per_page = isset( $filters['per_page'] ) ? absint( $filters['per_page'] ) : 25;
+		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
+		$total = count( $rows );
+		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
+		$page = min( max( 1, absint( $filters['page'] ?? 1 ) ), $total_pages );
+
+		return array(
+			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),
+			'page'        => $page,
+			'per_page'    => $per_page,
+			'total'       => $total,
+			'total_pages' => $total_pages,
+		);
+	}
+
+	private static function render_page_size_field( int $per_page ): void {
+		?>
+		<label>
+			<?php echo esc_html__( 'Rows', 'oras-tickets' ); ?>
+			<select name="oras_board_per_page">
+				<?php foreach ( array( 25, 50, 100 ) as $size ) : ?>
+					<option value="<?php echo esc_attr( (string) $size ); ?>" <?php selected( $per_page, $size ); ?>><?php echo esc_html( (string) $size ); ?></option>
+				<?php endforeach; ?>
+			</select>
+		</label>
+		<?php
+	}
+
+	/**
+	 * @param array{page:int,per_page:int,total:int,total_pages:int} $page_data
+	 */
+	private static function render_pagination( array $page_data ): void {
+		if ( $page_data['total'] <= 0 ) {
+			return;
+		}
+		?>
+		<nav class="oras-board-reports__pagination" aria-label="<?php echo esc_attr__( 'Report pages', 'oras-tickets' ); ?>">
+			<span><?php echo esc_html( sprintf( __( 'Page %1$d of %2$d (%3$d records)', 'oras-tickets' ), $page_data['page'], $page_data['total_pages'], $page_data['total'] ) ); ?></span>
+			<?php if ( $page_data['page'] > 1 ) : ?>
+				<a class="button" href="<?php echo esc_url( add_query_arg( 'oras_board_page', $page_data['page'] - 1 ) ); ?>"><?php echo esc_html__( 'Previous', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+			<?php if ( $page_data['page'] < $page_data['total_pages'] ) : ?>
+				<a class="button" href="<?php echo esc_url( add_query_arg( 'oras_board_page', $page_data['page'] + 1 ) ); ?>"><?php echo esc_html__( 'Next', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+		</nav>
+		<?php
 	}
 
 	/**

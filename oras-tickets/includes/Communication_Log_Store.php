@@ -9,12 +9,12 @@ if (! defined('ABSPATH')) {
 final class Communication_Log_Store
 {
     private const OPTION_SCHEMA_VERSION = 'oras_tickets_communications_schema_version';
-    private const SCHEMA_VERSION = 1;
+    private const SCHEMA_VERSION = 2;
 
     /**
      * @var string[]
      */
-    private const ALLOWED_STATUSES = array('sent', 'partial', 'failed');
+    private const ALLOWED_STATUSES = array('queued', 'sending', 'sent', 'partial', 'failed');
 
     public static function maybe_upgrade(): void
     {
@@ -49,6 +49,8 @@ final class Communication_Log_Store
             send_status varchar(20) NOT NULL DEFAULT 'sent',
             failed_recipient_count int(10) unsigned NOT NULL DEFAULT 0,
             related_action_type varchar(64) NOT NULL DEFAULT '',
+            delivery_payload longtext NULL,
+            processed_recipient_count int(10) unsigned NOT NULL DEFAULT 0,
             PRIMARY KEY  (id),
             KEY event_sent (event_id,sent_at,id),
             KEY sender_sent (sender_user_id,sent_at,id),
@@ -76,7 +78,7 @@ final class Communication_Log_Store
         $inserted = $wpdb->insert(
             self::table_name(),
             $row,
-            array('%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s')
+            array('%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d')
         );
 
         if (false === $inserted) {
@@ -177,6 +179,31 @@ final class Communication_Log_Store
         return is_array($row) ? $row : null;
     }
 
+    public static function update_delivery(int $id, string $status, int $processed, int $failed): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $status = self::sanitize_status($status);
+        if ($status === '') {
+            return false;
+        }
+
+        global $wpdb;
+        return false !== $wpdb->update(
+            self::table_name(),
+            array(
+                'send_status'               => $status,
+                'processed_recipient_count' => absint($processed),
+                'failed_recipient_count'    => absint($failed),
+            ),
+            array('id' => $id),
+            array('%s', '%d', '%d'),
+            array('%d')
+        );
+    }
+
     public static function table_exists(): bool
     {
         global $wpdb;
@@ -222,6 +249,8 @@ final class Communication_Log_Store
             'send_status'            => self::sanitize_status((string) ($data['send_status'] ?? 'sent')) ?: 'sent',
             'failed_recipient_count' => isset($data['failed_recipient_count']) ? absint($data['failed_recipient_count']) : 0,
             'related_action_type'    => self::sanitize_key_snapshot((string) ($data['related_action_type'] ?? ''), 64),
+            'delivery_payload'       => isset($data['delivery_payload']) ? (string) $data['delivery_payload'] : '',
+            'processed_recipient_count' => isset($data['processed_recipient_count']) ? absint($data['processed_recipient_count']) : 0,
         );
     }
 

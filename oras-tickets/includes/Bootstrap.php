@@ -40,6 +40,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Frontend/Door_Prizes.php'; // NOSONAR 
 require_once ORAS_TICKETS_DIR . 'includes/RSVP.php'; // NOSONAR include: helper
 require_once ORAS_TICKETS_DIR . 'includes/Waitlist_Store.php'; // NOSONAR include: waitlist storage
 require_once ORAS_TICKETS_DIR . 'includes/Communication_Log_Store.php'; // NOSONAR include: communications audit storage
+require_once ORAS_TICKETS_DIR . 'includes/Communication_Queue.php'; // NOSONAR include: background communication delivery
 require_once ORAS_TICKETS_DIR . 'includes/Communication_Recipients.php'; // NOSONAR include: communications recipient resolver
 require_once ORAS_TICKETS_DIR . 'includes/Event_Question_Attention_Store.php'; // NOSONAR include: event question attention workflow
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
@@ -76,6 +77,7 @@ final class Bootstrap
         Logger::instance()->log('Bootstrap init start');
         \ORAS\Tickets\Waitlist_Store::maybe_upgrade();
         \ORAS\Tickets\Communication_Log_Store::maybe_upgrade();
+        \ORAS\Tickets\Communication_Queue::register();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
             \ORAS\Tickets\Capabilities::reconcile_roles();
