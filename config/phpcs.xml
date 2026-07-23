@@ -54,10 +54,12 @@
     <exclude-pattern>*/templates/single-oras_speaker.php</exclude-pattern>
     <exclude-pattern>*/includes/Support/Logger.php</exclude-pattern>
     <exclude-pattern>*/includes/*</exclude-pattern>
+    <exclude-pattern>*/src/Integrations/*</exclude-pattern>
   </rule>
   <rule ref="WordPress.Files.FileName.InvalidClassFileName">
     <exclude-pattern>*/includes/Support/Logger.php</exclude-pattern>
     <exclude-pattern>*/includes/*</exclude-pattern>
+    <exclude-pattern>*/src/Integrations/*</exclude-pattern>
   </rule>
 
   <config name="minimum_supported_wp_version" value="6.0"/>
