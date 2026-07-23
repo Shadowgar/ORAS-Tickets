@@ -167,6 +167,13 @@ function esc_url_raw( string $url ): string {
 }
 
 /**
+ * @return array<int,array{url:string,args:array<string,mixed>}>
+ */
+function oras_zoom_http_calls(): array {
+	return $GLOBALS['oras_zoom_test_http_calls'];
+}
+
+/**
  * @throws RuntimeException When an assertion fails.
  */
 function oras_zoom_assert( bool $condition, string $message ): void {
@@ -315,21 +322,27 @@ try {
 	);
 	oras_zoom_assert( Settings::is_enabled(), 'Zoom integration reports enabled after configuration' );
 	oras_zoom_assert( Settings::has_credentials(), 'Zoom integration recognizes complete credentials' );
+	$persisted_settings = get_option( Settings::OPTION_KEY, array() );
+	oras_zoom_assert( is_array( $persisted_settings ), 'Zoom settings persist in the shared option' );
+	$persisted_zoom = isset( $persisted_settings['zoom'] ) && is_array( $persisted_settings['zoom'] )
+		? $persisted_settings['zoom']
+		: array();
 	oras_zoom_assert(
-		'zoom-secret' !== $GLOBALS['oras_zoom_test_options'][ Settings::OPTION_KEY ]['zoom']['client_secret'],
+		'zoom-secret' !== (string) ( $persisted_zoom['client_secret'] ?? '' ),
 		'Persisted Zoom client secret is not plaintext'
 	);
 
 	$oauth = new OAuth_Client();
 	$token = $oauth->get_access_token();
+	$http_calls = oras_zoom_http_calls();
 	oras_zoom_assert( 'zoom-access-token' === $token, 'OAuth client returns the Zoom access token' );
-	oras_zoom_assert( 1 === count( $GLOBALS['oras_zoom_test_http_calls'] ), 'OAuth client performs one token request' );
+	oras_zoom_assert( 1 === count( $http_calls ), 'OAuth client performs one token request' );
 	oras_zoom_assert(
-		false !== strpos( $GLOBALS['oras_zoom_test_http_calls'][0]['url'], 'grant_type=account_credentials' ),
+		false !== strpos( $http_calls[0]['url'], 'grant_type=account_credentials' ),
 		'OAuth token request uses the account credentials grant'
 	);
 	oras_zoom_assert(
-		false !== strpos( $GLOBALS['oras_zoom_test_http_calls'][0]['url'], 'account_id=zoom-account' ),
+		false !== strpos( $http_calls[0]['url'], 'account_id=zoom-account' ),
 		'OAuth token request includes the configured account ID'
 	);
 
@@ -412,7 +425,8 @@ try {
 		'Meeting ID: 898 2176 2143' === $api_invitation['invitation'],
 		'Zoom API client returns decoded invitation data'
 	);
-	$last_http_call = end( $GLOBALS['oras_zoom_test_http_calls'] );
+	$http_calls = oras_zoom_http_calls();
+	$last_http_call = $http_calls[ count( $http_calls ) - 1 ];
 	oras_zoom_assert(
 		'https://api.zoom.us/v2/meetings/89821762143/invitation' === $last_http_call['url'],
 		'Zoom API client uses the fixed official API host'
