@@ -23,6 +23,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Agenda_Metabox.p
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Metabox.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Questions_Metabox.php'; // NOSONAR include: event-specific questions
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Door_Prizes_Metabox.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_Zoom_Metabox.php'; // NOSONAR include: event Zoom automation
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Reports_Aggregator.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Dashboard_Page.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Pages/Reports_Page.php'; // NOSONAR legacy include
@@ -56,6 +57,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Commerce/Woo/Virtual_Ticket_Access_Ema
 require_once ORAS_TICKETS_DIR . 'includes/Api/Member_Hub_Tickets.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Api/Checkin.php'; // NOSONAR include: check-in REST routes
 require_once ORAS_TICKETS_DIR . 'src/Integrations/QuickBooks/Module.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'src/Integrations/Zoom/Module.php'; // NOSONAR include: Zoom attendee integration
 
 if (! defined('ABSPATH')) {
     exit;
@@ -152,6 +154,9 @@ final class Bootstrap
         $quickbooks_module = new \ORAS\Tickets\Integrations\QuickBooks\Module();
         $quickbooks_module->register();
 
+        $zoom_module = new \ORAS\Tickets\Integrations\Zoom\Module();
+        $zoom_module->register();
+
         $api = new \ORAS\Tickets\Api\Member_Hub_Tickets();
         $api->register();
 
@@ -181,6 +186,7 @@ final class Bootstrap
             $event_addon_metabox->register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox::register();
+            \ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Questions_Metabox::register();
             \ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox::register();
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Metaboxes/Event_RSVP_Attendees_Metabox.php'; // NOSONAR legacy include

@@ -59,4 +59,5 @@ register_activation_hook(ORAS_TICKETS_FILE, static function (): void {
     Waitlist_Store::install_schema();
     Communication_Log_Store::install_schema();
     Event_Question_Attention_Store::install_schema();
+    \ORAS\Tickets\Integrations\Zoom\Registration_Store::install_schema();
 });

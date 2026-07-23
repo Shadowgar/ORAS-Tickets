@@ -123,6 +123,16 @@ final class Admin_Menu
             array($this, 'render_quickbooks')
         );
 
+        // Zoom
+        \add_submenu_page(
+            'oras-tickets',
+            __('Zoom', 'oras-tickets'),
+            __('Zoom', 'oras-tickets'),
+            'oras_tickets_manage_settings',
+            'oras-tickets-zoom',
+            array($this, 'render_zoom')
+        );
+
         // Settings
         \add_submenu_page(
             'oras-tickets',
@@ -157,6 +167,11 @@ final class Admin_Menu
     public function render_quickbooks(): void
     {
         (new Settings_Page())->render_quickbooks();
+    }
+
+    public function render_zoom(): void
+    {
+        (new Settings_Page())->render_zoom();
     }
 
     public function render_speaker_obligations(): void

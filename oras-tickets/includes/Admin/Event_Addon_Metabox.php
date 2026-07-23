@@ -6,6 +6,7 @@ use ORAS\Tickets\Admin\Metaboxes\Event_Agenda_Metabox;
 use ORAS\Tickets\Admin\Metaboxes\Event_Door_Prizes_Metabox;
 use ORAS\Tickets\Admin\Metaboxes\Event_Questions_Metabox;
 use ORAS\Tickets\Admin\Metaboxes\Event_RSVP_Metabox;
+use ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox;
 use ORAS\Tickets\Domain\Meta;
 use ORAS\Tickets\Domain\Ticket_Collection;
 use ORAS\Tickets\Event_Questions;
@@ -213,6 +214,7 @@ final class Event_Addon_Metabox
                 <button type="button" id="oras-events-tab-tickets" class="nav-tab oras-events-addon__tab is-active" data-tab="tickets" role="tab" aria-controls="oras-events-panel-tickets" aria-selected="true" tabindex="0"><?php echo esc_html__('Tickets', 'oras-tickets'); ?></button>
                 <button type="button" id="oras-events-tab-agenda" class="nav-tab oras-events-addon__tab" data-tab="agenda" role="tab" aria-controls="oras-events-panel-agenda" aria-selected="false" tabindex="-1"><?php echo esc_html__('Agenda', 'oras-tickets'); ?></button>
                 <button type="button" id="oras-events-tab-rsvp" class="nav-tab oras-events-addon__tab" data-tab="rsvp" role="tab" aria-controls="oras-events-panel-rsvp" aria-selected="false" tabindex="-1"><?php echo esc_html__('RSVP', 'oras-tickets'); ?></button>
+                <button type="button" id="oras-events-tab-zoom" class="nav-tab oras-events-addon__tab" data-tab="zoom" role="tab" aria-controls="oras-events-panel-zoom" aria-selected="false" tabindex="-1"><?php echo esc_html__('Zoom Automation', 'oras-tickets'); ?></button>
                 <button type="button" id="oras-events-tab-event-questions" class="nav-tab oras-events-addon__tab" data-tab="event-questions" role="tab" aria-controls="oras-events-panel-event-questions" aria-selected="false" tabindex="-1"><?php echo esc_html__('Event Questions', 'oras-tickets'); ?></button>
                 <button type="button" id="oras-events-tab-speakers" class="nav-tab oras-events-addon__tab" data-tab="speakers" role="tab" aria-controls="oras-events-panel-speakers" aria-selected="false" tabindex="-1"><?php echo esc_html__('Speakers', 'oras-tickets'); ?></button>
                 <button type="button" id="oras-events-tab-door-prizes" class="nav-tab oras-events-addon__tab" data-tab="door-prizes" role="tab" aria-controls="oras-events-panel-door-prizes" aria-selected="false" tabindex="-1"><?php echo esc_html__('Door Prizes', 'oras-tickets'); ?></button>
@@ -234,6 +236,12 @@ final class Event_Addon_Metabox
                 <section id="oras-events-panel-rsvp" class="oras-events-addon__panel" data-panel="rsvp" role="tabpanel" aria-labelledby="oras-events-tab-rsvp" hidden>
                     <div class="oras-events-addon__panel-inner">
                         <?php Event_RSVP_Metabox::render($post); ?>
+                    </div>
+                </section>
+
+                <section id="oras-events-panel-zoom" class="oras-events-addon__panel" data-panel="zoom" role="tabpanel" aria-labelledby="oras-events-tab-zoom" hidden>
+                    <div class="oras-events-addon__panel-inner">
+                        <?php Event_Zoom_Metabox::render($post); ?>
                     </div>
                 </section>
 

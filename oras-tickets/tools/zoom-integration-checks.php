@@ -475,6 +475,76 @@ try {
 	oras_zoom_assert( 1 === $fake_api->cancellations, 'Final entitlement cancellation cancels Zoom registration' );
 	oras_zoom_assert( 'cancelled' === $fake_repository->registration['status'], 'Cancelled registration state is persisted' );
 
+	$module_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Module.php';
+	$metabox_file = dirname( __DIR__ ) . '/includes/Admin/Metaboxes/Event_Zoom_Metabox.php';
+	$settings_page_file = dirname( __DIR__ ) . '/includes/Admin/Pages/Settings_Page.php';
+	$admin_menu_file = dirname( __DIR__ ) . '/includes/Admin/Admin_Menu.php';
+	$event_addon_file = dirname( __DIR__ ) . '/includes/Admin/Event_Addon_Metabox.php';
+	$bootstrap_file = dirname( __DIR__ ) . '/includes/Bootstrap.php';
+	$plugin_file = dirname( __DIR__ ) . '/oras-tickets.php';
+
+	$module_source = file_get_contents( $module_file );
+	oras_zoom_assert(
+		is_string( $module_source ) && false !== strpos( $module_source, 'admin_post_oras_tickets_zoom_test_connection' ),
+		'Zoom module registers an administrator connection-test action'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, "current_user_can( 'oras_tickets_manage_settings' )" ),
+		'Zoom connection test requires the settings capability'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, "check_admin_referer( 'oras_tickets_zoom_test_connection' )" ),
+		'Zoom connection test verifies its nonce'
+	);
+
+	$metabox_source = file_get_contents( $metabox_file );
+	oras_zoom_assert(
+		is_string( $metabox_source ) && false !== strpos( $metabox_source, "current_user_can( 'edit_post', \$post_id )" ),
+		'Event Zoom settings require event edit permission'
+	);
+	oras_zoom_assert(
+		false !== strpos( $metabox_source, 'wp_verify_nonce' ),
+		'Event Zoom settings verify a save nonce'
+	);
+	oras_zoom_assert(
+		false !== strpos( $metabox_source, Registration_Service::EVENT_CONFIG_META ),
+		'Event Zoom settings use the shared integration configuration envelope'
+	);
+
+	$settings_page_source = file_get_contents( $settings_page_file );
+	oras_zoom_assert(
+		is_string( $settings_page_source ) && false !== strpos( $settings_page_source, "'default_managed_registration' => false" ),
+		'Managed Zoom registration defaults off'
+	);
+	oras_zoom_assert(
+		false !== strpos( $settings_page_source, 'Zoom Server-to-Server OAuth' ),
+		'ORAS settings exposes Zoom Server-to-Server OAuth controls'
+	);
+
+	$admin_menu_source = file_get_contents( $admin_menu_file );
+	oras_zoom_assert(
+		is_string( $admin_menu_source ) && false !== strpos( $admin_menu_source, 'oras-tickets-zoom' ),
+		'ORAS Tickets menu includes an administrator Zoom settings page'
+	);
+
+	$event_addon_source = file_get_contents( $event_addon_file );
+	oras_zoom_assert(
+		is_string( $event_addon_source ) && false !== strpos( $event_addon_source, 'oras-events-tab-zoom' ),
+		'Unified event editor includes the Zoom Automation tab'
+	);
+
+	$bootstrap_source = file_get_contents( $bootstrap_file );
+	oras_zoom_assert(
+		is_string( $bootstrap_source ) && false !== strpos( $bootstrap_source, 'Integrations/Zoom/Module.php' ),
+		'Bootstrap loads the Zoom integration module'
+	);
+
+	$plugin_source = file_get_contents( $plugin_file );
+	oras_zoom_assert(
+		is_string( $plugin_source ) && false !== strpos( $plugin_source, 'Zoom\\Registration_Store::install_schema' ),
+		'Plugin activation installs the Zoom registration schema'
+	);
+
 	echo "Zoom integration checks passed.\n";
 } catch ( Throwable $throwable ) {
 	fwrite( STDERR, 'Zoom integration checks failed: ' . $throwable->getMessage() . "\n" );

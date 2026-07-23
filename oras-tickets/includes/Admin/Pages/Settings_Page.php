@@ -12,6 +12,7 @@ final class Settings_Page
     private const OPTION_KEY = 'oras_tickets_settings_v1';
     private const PAGE_GENERAL = 'oras_tickets_settings';
     private const PAGE_QUICKBOOKS = 'oras_tickets_quickbooks';
+    private const PAGE_ZOOM = 'oras_tickets_zoom';
 
     public function render(): void
     {
@@ -204,6 +205,65 @@ final class Settings_Page
             <?php endif; ?>
         </div>
     <?php
+    }
+
+    public function render_zoom(): void
+    {
+        if (! current_user_can('oras_tickets_manage_settings')) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'oras-tickets'), '', array('response' => 403));
+        }
+
+        $zoom = class_exists('\ORAS\Tickets\Integrations\Zoom\Settings')
+            ? \ORAS\Tickets\Integrations\Zoom\Settings::get()
+            : array();
+        $notice = isset($_GET['oras_zoom_notice'])
+            ? sanitize_text_field(urldecode((string) wp_unslash($_GET['oras_zoom_notice'])))
+            : '';
+        $error = isset($_GET['oras_zoom_error'])
+            ? sanitize_text_field(urldecode((string) wp_unslash($_GET['oras_zoom_error'])))
+            : '';
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html__('ORAS Tickets Zoom Integration', 'oras-tickets'); ?></h1>
+            <?php if ('' !== $notice) : ?>
+                <div class="notice notice-success is-dismissible"><p><?php echo esc_html($notice); ?></p></div>
+            <?php endif; ?>
+            <?php if ('' !== $error) : ?>
+                <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error); ?></p></div>
+            <?php endif; ?>
+
+            <p><?php echo esc_html__('The Events Calendar remains responsible for creating Zoom meetings. These credentials let ORAS retrieve invitations and manage attendee-specific registrations.', 'oras-tickets'); ?></p>
+
+            <form method="post" action="options.php">
+                <?php
+                settings_fields(self::PAGE_ZOOM);
+                do_settings_sections(self::PAGE_ZOOM);
+                submit_button(__('Save Zoom Settings', 'oras-tickets'));
+                ?>
+            </form>
+
+            <hr />
+            <h2><?php echo esc_html__('Connection Test', 'oras-tickets'); ?></h2>
+            <?php if (! empty($zoom['last_connection_test_at'])) : ?>
+                <p>
+                    <?php
+                    echo esc_html(
+                        sprintf(
+                            /* translators: %s: UTC timestamp */
+                            __('Last tested: %s UTC', 'oras-tickets'),
+                            (string) $zoom['last_connection_test_at']
+                        )
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <?php wp_nonce_field('oras_tickets_zoom_test_connection'); ?>
+                <input type="hidden" name="action" value="oras_tickets_zoom_test_connection" />
+                <button type="submit" class="button button-secondary"><?php echo esc_html__('Test Zoom OAuth Connection', 'oras-tickets'); ?></button>
+            </form>
+        </div>
+        <?php
     }
 
     private function get_active_quickbooks_tab(): string
@@ -608,6 +668,78 @@ final class Settings_Page
                 'type'              => 'array',
                 'sanitize_callback' => array(self::class, 'sanitize_settings'),
                 'default'           => self::get_default_settings(),
+            )
+        );
+
+        register_setting(
+            self::PAGE_ZOOM,
+            self::OPTION_KEY,
+            array(
+                'type'              => 'array',
+                'sanitize_callback' => array(self::class, 'sanitize_settings'),
+                'default'           => self::get_default_settings(),
+            )
+        );
+
+        add_settings_section(
+            'oras_zoom_oauth',
+            __('Zoom Server-to-Server OAuth', 'oras-tickets'),
+            array(self::class, 'render_zoom_section'),
+            self::PAGE_ZOOM
+        );
+        add_settings_field(
+            'zoom_enabled',
+            __('Enable Zoom Integration', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_ZOOM,
+            'oras_zoom_oauth',
+            array(
+                'field' => 'zoom.enabled',
+                'label' => __('Allow ORAS to retrieve Zoom invitations and manage event registrants', 'oras-tickets'),
+            )
+        );
+        add_settings_field(
+            'zoom_account_id',
+            __('Zoom Account ID', 'oras-tickets'),
+            array(self::class, 'render_text_field'),
+            self::PAGE_ZOOM,
+            'oras_zoom_oauth',
+            array(
+                'field'       => 'zoom.account_id',
+                'placeholder' => __('Server-to-Server OAuth Account ID', 'oras-tickets'),
+            )
+        );
+        add_settings_field(
+            'zoom_client_id',
+            __('Zoom Client ID', 'oras-tickets'),
+            array(self::class, 'render_text_field'),
+            self::PAGE_ZOOM,
+            'oras_zoom_oauth',
+            array(
+                'field'       => 'zoom.client_id',
+                'placeholder' => __('Server-to-Server OAuth Client ID', 'oras-tickets'),
+            )
+        );
+        add_settings_field(
+            'zoom_client_secret',
+            __('Zoom Client Secret', 'oras-tickets'),
+            array(self::class, 'render_zoom_secret_field'),
+            self::PAGE_ZOOM,
+            'oras_zoom_oauth',
+            array(
+                'field'       => 'zoom.client_secret',
+                'placeholder' => __('Leave blank to keep the existing secret', 'oras-tickets'),
+            )
+        );
+        add_settings_field(
+            'zoom_default_managed_registration',
+            __('Managed Registration Default', 'oras-tickets'),
+            array(self::class, 'render_checkbox_field'),
+            self::PAGE_ZOOM,
+            'oras_zoom_oauth',
+            array(
+                'field' => 'zoom.default_managed_registration',
+                'label' => __('Enable managed Zoom registration by default for newly configured events', 'oras-tickets'),
             )
         );
 
@@ -1085,24 +1217,32 @@ final class Settings_Page
 
     public static function sanitize_settings($input): array
     {
+        $input         = is_array($input) ? $input : array();
         $defaults      = self::get_default_settings();
         $current       = self::get_settings();
         $current_qbo   = isset($current['quickbooks']) && is_array($current['quickbooks']) ? $current['quickbooks'] : $defaults['quickbooks'];
+        $current_zoom  = isset($current['zoom']) && is_array($current['zoom']) ? $current['zoom'] : $defaults['zoom'];
         $defaults_qbo  = $defaults['quickbooks'];
         $has_rsvp      = isset($input['rsvp']) && is_array($input['rsvp']);
         $has_virtual   = isset($input['virtual_access']) && is_array($input['virtual_access']);
         $has_tickets   = isset($input['tickets']) && is_array($input['tickets']);
         $has_privacy   = isset($input['privacy']) && is_array($input['privacy']);
         $has_qbo       = isset($input['quickbooks']) && is_array($input['quickbooks']);
+        $has_zoom      = isset($input['zoom']) && is_array($input['zoom']);
         $input_rsvp    = $has_rsvp ? $input['rsvp'] : ($current['rsvp'] ?? $defaults['rsvp']);
         $input_virtual = $has_virtual ? $input['virtual_access'] : ($current['virtual_access'] ?? $defaults['virtual_access']);
         $input_tickets = $has_tickets ? $input['tickets'] : ($current['tickets'] ?? $defaults['tickets']);
         $input_privacy = $has_privacy ? $input['privacy'] : ($current['privacy'] ?? $defaults['privacy']);
         $input_qbo     = $has_qbo ? $input['quickbooks'] : $current_qbo;
+        $input_zoom    = $has_zoom ? $input['zoom'] : $current_zoom;
 
         $client_secret = isset($input_qbo['client_secret']) ? trim((string) $input_qbo['client_secret']) : '';
         if ($client_secret === '') {
             $client_secret = (string) ($current_qbo['client_secret'] ?? '');
+        }
+        $zoom_client_secret = isset($input_zoom['client_secret']) ? trim((string) $input_zoom['client_secret']) : '';
+        if ($zoom_client_secret === '') {
+            $zoom_client_secret = (string) ($current_zoom['client_secret'] ?? '');
         }
 
         $sanitized = array(
@@ -1121,6 +1261,17 @@ final class Settings_Page
             ),
             'privacy'        => array(
                 'communication_retention_days' => min(3650, absint($input_privacy['communication_retention_days'] ?? 0)),
+            ),
+            'zoom'           => array(
+                'enabled'                      => $has_zoom ? ! empty($input_zoom['enabled']) : ! empty($current_zoom['enabled']),
+                'account_id'                   => sanitize_text_field((string) ($input_zoom['account_id'] ?? ($current_zoom['account_id'] ?? ''))),
+                'client_id'                    => sanitize_text_field((string) ($input_zoom['client_id'] ?? ($current_zoom['client_id'] ?? ''))),
+                'client_secret'                => sanitize_text_field($zoom_client_secret),
+                'default_managed_registration' => $has_zoom
+                    ? ! empty($input_zoom['default_managed_registration'])
+                    : ! empty($current_zoom['default_managed_registration']),
+                'last_connection_test_at'      => sanitize_text_field((string) ($current_zoom['last_connection_test_at'] ?? '')),
+                'last_error'                    => sanitize_text_field((string) ($current_zoom['last_error'] ?? '')),
             ),
             'quickbooks'     => array(
                 'enabled'                    => $has_qbo ? ! empty($input_qbo['enabled']) : ! empty($current_qbo['enabled']),
@@ -1167,6 +1318,9 @@ final class Settings_Page
         if (class_exists('\ORAS\Tickets\Integrations\QuickBooks\Settings')) {
             $sanitized['quickbooks'] = \ORAS\Tickets\Integrations\QuickBooks\Settings::prepare_for_storage($sanitized['quickbooks']);
         }
+        if (class_exists('\ORAS\Tickets\Integrations\Zoom\Settings')) {
+            $sanitized['zoom'] = \ORAS\Tickets\Integrations\Zoom\Settings::prepare_for_storage($sanitized['zoom']);
+        }
 
         return $sanitized;
     }
@@ -1196,6 +1350,15 @@ final class Settings_Page
             ),
             'privacy'        => array(
                 'communication_retention_days' => 0,
+            ),
+            'zoom'           => array(
+                'enabled'                      => false,
+                'account_id'                   => '',
+                'client_id'                    => '',
+                'client_secret'                => '',
+                'default_managed_registration' => false,
+                'last_connection_test_at'      => '',
+                'last_error'                    => '',
             ),
             'quickbooks'     => array(
                 'enabled'                    => false,
@@ -1250,6 +1413,10 @@ final class Settings_Page
             $quickbooks = isset($settings['quickbooks']) && is_array($settings['quickbooks']) ? $settings['quickbooks'] : array();
             $settings['quickbooks'] = \ORAS\Tickets\Integrations\QuickBooks\Settings::hydrate_from_storage($quickbooks);
         }
+        if (class_exists('\ORAS\Tickets\Integrations\Zoom\Settings')) {
+            $zoom = isset($settings['zoom']) && is_array($settings['zoom']) ? $settings['zoom'] : array();
+            $settings['zoom'] = \ORAS\Tickets\Integrations\Zoom\Settings::hydrate_from_storage($zoom);
+        }
 
         return $settings;
     }
@@ -1273,6 +1440,16 @@ final class Settings_Page
     public static function render_privacy_section(): void
     {
         echo '<p>' . esc_html__('Control how long completed event communication audit records are retained. Use a policy approved by the ORAS board.', 'oras-tickets') . '</p>';
+    }
+
+    public static function render_zoom_section(): void
+    {
+        echo '<p>' . esc_html__('Connect the ORAS-owned Zoom Workplace account using an internal Server-to-Server OAuth app.', 'oras-tickets') . '</p>';
+        echo '<p class="description">' . esc_html__('Required scopes: meeting read/write for registrants and invitations. Credentials are available only to ORAS settings administrators.', 'oras-tickets') . '</p>';
+
+        if (class_exists('\ORAS\Tickets\Integrations\Zoom\Settings') && ! \ORAS\Tickets\Integrations\Zoom\Settings::has_explicit_encryption_key()) {
+            echo '<p class="description"><strong>' . esc_html__('Security:', 'oras-tickets') . '</strong> ' . esc_html__('Define ORAS_TICKETS_ZOOM_AES_KEY in wp-config.php before production go-live. Until then, WordPress authentication salts protect the stored client secret.', 'oras-tickets') . '</p>';
+        }
     }
 
     public static function render_quickbooks_section(): void
@@ -1362,6 +1539,16 @@ final class Settings_Page
     ?>
         <input type="password" class="regular-text" <?php if ($input_id !== '') : ?>id="<?php echo esc_attr($input_id); ?>" <?php endif; ?>name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr((string) $value); ?>" placeholder="<?php echo esc_attr($placeholder); ?>" autocomplete="off" />
     <?php
+    }
+
+    public static function render_zoom_secret_field(array $args): void
+    {
+        $name = self::OPTION_KEY . '[' . str_replace('.', '][', $args['field']) . ']';
+        $placeholder = isset($args['placeholder']) ? (string) $args['placeholder'] : '';
+        ?>
+        <input type="password" class="regular-text" name="<?php echo esc_attr($name); ?>" value="" placeholder="<?php echo esc_attr($placeholder); ?>" autocomplete="new-password" />
+        <p class="description"><?php echo esc_html__('The saved secret is never displayed. Enter a value only to replace it.', 'oras-tickets'); ?></p>
+        <?php
     }
 
     public static function render_date_field(array $args): void
