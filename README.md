@@ -32,6 +32,12 @@ It extends a WordPress + The Events Calendar + WooCommerce + PMPro stack with OR
   - Dry-run/manual-approval/strict-mapping safety controls
   - JournalEntry split sync orchestration, retries, waiting queue, reversal paths
   - Reconciliation tooling and CLI/admin operator workflows
+- Zoom attendee integration
+  - Server-to-Server OAuth with encrypted credentials
+  - Event-level managed registration using The Events Calendar Zoom meetings
+  - Automatic attendee-specific access for paid virtual ticket buyers
+  - Board-approved virtual RSVP registration and cancellation synchronization
+  - Full invitation details with shared-link fallback
 
 ## Planned features (roadmap)
 

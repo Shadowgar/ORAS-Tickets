@@ -1,5 +1,15 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-23 - Release 0.4.43
+
+- Added an ORAS-owned Zoom Server-to-Server OAuth integration with encrypted credential storage and an administrator connection test.
+- Added per-event managed Zoom registration controls while retaining The Events Calendar as the meeting creator.
+- Added authoritative Zoom invitation parsing for meeting ID, passcode, one-tap mobile numbers, and local dial-in links.
+- Added encrypted, idempotent attendee-specific Zoom registration storage with separate ticket and RSVP entitlement sources.
+- Paid virtual ticket buyers now receive automatic Zoom registration and private access details; cancelled and refunded orders revoke their entitlement.
+- Approved virtual RSVPs now receive attendee-specific Zoom access; pending, rejected, and cancelled RSVPs do not retain or receive private access.
+- Preserved existing shared-link email behavior as a failure-safe fallback when managed Zoom registration is disabled or unavailable.
+
 ## 2026-07-23 - Releases 0.4.40 through 0.4.42
 
 - Reconciled Board, Board Member, Treasurer, Administrator, and Event Coordinator capabilities.

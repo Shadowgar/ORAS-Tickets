@@ -1,0 +1,47 @@
+# ORAS Zoom Integration Deployment
+
+## Production Prerequisites
+
+1. Create a Zoom Server-to-Server OAuth app in the ORAS-owned Zoom account.
+2. Grant meeting read/write permissions sufficient to read invitations, create registrants, and update registrant status.
+3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
+4. Deploy ORAS-Tickets 0.4.43 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
+
+## Event Setup
+
+1. Create or connect the Zoom meeting through The Events Calendar Virtual Event controls.
+2. Open **ORAS Events Addon > Zoom Automation** on the event.
+3. Confirm the detected meeting ID. Use the override only when automatic detection cannot resolve the TEC Zoom meeting.
+4. Enable **Manage virtual attendees through Zoom registration**.
+5. Confirm the Zoom meeting uses automatic registration approval. Zoom must return a registrant-specific join URL.
+
+Paid virtual ticket buyers are registered after the WooCommerce order reaches processing or completed. Virtual RSVP attendees are registered only after board approval. Pending, rejected, and cancelled RSVPs do not receive a private Zoom link.
+
+## Schema
+
+The plugin installs and upgrades:
+
+- `{$wpdb->prefix}oras_zoom_registrations`
+- `{$wpdb->prefix}oras_zoom_registration_sources`
+
+The first table stores one Zoom registrant per event, meeting, and email. The second tracks independent ticket and RSVP entitlements so cancelling one source does not revoke another valid source. Private join URLs are encrypted at rest.
+
+## Verification
+
+Use a non-production Zoom test meeting to verify:
+
+1. A paid virtual ticket order receives a unique join URL plus meeting ID, passcode, and dial-in details.
+2. An approved virtual RSVP receives a unique join URL.
+3. Pending and rejected virtual RSVP emails contain no join URL.
+4. Cancelling or refunding the final ticket entitlement cancels the Zoom registrant.
+5. Cancelling or rejecting the final RSVP entitlement cancels the Zoom registrant.
+6. A user with both a paid ticket and an approved RSVP retains access when only one entitlement is removed.
+
+## Rollback
+
+1. Disable managed registration on affected events, or disable the global Zoom integration.
+2. Existing ORAS shared-link email behavior will remain available as the fallback.
+3. Roll back the plugin files to 0.4.42 if required.
+4. Do not drop the Zoom registration tables during an application rollback. They contain the entitlement audit needed to avoid duplicate registrants when 0.4.43 is restored.
+5. Revoke the Zoom Server-to-Server OAuth app credentials if credential exposure is suspected.

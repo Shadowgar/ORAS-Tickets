@@ -131,7 +131,7 @@ final class Settings {
 
 	private static function encryption_key(): string {
 		$material = self::has_explicit_encryption_key()
-			? (string) ORAS_TICKETS_ZOOM_AES_KEY
+			? (string) constant( 'ORAS_TICKETS_ZOOM_AES_KEY' )
 			: wp_salt( 'auth' );
 
 		return hash( 'sha256', $material, true );
@@ -149,7 +149,7 @@ final class Settings {
 			$tag
 		);
 
-		if ( false === $ciphertext || '' === $tag ) {
+		if ( false === $ciphertext ) {
 			return '';
 		}
 

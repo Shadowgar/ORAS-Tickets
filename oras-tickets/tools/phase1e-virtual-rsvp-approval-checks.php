@@ -148,8 +148,8 @@ function orasPhase1eRunChecks(): void
     orasPhase1eAssert(str_contains($html, 'Reject'), 'RSVP tab renders reject action');
     orasPhase1eAssert(str_contains($html, 'Return to Pending'), 'RSVP tab renders return-to-pending action');
     orasPhase1eAssert(str_contains($html, 'View Details'), 'RSVP tab renders details action');
-    orasPhase1eAssert(str_contains($html, 'Approved By'), 'RSVP tab renders approved-by column');
-    orasPhase1eAssert(str_contains($html, 'Approved Date'), 'RSVP tab renders approved date column');
+    orasPhase1eAssert(str_contains($html, 'Approved by'), 'RSVP tab renders approved-by metadata');
+    orasPhase1eAssert(str_contains($html, 'oras-board-reports__rsvp-card-meta'), 'RSVP tab renders approval audit metadata');
 
     $logs = Communication_Log_Store::query(array('event_id' => $event_id, 'limit' => 20));
     $related = wp_list_pluck($logs, 'related_action_type');

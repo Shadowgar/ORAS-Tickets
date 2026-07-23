@@ -85,7 +85,7 @@ final class Registration_Store implements Registration_Repository {
 				$meeting_id,
 				hash( 'sha256', $email )
 			),
-			ARRAY_A
+			'ARRAY_A'
 		);
 		if ( ! is_array( $row ) ) {
 			return array();
