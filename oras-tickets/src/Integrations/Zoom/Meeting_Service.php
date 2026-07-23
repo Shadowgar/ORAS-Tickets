@@ -10,6 +10,12 @@ final class Meeting_Service {
 
 	private const EVENT_CONFIG_META = '_oras_zoom_integration_v1';
 
+	private Api_Interface $api;
+
+	public function __construct( ?Api_Interface $api = null ) {
+		$this->api = $api ?? new Api_Client();
+	}
+
 	/**
 	 * @return array<string,mixed>|\WP_Error
 	 */
@@ -22,7 +28,7 @@ final class Meeting_Service {
 			);
 		}
 
-		$response = ( new Api_Client() )->get_meeting_invitation( $meeting_id );
+		$response = $this->api->get_meeting_invitation( $meeting_id );
 		if ( is_wp_error( $response ) ) {
 			return $response;
 		}

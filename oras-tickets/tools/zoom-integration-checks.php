@@ -386,6 +386,9 @@ try {
 		'https://us02web.zoom.us/u/example' === $invitation['local_number_url'],
 		'Invitation parser extracts local dial-in URL'
 	);
+	$fake_invitation_api = new Oras_Zoom_Fake_Api();
+	$resolved_invitation = ( new Meeting_Service( $fake_invitation_api ) )->get_invitation_for_event( 42 );
+	oras_zoom_assert( ! is_wp_error( $resolved_invitation ), 'Meeting invitation service supports an injected API client' );
 
 	Settings::update(
 		array(
@@ -474,6 +477,28 @@ try {
 	oras_zoom_assert( ! is_wp_error( $second_cancel ), 'Final entitlement can be deactivated' );
 	oras_zoom_assert( 1 === $fake_api->cancellations, 'Final entitlement cancellation cancels Zoom registration' );
 	oras_zoom_assert( 'cancelled' === $fake_repository->registration['status'], 'Cancelled registration state is persisted' );
+
+	$ticket_email_file = dirname( __DIR__ ) . '/includes/Commerce/Woo/Virtual_Ticket_Access_Email.php';
+	$ticket_email_source = file_get_contents( $ticket_email_file );
+	oras_zoom_assert(
+		is_string( $ticket_email_source ) && false !== strpos( $ticket_email_source, 'Registration_Service' ),
+		'Paid virtual ticket email uses the Zoom registration service'
+	);
+	oras_zoom_assert(
+		false !== strpos( $ticket_email_source, "woocommerce_order_status_cancelled" )
+		&& false !== strpos( $ticket_email_source, "woocommerce_order_status_refunded" ),
+		'Paid virtual ticket integration revokes Zoom entitlement on cancellation and refund'
+	);
+	oras_zoom_assert(
+		false !== strpos( $ticket_email_source, "source_reference( \$order )" ),
+		'Paid virtual ticket registration uses a stable order entitlement source'
+	);
+	oras_zoom_assert(
+		false !== strpos( $ticket_email_source, "'Meeting ID'" )
+		&& false !== strpos( $ticket_email_source, "'Passcode'" )
+		&& false !== strpos( $ticket_email_source, "'One tap mobile'" ),
+		'Paid virtual ticket email renders complete Zoom invitation details'
+	);
 
 	$module_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Module.php';
 	$metabox_file = dirname( __DIR__ ) . '/includes/Admin/Metaboxes/Event_Zoom_Metabox.php';

@@ -5,6 +5,8 @@ namespace ORAS\Tickets\Commerce\Woo;
 use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Frontend\Event_RSVP;
+use ORAS\Tickets\Integrations\Zoom\Meeting_Service;
+use ORAS\Tickets\Integrations\Zoom\Registration_Service;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -15,9 +17,22 @@ final class Virtual_Ticket_Access_Email {
 	private const SENT_META_PREFIX = '_oras_virtual_access_email_sent_';
 	private const EMAIL_HEADERS = array( 'Content-Type: text/html; charset=UTF-8' );
 
+	private Registration_Service $registrations;
+	private Meeting_Service $meetings;
+
+	public function __construct(
+		?Registration_Service $registrations = null,
+		?Meeting_Service $meetings = null
+	) {
+		$this->registrations = $registrations ?? new Registration_Service();
+		$this->meetings      = $meetings ?? new Meeting_Service();
+	}
+
 	public function register(): void {
 		add_action( 'woocommerce_order_status_processing', array( $this, 'handle_paid_order' ), 25, 1 );
 		add_action( 'woocommerce_order_status_completed', array( $this, 'handle_paid_order' ), 25, 1 );
+		add_action( 'woocommerce_order_status_cancelled', array( $this, 'handle_cancelled_order' ), 25, 1 );
+		add_action( 'woocommerce_order_status_refunded', array( $this, 'handle_cancelled_order' ), 25, 1 );
 	}
 
 	/**
@@ -37,6 +52,34 @@ final class Virtual_Ticket_Access_Email {
 	}
 
 	/**
+	 * @param int|string $order_id
+	 */
+	public function handle_cancelled_order( $order_id ): void {
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			return;
+		}
+
+		$order = wc_get_order( absint( $order_id ) );
+		if ( ! $order instanceof \WC_Order ) {
+			return;
+		}
+
+		$email = sanitize_email( (string) $order->get_billing_email() );
+		if ( '' === $email ) {
+			return;
+		}
+
+		foreach ( $this->get_virtual_ticket_event_ids( $order ) as $event_id ) {
+			$this->registrations->cancel_entitlement(
+				$event_id,
+				'ticket',
+				$this->source_reference( $order ),
+				$email
+			);
+		}
+	}
+
+	/**
 	 * @return array<int,bool>
 	 */
 	public function send_for_order( \WC_Order $order ): array {
@@ -51,7 +94,8 @@ final class Virtual_Ticket_Access_Email {
 				continue;
 			}
 
-			$virtual_link = Event_RSVP::get_virtual_join_link( $event_id );
+			$access = $this->resolve_access_details( $order, $event_id, $recipient_email );
+			$virtual_link = (string) ( $access['join_url'] ?? '' );
 			if ( '' === $virtual_link ) {
 				$this->log_attempt( $event_id, $recipient_email, $this->build_subject( $event_id ), '', false );
 				$results[ $event_id ] = false;
@@ -59,7 +103,7 @@ final class Virtual_Ticket_Access_Email {
 			}
 
 			$subject = $this->build_subject( $event_id );
-			$body = $this->build_email_body( $order, $event_id, $virtual_link );
+			$body = $this->build_email_body( $order, $event_id, $access );
 			$sent = (bool) wp_mail( $recipient_email, $subject, $body, self::EMAIL_HEADERS );
 			$this->log_attempt( $event_id, $recipient_email, $subject, $body, $sent );
 
@@ -79,6 +123,54 @@ final class Virtual_Ticket_Access_Email {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function resolve_access_details( \WC_Order $order, int $event_id, string $email ): array {
+		$fallback = array(
+			'join_url'         => Event_RSVP::get_virtual_join_link( $event_id ),
+			'meeting_id'       => '',
+			'passcode'         => '',
+			'one_tap_mobile'   => array(),
+			'local_number_url' => '',
+			'managed'          => false,
+		);
+		if ( ! Registration_Service::is_managed_event( $event_id ) ) {
+			return $fallback;
+		}
+
+		$registration = $this->registrations->register_attendee(
+			$event_id,
+			'ticket',
+			$this->source_reference( $order ),
+			$email,
+			(string) $order->get_billing_first_name(),
+			(string) $order->get_billing_last_name(),
+			absint( $order->get_customer_id() )
+		);
+		if ( is_wp_error( $registration ) ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: Zoom API error */
+					__( 'ORAS Zoom registration fallback used: %s', 'oras-tickets' ),
+					$registration->get_error_message()
+				)
+			);
+			return $fallback;
+		}
+
+		$invitation = $this->meetings->get_invitation_for_event( $event_id );
+		$details = is_wp_error( $invitation ) ? $fallback : array_merge( $fallback, $invitation );
+		$details['join_url'] = esc_url_raw( (string) ( $registration['join_url'] ?? '' ) );
+		$details['managed']  = true;
+
+		return $details;
+	}
+
+	private function source_reference( \WC_Order $order ): string {
+		return 'order-' . absint( $order->get_id() );
 	}
 
 	/**
@@ -123,7 +215,11 @@ final class Virtual_Ticket_Access_Email {
 		);
 	}
 
-	private function build_email_body( \WC_Order $order, int $event_id, string $virtual_link ): string {
+	/**
+	 * @param array<string,mixed> $access
+	 */
+	private function build_email_body( \WC_Order $order, int $event_id, array $access ): string {
+		$virtual_link = esc_url_raw( (string) ( $access['join_url'] ?? '' ) );
 		$event_url = get_permalink( $event_id );
 		if ( ! is_string( $event_url ) || '' === $event_url ) {
 			$event_url = home_url();
@@ -147,6 +243,22 @@ final class Virtual_Ticket_Access_Email {
 		$html .= $this->detail_row( __( 'Date & Time', 'oras-tickets' ), $this->get_event_datetime_text( $event_id ) );
 		$html .= $this->detail_row( __( 'Order', 'oras-tickets' ), '#' . $order_number );
 		$html .= $this->detail_row( __( 'Virtual access', 'oras-tickets' ), $virtual_link, $virtual_link );
+		if ( '' !== (string) ( $access['meeting_id'] ?? '' ) ) {
+			$html .= $this->detail_row( __( 'Meeting ID', 'oras-tickets' ), (string) $access['meeting_id'] );
+		}
+		if ( '' !== (string) ( $access['passcode'] ?? '' ) ) {
+			$html .= $this->detail_row( __( 'Passcode', 'oras-tickets' ), (string) $access['passcode'] );
+		}
+		$one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
+			? array_filter( array_map( 'sanitize_text_field', $access['one_tap_mobile'] ) )
+			: array();
+		if ( ! empty( $one_tap ) ) {
+			$html .= $this->detail_row( __( 'One tap mobile', 'oras-tickets' ), implode( "\n", $one_tap ), '', true );
+		}
+		$local_number_url = esc_url_raw( (string) ( $access['local_number_url'] ?? '' ) );
+		if ( '' !== $local_number_url ) {
+			$html .= $this->detail_row( __( 'Local dial-in numbers', 'oras-tickets' ), $local_number_url, $local_number_url );
+		}
 		$html .= '</table>';
 		$html .= '<div style="margin:28px 0 8px;">';
 		$html .= '<a href="' . esc_url( $virtual_link ) . '" style="display:inline-block;margin:0 10px 10px 0;padding:13px 18px;border-radius:10px;background:#1e3a8a;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">' . esc_html__( 'Join Virtual Event', 'oras-tickets' ) . '</a>';
@@ -161,12 +273,14 @@ final class Virtual_Ticket_Access_Email {
 		return $html;
 	}
 
-	private function detail_row( string $label, string $value, string $url = '' ): string {
+	private function detail_row( string $label, string $value, string $url = '', bool $multiline = false ): string {
 		$html = '<tr>';
 		$html .= '<td style="width:34%;padding:14px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">' . esc_html( $label ) . '</td>';
 		$html .= '<td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;">';
 		if ( '' !== $url ) {
 			$html .= '<a href="' . esc_url( $url ) . '" style="color:#1d4ed8;text-decoration:underline;word-break:break-word;">' . esc_html( $value ) . '</a>';
+		} elseif ( $multiline ) {
+			$html .= nl2br( esc_html( $value ) );
 		} else {
 			$html .= esc_html( $value );
 		}

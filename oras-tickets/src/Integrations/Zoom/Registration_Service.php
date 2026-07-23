@@ -35,6 +35,13 @@ final class Registration_Service {
 		string $last_name,
 		int $user_id = 0
 	) {
+		if ( ! Settings::is_enabled() || ! Settings::has_credentials() ) {
+			return new \WP_Error(
+				'oras_zoom_registration_disabled',
+				__( 'The ORAS Zoom integration is not fully configured.', 'oras-tickets' )
+			);
+		}
+
 		if ( ! self::is_managed_event( $event_id ) ) {
 			return new \WP_Error(
 				'oras_zoom_registration_not_managed',
@@ -110,6 +117,26 @@ final class Registration_Service {
 
 		$this->repository->activate_source( absint( $saved['id'] ), $source_type, $source_ref );
 		return $saved;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function get_active_registration( int $event_id, string $email ): array {
+		$meeting_id = Meeting_Service::resolve_meeting_id( $event_id );
+		if ( '' === $meeting_id ) {
+			return array();
+		}
+
+		$registration = $this->repository->find_by_event_email(
+			$event_id,
+			$meeting_id,
+			sanitize_email( $email )
+		);
+
+		return 'active' === (string) ( $registration['status'] ?? '' )
+			? $registration
+			: array();
 	}
 
 	/**
