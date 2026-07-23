@@ -716,6 +716,26 @@ final class Settings_Page
         );
 
         add_settings_section(
+            'oras_privacy_retention',
+            __('Privacy and Retention', 'oras-tickets'),
+            array(self::class, 'render_privacy_section'),
+            self::PAGE_GENERAL
+        );
+        add_settings_field(
+            'communication_retention_days',
+            __('Communication Log Retention', 'oras-tickets'),
+            array(self::class, 'render_number_field'),
+            self::PAGE_GENERAL,
+            'oras_privacy_retention',
+            array(
+                'field' => 'privacy.communication_retention_days',
+                'label' => __('Days to retain completed communication logs (0 = retain indefinitely)', 'oras-tickets'),
+                'help'  => __('Queued recipient payloads are removed immediately after delivery. This setting controls completed audit records.', 'oras-tickets'),
+                'min'   => 0,
+            )
+        );
+
+        add_settings_section(
             'oras_quickbooks_revenue_split',
             __('QuickBooks Revenue Split Sync', 'oras-tickets'),
             array(self::class, 'render_quickbooks_section'),
@@ -1072,10 +1092,12 @@ final class Settings_Page
         $has_rsvp      = isset($input['rsvp']) && is_array($input['rsvp']);
         $has_virtual   = isset($input['virtual_access']) && is_array($input['virtual_access']);
         $has_tickets   = isset($input['tickets']) && is_array($input['tickets']);
+        $has_privacy   = isset($input['privacy']) && is_array($input['privacy']);
         $has_qbo       = isset($input['quickbooks']) && is_array($input['quickbooks']);
         $input_rsvp    = $has_rsvp ? $input['rsvp'] : ($current['rsvp'] ?? $defaults['rsvp']);
         $input_virtual = $has_virtual ? $input['virtual_access'] : ($current['virtual_access'] ?? $defaults['virtual_access']);
         $input_tickets = $has_tickets ? $input['tickets'] : ($current['tickets'] ?? $defaults['tickets']);
+        $input_privacy = $has_privacy ? $input['privacy'] : ($current['privacy'] ?? $defaults['privacy']);
         $input_qbo     = $has_qbo ? $input['quickbooks'] : $current_qbo;
 
         $client_secret = isset($input_qbo['client_secret']) ? trim((string) $input_qbo['client_secret']) : '';
@@ -1096,6 +1118,9 @@ final class Settings_Page
             'tickets'        => array(
                 'auto_complete_ticket_only_orders' => ! empty($input_tickets['auto_complete_ticket_only_orders']),
                 'cart_hold_minutes'                => max(1, min(240, absint($input_tickets['cart_hold_minutes'] ?? 15))),
+            ),
+            'privacy'        => array(
+                'communication_retention_days' => min(3650, absint($input_privacy['communication_retention_days'] ?? 0)),
             ),
             'quickbooks'     => array(
                 'enabled'                    => $has_qbo ? ! empty($input_qbo['enabled']) : ! empty($current_qbo['enabled']),
@@ -1169,6 +1194,9 @@ final class Settings_Page
                 'auto_complete_ticket_only_orders' => true,
                 'cart_hold_minutes'                => 15,
             ),
+            'privacy'        => array(
+                'communication_retention_days' => 0,
+            ),
             'quickbooks'     => array(
                 'enabled'                    => false,
                 'dry_run_mode'               => true,
@@ -1240,6 +1268,11 @@ final class Settings_Page
     {
         echo '<p>' . esc_html__('Configure default ticket settings.', 'oras-tickets') . '</p>';
         echo '<p class="description">' . esc_html__('Cart Hold Minutes controls how long ORAS ticket items can remain in cart before they are automatically removed.', 'oras-tickets') . '</p>';
+    }
+
+    public static function render_privacy_section(): void
+    {
+        echo '<p>' . esc_html__('Control how long completed event communication audit records are retained. Use a policy approved by the ORAS board.', 'oras-tickets') . '</p>';
     }
 
     public static function render_quickbooks_section(): void

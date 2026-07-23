@@ -204,6 +204,24 @@ final class Communication_Log_Store
         );
     }
 
+    public static function clear_delivery_payload(int $id): void
+    {
+        global $wpdb;
+        $wpdb->update(self::table_name(), array('delivery_payload' => ''), array('id' => $id), array('%s'), array('%d'));
+    }
+
+    public static function delete_completed_before(string $before): int
+    {
+        global $wpdb;
+        $deleted = $wpdb->query(
+            $wpdb->prepare(
+                'DELETE FROM ' . self::table_name() . " WHERE sent_at < %s AND send_status IN ('sent','partial','failed')",
+                $before
+            )
+        );
+        return false === $deleted ? 0 : (int) $deleted;
+    }
+
     public static function table_exists(): bool
     {
         global $wpdb;

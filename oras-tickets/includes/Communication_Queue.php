@@ -89,6 +89,7 @@ final class Communication_Queue
 
         $status = 0 === $failed ? 'sent' : ($failed >= count($recipients) ? 'failed' : 'partial');
         Communication_Log_Store::update_delivery($log_id, $status, $processed, $failed);
+        Communication_Log_Store::clear_delivery_payload($log_id);
     }
 
     private static function schedule(int $log_id): bool

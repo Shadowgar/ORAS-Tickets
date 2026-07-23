@@ -31,7 +31,7 @@ wp db query "SELECT ID, post_title, post_name, post_status FROM $(wp db prefix)p
 
 ## Roles And Capabilities
 
-ORAS-Tickets grants its event-management capabilities to existing `administrator`, `board`, and `board_member` roles.
+ORAS-Tickets reconciles distinct capability sets for `administrator`, `board`, `board_member`, `treasurer`, and the existing `event_creator` role displayed as Event Coordinator.
 The role must already exist for capabilities to be assigned.
 
 Required capabilities for this release:
@@ -39,6 +39,9 @@ Required capabilities for this release:
 - `oras_tickets_view_board_dashboard`
 - `oras_tickets_send_notifications`
 - `oras_tickets_manage_rsvps`, when board users are expected to approve or reject RSVPs
+- `oras_tickets_view_attendees`
+
+Board and Board Member do not receive event editing, export, attendee-record editing, or settings capabilities. Event Coordinator receives event operations, reports, exports, tickets, RSVP, communications, agenda, questions, speakers, media, and virtual-event capabilities, but not ORAS Tickets or Events Calendar settings.
 
 Authenticated production preflight:
 
@@ -60,7 +63,7 @@ This release adds the ORAS-Tickets communication log table:
 {$wpdb->prefix}oras_ticket_communications
 ```
 
-The schema is installed or upgraded by `ORAS\Tickets\Communication_Log_Store::maybe_upgrade()` and tracked with the `oras_tickets_communications_schema_version` option.
+The schema is installed or upgraded by `ORAS\Tickets\Communication_Log_Store::maybe_upgrade()` and tracked with the `oras_tickets_communications_schema_version` option. Schema version 2 adds queued-delivery payload and progress fields. Payloads are cleared after delivery.
 
 Authenticated production preflight:
 
@@ -107,7 +110,8 @@ The virtual meeting link must not be public. It is included only in approved vir
 7. Clear page, object, and CDN caches.
 8. Smoke-test as administrator, board, board_member, treasurer, and unauthorized/basic member.
 9. Send one controlled test communication and confirm the communication log captures the current WordPress sender user ID, display name, and email.
-10. Approve and reject controlled virtual RSVPs and confirm only the approved email contains the virtual meeting link.
+10. Confirm the message first shows `queued`, then reaches `sent` or `partial` through Action Scheduler.
+11. Approve and reject controlled virtual RSVPs and confirm only the approved email contains the virtual meeting link.
 
 ## Rollback Steps
 

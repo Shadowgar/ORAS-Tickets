@@ -1,5 +1,15 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-23 - Releases 0.4.40 through 0.4.42
+
+- Reconciled Board, Board Member, Treasurer, Administrator, and Event Coordinator capabilities.
+- Added strict plugin version consistency checks to local verification and CI.
+- Added 25/50/100-row pagination to Sales, RSVP Management, and Roster views while preserving complete exports.
+- Moved mass communication delivery to resumable Action Scheduler batches with queued progress and sender audit logging.
+- Upgraded the communication schema for delivery progress and transient recipient payloads.
+- Added configurable completed-log retention, disabled by default, and immediate recipient-payload cleanup after delivery.
+- Added release, deployment, rollback, and privacy operating guidance.
+
 ## 2026-03-02 — Phase 6 Gate-Open Governance Template
 
 Docs:
