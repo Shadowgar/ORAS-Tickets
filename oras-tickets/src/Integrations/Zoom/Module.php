@@ -27,11 +27,21 @@ final class Module {
 	public function register(): void {
 		Registration_Store::maybe_install_schema();
 		( new Rsvp_Lifecycle() )->register();
+		add_action(
+			'oras_tickets_zoom_sync_event_async',
+			array( $this, 'handle_async_sync_event' ),
+			10,
+			3
+		);
 
 		if ( is_admin() ) {
 			add_action(
 				'admin_post_oras_tickets_zoom_test_connection',
 				array( $this, 'handle_test_connection' )
+			);
+			add_action(
+				'admin_post_oras_tickets_zoom_sync_event',
+				array( $this, 'handle_sync_event' )
 			);
 		}
 	}
@@ -80,5 +90,70 @@ final class Module {
 			)
 		);
 		exit;
+	}
+
+	public function handle_sync_event(): void {
+		$event_id = isset( $_GET['event_id'] ) ? absint( wp_unslash( $_GET['event_id'] ) ) : 0;
+		if ( $event_id <= 0 || 'tribe_events' !== get_post_type( $event_id ) ) {
+			wp_die(
+				esc_html__( 'The selected event is invalid.', 'oras-tickets' ),
+				'',
+				array( 'response' => 400 )
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $event_id ) ) {
+			wp_die(
+				esc_html__( 'You do not have permission to synchronize this event.', 'oras-tickets' ),
+				'',
+				array( 'response' => 403 )
+			);
+		}
+
+		check_admin_referer( 'oras_tickets_zoom_sync_event_' . $event_id );
+		$result = \ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox::synchronize_unattended_access( $event_id );
+		$status = is_wp_error( $result ) ? 'error' : 'success';
+		$target = get_edit_post_link( $event_id, 'raw' );
+		if ( ! is_string( $target ) || '' === $target ) {
+			$target = admin_url( 'post.php?post=' . $event_id . '&action=edit' );
+		}
+
+		wp_safe_redirect( add_query_arg( 'oras_zoom_sync', $status, $target ) );
+		exit;
+	}
+
+	public function handle_async_sync_event( int $event_id, string $sync_revision = '', int $attempt = 0 ): void {
+		if ( $event_id <= 0 || 'tribe_events' !== get_post_type( $event_id ) ) {
+			return;
+		}
+
+		$result = \ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox::synchronize_unattended_access(
+			$event_id,
+			null,
+			$sync_revision
+		);
+		if ( ! is_wp_error( $result ) || $attempt >= 3 ) {
+			return;
+		}
+
+		$error_data = $result->get_error_data();
+		$retriable  = is_array( $error_data ) && ! empty( $error_data['retriable'] );
+		if ( ! $retriable ) {
+			return;
+		}
+
+		$retry_delays = array( 60, 300, 900 );
+		\ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox::mark_retry_scheduled(
+			$event_id,
+			$sync_revision,
+			$attempt + 1,
+			$retry_delays[ $attempt ]
+		);
+		\ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox::queue_unattended_access_sync(
+			$event_id,
+			$sync_revision,
+			$attempt + 1,
+			$retry_delays[ $attempt ]
+		);
 	}
 }

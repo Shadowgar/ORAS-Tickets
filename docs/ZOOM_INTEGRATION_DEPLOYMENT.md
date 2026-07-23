@@ -5,7 +5,7 @@
 1. Create a Zoom Server-to-Server OAuth app in the ORAS-owned Zoom account.
 2. Grant meeting read/write permissions sufficient to read invitations, create registrants, and update registrant status.
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.43 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.44 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
@@ -14,9 +14,38 @@
 2. Open **ORAS Events Addon > Zoom Automation** on the event.
 3. Confirm the detected meeting ID. Use the override only when automatic detection cannot resolve the TEC Zoom meeting.
 4. Enable **Manage virtual attendees through Zoom registration**.
-5. Confirm the Zoom meeting uses automatic registration approval. Zoom must return a registrant-specific join URL.
+5. Enable **Allow approved attendees to join anytime without a host** when the meeting must operate without a person signing into the ORAS host account.
+6. Save the event and allow the queued synchronization to run, or use **Sync Zoom Settings** for immediate verification. Confirm the Zoom Automation panel reports that unattended access synchronized.
+7. Confirm the Zoom meeting uses automatic registration approval. Zoom must return a registrant-specific join URL.
 
 Paid virtual ticket buyers are registered after the WooCommerce order reaches processing or completed. Virtual RSVP attendees are registered only after board approval. Pending, rejected, and cancelled RSVPs do not receive a private Zoom link.
+
+## Unattended Meetings
+
+When unattended access is enabled, ORAS-Tickets updates and verifies these
+meeting settings through the Zoom Meetings API:
+
+- `join_before_host: true`
+- `jbh_time: 0` (participants may join at any time)
+- `waiting_room: false`
+
+Zoom does not allow join-before-host to operate while Waiting Room is enabled.
+Registration, meeting passcodes, and ORAS ticket/RSVP eligibility remain the
+access controls. No host controls are available until an authorized Zoom host
+joins the meeting, and ORAS-Tickets never distributes Zoom's host start URL.
+
+The Server-to-Server OAuth app must have permission to update meetings in
+addition to reading meeting details, reading invitations, and managing
+registrants. If account-level Zoom policy locks Waiting Room or disables
+join-before-host, the event editor reports that synchronization failed.
+
+Existing events are not silently changed during plugin upgrade. Open the event,
+enable unattended access in **Zoom Automation**, and save or select
+**Sync Zoom Settings**.
+
+Queued synchronization retries temporary Zoom rate-limit and server failures
+three times. Synchronization revisions prevent an older queued job from
+overwriting a newer event configuration.
 
 ## Schema
 
@@ -42,6 +71,6 @@ Use a non-production Zoom test meeting to verify:
 
 1. Disable managed registration on affected events, or disable the global Zoom integration.
 2. Existing ORAS shared-link email behavior will remain available as the fallback.
-3. Roll back the plugin files to 0.4.42 if required.
+3. Roll back the plugin files to 0.4.43 if required.
 4. Do not drop the Zoom registration tables during an application rollback. They contain the entitlement audit needed to avoid duplicate registrants when 0.4.43 is restored.
 5. Revoke the Zoom Server-to-Server OAuth app credentials if credential exposure is suspected.

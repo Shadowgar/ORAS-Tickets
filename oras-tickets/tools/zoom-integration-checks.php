@@ -15,6 +15,10 @@ $GLOBALS['oras_zoom_test_transients'] = array();
 $GLOBALS['oras_zoom_test_http_calls'] = array();
 $GLOBALS['oras_zoom_test_http_response'] = null;
 $GLOBALS['oras_zoom_test_post_meta'] = array();
+$GLOBALS['oras_zoom_test_can_edit'] = true;
+$GLOBALS['oras_zoom_test_nonce_valid'] = true;
+$GLOBALS['oras_zoom_test_scheduled_actions'] = array();
+$GLOBALS['oras_zoom_test_uuid_counter'] = 0;
 
 final class WP_Error {
 	private string $code;
@@ -158,6 +162,68 @@ function get_post_meta( int $post_id, string $key = '', bool $single = false ) {
 	return $GLOBALS['oras_zoom_test_post_meta'][ $post_id ][ $key ] ?? '';
 }
 
+function update_post_meta( int $post_id, string $key, $value ): bool {
+	$GLOBALS['oras_zoom_test_post_meta'][ $post_id ][ $key ] = $value;
+	return true;
+}
+
+function current_time( string $type, bool $gmt = false ): string {
+	unset( $type, $gmt );
+	return '2026-07-23 12:00:00';
+}
+
+function current_user_can( string $capability, ...$args ): bool {
+	unset( $capability, $args );
+	return (bool) $GLOBALS['oras_zoom_test_can_edit'];
+}
+
+function wp_verify_nonce( string $nonce, string $action ): bool {
+	unset( $nonce, $action );
+	return (bool) $GLOBALS['oras_zoom_test_nonce_valid'];
+}
+
+function wp_unslash( $value ) {
+	return $value;
+}
+
+function wp_is_post_revision( int $post_id ): bool {
+	unset( $post_id );
+	return false;
+}
+
+function wp_is_post_autosave( int $post_id ): bool {
+	unset( $post_id );
+	return false;
+}
+
+function wp_generate_uuid4(): string {
+	++$GLOBALS['oras_zoom_test_uuid_counter'];
+	return '00000000-0000-4000-8000-' . str_pad(
+		(string) $GLOBALS['oras_zoom_test_uuid_counter'],
+		12,
+		'0',
+		STR_PAD_LEFT
+	);
+}
+
+function as_has_scheduled_action( string $hook, array $args, string $group ): bool {
+	foreach ( $GLOBALS['oras_zoom_test_scheduled_actions'] as $action ) {
+		if ( $hook === $action['hook'] && $args === $action['args'] && $group === $action['group'] ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function as_enqueue_async_action( string $hook, array $args, string $group ): int {
+	$GLOBALS['oras_zoom_test_scheduled_actions'][] = array(
+		'hook'  => $hook,
+		'args'  => $args,
+		'group' => $group,
+	);
+	return count( $GLOBALS['oras_zoom_test_scheduled_actions'] );
+}
+
 function wp_parse_url( string $url ) {
 	return parse_url( $url );
 }
@@ -191,6 +257,7 @@ $repository_interface_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Regist
 $registration_store_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Store.php';
 $registration_service_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Service.php';
 $rsvp_lifecycle_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Rsvp_Lifecycle.php';
+$event_zoom_metabox_file = dirname( __DIR__ ) . '/includes/Admin/Metaboxes/Event_Zoom_Metabox.php';
 
 require_once $settings_file;
 require_once $oauth_file;
@@ -201,7 +268,9 @@ require_once $repository_interface_file;
 require_once $registration_store_file;
 require_once $registration_service_file;
 require_once $rsvp_lifecycle_file;
+require_once $event_zoom_metabox_file;
 
+use ORAS\Tickets\Admin\Metaboxes\Event_Zoom_Metabox;
 use ORAS\Tickets\Integrations\Zoom\Api_Client;
 use ORAS\Tickets\Integrations\Zoom\Api_Interface;
 use ORAS\Tickets\Integrations\Zoom\Meeting_Service;
@@ -215,13 +284,30 @@ use ORAS\Tickets\Integrations\Zoom\Settings;
 final class Oras_Zoom_Fake_Api implements Api_Interface {
 	public int $registrations = 0;
 	public int $cancellations = 0;
+	/** @var array<string,mixed> */
+	public array $meeting_update = array();
+	public bool $apply_meeting_update = true;
+	/** @var callable|null */
+	public $on_update = null;
 
 	public function get_meeting( string $meeting_id ) {
-		return array( 'id' => $meeting_id );
+		return array(
+			'id'       => $meeting_id,
+			'settings' => $this->apply_meeting_update ? $this->meeting_update : array(),
+		);
 	}
 
 	public function get_meeting_invitation( string $meeting_id ) {
 		return array( 'invitation' => 'Meeting ID: ' . $meeting_id );
+	}
+
+	public function update_meeting( string $meeting_id, array $settings ) {
+		unset( $meeting_id );
+		$this->meeting_update = $settings;
+		if ( is_callable( $this->on_update ) ) {
+			( $this->on_update )();
+		}
+		return true;
 	}
 
 	public function add_meeting_registrant( string $meeting_id, array $registrant ) {
@@ -405,6 +491,145 @@ try {
 	$fake_invitation_api = new Oras_Zoom_Fake_Api();
 	$resolved_invitation = ( new Meeting_Service( $fake_invitation_api ) )->get_invitation_for_event( 42 );
 	oras_zoom_assert( ! is_wp_error( $resolved_invitation ), 'Meeting invitation service supports an injected API client' );
+	$unattended_result = ( new Meeting_Service( $fake_invitation_api ) )->configure_unattended_access( 42 );
+	oras_zoom_assert( ! is_wp_error( $unattended_result ), 'Meeting service configures unattended access' );
+	oras_zoom_assert(
+		array(
+			'join_before_host' => true,
+			'jbh_time'         => 0,
+			'waiting_room'     => false,
+		) === $fake_invitation_api->meeting_update,
+		'Unattended access uses Zoom join-anytime settings and disables the waiting room'
+	);
+	$GLOBALS['oras_zoom_test_post_meta'][42]['_oras_zoom_integration_v1'] = array(
+		'version'           => 1,
+		'enabled'           => true,
+		'meeting_id'        => '89821762143',
+		'unattended_access' => true,
+	);
+	Settings::update(
+		array(
+			'enabled'       => true,
+			'account_id'    => 'zoom-account',
+			'client_id'     => 'zoom-client',
+			'client_secret' => 'zoom-secret',
+		)
+	);
+	$event_sync_result = Event_Zoom_Metabox::synchronize_unattended_access(
+		42,
+		new Meeting_Service( $fake_invitation_api )
+	);
+	oras_zoom_assert( ! is_wp_error( $event_sync_result ), 'Event Zoom policy synchronizes unattended access' );
+	$event_zoom_config = get_post_meta( 42, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		is_array( $event_zoom_config ) && 'success' === ( $event_zoom_config['sync_status'] ?? '' ),
+		'Successful event synchronization is persisted'
+	);
+	oras_zoom_assert(
+		is_array( $event_zoom_config ) && '2026-07-23 12:00:00' === ( $event_zoom_config['synced_at'] ?? '' ),
+		'Event synchronization time is persisted'
+	);
+	$locked_policy_api = new Oras_Zoom_Fake_Api();
+	$locked_policy_api->apply_meeting_update = false;
+	$locked_policy_result = Event_Zoom_Metabox::synchronize_unattended_access(
+		42,
+		new Meeting_Service( $locked_policy_api )
+	);
+	oras_zoom_assert(
+		is_wp_error( $locked_policy_result )
+		&& 'oras_zoom_unattended_settings_not_applied' === $locked_policy_result->get_error_code(),
+		'Locked Zoom account policy produces an actionable synchronization error'
+	);
+	$event_zoom_config = get_post_meta( 42, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		is_array( $event_zoom_config ) && 'error' === ( $event_zoom_config['sync_status'] ?? '' ),
+		'Failed event synchronization is persisted for the event editor'
+	);
+	$_POST = array(
+		'oras_event_zoom_nonce' => 'valid',
+		'oras_event_zoom'       => array(
+			'enabled'           => '1',
+			'meeting_id'        => '89821762143',
+			'unattended_access' => '1',
+		),
+	);
+	Event_Zoom_Metabox::save( 43 );
+	$saved_event_config = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		is_array( $saved_event_config )
+		&& ! empty( $saved_event_config['unattended_access'] )
+		&& 'pending' === ( $saved_event_config['sync_status'] ?? '' ),
+		'Event save persists unattended access and marks synchronization pending'
+	);
+	oras_zoom_assert(
+		1 === count( $GLOBALS['oras_zoom_test_scheduled_actions'] )
+		&& 'oras_tickets_zoom_sync_event_async' === $GLOBALS['oras_zoom_test_scheduled_actions'][0]['hook']
+		&& 3 === count( $GLOBALS['oras_zoom_test_scheduled_actions'][0]['args'] ),
+		'Event save queues Zoom synchronization instead of blocking on network calls'
+	);
+	$queued_revision = is_array( $saved_event_config )
+		? (string) ( $saved_event_config['sync_revision'] ?? '' )
+		: '';
+	oras_zoom_assert( '' !== $queued_revision, 'Queued synchronization receives a revision token' );
+
+	$race_api = new Oras_Zoom_Fake_Api();
+	$race_api->on_update = static function (): void {
+		$current = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+		$current = is_array( $current ) ? $current : array();
+		$current['unattended_access'] = false;
+		$current['sync_status'] = '';
+		update_post_meta( 43, '_oras_zoom_integration_v1', $current );
+	};
+	$race_result = Event_Zoom_Metabox::synchronize_unattended_access(
+		43,
+		new Meeting_Service( $race_api ),
+		$queued_revision
+	);
+	oras_zoom_assert(
+		is_wp_error( $race_result ) && 'oras_zoom_stale_sync' === $race_result->get_error_code(),
+		'In-flight synchronization rejects a newer event configuration'
+	);
+	$race_config = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		is_array( $race_config )
+		&& empty( $race_config['unattended_access'] )
+		&& '' === ( $race_config['sync_status'] ?? '' ),
+		'In-flight synchronization does not overwrite newer event settings'
+	);
+
+	unset( $_POST['oras_event_zoom']['unattended_access'] );
+	Event_Zoom_Metabox::save( 43 );
+	$saved_event_config = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		is_array( $saved_event_config )
+		&& empty( $saved_event_config['unattended_access'] )
+		&& '' === ( $saved_event_config['sync_status'] ?? '' ),
+		'Disabling unattended access clears stale synchronization status'
+	);
+	oras_zoom_assert(
+		1 === count( $GLOBALS['oras_zoom_test_scheduled_actions'] ),
+		'Disabling unattended access does not queue another Zoom update'
+	);
+
+	$GLOBALS['oras_zoom_test_nonce_valid'] = false;
+	$_POST['oras_event_zoom']['unattended_access'] = '1';
+	Event_Zoom_Metabox::save( 43 );
+	$nonce_rejected_config = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		$saved_event_config === $nonce_rejected_config,
+		'Event Zoom policy save rejects an invalid nonce without changing configuration'
+	);
+	$GLOBALS['oras_zoom_test_nonce_valid'] = true;
+	$GLOBALS['oras_zoom_test_can_edit'] = false;
+	unset( $_POST['oras_event_zoom']['enabled'] );
+	Event_Zoom_Metabox::save( 43 );
+	$capability_rejected_config = get_post_meta( 43, '_oras_zoom_integration_v1', true );
+	oras_zoom_assert(
+		$nonce_rejected_config === $capability_rejected_config,
+		'Event Zoom policy save rejects users who cannot edit the event'
+	);
+	$GLOBALS['oras_zoom_test_can_edit'] = true;
+	unset( $_POST );
 
 	Settings::update(
 		array(
@@ -434,6 +659,30 @@ try {
 	oras_zoom_assert(
 		'Bearer zoom-access-token' === $last_http_call['args']['headers']['Authorization'],
 		'Zoom API client authenticates with the OAuth bearer token'
+	);
+	$GLOBALS['oras_zoom_test_http_response'] = array(
+		'response' => array( 'code' => 204 ),
+		'body'     => '',
+	);
+	$api_update = ( new Api_Client() )->update_meeting(
+		'89821762143',
+		array(
+			'join_before_host' => true,
+			'jbh_time'         => 0,
+			'waiting_room'     => false,
+		)
+	);
+	oras_zoom_assert( true === $api_update, 'Zoom API client accepts a successful meeting update' );
+	$http_calls = oras_zoom_http_calls();
+	$last_http_call = $http_calls[ count( $http_calls ) - 1 ];
+	oras_zoom_assert( 'PATCH' === $last_http_call['args']['method'], 'Zoom meeting update uses PATCH' );
+	$update_body = json_decode( (string) $last_http_call['args']['body'], true );
+	oras_zoom_assert(
+		is_array( $update_body )
+		&& true === $update_body['settings']['join_before_host']
+		&& 0 === $update_body['settings']['jbh_time']
+		&& false === $update_body['settings']['waiting_room'],
+		'Zoom meeting update sends the unattended-access settings envelope'
 	);
 
 	$schema_source = file_get_contents( $registration_store_file );
@@ -601,6 +850,23 @@ try {
 	oras_zoom_assert(
 		is_string( $module_source ) && false !== strpos( $module_source, 'admin_post_oras_tickets_zoom_test_connection' ),
 		'Zoom module registers an administrator connection-test action'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, 'admin_post_oras_tickets_zoom_sync_event' ),
+		'Zoom module registers an event synchronization action'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, "'oras_tickets_zoom_sync_event_async'" )
+		&& false !== strpos( $module_source, "array( \$this, 'handle_async_sync_event' ),\n\t\t\t10,\n\t\t\t3" ),
+		'Zoom asynchronous synchronization accepts event, revision, and retry arguments'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, "current_user_can( 'edit_post', \$event_id )" ),
+		'Zoom event synchronization requires event edit permission'
+	);
+	oras_zoom_assert(
+		false !== strpos( $module_source, "check_admin_referer( 'oras_tickets_zoom_sync_event_' . \$event_id )" ),
+		'Zoom event synchronization verifies an event-specific nonce'
 	);
 	oras_zoom_assert(
 		false !== strpos( $module_source, "current_user_can( 'oras_tickets_manage_settings' )" ),

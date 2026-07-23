@@ -13,6 +13,11 @@ interface Api_Interface {
 	public function get_meeting_invitation( string $meeting_id );
 
 	/**
+	 * @param array<string,mixed> $settings
+	 */
+	public function update_meeting( string $meeting_id, array $settings );
+
+	/**
 	 * @param array<string,mixed> $registrant
 	 */
 	public function add_meeting_registrant( string $meeting_id, array $registrant );

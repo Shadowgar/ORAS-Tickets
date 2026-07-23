@@ -1,5 +1,14 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-23 - Release 0.4.44
+
+- Added per-event unattended Zoom access so approved attendees can enter without requiring an ORAS host to start the meeting.
+- Added verified Zoom synchronization for `join_before_host`, unrestricted join time, and disabled Waiting Room.
+- Added queued synchronization after event saves and a nonce-protected `Sync Zoom Settings` action for immediate verification.
+- Added stale-job protection and bounded retries for Zoom rate limits and temporary service failures.
+- Added event-editor synchronization status and actionable Zoom account-policy errors.
+- Preserved attendee-specific registration, passcodes, approval gates, and private join-link handling.
+
 ## 2026-07-23 - Release 0.4.43
 
 - Added an ORAS-owned Zoom Server-to-Server OAuth integration with encrypted credential storage and an administrator connection test.

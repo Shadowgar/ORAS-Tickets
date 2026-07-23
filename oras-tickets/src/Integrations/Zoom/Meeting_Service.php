@@ -40,6 +40,77 @@ final class Meeting_Service {
 		return $parsed;
 	}
 
+	/**
+	 * Configure and verify that attendees can enter without a host at any time.
+	 *
+	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool}|\WP_Error
+	 */
+	public function configure_unattended_access( int $event_id ) {
+		$meeting_id = self::resolve_meeting_id( $event_id );
+		if ( '' === $meeting_id ) {
+			return new \WP_Error(
+				'oras_zoom_missing_meeting_id',
+				__( 'This event is not mapped to a Zoom meeting.', 'oras-tickets' )
+			);
+		}
+
+		return $this->configure_unattended_access_for_meeting( $meeting_id );
+	}
+
+	/**
+	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool}|\WP_Error
+	 */
+	public function configure_unattended_access_for_meeting( string $meeting_id ) {
+		$meeting_id = self::normalize_meeting_id( $meeting_id );
+		if ( '' === $meeting_id ) {
+			return new \WP_Error(
+				'oras_zoom_invalid_meeting_id',
+				__( 'The Zoom meeting ID is invalid.', 'oras-tickets' )
+			);
+		}
+
+		$required_settings = array(
+			'join_before_host' => true,
+			'jbh_time'         => 0,
+			'waiting_room'     => false,
+		);
+		$updated = $this->api->update_meeting( $meeting_id, $required_settings );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		$meeting = $this->api->get_meeting( $meeting_id );
+		if ( is_wp_error( $meeting ) ) {
+			return $meeting;
+		}
+
+		$settings = isset( $meeting['settings'] ) && is_array( $meeting['settings'] )
+			? $meeting['settings']
+			: array();
+		$verified = array_key_exists( 'join_before_host', $settings )
+			&& true === (bool) $settings['join_before_host']
+			&& array_key_exists( 'jbh_time', $settings )
+			&& 0 === (int) $settings['jbh_time']
+			&& array_key_exists( 'waiting_room', $settings )
+			&& false === (bool) $settings['waiting_room'];
+		if ( ! $verified ) {
+			return new \WP_Error(
+				'oras_zoom_unattended_settings_not_applied',
+				__(
+					'Zoom did not apply unattended access. Check whether account-level Waiting Room or join-before-host settings are locked.',
+					'oras-tickets'
+				)
+			);
+		}
+
+		return array(
+			'meeting_id'       => $meeting_id,
+			'join_before_host' => true,
+			'jbh_time'         => 0,
+			'waiting_room'     => false,
+		);
+	}
+
 	public static function resolve_meeting_id( int $event_id ): string {
 		if ( $event_id <= 0 ) {
 			return '';

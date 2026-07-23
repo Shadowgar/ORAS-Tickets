@@ -31,6 +31,20 @@ final class Api_Client implements Api_Interface {
 	}
 
 	/**
+	 * @param array<string,mixed> $settings
+	 * @return true|\WP_Error
+	 */
+	public function update_meeting( string $meeting_id, array $settings ) {
+		$result = $this->request(
+			'PATCH',
+			$this->meeting_path( $meeting_id ),
+			array( 'settings' => $settings )
+		);
+
+		return is_wp_error( $result ) ? $result : true;
+	}
+
+	/**
 	 * @param array<string,mixed> $registrant
 	 * @return array<string,mixed>|\WP_Error
 	 */
@@ -96,7 +110,17 @@ final class Api_Client implements Api_Interface {
 
 		$response = wp_remote_request( self::API_BASE . $path, $args );
 		if ( is_wp_error( $response ) ) {
-			return $response;
+			$error = new \WP_Error(
+				'oras_zoom_transport_error',
+				$response->get_error_message()
+			);
+			$error->add_data(
+				array(
+					'endpoint'  => $path,
+					'retriable' => true,
+				)
+			);
+			return $error;
 		}
 
 		$status = (int) wp_remote_retrieve_response_code( $response );

@@ -53,7 +53,12 @@ final class OAuth_Client {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			return $response;
+			$error = new \WP_Error(
+				'oras_zoom_auth_transport_error',
+				$response->get_error_message()
+			);
+			$error->add_data( array( 'retriable' => true ) );
+			return $error;
 		}
 
 		$status = (int) wp_remote_retrieve_response_code( $response );
@@ -67,11 +72,15 @@ final class OAuth_Client {
 					$status
 				);
 
-			return new \WP_Error(
+			$error = new \WP_Error(
 				'oras_zoom_auth_failed',
 				$message,
-				array( 'status' => $status )
+				array(
+					'status'    => $status,
+					'retriable' => 429 === $status || $status >= 500,
+				)
 			);
+			return $error;
 		}
 
 		$token      = sanitize_text_field( (string) $data['access_token'] );
