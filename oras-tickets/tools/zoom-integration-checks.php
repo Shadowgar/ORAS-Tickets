@@ -289,6 +289,7 @@ use ORAS\Tickets\Integrations\Zoom\Settings;
 final class Oras_Zoom_Fake_Api implements Api_Interface {
 	public int $registrations = 0;
 	public int $cancellations = 0;
+	public string $invitation = '';
 	/** @var array<string,mixed> */
 	public array $meeting_update = array();
 	/** @var array<int,array<string,mixed>> */
@@ -312,7 +313,11 @@ final class Oras_Zoom_Fake_Api implements Api_Interface {
 	}
 
 	public function get_meeting_invitation( string $meeting_id ) {
-		return array( 'invitation' => 'Meeting ID: ' . $meeting_id );
+		return array(
+			'invitation' => '' !== $this->invitation
+				? $this->invitation
+				: 'Meeting ID: ' . $meeting_id,
+		);
 	}
 
 	public function update_meeting( string $meeting_id, array $settings, array $meeting_properties = array() ) {
@@ -834,6 +839,30 @@ try {
 	oras_zoom_assert(
 		false !== strpos( (string) $rsvp_access['join_url'], 'tk=private-1' ),
 		'Approved virtual RSVP receives its attendee-specific join URL'
+	);
+	$invitation_only_api = new Oras_Zoom_Fake_Api();
+	$invitation_only_api->invitation = "Join Zoom Meeting\r\n"
+		. "https://us02web.zoom.us/j/89821762143?pwd=embedded\r\n\r\n"
+		. "Meeting ID: 898 2176 2143\r\n"
+		. "Passcode: 991108\r\n"
+		. "One tap mobile\r\n"
+		. "+13126266799,,89821762143#,,,,*991108# US (Chicago)\r\n";
+	$invitation_only_lifecycle = new Rsvp_Lifecycle(
+		new Registration_Service( $invitation_only_api, new Oras_Zoom_Fake_Repository() ),
+		new Meeting_Service( $invitation_only_api )
+	);
+	$invitation_only_access = $invitation_only_lifecycle->filter_access_details(
+		array( 'join_url' => 'https://us02web.zoom.us/j/89821762143' ),
+		42,
+		23,
+		'approved',
+		'unregistered@example.org'
+	);
+	oras_zoom_assert(
+		'991108' === ( $invitation_only_access['passcode'] ?? '' )
+		&& false !== strpos( (string) ( $invitation_only_access['join_url'] ?? '' ), 'pwd=embedded' )
+		&& 1 === count( $invitation_only_access['one_tap_mobile'] ?? array() ),
+		'Approved virtual RSVP receives current Zoom invitation details when managed registration is unavailable'
 	);
 	$rsvp_lifecycle->handle_approval_status_changed(
 		42,

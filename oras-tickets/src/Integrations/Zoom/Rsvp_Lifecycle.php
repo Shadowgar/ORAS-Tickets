@@ -106,7 +106,16 @@ final class Rsvp_Lifecycle {
 		string $email
 	): array {
 		unset( $user_id );
-		if ( 'approved' !== $approval_status || ! Registration_Service::is_managed_event( $event_id ) ) {
+		if ( 'approved' !== $approval_status ) {
+			return $access;
+		}
+
+		$invitation = $this->meetings->get_invitation_for_event( $event_id );
+		if ( ! is_wp_error( $invitation ) ) {
+			$access = array_merge( $access, $invitation );
+		}
+
+		if ( ! Registration_Service::is_managed_event( $event_id ) ) {
 			return $access;
 		}
 
@@ -115,10 +124,6 @@ final class Rsvp_Lifecycle {
 			return $access;
 		}
 
-		$invitation = $this->meetings->get_invitation_for_event( $event_id );
-		if ( ! is_wp_error( $invitation ) ) {
-			$access = array_merge( $access, $invitation );
-		}
 		$access['join_url'] = esc_url_raw( (string) $registration['join_url'] );
 		$access['managed']  = true;
 

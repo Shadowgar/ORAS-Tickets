@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.48
+
+- Fixed approved virtual RSVP emails that fell back to a bare event Zoom URL when no active managed registration was available.
+- Approved emails now load the current Zoom invitation first so the embedded-passcode link, meeting ID, passcode, and dial-in details are included.
+- Preserved attendee-specific registrant URLs as the preferred join link when managed registration succeeds.
+- Kept Zoom invitation details unavailable to pending and rejected RSVPs.
+
 ## 2026-07-24 - Release 0.4.47
 
 - Fixed the Zoom password-only update payload by omitting the empty `settings` envelope instead of encoding it as a JSON array.

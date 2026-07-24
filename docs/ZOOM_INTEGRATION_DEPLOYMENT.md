@@ -10,7 +10,7 @@
    - `meeting:update:registrant_status:admin`
    - `meeting:update:meeting:admin`
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.47 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.48 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
