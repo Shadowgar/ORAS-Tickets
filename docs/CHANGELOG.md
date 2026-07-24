@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.50
+
+- Replaced raw Zoom one-tap invitation strings with clear mobile call buttons in approved RSVP and paid virtual-ticket emails.
+- Added numbered landline and manual-dial instructions covering the Meeting ID, skipped participant ID, and numeric Phone Passcode.
+- Labeled separate Zoom credentials as `App/Web passcode` and `Phone passcode` to prevent telephone-entry confusion.
+- Preserved Zoom's local-number directory link for attendees outside the displayed dial-in regions.
+
 ## 2026-07-24 - Release 0.4.49
 
 - Distinguished Zoom's alphanumeric app/web meeting passcode from its numeric telephone passcode.

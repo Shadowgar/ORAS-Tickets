@@ -6,6 +6,7 @@ use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Event_Questions;
+use ORAS\Tickets\Integrations\Zoom\Phone_Join_Instructions;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -814,7 +815,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
      * @param array<int,array{title:string,body:string}>              $sections
      * @param array<int,array{label:string,url:string,style?:string}> $actions
      */
-    private static function build_oras_email_template( string $headline, string $intro, array $details, array $sections = array(), array $actions = array(), string $notice = '', string $footer_note = '' ): string {
+    private static function build_oras_email_template( string $headline, string $intro, array $details, array $sections = array(), array $actions = array(), string $notice = '', string $footer_note = '', string $supplement_html = '' ): string {
         $brand = __( 'Oil Region Astronomical Society', 'oras-tickets' );
         $preheader = wp_strip_all_tags( $intro );
 
@@ -868,6 +869,10 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             $html .= '<h2 style="margin:0 0 10px;font-size:16px;color:#0f172a;">' . esc_html( $title ) . '</h2>';
             $html .= '<div style="font-size:15px;color:#334155;">' . nl2br( esc_html( $body ) ) . '</div>';
             $html .= '</div>';
+        }
+
+        if ( '' !== trim( $supplement_html ) ) {
+            $html .= $supplement_html;
         }
 
         if ( ! empty( $actions ) ) {
@@ -2011,7 +2016,9 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             }
             if ( '' !== (string) ( $access['passcode'] ?? '' ) ) {
                 $details[] = array(
-                    'label' => __( 'Passcode', 'oras-tickets' ),
+                    'label' => '' !== (string) ( $access['phone_passcode'] ?? '' )
+                        ? __( 'App/Web passcode', 'oras-tickets' )
+                        : __( 'Passcode', 'oras-tickets' ),
                     'value' => (string) $access['passcode'],
                 );
             }
@@ -2023,23 +2030,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     'value' => (string) $access['phone_passcode'],
                 );
             }
-            $one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
-                ? array_filter( array_map( 'sanitize_text_field', $access['one_tap_mobile'] ) )
-                : array();
-            if ( ! empty( $one_tap ) ) {
-                $details[] = array(
-                    'label' => __( 'One tap mobile', 'oras-tickets' ),
-                    'value' => implode( ' | ', $one_tap ),
-                );
-            }
-            $local_number_url = esc_url_raw( (string) ( $access['local_number_url'] ?? '' ) );
-            if ( '' !== $local_number_url ) {
-                $details[] = array(
-                    'label' => __( 'Local dial-in numbers', 'oras-tickets' ),
-                    'value' => $local_number_url,
-                    'url'   => $local_number_url,
-                );
-            }
+            $phone_join_html = Phone_Join_Instructions::render_email_html( $access );
             $actions = array(
                 array(
                     'label' => __( 'Join Virtual Event', 'oras-tickets' ),
@@ -2056,7 +2047,10 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 __( 'Your virtual RSVP has been approved. Use the virtual access button below when it is time to join the event.', 'oras-tickets' ),
                 $details,
                 array(),
-                $actions
+                $actions,
+                '',
+                '',
+                $phone_join_html
             );
         } elseif ( self::APPROVAL_STATUS_REJECTED === $normalized_status ) {
             $subject = sprintf(

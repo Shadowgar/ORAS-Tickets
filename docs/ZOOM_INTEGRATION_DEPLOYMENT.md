@@ -10,7 +10,7 @@
    - `meeting:update:registrant_status:admin`
    - `meeting:update:meeting:admin`
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.49 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.50 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
@@ -29,6 +29,11 @@ Zoom may use an alphanumeric passcode for app and web participants while
 requiring a separate numeric passcode for telephone participants. ORAS-Tickets
 parses both from Zoom's invitation and labels the numeric value as
 **Phone passcode** in approved RSVP and paid virtual ticket emails.
+
+Those emails also provide one-tap mobile call buttons and explicit manual
+dialing instructions for landline callers. Manual callers dial a listed Zoom
+number, enter the Meeting ID followed by `#`, press `#` to skip the participant
+ID, and enter the numeric Phone Passcode followed by `#`.
 
 ## Unattended Meetings
 

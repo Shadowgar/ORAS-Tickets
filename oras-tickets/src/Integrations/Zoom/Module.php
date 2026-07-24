@@ -7,6 +7,7 @@ require_once __DIR__ . '/OAuth_Client.php'; // NOSONAR include: Zoom OAuth
 require_once __DIR__ . '/Api_Interface.php'; // NOSONAR include: Zoom API contract
 require_once __DIR__ . '/Api_Client.php'; // NOSONAR include: Zoom API client
 require_once __DIR__ . '/Meeting_Service.php'; // NOSONAR include: Zoom meeting mapping
+require_once __DIR__ . '/Phone_Join_Instructions.php'; // NOSONAR include: shared Zoom phone email guidance
 require_once __DIR__ . '/Registration_Repository.php'; // NOSONAR include: repository contract
 require_once __DIR__ . '/Registration_Store.php'; // NOSONAR include: registration persistence
 require_once __DIR__ . '/Registration_Service.php'; // NOSONAR include: registration lifecycle

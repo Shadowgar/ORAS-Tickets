@@ -103,6 +103,19 @@ function __( string $text, string $domain = 'default' ): string {
 	return $text;
 }
 
+function esc_html__( string $text, string $domain = 'default' ): string {
+	unset( $domain );
+	return htmlspecialchars( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+}
+
+function esc_html( string $text ): string {
+	return htmlspecialchars( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+}
+
+function esc_attr( string $text ): string {
+	return htmlspecialchars( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+}
+
 function add_query_arg( array $args, string $url ): string {
 	return $url . '?' . http_build_query( $args );
 }
@@ -257,6 +270,7 @@ $settings_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Settings.php';
 $oauth_file    = dirname( __DIR__ ) . '/src/Integrations/Zoom/OAuth_Client.php';
 $api_file      = dirname( __DIR__ ) . '/src/Integrations/Zoom/Api_Client.php';
 $meeting_file  = dirname( __DIR__ ) . '/src/Integrations/Zoom/Meeting_Service.php';
+$phone_join_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Phone_Join_Instructions.php';
 $api_interface_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Api_Interface.php';
 $repository_interface_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Repository.php';
 $registration_store_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Registration_Store.php';
@@ -269,6 +283,7 @@ require_once $oauth_file;
 require_once $api_interface_file;
 require_once $api_file;
 require_once $meeting_file;
+require_once $phone_join_file;
 require_once $repository_interface_file;
 require_once $registration_store_file;
 require_once $registration_service_file;
@@ -280,6 +295,7 @@ use ORAS\Tickets\Integrations\Zoom\Api_Client;
 use ORAS\Tickets\Integrations\Zoom\Api_Interface;
 use ORAS\Tickets\Integrations\Zoom\Meeting_Service;
 use ORAS\Tickets\Integrations\Zoom\OAuth_Client;
+use ORAS\Tickets\Integrations\Zoom\Phone_Join_Instructions;
 use ORAS\Tickets\Integrations\Zoom\Registration_Repository;
 use ORAS\Tickets\Integrations\Zoom\Registration_Service;
 use ORAS\Tickets\Integrations\Zoom\Registration_Store;
@@ -507,6 +523,29 @@ try {
 	oras_zoom_assert( 'Q9RFx(Bz*1' === $invitation['passcode'], 'Invitation parser extracts web and app passcode' );
 	oras_zoom_assert( '991108' === $invitation['phone_passcode'], 'Invitation parser extracts numeric phone passcode' );
 	oras_zoom_assert( 2 === count( $invitation['one_tap_mobile'] ), 'Invitation parser extracts one-tap mobile numbers' );
+	$phone_entry = Phone_Join_Instructions::parse_one_tap_line( $invitation['one_tap_mobile'][0] );
+	oras_zoom_assert(
+		'+13126266799' === ( $phone_entry['phone_number'] ?? '' )
+		&& 'US (Chicago)' === ( $phone_entry['location'] ?? '' )
+		&& 'tel:+13126266799,,89821762143#,,,,*991108#' === ( $phone_entry['tel_uri'] ?? '' ),
+		'Phone join formatter preserves safe one-tap dialing details'
+	);
+	$phone_html = Phone_Join_Instructions::render_email_html( $invitation );
+	oras_zoom_assert(
+		false !== strpos( $phone_html, 'Join by mobile phone' )
+		&& false !== strpos( $phone_html, 'Calling from a landline or dialing manually' )
+		&& false !== strpos( $phone_html, 'participant ID, press <strong>#</strong> to skip it' )
+		&& false !== strpos( $phone_html, 'tel:+13126266799,,89821762143#,,,,*991108#' ),
+		'Phone join formatter renders mobile buttons and manual dialing steps'
+	);
+	$phone_fallback_html = Phone_Join_Instructions::render_email_html(
+		array( 'one_tap_mobile' => array( 'Zoom telephone details unavailable in the expected format.' ) )
+	);
+	oras_zoom_assert(
+		false !== strpos( $phone_fallback_html, 'Phone dial-in information' )
+		&& false !== strpos( $phone_fallback_html, 'Zoom telephone details unavailable in the expected format.' ),
+		'Phone join formatter safely preserves unrecognized Zoom dial-in details'
+	);
 	oras_zoom_assert(
 		'https://us02web.zoom.us/u/example' === $invitation['local_number_url'],
 		'Invitation parser extracts local dial-in URL'
@@ -904,7 +943,7 @@ try {
 	oras_zoom_assert(
 		false !== strpos( $ticket_email_source, "'Meeting ID'" )
 		&& false !== strpos( $ticket_email_source, "'Passcode'" )
-		&& false !== strpos( $ticket_email_source, "'One tap mobile'" ),
+		&& false !== strpos( $ticket_email_source, 'Phone_Join_Instructions::render_email_html' ),
 		'Paid virtual ticket email renders complete Zoom invitation details'
 	);
 
@@ -935,6 +974,10 @@ try {
 	oras_zoom_assert(
 		false !== strpos( $rsvp_source, "'Phone passcode'" ),
 		'Approved virtual RSVP email labels the numeric telephone passcode'
+	);
+	oras_zoom_assert(
+		false !== strpos( $rsvp_source, 'Phone_Join_Instructions::render_email_html' ),
+		'Approved virtual RSVP email renders mobile and landline Zoom instructions'
 	);
 
 	$module_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Module.php';

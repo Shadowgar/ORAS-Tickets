@@ -6,6 +6,7 @@ use ORAS\Tickets\Communication_Log_Store;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Integrations\Zoom\Meeting_Service;
+use ORAS\Tickets\Integrations\Zoom\Phone_Join_Instructions;
 use ORAS\Tickets\Integrations\Zoom\Registration_Service;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -248,24 +249,18 @@ final class Virtual_Ticket_Access_Email {
 			$html .= $this->detail_row( __( 'Meeting ID', 'oras-tickets' ), (string) $access['meeting_id'] );
 		}
 		if ( '' !== (string) ( $access['passcode'] ?? '' ) ) {
-			$html .= $this->detail_row( __( 'Passcode', 'oras-tickets' ), (string) $access['passcode'] );
+			$passcode_label = '' !== (string) ( $access['phone_passcode'] ?? '' )
+				? __( 'App/Web passcode', 'oras-tickets' )
+				: __( 'Passcode', 'oras-tickets' );
+			$html .= $this->detail_row( $passcode_label, (string) $access['passcode'] );
 		}
 		if ( '' !== (string) ( $access['phone_passcode'] ?? '' )
 			&& (string) ( $access['phone_passcode'] ?? '' ) !== (string) ( $access['passcode'] ?? '' )
 		) {
 			$html .= $this->detail_row( __( 'Phone passcode', 'oras-tickets' ), (string) $access['phone_passcode'] );
 		}
-		$one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
-			? array_filter( array_map( 'sanitize_text_field', $access['one_tap_mobile'] ) )
-			: array();
-		if ( ! empty( $one_tap ) ) {
-			$html .= $this->detail_row( __( 'One tap mobile', 'oras-tickets' ), implode( "\n", $one_tap ), '', true );
-		}
-		$local_number_url = esc_url_raw( (string) ( $access['local_number_url'] ?? '' ) );
-		if ( '' !== $local_number_url ) {
-			$html .= $this->detail_row( __( 'Local dial-in numbers', 'oras-tickets' ), $local_number_url, $local_number_url );
-		}
 		$html .= '</table>';
+		$html .= Phone_Join_Instructions::render_email_html( $access );
 		$html .= '<div style="margin:28px 0 8px;">';
 		$html .= '<a href="' . esc_url( $virtual_link ) . '" style="display:inline-block;margin:0 10px 10px 0;padding:13px 18px;border-radius:10px;background:#1e3a8a;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">' . esc_html__( 'Join Virtual Event', 'oras-tickets' ) . '</a>';
 		$html .= '<a href="' . esc_url( $event_url ) . '" style="display:inline-block;margin:0 10px 10px 0;padding:13px 18px;border-radius:10px;background:#e2e8f0;color:#0f172a;font-size:15px;font-weight:700;text-decoration:none;">' . esc_html__( 'View Event', 'oras-tickets' ) . '</a>';
