@@ -241,6 +241,7 @@ final class Meeting_Service {
 	 *   join_url:string,
 	 *   meeting_id:string,
 	 *   passcode:string,
+	 *   phone_passcode:string,
 	 *   one_tap_mobile:string[],
 	 *   local_number_url:string
 	 * }
@@ -252,6 +253,7 @@ final class Meeting_Service {
 			'join_url'         => '',
 			'meeting_id'       => '',
 			'passcode'         => '',
+			'phone_passcode'   => '',
 			'one_tap_mobile'   => array(),
 			'local_number_url' => '',
 		);
@@ -271,7 +273,9 @@ final class Meeting_Service {
 			}
 
 			if ( 0 === stripos( $line, 'Passcode:' ) ) {
-				$result['passcode'] = sanitize_text_field( substr( $line, strlen( 'Passcode:' ) ) );
+				if ( '' === $result['passcode'] ) {
+					$result['passcode'] = sanitize_text_field( substr( $line, strlen( 'Passcode:' ) ) );
+				}
 				continue;
 			}
 
@@ -282,6 +286,11 @@ final class Meeting_Service {
 
 			if ( $in_one_tap && preg_match( '/^\+\d[\d,#+* ]+/', $line ) ) {
 				$result['one_tap_mobile'][] = sanitize_text_field( $line );
+				if ( '' === $result['phone_passcode']
+					&& preg_match( '/\*(\d{4,10})#/', $line, $matches )
+				) {
+					$result['phone_passcode'] = sanitize_text_field( (string) $matches[1] );
+				}
 				continue;
 			}
 
@@ -296,6 +305,10 @@ final class Meeting_Service {
 					$result['join_url'] = self::normalize_zoom_url( $line );
 				}
 			}
+		}
+
+		if ( '' === $result['phone_passcode'] && preg_match( '/^\d{4,10}$/', $result['passcode'] ) ) {
+			$result['phone_passcode'] = $result['passcode'];
 		}
 
 		return $result;

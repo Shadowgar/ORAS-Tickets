@@ -133,6 +133,7 @@ final class Virtual_Ticket_Access_Email {
 			'join_url'         => Event_RSVP::get_virtual_join_link( $event_id ),
 			'meeting_id'       => '',
 			'passcode'         => '',
+			'phone_passcode'   => '',
 			'one_tap_mobile'   => array(),
 			'local_number_url' => '',
 			'managed'          => false,
@@ -248,6 +249,11 @@ final class Virtual_Ticket_Access_Email {
 		}
 		if ( '' !== (string) ( $access['passcode'] ?? '' ) ) {
 			$html .= $this->detail_row( __( 'Passcode', 'oras-tickets' ), (string) $access['passcode'] );
+		}
+		if ( '' !== (string) ( $access['phone_passcode'] ?? '' )
+			&& (string) ( $access['phone_passcode'] ?? '' ) !== (string) ( $access['passcode'] ?? '' )
+		) {
+			$html .= $this->detail_row( __( 'Phone passcode', 'oras-tickets' ), (string) $access['phone_passcode'] );
 		}
 		$one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
 			? array_filter( array_map( 'sanitize_text_field', $access['one_tap_mobile'] ) )

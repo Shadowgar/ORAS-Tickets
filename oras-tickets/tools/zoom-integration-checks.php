@@ -498,13 +498,14 @@ try {
 	$invitation = Meeting_Service::parse_invitation(
 		"ORAS is inviting you to a scheduled Zoom meeting.\r\n\r\n"
 		. "Join Zoom Meeting\r\nhttps://us02web.zoom.us/j/89821762143?pwd=private\r\n\r\n"
-		. "Meeting ID: 898 2176 2143\r\nPasscode: 991108\r\n\r\n"
-		. "One tap mobile\r\n+13126266799,,89821762143# US (Chicago)\r\n"
-		. "+16465588656,,89821762143# US (New York)\r\n\r\n"
+		. "Meeting ID: 898 2176 2143\r\nPasscode: Q9RFx(Bz*1\r\n\r\n"
+		. "One tap mobile\r\n+13126266799,,89821762143#,,,,*991108# US (Chicago)\r\n"
+		. "+16465588656,,89821762143#,,,,*991108# US (New York)\r\n\r\n"
 		. "Find your local number: https://us02web.zoom.us/u/example\r\n"
 	);
 	oras_zoom_assert( '89821762143' === $invitation['meeting_id'], 'Invitation parser normalizes meeting ID digits' );
-	oras_zoom_assert( '991108' === $invitation['passcode'], 'Invitation parser extracts passcode' );
+	oras_zoom_assert( 'Q9RFx(Bz*1' === $invitation['passcode'], 'Invitation parser extracts web and app passcode' );
+	oras_zoom_assert( '991108' === $invitation['phone_passcode'], 'Invitation parser extracts numeric phone passcode' );
 	oras_zoom_assert( 2 === count( $invitation['one_tap_mobile'] ), 'Invitation parser extracts one-tap mobile numbers' );
 	oras_zoom_assert(
 		'https://us02web.zoom.us/u/example' === $invitation['local_number_url'],
@@ -888,6 +889,10 @@ try {
 		'Paid virtual ticket email uses the Zoom registration service'
 	);
 	oras_zoom_assert(
+		is_string( $ticket_email_source ) && false !== strpos( $ticket_email_source, "'Phone passcode'" ),
+		'Paid virtual ticket email labels the numeric telephone passcode'
+	);
+	oras_zoom_assert(
 		false !== strpos( $ticket_email_source, "woocommerce_order_status_cancelled" )
 		&& false !== strpos( $ticket_email_source, "woocommerce_order_status_refunded" ),
 		'Paid virtual ticket integration revokes Zoom entitlement on cancellation and refund'
@@ -926,6 +931,10 @@ try {
 	oras_zoom_assert(
 		false !== strpos( $rsvp_source, 'oras_tickets_virtual_rsvp_access_details' ),
 		'Approved virtual RSVP email can receive attendee-specific Zoom details'
+	);
+	oras_zoom_assert(
+		false !== strpos( $rsvp_source, "'Phone passcode'" ),
+		'Approved virtual RSVP email labels the numeric telephone passcode'
 	);
 
 	$module_file = dirname( __DIR__ ) . '/src/Integrations/Zoom/Module.php';

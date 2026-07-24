@@ -1,5 +1,11 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.49
+
+- Distinguished Zoom's alphanumeric app/web meeting passcode from its numeric telephone passcode.
+- Parsed the numeric telephone passcode from Zoom's authoritative one-tap mobile invitation lines.
+- Added a separate `Phone passcode` field to approved virtual RSVP and paid virtual ticket emails when it differs from the app/web passcode.
+
 ## 2026-07-24 - Release 0.4.48
 
 - Fixed approved virtual RSVP emails that fell back to a bare event Zoom URL when no active managed registration was available.

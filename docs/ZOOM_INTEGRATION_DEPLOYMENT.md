@@ -10,7 +10,7 @@
    - `meeting:update:registrant_status:admin`
    - `meeting:update:meeting:admin`
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.48 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.49 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
@@ -24,6 +24,11 @@
 7. Confirm the Zoom meeting uses automatic registration approval. Zoom must return a registrant-specific join URL.
 
 Paid virtual ticket buyers are registered after the WooCommerce order reaches processing or completed. Virtual RSVP attendees are registered only after board approval. Pending, rejected, and cancelled RSVPs do not receive a private Zoom link.
+
+Zoom may use an alphanumeric passcode for app and web participants while
+requiring a separate numeric passcode for telephone participants. ORAS-Tickets
+parses both from Zoom's invitation and labels the numeric value as
+**Phone passcode** in approved RSVP and paid virtual ticket emails.
 
 ## Unattended Meetings
 

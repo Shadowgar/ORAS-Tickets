@@ -1976,6 +1976,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     'join_url'         => self::get_virtual_join_link( $event_id ),
                     'meeting_id'       => '',
                     'passcode'         => '',
+                    'phone_passcode'   => '',
                     'one_tap_mobile'   => array(),
                     'local_number_url' => '',
                     'managed'          => false,
@@ -2012,6 +2013,14 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                 $details[] = array(
                     'label' => __( 'Passcode', 'oras-tickets' ),
                     'value' => (string) $access['passcode'],
+                );
+            }
+            if ( '' !== (string) ( $access['phone_passcode'] ?? '' )
+                && (string) ( $access['phone_passcode'] ?? '' ) !== (string) ( $access['passcode'] ?? '' )
+            ) {
+                $details[] = array(
+                    'label' => __( 'Phone passcode', 'oras-tickets' ),
+                    'value' => (string) $access['phone_passcode'],
                 );
             }
             $one_tap = isset( $access['one_tap_mobile'] ) && is_array( $access['one_tap_mobile'] )
