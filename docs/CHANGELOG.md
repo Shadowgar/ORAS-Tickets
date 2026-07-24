@@ -1,5 +1,10 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.47
+
+- Fixed the Zoom password-only update payload by omitting the empty `settings` envelope instead of encoding it as a JSON array.
+- Added an exact request-body regression check for meeting passcode synchronization.
+
 ## 2026-07-24 - Release 0.4.46
 
 - Fixed unattended Zoom synchronization for meetings created without a passcode.

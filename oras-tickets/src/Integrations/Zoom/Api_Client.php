@@ -36,8 +36,10 @@ final class Api_Client implements Api_Interface {
 	 * @return true|\WP_Error
 	 */
 	public function update_meeting( string $meeting_id, array $settings, array $meeting_properties = array() ) {
-		$body             = $meeting_properties;
-		$body['settings'] = $settings;
+		$body = $meeting_properties;
+		if ( array() !== $settings ) {
+			$body['settings'] = $settings;
+		}
 		$result = $this->request(
 			'PATCH',
 			$this->meeting_path( $meeting_id ),

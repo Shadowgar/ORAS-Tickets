@@ -732,6 +732,19 @@ try {
 		&& false === $update_body['settings']['waiting_room'],
 		'Zoom meeting update separates top-level properties from the settings envelope'
 	);
+	$password_only_update = ( new Api_Client() )->update_meeting(
+		'89821762143',
+		array(),
+		array( 'password' => 'Secure9!Ab' )
+	);
+	oras_zoom_assert( true === $password_only_update, 'Zoom API client accepts a password-only meeting update' );
+	$http_calls     = oras_zoom_http_calls();
+	$last_http_call = $http_calls[ count( $http_calls ) - 1 ];
+	$password_body  = json_decode( (string) $last_http_call['args']['body'], true );
+	oras_zoom_assert(
+		array( 'password' => 'Secure9!Ab' ) === $password_body,
+		'Password-only meeting update omits the empty settings envelope'
+	);
 
 	$schema_source = file_get_contents( $registration_store_file );
 	oras_zoom_assert(
