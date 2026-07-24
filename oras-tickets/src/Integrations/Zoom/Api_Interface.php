@@ -14,8 +14,9 @@ interface Api_Interface {
 
 	/**
 	 * @param array<string,mixed> $settings
+	 * @param array<string,mixed> $meeting_properties
 	 */
-	public function update_meeting( string $meeting_id, array $settings );
+	public function update_meeting( string $meeting_id, array $settings, array $meeting_properties = array() );
 
 	/**
 	 * @param array<string,mixed> $registrant

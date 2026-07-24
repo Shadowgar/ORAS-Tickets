@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.46
+
+- Fixed unattended Zoom synchronization for meetings created without a passcode.
+- Preserved existing meeting passcodes and generated a new passcode only when one was missing.
+- Sent meeting passcodes as top-level Zoom API properties before disabling Waiting Room.
+- Added passcode presence to exact Zoom synchronization diagnostics.
+
 ## 2026-07-24 - Release 0.4.45
 
 - Changed unattended Zoom synchronization to disable Waiting Room before enabling join-before-host, avoiding Zoom's conflicting-setting transition.

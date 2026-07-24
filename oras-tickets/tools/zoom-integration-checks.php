@@ -111,6 +111,11 @@ function wp_json_encode( $value ): string {
 	return (string) json_encode( $value );
 }
 
+function wp_generate_password( int $length = 12, bool $special_chars = true, bool $extra_special_chars = false ): string {
+	unset( $special_chars, $extra_special_chars );
+	return substr( 'Secure9!Ab', 0, $length );
+}
+
 function wp_remote_retrieve_response_code( $response ): int {
 	return (int) ( $response['response']['code'] ?? 0 );
 }
@@ -288,14 +293,21 @@ final class Oras_Zoom_Fake_Api implements Api_Interface {
 	public array $meeting_update = array();
 	/** @var array<int,array<string,mixed>> */
 	public array $meeting_updates = array();
+	/** @var array<string,mixed> */
+	public array $meeting_properties = array();
+	/** @var array<int,array<string,mixed>> */
+	public array $meeting_property_updates = array();
 	public bool $apply_meeting_update = true;
 	/** @var callable|null */
 	public $on_update = null;
 
 	public function get_meeting( string $meeting_id ) {
-		return array(
+		return array_merge(
+			$this->meeting_properties,
+			array(
 			'id'       => $meeting_id,
 			'settings' => $this->apply_meeting_update ? $this->meeting_update : array(),
+			)
 		);
 	}
 
@@ -303,10 +315,12 @@ final class Oras_Zoom_Fake_Api implements Api_Interface {
 		return array( 'invitation' => 'Meeting ID: ' . $meeting_id );
 	}
 
-	public function update_meeting( string $meeting_id, array $settings ) {
+	public function update_meeting( string $meeting_id, array $settings, array $meeting_properties = array() ) {
 		unset( $meeting_id );
 		$this->meeting_updates[] = $settings;
+		$this->meeting_property_updates[] = $meeting_properties;
 		$this->meeting_update = array_merge( $this->meeting_update, $settings );
+		$this->meeting_properties = array_merge( $this->meeting_properties, $meeting_properties );
 		if ( is_callable( $this->on_update ) ) {
 			( $this->on_update )();
 		}
@@ -497,7 +511,12 @@ try {
 	$unattended_result = ( new Meeting_Service( $fake_invitation_api ) )->configure_unattended_access( 42 );
 	oras_zoom_assert( ! is_wp_error( $unattended_result ), 'Meeting service configures unattended access' );
 	oras_zoom_assert(
+		'Secure9!Ab' === ( $fake_invitation_api->meeting_properties['password'] ?? '' ),
+		'Unattended access adds a meeting passcode before disabling the waiting room'
+	);
+	oras_zoom_assert(
 		array(
+			array(),
 			array(
 				'waiting_room' => false,
 				'audio'        => 'both',
@@ -508,6 +527,23 @@ try {
 			),
 		) === $fake_invitation_api->meeting_updates,
 		'Unattended access disables the waiting room before enabling join-anytime and telephone audio'
+	);
+	oras_zoom_assert(
+		array(
+			array( 'password' => 'Secure9!Ab' ),
+			array(),
+			array(),
+		) === $fake_invitation_api->meeting_property_updates,
+		'Meeting passcode is sent as a top-level Zoom meeting property'
+	);
+	$existing_passcode_api                                = new Oras_Zoom_Fake_Api();
+	$existing_passcode_api->meeting_properties['password'] = 'Existing8!';
+	$existing_passcode_result = ( new Meeting_Service( $existing_passcode_api ) )
+		->configure_unattended_access_for_meeting( '89821762143' );
+	oras_zoom_assert( ! is_wp_error( $existing_passcode_result ), 'Existing meeting passcode supports unattended access' );
+	oras_zoom_assert(
+		array( array(), array() ) === $existing_passcode_api->meeting_property_updates,
+		'Unattended access preserves an existing meeting passcode'
 	);
 	$GLOBALS['oras_zoom_test_post_meta'][42]['_oras_zoom_integration_v1'] = array(
 		'version'           => 1,
@@ -680,7 +716,8 @@ try {
 			'join_before_host' => true,
 			'jbh_time'         => 0,
 			'waiting_room'     => false,
-		)
+		),
+		array( 'password' => 'Secure9!Ab' )
 	);
 	oras_zoom_assert( true === $api_update, 'Zoom API client accepts a successful meeting update' );
 	$http_calls = oras_zoom_http_calls();
@@ -689,10 +726,11 @@ try {
 	$update_body = json_decode( (string) $last_http_call['args']['body'], true );
 	oras_zoom_assert(
 		is_array( $update_body )
+		&& 'Secure9!Ab' === $update_body['password']
 		&& true === $update_body['settings']['join_before_host']
 		&& 0 === $update_body['settings']['jbh_time']
 		&& false === $update_body['settings']['waiting_room'],
-		'Zoom meeting update sends the unattended-access settings envelope'
+		'Zoom meeting update separates top-level properties from the settings envelope'
 	);
 
 	$schema_source = file_get_contents( $registration_store_file );

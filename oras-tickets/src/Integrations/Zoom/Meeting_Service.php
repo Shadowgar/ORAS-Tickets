@@ -69,6 +69,24 @@ final class Meeting_Service {
 			);
 		}
 
+		$meeting = $this->api->get_meeting( $meeting_id );
+		if ( is_wp_error( $meeting ) ) {
+			return $meeting;
+		}
+
+		// Zoom requires at least one security option. Without a passcode,
+		// disabling Waiting Room causes Zoom to silently enable it again.
+		if ( '' === trim( (string) ( $meeting['password'] ?? '' ) ) ) {
+			$secured = $this->api->update_meeting(
+				$meeting_id,
+				array(),
+				array( 'password' => wp_generate_password( 10, true, false ) )
+			);
+			if ( is_wp_error( $secured ) ) {
+				return $secured;
+			}
+		}
+
 		// Zoom can reject join-before-host while Waiting Room is still active,
 		// even when both changes are included in the same request.
 		$prepared = $this->api->update_meeting(
@@ -106,20 +124,22 @@ final class Meeting_Service {
 			&& array_key_exists( 'waiting_room', $settings )
 			&& false === (bool) $settings['waiting_room']
 			&& array_key_exists( 'audio', $settings )
-			&& 'both' === (string) $settings['audio'];
+			&& 'both' === (string) $settings['audio']
+			&& '' !== trim( (string) ( $meeting['password'] ?? '' ) );
 		if ( ! $verified ) {
 			return new \WP_Error(
 				'oras_zoom_unattended_settings_not_applied',
 				sprintf(
-					/* translators: 1: join-before-host value, 2: join-before-host time, 3: waiting room value, 4: audio value */
+					/* translators: 1: join-before-host value, 2: join-before-host time, 3: waiting room value, 4: audio value, 5: passcode status */
 					__(
-						'Zoom returned join_before_host=%1$s, jbh_time=%2$s, waiting_room=%3$s, and audio=%4$s. Check for locked account, group, or host-user meeting settings.',
+						'Zoom returned join_before_host=%1$s, jbh_time=%2$s, waiting_room=%3$s, audio=%4$s, and passcode=%5$s. Check for locked account, group, or host-user meeting settings.',
 						'oras-tickets'
 					),
 					self::describe_setting( $settings, 'join_before_host' ),
 					self::describe_setting( $settings, 'jbh_time' ),
 					self::describe_setting( $settings, 'waiting_room' ),
-					self::describe_setting( $settings, 'audio' )
+					self::describe_setting( $settings, 'audio' ),
+					'' !== trim( (string) ( $meeting['password'] ?? '' ) ) ? 'present' : 'missing'
 				)
 			);
 		}

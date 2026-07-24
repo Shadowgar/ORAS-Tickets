@@ -10,7 +10,7 @@
    - `meeting:update:registrant_status:admin`
    - `meeting:update:meeting:admin`
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.45 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.46 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
@@ -30,15 +30,19 @@ Paid virtual ticket buyers are registered after the WooCommerce order reaches pr
 When unattended access is enabled, ORAS-Tickets updates and verifies these
 meeting settings through the Zoom Meetings API:
 
+- A meeting passcode is present. Existing passcodes are preserved; one is generated only when missing.
 - `join_before_host: true`
 - `jbh_time: 0` (participants may join at any time)
 - `waiting_room: false`
 - `audio: both` (Telephone and Computer Audio)
 
 Zoom does not allow join-before-host to operate while Waiting Room is enabled.
-Registration, meeting passcodes, and ORAS ticket/RSVP eligibility remain the
-access controls. No host controls are available until an authorized Zoom host
-joins the meeting, and ORAS-Tickets never distributes Zoom's host start URL.
+Zoom also requires at least one meeting security option, so ORAS-Tickets
+preserves an existing meeting passcode or generates one before disabling
+Waiting Room. Registration, meeting passcodes, and ORAS ticket/RSVP eligibility
+remain the access controls. No host controls are available until an authorized
+Zoom host joins the meeting, and ORAS-Tickets never distributes Zoom's host
+start URL.
 
 The Server-to-Server OAuth app must have permission to update meetings in
 addition to reading meeting details, reading invitations, and managing
