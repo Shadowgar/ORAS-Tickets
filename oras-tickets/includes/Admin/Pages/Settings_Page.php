@@ -1445,7 +1445,7 @@ final class Settings_Page
     public static function render_zoom_section(): void
     {
         echo '<p>' . esc_html__('Connect the ORAS-owned Zoom Workplace account using an internal Server-to-Server OAuth app.', 'oras-tickets') . '</p>';
-        echo '<p class="description">' . esc_html__('Required scopes: meeting read/write for meeting settings, registrants, and invitations. Credentials are available only to ORAS settings administrators.', 'oras-tickets') . '</p>';
+        echo '<p class="description">' . esc_html__('Required granular scopes: meeting:read:meeting:admin, meeting:read:invitation:admin, meeting:write:registrant:admin, meeting:update:registrant_status:admin, and meeting:update:meeting:admin. Credentials are available only to ORAS settings administrators.', 'oras-tickets') . '</p>';
 
         if (class_exists('\ORAS\Tickets\Integrations\Zoom\Settings') && ! \ORAS\Tickets\Integrations\Zoom\Settings::has_explicit_encryption_key()) {
             echo '<p class="description"><strong>' . esc_html__('Security:', 'oras-tickets') . '</strong> ' . esc_html__('Define ORAS_TICKETS_ZOOM_AES_KEY in wp-config.php before production go-live. Until then, WordPress authentication salts protect the stored client secret.', 'oras-tickets') . '</p>';

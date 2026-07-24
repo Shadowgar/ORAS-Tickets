@@ -43,7 +43,7 @@ final class Meeting_Service {
 	/**
 	 * Configure and verify that attendees can enter without a host at any time.
 	 *
-	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool}|\WP_Error
+	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool,audio:string}|\WP_Error
 	 */
 	public function configure_unattended_access( int $event_id ) {
 		$meeting_id = self::resolve_meeting_id( $event_id );
@@ -58,7 +58,7 @@ final class Meeting_Service {
 	}
 
 	/**
-	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool}|\WP_Error
+	 * @return array{meeting_id:string,join_before_host:bool,jbh_time:int,waiting_room:bool,audio:string}|\WP_Error
 	 */
 	public function configure_unattended_access_for_meeting( string $meeting_id ) {
 		$meeting_id = self::normalize_meeting_id( $meeting_id );
@@ -69,10 +69,22 @@ final class Meeting_Service {
 			);
 		}
 
+		// Zoom can reject join-before-host while Waiting Room is still active,
+		// even when both changes are included in the same request.
+		$prepared = $this->api->update_meeting(
+			$meeting_id,
+			array(
+				'waiting_room' => false,
+				'audio'        => 'both',
+			)
+		);
+		if ( is_wp_error( $prepared ) ) {
+			return $prepared;
+		}
+
 		$required_settings = array(
 			'join_before_host' => true,
 			'jbh_time'         => 0,
-			'waiting_room'     => false,
 		);
 		$updated = $this->api->update_meeting( $meeting_id, $required_settings );
 		if ( is_wp_error( $updated ) ) {
@@ -92,13 +104,22 @@ final class Meeting_Service {
 			&& array_key_exists( 'jbh_time', $settings )
 			&& 0 === (int) $settings['jbh_time']
 			&& array_key_exists( 'waiting_room', $settings )
-			&& false === (bool) $settings['waiting_room'];
+			&& false === (bool) $settings['waiting_room']
+			&& array_key_exists( 'audio', $settings )
+			&& 'both' === (string) $settings['audio'];
 		if ( ! $verified ) {
 			return new \WP_Error(
 				'oras_zoom_unattended_settings_not_applied',
-				__(
-					'Zoom did not apply unattended access. Check whether account-level Waiting Room or join-before-host settings are locked.',
-					'oras-tickets'
+				sprintf(
+					/* translators: 1: join-before-host value, 2: join-before-host time, 3: waiting room value, 4: audio value */
+					__(
+						'Zoom returned join_before_host=%1$s, jbh_time=%2$s, waiting_room=%3$s, and audio=%4$s. Check for locked account, group, or host-user meeting settings.',
+						'oras-tickets'
+					),
+					self::describe_setting( $settings, 'join_before_host' ),
+					self::describe_setting( $settings, 'jbh_time' ),
+					self::describe_setting( $settings, 'waiting_room' ),
+					self::describe_setting( $settings, 'audio' )
 				)
 			);
 		}
@@ -108,7 +129,27 @@ final class Meeting_Service {
 			'join_before_host' => true,
 			'jbh_time'         => 0,
 			'waiting_room'     => false,
+			'audio'            => 'both',
 		);
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 */
+	private static function describe_setting( array $settings, string $key ): string {
+		if ( ! array_key_exists( $key, $settings ) ) {
+			return 'missing';
+		}
+
+		if ( is_bool( $settings[ $key ] ) ) {
+			return $settings[ $key ] ? 'true' : 'false';
+		}
+
+		if ( is_scalar( $settings[ $key ] ) ) {
+			return sanitize_text_field( (string) $settings[ $key ] );
+		}
+
+		return 'invalid';
 	}
 
 	public static function resolve_meeting_id( int $event_id ): string {

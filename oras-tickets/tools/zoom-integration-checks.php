@@ -286,6 +286,8 @@ final class Oras_Zoom_Fake_Api implements Api_Interface {
 	public int $cancellations = 0;
 	/** @var array<string,mixed> */
 	public array $meeting_update = array();
+	/** @var array<int,array<string,mixed>> */
+	public array $meeting_updates = array();
 	public bool $apply_meeting_update = true;
 	/** @var callable|null */
 	public $on_update = null;
@@ -303,7 +305,8 @@ final class Oras_Zoom_Fake_Api implements Api_Interface {
 
 	public function update_meeting( string $meeting_id, array $settings ) {
 		unset( $meeting_id );
-		$this->meeting_update = $settings;
+		$this->meeting_updates[] = $settings;
+		$this->meeting_update = array_merge( $this->meeting_update, $settings );
 		if ( is_callable( $this->on_update ) ) {
 			( $this->on_update )();
 		}
@@ -495,11 +498,16 @@ try {
 	oras_zoom_assert( ! is_wp_error( $unattended_result ), 'Meeting service configures unattended access' );
 	oras_zoom_assert(
 		array(
-			'join_before_host' => true,
-			'jbh_time'         => 0,
-			'waiting_room'     => false,
-		) === $fake_invitation_api->meeting_update,
-		'Unattended access uses Zoom join-anytime settings and disables the waiting room'
+			array(
+				'waiting_room' => false,
+				'audio'        => 'both',
+			),
+			array(
+				'join_before_host' => true,
+				'jbh_time'         => 0,
+			),
+		) === $fake_invitation_api->meeting_updates,
+		'Unattended access disables the waiting room before enabling join-anytime and telephone audio'
 	);
 	$GLOBALS['oras_zoom_test_post_meta'][42]['_oras_zoom_integration_v1'] = array(
 		'version'           => 1,
@@ -537,8 +545,10 @@ try {
 	);
 	oras_zoom_assert(
 		is_wp_error( $locked_policy_result )
-		&& 'oras_zoom_unattended_settings_not_applied' === $locked_policy_result->get_error_code(),
-		'Locked Zoom account policy produces an actionable synchronization error'
+		&& 'oras_zoom_unattended_settings_not_applied' === $locked_policy_result->get_error_code()
+		&& false !== strpos( $locked_policy_result->get_error_message(), 'join_before_host=missing' )
+		&& false !== strpos( $locked_policy_result->get_error_message(), 'waiting_room=missing' ),
+		'Locked Zoom account policy reports the exact values Zoom returned'
 	);
 	$event_zoom_config = get_post_meta( 42, '_oras_zoom_integration_v1', true );
 	oras_zoom_assert(

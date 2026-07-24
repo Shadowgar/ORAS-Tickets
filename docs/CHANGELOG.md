@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-07-24 - Release 0.4.45
+
+- Changed unattended Zoom synchronization to disable Waiting Room before enabling join-before-host, avoiding Zoom's conflicting-setting transition.
+- Enabled and verified Telephone and Computer Audio so complete invitations can include one-tap mobile and local dial-in details.
+- Added exact synchronization diagnostics showing the values Zoom returned for join-before-host, join time, Waiting Room, and audio.
+- Documented the granular Zoom scopes required by meeting synchronization, invitation retrieval, registration, and cancellation.
+
 ## 2026-07-23 - Release 0.4.44
 
 - Added per-event unattended Zoom access so approved attendees can enter without requiring an ORAS host to start the meeting.

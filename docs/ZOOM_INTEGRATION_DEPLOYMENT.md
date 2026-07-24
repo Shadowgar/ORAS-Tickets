@@ -3,9 +3,14 @@
 ## Production Prerequisites
 
 1. Create a Zoom Server-to-Server OAuth app in the ORAS-owned Zoom account.
-2. Grant meeting read/write permissions sufficient to read invitations, create registrants, and update registrant status.
+2. Grant these granular Server-to-Server OAuth scopes:
+   - `meeting:read:meeting:admin`
+   - `meeting:read:invitation:admin`
+   - `meeting:write:registrant:admin`
+   - `meeting:update:registrant_status:admin`
+   - `meeting:update:meeting:admin`
 3. Add a separate high-entropy `ORAS_TICKETS_ZOOM_AES_KEY` constant to production `wp-config.php`.
-4. Deploy ORAS-Tickets 0.4.44 and reactivate it, or load one normal request, so the registration schema upgrade runs.
+4. Deploy ORAS-Tickets 0.4.45 and reactivate it, or load one normal request, so the registration schema upgrade runs.
 5. Open **ORAS Tickets > Zoom**, enter the account ID, client ID, and client secret, enable the integration, save, and run **Test Zoom Connection**.
 
 ## Event Setup
@@ -28,6 +33,7 @@ meeting settings through the Zoom Meetings API:
 - `join_before_host: true`
 - `jbh_time: 0` (participants may join at any time)
 - `waiting_room: false`
+- `audio: both` (Telephone and Computer Audio)
 
 Zoom does not allow join-before-host to operate while Waiting Room is enabled.
 Registration, meeting passcodes, and ORAS ticket/RSVP eligibility remain the
@@ -71,6 +77,6 @@ Use a non-production Zoom test meeting to verify:
 
 1. Disable managed registration on affected events, or disable the global Zoom integration.
 2. Existing ORAS shared-link email behavior will remain available as the fallback.
-3. Roll back the plugin files to 0.4.43 if required.
-4. Do not drop the Zoom registration tables during an application rollback. They contain the entitlement audit needed to avoid duplicate registrants when 0.4.43 is restored.
+3. Roll back the plugin files to 0.4.44 if required.
+4. Do not drop the Zoom registration tables during an application rollback. They contain the entitlement audit needed to avoid duplicate registrants when 0.4.44 is restored.
 5. Revoke the Zoom Server-to-Server OAuth app credentials if credential exposure is suspected.
