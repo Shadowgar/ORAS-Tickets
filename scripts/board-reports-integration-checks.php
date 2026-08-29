@@ -7,6 +7,7 @@
  */
 
 use ORAS\Tickets\Capabilities;
+use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Frontend\Board_Reports;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
@@ -236,6 +237,7 @@ function oras_board_reports_run_checks(): void {
 	}
 
 	require_once ORAS_TICKETS_DIR . 'includes/Capabilities.php';
+	require_once ORAS_TICKETS_DIR . 'includes/Event_Question_Attention_Store.php';
 	require_once ORAS_TICKETS_DIR . 'includes/Frontend/Board_Reports.php';
 	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php';
 	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php';
@@ -264,6 +266,8 @@ function oras_board_reports_run_checks(): void {
 	$rsvp_user_id = oras_board_reports_create_user( 'oras_board_rsvp', $suffix );
 	$created_posts = array();
 	$created_orders = array();
+	$created_attention_ids = array();
+	$original_get = $_GET;
 
 	try {
 		$event_id = wp_insert_post(
@@ -699,14 +703,130 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( false === strpos( $csv_payload, 'forbidden-transaction' ), 'CSV row excludes transaction IDs' );
 		oras_board_reports_assert( false === strpos( $csv_payload, 'forbidden-stripe-intent' ), 'CSV row excludes Stripe metadata' );
 
+		$attention_id = Event_Question_Attention_Store::upsert(
+			array(
+				'event_id'       => $event_id,
+				'source_type'    => 'rsvp',
+				'source_id'      => 'task4-' . $suffix,
+				'question_id'    => 'task4-attention-question',
+				'question_label' => 'Task 4 attention fixture',
+				'answer_value'   => 'Needs review',
+				'rule_id'        => 'task4-attention-rule',
+				'rule_label'     => 'Task 4 review',
+				'status'         => Event_Question_Attention_Store::STATUS_OPEN,
+			)
+		);
+		oras_board_reports_assert( $attention_id > 0, 'Open event attention fixture created' );
+		$created_attention_ids[] = $attention_id;
+
 		wp_set_current_user( $subscriber_id );
+		$_GET = array( 'oras_board_tab' => 'observer_passes' );
 		$subscriber_html = do_shortcode( '[oras_board_reports]' );
-		oras_board_reports_assert( false !== strpos( $subscriber_html, 'do not have permission' ), 'Unauthorized subscriber cannot render board reports' );
+		oras_board_reports_assert( false !== strpos( $subscriber_html, 'do not have permission' ), 'Unauthorized subscriber cannot access Observer Passes' );
 
 		wp_set_current_user( $admin_id );
+		$_GET = array(
+			'oras_board_tab'          => 'observer_passes',
+			'oras_board_event_id'     => $event_id,
+			'oras_board_search'       => 'event-only-filter',
+			'oras_observer_pass_type' => 'daily',
+			'oras_observer_status'    => 'today',
+		);
+		$observer_html = do_shortcode( '[oras_board_reports]' );
+		oras_board_reports_assert( false !== strpos( $observer_html, '>Observer Passes<' ), 'Observer Passes tab appears for authorized users' );
+		foreach ( array( 'Event Overview', 'Sales', 'RSVP Management', 'Attention Needed', 'Communications', 'Roster' ) as $existing_tab_label ) {
+			oras_board_reports_assert( false !== strpos( $observer_html, '>' . $existing_tab_label . '<' ), 'Existing tab remains present: ' . $existing_tab_label );
+		}
+		oras_board_reports_assert( false !== strpos( $observer_html, 'oras-board-reports__observer' ), 'Observer Passes routes to its dedicated renderer' );
+		oras_board_reports_assert( false !== strpos( $observer_html, 'Observer Pass records found: ' . count( $after_pagination_report['all_rows'] ) ), 'Observer Passes renders normalized service data' );
+		oras_board_reports_assert( false === strpos( $observer_html, 'Load Event Dashboard' ), 'Observer Passes omits the event selector' );
+		oras_board_reports_assert( false === strpos( $observer_html, '<section class="oras-board-reports__overview-grid"' ), 'Observer Passes omits event metrics' );
+		oras_board_reports_assert( false === strpos( $observer_html, '<section class="oras-board-reports__attention-notice"' ), 'Observer Passes omits the event attention center' );
+		oras_board_reports_assert( false !== strpos( $observer_html, 'Board Reports / Event Management Dashboard' ), 'Observer Passes retains the Board Reports title' );
+		oras_board_reports_assert( false !== strpos( $observer_html, 'This report excludes payment method, transaction, card, and accounting details.' ), 'Observer Passes retains the privacy notice' );
+		oras_board_reports_assert( false === strpos( $observer_html, 'Selected event:' ), 'Event ID parameters do not affect Observer Passes content' );
+
+		$_GET = array(
+			'oras_board_tab'            => 'overview',
+			'oras_board_event_id'       => $event_id,
+			'oras_observer_pass_type'   => 'daily',
+			'oras_observer_status'      => 'today',
+			'oras_observer_date_preset' => 'next_7',
+			'oras_observer_search'      => 'must-not-leak',
+			'oras_observer_page'        => '4',
+			'oras_observer_per_page'    => '100',
+		);
 		$admin_html = do_shortcode( '[oras_board_reports]' );
 		oras_board_reports_assert( false !== strpos( $admin_html, 'Board Reports' ), 'Authorized user can render board reports' );
+		oras_board_reports_assert( false !== strpos( $admin_html, 'Load Event Dashboard' ), 'Existing event tabs retain their event selector' );
+		oras_board_reports_assert( false !== strpos( $admin_html, '<section class="oras-board-reports__overview-grid"' ), 'Existing event tabs retain their event metrics' );
+		oras_board_reports_assert( false !== strpos( $admin_html, '<section class="oras-board-reports__attention-notice"' ), 'Existing event tabs retain their event attention center' );
+		oras_board_reports_assert( false !== strpos( $admin_html, 'Board Reports Event ' . $suffix ), 'Observer parameters do not alter the selected event' );
+
+		$build_tab_url = new ReflectionMethod( Board_Reports::class, 'build_tab_url' );
+		$_GET = array(
+			'page_id'                   => '123',
+			'oras_board_tab'            => 'overview',
+			'oras_board_event_id'       => (string) $event_id,
+			'oras_board_status'         => 'completed',
+			'oras_attention_status'     => 'open',
+			'oras_comm_segment'         => 'all_attendees',
+			'oras_observer_pass_type'   => 'annual',
+			'oras_observer_status'      => 'active',
+			'oras_observer_date_preset' => 'this_year',
+			'oras_observer_after'       => '2026-01-01',
+			'oras_observer_before'      => '2026-12-31',
+			'oras_observer_search'      => 'buyer',
+			'oras_observer_page'        => '2',
+			'oras_observer_per_page'    => '50',
+		);
+		$observer_url = (string) $build_tab_url->invoke( null, 'observer_passes' );
+		parse_str( (string) wp_parse_url( $observer_url, PHP_URL_QUERY ), $observer_url_args );
+		oras_board_reports_assert_same( $observer_url_args['oras_board_tab'] ?? '', 'observer_passes', 'Observer navigation uses the existing Board Reports route' );
+		oras_board_reports_assert_same( $observer_url_args['page_id'] ?? '', '123', 'Observer navigation retains the shortcode page context' );
+		foreach ( array( 'oras_board_event_id', 'oras_board_status', 'oras_attention_status', 'oras_comm_segment' ) as $event_arg ) {
+			oras_board_reports_assert( ! isset( $observer_url_args[ $event_arg ] ), 'Observer navigation removes event parameter ' . $event_arg );
+		}
+
+		$event_url = (string) $build_tab_url->invoke( null, 'overview' );
+		parse_str( (string) wp_parse_url( $event_url, PHP_URL_QUERY ), $event_url_args );
+		oras_board_reports_assert_same( $event_url_args['oras_board_event_id'] ?? '', (string) $event_id, 'Event navigation retains its event ID' );
+		foreach ( array_keys( $_GET ) as $query_arg ) {
+			if ( 0 === strpos( $query_arg, 'oras_observer_' ) ) {
+				oras_board_reports_assert( ! isset( $event_url_args[ $query_arg ] ), 'Event navigation removes Observer parameter ' . $query_arg );
+			}
+		}
+
+		$observer_renderer = new ReflectionMethod( Board_Reports::class, 'render_observer_passes_tab' );
+		ob_start();
+		$observer_renderer->invoke(
+			null,
+			array(
+				'available' => true,
+				'all_rows'  => array(),
+			)
+		);
+		$empty_observer_html = (string) ob_get_clean();
+		oras_board_reports_assert( false !== strpos( $empty_observer_html, 'No Observer Pass records found.' ), 'Empty Observer data renders a safe board-facing state' );
+
+		$observer_scan_failure = static function ( array $ids ): array {
+			throw new RuntimeException( 'Intentional Observer Pass integration failure' );
+		};
+		add_filter( 'oras_tickets_observer_annual_product_ids', $observer_scan_failure, 99 );
+		$_GET = array( 'oras_board_tab' => 'observer_passes' );
+		try {
+			$failed_observer_html = do_shortcode( '[oras_board_reports]' );
+		} finally {
+			remove_filter( 'oras_tickets_observer_annual_product_ids', $observer_scan_failure, 99 );
+		}
+		oras_board_reports_assert( false !== strpos( $failed_observer_html, 'Observer Pass reporting is currently unavailable.' ), 'Reporting-service failure fails closed with a safe board-facing state' );
+		oras_board_reports_assert( false === stripos( $failed_observer_html, 'Intentional Observer Pass integration failure' ), 'Observer failure does not expose exception details' );
 	} finally {
+		$_GET = $original_get;
+		global $wpdb;
+		foreach ( $created_attention_ids as $attention_id ) {
+			$wpdb->delete( Event_Question_Attention_Store::table_name(), array( 'id' => $attention_id ), array( '%d' ) );
+		}
 		wp_delete_user( $subscriber_id );
 		wp_delete_user( $rsvp_user_id );
 		foreach ( $created_orders as $order ) {

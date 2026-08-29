@@ -9,6 +9,7 @@ use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
+use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -33,6 +34,8 @@ final class Board_Reports {
 	private const TAB_COMMUNICATIONS = 'communications';
 	private const TAB_ATTENDEES = 'attendees';
 	private const TAB_STATISTICS = 'statistics';
+	private const TAB_OBSERVER_PASSES = 'observer_passes';
+	private const OBSERVER_QUERY_PREFIX = 'oras_observer_';
 
 	public static function register(): void {
 		add_shortcode( 'oras_board_reports', array( self::class, 'render_shortcode' ) );
@@ -60,11 +63,19 @@ final class Board_Reports {
 
 		$active_tab = self::get_active_tab();
 		$page_id = self::get_context_page_id();
-		$service = new Board_Report_Service();
-		$events = $service->get_events();
-		$filters = self::get_filters_from_request();
-		if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
-			$filters['event_id'] = (int) $events[0]->ID;
+		$service = null;
+		$events = array();
+		$filters = array( 'event_id' => 0 );
+		$observer_report = array( 'available' => false );
+		if ( self::TAB_OBSERVER_PASSES === $active_tab ) {
+			$observer_report = ( new Observer_Pass_Report_Service() )->get_report();
+		} else {
+			$service = new Board_Report_Service();
+			$events = $service->get_events();
+			$filters = self::get_filters_from_request();
+			if ( $filters['event_id'] <= 0 && ! empty( $events ) ) {
+				$filters['event_id'] = (int) $events[0]->ID;
+			}
 		}
 
 		ob_start();
@@ -847,14 +858,18 @@ final class Board_Reports {
 
 			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
-			<?php self::render_rsvp_approval_notice(); ?>
-			<?php self::render_waitlist_notice(); ?>
-			<?php self::render_attention_notice(); ?>
-			<?php self::render_event_selector_shell( $page_id, $events, $filters['event_id'], $active_tab ); ?>
-			<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
-			<?php self::render_attention_notification_center( $filters['event_id'] ); ?>
+			<?php if ( self::TAB_OBSERVER_PASSES !== $active_tab && $service instanceof Board_Report_Service ) : ?>
+				<?php self::render_rsvp_approval_notice(); ?>
+				<?php self::render_waitlist_notice(); ?>
+				<?php self::render_attention_notice(); ?>
+				<?php self::render_event_selector_shell( $page_id, $events, $filters['event_id'], $active_tab ); ?>
+				<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
+				<?php self::render_attention_notification_center( $filters['event_id'] ); ?>
+			<?php endif; ?>
 			<?php self::render_tabs( $active_tab ); ?>
-			<?php if ( self::TAB_OVERVIEW === $active_tab ) : ?>
+			<?php if ( self::TAB_OBSERVER_PASSES === $active_tab ) : ?>
+				<?php self::render_observer_passes_tab( $observer_report ); ?>
+			<?php elseif ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
 				<?php self::render_ticket_sales_tab( $page_id ); ?>
@@ -969,6 +984,35 @@ final class Board_Reports {
 			<p><?php echo esc_html__( 'Use Sales for paid ticket orders, RSVP Management for approvals and waitlists, Roster for the combined attendee list, and Communications for event emails.', 'oras-tickets' ); ?></p>
 			<?php if ( $event_id > 0 ) : ?>
 				<p><strong><?php echo esc_html__( 'Selected event:', 'oras-tickets' ); ?></strong> <?php echo esc_html( get_the_title( $event_id ) ); ?></p>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $report Normalized Observer Pass report snapshot.
+	 */
+	private static function render_observer_passes_tab( array $report ): void {
+		$rows = isset( $report['all_rows'] ) && is_array( $report['all_rows'] ) ? $report['all_rows'] : array();
+		?>
+		<section class="oras-board-reports__placeholder oras-board-reports__observer" aria-live="polite">
+			<h3><?php echo esc_html__( 'Observer Passes', 'oras-tickets' ); ?></h3>
+			<?php if ( true !== ( $report['available'] ?? false ) ) : ?>
+				<p><?php echo esc_html__( 'Observer Pass reporting is currently unavailable.', 'oras-tickets' ); ?></p>
+			<?php elseif ( empty( $rows ) ) : ?>
+				<p><?php echo esc_html__( 'No Observer Pass records found.', 'oras-tickets' ); ?></p>
+			<?php else : ?>
+				<p>
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: %d: normalized Observer Pass record count */
+							__( 'Observer Pass records found: %d', 'oras-tickets' ),
+							count( $rows )
+						)
+					);
+					?>
+				</p>
 			<?php endif; ?>
 		</section>
 		<?php
@@ -2131,18 +2175,19 @@ final class Board_Reports {
 	 */
 	private static function get_dashboard_tabs(): array {
 		return array(
-			self::TAB_OVERVIEW      => __( 'Event Overview', 'oras-tickets' ),
-			self::TAB_TICKET_SALES  => __( 'Sales', 'oras-tickets' ),
-			self::TAB_RSVPS         => __( 'RSVP Management', 'oras-tickets' ),
-			self::TAB_ATTENTION     => __( 'Attention Needed', 'oras-tickets' ),
-			self::TAB_COMMUNICATIONS => __( 'Communications', 'oras-tickets' ),
-			self::TAB_ATTENDEES     => __( 'Roster', 'oras-tickets' ),
+			self::TAB_OVERVIEW        => __( 'Event Overview', 'oras-tickets' ),
+			self::TAB_TICKET_SALES    => __( 'Sales', 'oras-tickets' ),
+			self::TAB_RSVPS           => __( 'RSVP Management', 'oras-tickets' ),
+			self::TAB_ATTENTION       => __( 'Attention Needed', 'oras-tickets' ),
+			self::TAB_COMMUNICATIONS  => __( 'Communications', 'oras-tickets' ),
+			self::TAB_ATTENDEES       => __( 'Roster', 'oras-tickets' ),
+			self::TAB_OBSERVER_PASSES => __( 'Observer Passes', 'oras-tickets' ),
 		);
 	}
 
 	private static function render_tabs( string $active_tab ): void {
 		?>
-		<nav class="oras-board-reports__tabs" aria-label="<?php echo esc_attr__( 'Event Management Dashboard sections', 'oras-tickets' ); ?>">
+		<nav class="oras-board-reports__tabs" aria-label="<?php echo esc_attr__( 'Board Reports sections', 'oras-tickets' ); ?>">
 			<?php foreach ( self::get_dashboard_tabs() as $tab => $label ) : ?>
 				<a
 					class="oras-board-reports__tab"
@@ -2193,6 +2238,11 @@ final class Board_Reports {
 		$args['oras_board_tab'] = $tab;
 
 		foreach ( $args as $key => $value ) {
+			if ( self::should_remove_tab_query_arg( (string) $key, $tab ) ) {
+				unset( $args[ $key ] );
+				continue;
+			}
+
 			if ( is_array( $value ) ) {
 				unset( $args[ $key ] );
 				continue;
@@ -2202,6 +2252,24 @@ final class Board_Reports {
 		}
 
 		return add_query_arg( $args, self::get_form_action_url() );
+	}
+
+	private static function should_remove_tab_query_arg( string $key, string $tab ): bool {
+		if ( self::TAB_OBSERVER_PASSES !== $tab ) {
+			return 0 === strpos( $key, self::OBSERVER_QUERY_PREFIX );
+		}
+
+		if ( 'oras_board_tab' === $key ) {
+			return false;
+		}
+
+		foreach ( array( 'oras_board_', 'oras_attention_', 'oras_comm_', 'oras_rsvp_', 'oras_waitlist_' ) as $event_prefix ) {
+			if ( 0 === strpos( $key, $event_prefix ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private static function get_communication_segment_from_request(): string {
