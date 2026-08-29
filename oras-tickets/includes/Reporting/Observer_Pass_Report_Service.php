@@ -39,7 +39,7 @@ final class Observer_Pass_Report_Service {
 	private \DateTimeImmutable $today;
 
 	public function __construct( ?\DateTimeImmutable $today = null ) {
-		$this->today = ( $today ?? current_datetime() )->setTime( 0, 0, 0 );
+		$this->today = ( $today ?? current_datetime() )->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
 	}
 
 	/**
@@ -47,14 +47,14 @@ final class Observer_Pass_Report_Service {
 	 * @return array<string,mixed>
 	 */
 	public function get_report( array $filters = array() ): array {
-		unset( $filters );
-
 		if ( ! function_exists( 'wc_get_orders' ) || ! class_exists( 'WC_Order' ) ) {
 			return $this->failure_report();
 		}
 
 		try {
-			$rows = $this->get_rows();
+			$normalized_filters = $this->normalize_filters( $filters );
+			$all_rows           = $this->sort_rows( $this->get_rows(), self::PASS_ALL );
+			$rows               = $this->sort_rows( $this->filter_rows( $all_rows, $normalized_filters ), $normalized_filters['pass_type'] );
 		} catch ( \Throwable $error ) {
 			Logger::instance()->log( 'Observer Pass report scan failed: ' . get_class( $error ) );
 
@@ -64,12 +64,12 @@ final class Observer_Pass_Report_Service {
 		return array(
 			'available'          => true,
 			'error'              => '',
-			'all_rows'           => $rows,
+			'all_rows'           => $all_rows,
 			'rows'               => $rows,
-			'summary'            => $this->build_summary( $rows ),
+			'summary'            => $this->build_summary( $all_rows ),
 			'today_rows'         => array_values(
 				array_filter(
-					$rows,
+					$all_rows,
 					static function ( array $row ): bool {
 						return ! empty( $row['is_valid'] ) && self::PASS_DAILY === $row['pass_type'] && self::STATUS_TODAY === $row['operational_status'];
 					}
@@ -77,13 +77,246 @@ final class Observer_Pass_Report_Service {
 			),
 			'active_annual_rows' => array_values(
 				array_filter(
-					$rows,
+					$all_rows,
 					static function ( array $row ): bool {
 						return ! empty( $row['is_valid'] ) && self::PASS_ANNUAL === $row['pass_type'];
 					}
 				)
 			),
 		);
+	}
+
+	/**
+	 * @param array<string,mixed> $filters Raw report filters.
+	 * @return array{pass_type:string,status:string,search:string,date_preset:string,after:string,before:string}
+	 */
+	private function normalize_filters( array $filters ): array {
+		$pass_type = sanitize_key( (string) ( $filters['pass_type'] ?? self::PASS_ALL ) );
+		if ( ! in_array( $pass_type, array( self::PASS_ALL, self::PASS_ANNUAL, self::PASS_DAILY ), true ) ) {
+			$pass_type = self::PASS_ALL;
+		}
+
+		$status = sanitize_key( (string) ( $filters['status'] ?? self::PASS_ALL ) );
+		$allowed_statuses = array(
+			self::PASS_ALL,
+			self::STATUS_ACTIVE,
+			self::STATUS_EXPIRING_SOON,
+			self::STATUS_EXPIRED,
+			self::STATUS_TODAY,
+			self::STATUS_UPCOMING,
+			self::STATUS_PAST,
+			self::STATUS_REFUNDED,
+			self::STATUS_CANCELLED,
+			self::STATUS_FAILED,
+			self::STATUS_UNPAID,
+			self::STATUS_DATE_MISSING,
+			'refunded_cancelled',
+		);
+		if ( ! in_array( $status, $allowed_statuses, true ) ) {
+			$status = self::PASS_ALL;
+		}
+
+		$date_preset = sanitize_key( (string) ( $filters['date_preset'] ?? self::PASS_ALL ) );
+		if ( ! in_array( $date_preset, array( self::PASS_ALL, 'today', 'next_7', 'this_month', 'this_year', 'custom' ), true ) ) {
+			$date_preset = self::PASS_ALL;
+		}
+
+		$after  = '';
+		$before = '';
+		if ( 'today' === $date_preset ) {
+			$after  = $this->today->format( 'Y-m-d' );
+			$before = $after;
+		} elseif ( 'next_7' === $date_preset ) {
+			$after  = $this->today->modify( '+1 day' )->format( 'Y-m-d' );
+			$before = $this->today->modify( '+7 days' )->format( 'Y-m-d' );
+		} elseif ( 'this_month' === $date_preset ) {
+			$after  = $this->today->modify( 'first day of this month' )->format( 'Y-m-d' );
+			$before = $this->today->modify( 'last day of this month' )->format( 'Y-m-d' );
+		} elseif ( 'this_year' === $date_preset ) {
+			$after  = $this->today->format( 'Y-01-01' );
+			$before = $this->today->format( 'Y-12-31' );
+		} elseif ( 'custom' === $date_preset ) {
+			$after_date  = $this->parse_date( sanitize_text_field( (string) ( $filters['after'] ?? '' ) ) );
+			$before_date = $this->parse_date( sanitize_text_field( (string) ( $filters['before'] ?? '' ) ) );
+			$after       = null !== $after_date ? $after_date->format( 'Y-m-d' ) : '';
+			$before      = null !== $before_date ? $before_date->format( 'Y-m-d' ) : '';
+		}
+
+		return array(
+			'pass_type'   => $pass_type,
+			'status'      => $status,
+			'search'      => sanitize_text_field( (string) ( $filters['search'] ?? '' ) ),
+			'date_preset' => $date_preset,
+			'after'       => $after,
+			'before'      => $before,
+		);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Normalized rows.
+	 * @param array{pass_type:string,status:string,search:string,date_preset:string,after:string,before:string} $filters Normalized filters.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function filter_rows( array $rows, array $filters ): array {
+		return array_values(
+			array_filter(
+				$rows,
+				function ( array $row ) use ( $filters ): bool {
+					if ( self::PASS_ALL !== $filters['pass_type'] && $filters['pass_type'] !== ( $row['pass_type'] ?? '' ) ) {
+						return false;
+					}
+
+					$row_status = (string) ( $row['operational_status'] ?? '' );
+					if ( 'refunded_cancelled' === $filters['status'] ) {
+						if ( ! in_array( $row_status, array( self::STATUS_REFUNDED, self::STATUS_CANCELLED ), true ) ) {
+							return false;
+						}
+					} elseif ( self::PASS_ALL !== $filters['status'] && $filters['status'] !== $row_status ) {
+						return false;
+					}
+
+					if ( ! $this->row_matches_search( $row, $filters['search'] ) ) {
+						return false;
+					}
+
+					return $this->row_matches_date_range( $row, $filters['after'], $filters['before'] );
+				}
+			)
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized row.
+	 */
+	private function row_matches_search( array $row, string $search ): bool {
+		$needle = strtolower( trim( $search ) );
+		if ( '' === $needle ) {
+			return true;
+		}
+
+		$holder_names = is_array( $row['holder_names'] ?? null ) ? implode( ' ', array_map( 'strval', $row['holder_names'] ) ) : '';
+		$haystack     = strtolower(
+			implode(
+				' ',
+				array(
+					(string) ( $row['purchaser_name'] ?? '' ),
+					$holder_names,
+					(string) ( $row['email'] ?? '' ),
+					(string) ( $row['order_number'] ?? '' ),
+				)
+			)
+		);
+
+		return false !== strpos( $haystack, $needle );
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized row.
+	 */
+	private function row_matches_date_range( array $row, string $after, string $before ): bool {
+		if ( '' === $after && '' === $before ) {
+			return true;
+		}
+
+		if ( self::PASS_ANNUAL === ( $row['pass_type'] ?? '' ) ) {
+			$date = (string) ( $row['expiration_date'] ?? '' );
+			if ( '' === $date ) {
+				return false;
+			}
+
+			return ( '' === $after || $date >= $after ) && ( '' === $before || $date <= $before );
+		}
+
+		$start = (string) ( $row['valid_start'] ?? '' );
+		$end   = (string) ( $row['last_valid_date'] ?? '' );
+		if ( '' === $start || '' === $end ) {
+			return false;
+		}
+
+		return ( '' === $after || $end >= $after ) && ( '' === $before || $start <= $before );
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Normalized rows.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function sort_rows( array $rows, string $pass_type ): array {
+		usort(
+			$rows,
+			function ( array $left, array $right ) use ( $pass_type ): int {
+				$left_rank  = $this->get_sort_rank( $left, $pass_type );
+				$right_rank = $this->get_sort_rank( $right, $pass_type );
+				if ( $left_rank !== $right_rank ) {
+					return $left_rank <=> $right_rank;
+				}
+
+				if ( self::PASS_DAILY === $pass_type && 1 === $left_rank ) {
+					$date_comparison = strcmp( (string) ( $left['valid_start'] ?? '' ), (string) ( $right['valid_start'] ?? '' ) );
+				} elseif ( self::PASS_ANNUAL === $pass_type && $left_rank < 2 ) {
+					$date_comparison = strcmp( (string) ( $left['expiration_date'] ?? '' ), (string) ( $right['expiration_date'] ?? '' ) );
+				} elseif ( 2 === $left_rank ) {
+					$date_comparison = strcmp( $this->get_operational_sort_date( $right ), $this->get_operational_sort_date( $left ) );
+				} else {
+					$date_comparison = strcmp( $this->get_operational_sort_date( $left ), $this->get_operational_sort_date( $right ) );
+				}
+
+				if ( 0 !== $date_comparison ) {
+					return $date_comparison;
+				}
+
+				$order_comparison = (int) ( $right['order_id'] ?? 0 ) <=> (int) ( $left['order_id'] ?? 0 );
+				if ( 0 !== $order_comparison ) {
+					return $order_comparison;
+				}
+
+				return (int) ( $right['item_id'] ?? 0 ) <=> (int) ( $left['item_id'] ?? 0 );
+			}
+		);
+
+		return $rows;
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized row.
+	 */
+	private function get_sort_rank( array $row, string $pass_type ): int {
+		$status = (string) ( $row['operational_status'] ?? '' );
+		if ( self::PASS_ANNUAL === $pass_type ) {
+			if ( self::STATUS_ACTIVE === $status ) {
+				return 0;
+			}
+
+			return self::STATUS_EXPIRING_SOON === $status ? 1 : 2;
+		}
+
+		if ( self::PASS_DAILY === $pass_type ) {
+			if ( self::STATUS_TODAY === $status ) {
+				return 0;
+			}
+
+			return self::STATUS_UPCOMING === $status ? 1 : 2;
+		}
+
+		if ( ! empty( $row['is_valid'] ) && self::STATUS_UPCOMING !== $status ) {
+			return 0;
+		}
+
+		return ! empty( $row['is_valid'] ) ? 1 : 2;
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized row.
+	 */
+	private function get_operational_sort_date( array $row ): string {
+		if ( self::PASS_ANNUAL === ( $row['pass_type'] ?? '' ) ) {
+			$expiration_date = (string) ( $row['expiration_date'] ?? '' );
+
+			return '' !== $expiration_date ? $expiration_date : (string) ( $row['purchase_date'] ?? '' );
+		}
+
+		$valid_start = (string) ( $row['valid_start'] ?? '' );
+
+		return '' !== $valid_start ? $valid_start : (string) ( $row['purchase_date'] ?? '' );
 	}
 
 	/**
