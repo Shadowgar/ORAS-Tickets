@@ -333,7 +333,7 @@ final class Observer_Pass_Report_Service {
 					'limit'   => $per_page,
 					'page'    => $page,
 					'status'  => self::ORDER_STATUSES,
-					'orderby' => 'date',
+					'orderby' => 'date ID',
 					'order'   => 'DESC',
 				)
 			);
@@ -410,7 +410,7 @@ final class Observer_Pass_Report_Service {
 		$expiration_date = null;
 
 		if ( self::PASS_ANNUAL === $pass_type && null !== $purchase_date ) {
-			$expiration_date = $purchase_date->setTime( 0, 0, 0 )->modify( '+1 year' );
+			$expiration_date = $this->get_annual_expiration( $purchase_date );
 		}
 
 		if ( self::PASS_DAILY === $pass_type ) {
@@ -423,7 +423,6 @@ final class Observer_Pass_Report_Service {
 
 		$quantity            = max( 1, (int) $item->get_quantity() );
 		$refunded_quantity   = abs( (int) $order->get_qty_refunded_for_item( $item->get_id() ) );
-		$refunded_total      = abs( (float) $order->get_total_refunded_for_item( $item->get_id() ) );
 		$valid_quantity      = max( 0, $quantity - $refunded_quantity );
 		$booking_status      = sanitize_key( (string) $item->get_meta( '_wapbk_booking_status', true ) );
 		$operational         = $this->get_operational_state(
@@ -435,13 +434,7 @@ final class Observer_Pass_Report_Service {
 			$valid_start,
 			$valid_checkout
 		);
-		$net_revenue         = 0.0;
-		$cancelled_booking   = in_array( $booking_status, array( 'cancelled', 'canceled' ), true );
-		$ineligible_statuses = array( self::STATUS_REFUNDED, self::STATUS_CANCELLED, self::STATUS_FAILED, self::STATUS_UNPAID );
-
-		if ( $order->is_paid() && ! $cancelled_booking && ! in_array( $operational['status'], $ineligible_statuses, true ) ) {
-			$net_revenue = max( 0.0, (float) $item->get_total() - $refunded_total );
-		}
+		$holder_name = trim( $contact['first_name'] . ' ' . $contact['last_name'] );
 
 		return array(
 			'product_id'         => (int) $item->get_product_id(),
@@ -454,7 +447,7 @@ final class Observer_Pass_Report_Service {
 			'phone'              => $contact['phone'],
 			'address_summary'    => $contact['address_summary'],
 			'holder_label'       => 'Purchaser/Passholder',
-			'holder_names'       => array( $contact['name'] ),
+			'holder_names'       => '' !== $holder_name ? array( $holder_name ) : array(),
 			'purchase_date'      => null !== $purchase_date ? $purchase_date->format( 'Y-m-d' ) : '',
 			'order_date'         => null !== $purchase_date ? $purchase_date->format( 'Y-m-d' ) : '',
 			'expiration_date'    => null !== $expiration_date ? $expiration_date->format( 'Y-m-d' ) : '',
@@ -470,8 +463,20 @@ final class Observer_Pass_Report_Service {
 			'booking_status'     => $booking_status,
 			'operational_status' => $operational['status'],
 			'is_valid'           => $operational['is_valid'],
-			'net_revenue'        => $net_revenue,
 		);
+	}
+
+	private function get_annual_expiration( \DateTimeImmutable $purchase_date ): \DateTimeImmutable {
+		$local_date = $purchase_date->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
+		$next_year  = (int) $local_date->format( 'Y' ) + 1;
+		$month      = (int) $local_date->format( 'n' );
+		$day        = (int) $local_date->format( 'j' );
+
+		if ( 2 === $month && 29 === $day && ! checkdate( 2, 29, $next_year ) ) {
+			return $local_date->setDate( $next_year, 3, 1 );
+		}
+
+		return $local_date->setDate( $next_year, $month, $day );
 	}
 
 	/**
@@ -584,26 +589,26 @@ final class Observer_Pass_Report_Service {
 
 	/**
 	 * @param array<int,array<string,mixed>> $rows Normalized rows.
-	 * @return array{active_annual:int,daily_today:int,daily_next_7:int,revenue_ytd:float}
+	 * @return array{active_annual_count:int,daily_today_count:int,daily_next_7_days_count:int,daily_this_month_count:int}
 	 */
 	private function build_summary( array $rows ): array {
 		$summary = array(
-			'active_annual' => 0,
-			'daily_today'   => 0,
-			'daily_next_7'  => 0,
-			'revenue_ytd'   => 0.0,
+			'active_annual_count'     => 0,
+			'daily_today_count'       => 0,
+			'daily_next_7_days_count' => 0,
+			'daily_this_month_count'  => 0,
 		);
 		$last_upcoming_date = $this->today->modify( '+7 days' )->format( 'Y-m-d' );
-		$current_year       = $this->today->format( 'Y' );
+		$last_month_date    = $this->today->modify( 'last day of this month' )->format( 'Y-m-d' );
 
 		foreach ( $rows as $row ) {
 			$quantity = (int) ( $row['valid_quantity'] ?? 0 );
 			if ( ! empty( $row['is_valid'] ) && self::PASS_ANNUAL === ( $row['pass_type'] ?? '' ) ) {
-				$summary['active_annual'] += $quantity;
+				$summary['active_annual_count'] += $quantity;
 			}
 
 			if ( ! empty( $row['is_valid'] ) && self::STATUS_TODAY === ( $row['operational_status'] ?? '' ) ) {
-				$summary['daily_today'] += $quantity;
+				$summary['daily_today_count'] += $quantity;
 			}
 
 			if (
@@ -611,15 +616,17 @@ final class Observer_Pass_Report_Service {
 				&& self::STATUS_UPCOMING === ( $row['operational_status'] ?? '' )
 				&& (string) ( $row['valid_start'] ?? '' ) <= $last_upcoming_date
 			) {
-				$summary['daily_next_7'] += $quantity;
+				$summary['daily_next_7_days_count'] += $quantity;
 			}
 
-			if ( $current_year === substr( (string) ( $row['purchase_date'] ?? '' ), 0, 4 ) ) {
-				$summary['revenue_ytd'] += (float) ( $row['net_revenue'] ?? 0.0 );
+			if (
+				! empty( $row['is_valid'] )
+				&& self::STATUS_UPCOMING === ( $row['operational_status'] ?? '' )
+				&& (string) ( $row['valid_start'] ?? '' ) <= $last_month_date
+			) {
+				$summary['daily_this_month_count'] += $quantity;
 			}
 		}
-
-		$summary['revenue_ytd'] = round( $summary['revenue_ytd'], 2 );
 
 		return $summary;
 	}
@@ -684,10 +691,10 @@ final class Observer_Pass_Report_Service {
 			'all_rows'           => array(),
 			'rows'               => array(),
 			'summary'            => array(
-				'active_annual' => 0,
-				'daily_today'   => 0,
-				'daily_next_7'  => 0,
-				'revenue_ytd'   => 0.0,
+				'active_annual_count'     => 0,
+				'daily_today_count'       => 0,
+				'daily_next_7_days_count' => 0,
+				'daily_this_month_count'  => 0,
 			),
 			'today_rows'         => array(),
 			'active_annual_rows' => array(),

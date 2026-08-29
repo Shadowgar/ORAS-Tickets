@@ -199,8 +199,9 @@ array(
 )
 ```
 
-Page through `wc_get_orders()` in batches of 50 and use only `WC_Order` and
-`WC_Order_Item_Product` APIs. Product matching order is:
+Page through `wc_get_orders()` in batches of 50 with `orderby => 'date ID'` so
+orders sharing a creation timestamp remain stable across page boundaries. Use
+only `WC_Order` and `WC_Order_Item_Product` APIs. Product matching order is:
 
 1. Filtered Annual/Daily IDs from
    `oras_tickets_observer_annual_product_ids` and

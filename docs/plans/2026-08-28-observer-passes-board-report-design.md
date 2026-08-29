@@ -249,7 +249,9 @@ orders, bookings, refunds, roles, or capabilities.
 
 ## Performance
 
-The service will page through orders using WooCommerce APIs. The current
+The service will page through orders using WooCommerce APIs with a stable order
+ID tie-breaker so equal creation timestamps cannot duplicate or omit rows at a
+page boundary. The current
 production order volume is small enough that a fresh read is preferable to a
 persistent cache that could make today's list stale. The normalized result is
 reused within the request for cards, lists, filters, and the table.
