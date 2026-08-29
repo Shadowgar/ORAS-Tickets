@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add a read-only Observer Passes tab to Board Reports that accurately reports Annual and Daily pass validity, attendance, refunds, revenue, and a clean printable list for today's observers.
+**Goal:** Add a read-only operational Observer Passes tab to Board Reports that accurately reports Annual and Daily pass validity, attendance, quantity-based refunds, and a clean printable list for today's observers without financial reporting.
 
 **Architecture:** Add a dedicated `Observer_Pass_Report_Service` that reads HPOS-compatible WooCommerce order and line-item data and returns one normalized report snapshot. `Board_Reports` will render the snapshot using its existing server-rendered shell, capability model, filters, pagination, CSS language, and expandable-detail pattern; a nonce-protected admin-post handler will render a standalone print document.
 
@@ -189,10 +189,10 @@ array(
 	'all_rows'           => array(),
 	'rows'               => array(),
 	'summary'            => array(
-		'active_annual' => 0,
-		'daily_today'   => 0,
-		'daily_next_7'  => 0,
-		'revenue_ytd'   => 0.0,
+		'active_annual_count'     => 0,
+		'daily_today_count'       => 0,
+		'daily_next_7_days_count' => 0,
+		'daily_this_month_count'  => 0,
 	),
 	'today_rows'         => array(),
 	'active_annual_rows' => array(),
@@ -211,9 +211,11 @@ Page through `wc_get_orders()` in batches of 50 and use only `WC_Order` and
    `annual-observer-pass` and `daily-observer-pass`.
 
 Use `Contact_Normalizer::from_order()` for board-safe contact fields. Annual
-expiration must be derived from the local order-created date. Parse Daily
-metadata strictly as `!Y-m-d` in `wp_timezone()` and reject parse warnings or
-errors. Do not copy arbitrary order metadata into a row.
+expiration must be derived from the local order-created date. February 29
+purchases expire explicitly at the start of March 1 in the next non-leap year;
+do not rely on implicit PHP rollover. Parse Daily metadata strictly as
+`!Y-m-d` in `wp_timezone()` and reject parse warnings or errors. Do not copy
+arbitrary order metadata into a row.
 
 If WooCommerce order APIs are unavailable, return `available => false` with a
 generic board-safe error. Wrap the paged scan in `try/catch ( Throwable $e )`,
@@ -245,7 +247,7 @@ git add oras-tickets/includes/Reporting/Observer_Pass_Report_Service.php oras-ti
 git commit -m "Add Observer Pass report normalization"
 ```
 
-### Task 2: Calculate Validity, Refunds, And Summary Cards
+### Task 2: Calculate Validity, Quantity Refunds, And Operational Summaries
 
 **Files:**
 - Modify: `oras-tickets/includes/Reporting/Observer_Pass_Report_Service.php`
@@ -258,13 +260,22 @@ For the fixed `2026-08-28` clock, add isolated fixtures for:
 - Active Annual: expires `2026-10-01`.
 - Expiring Soon boundary: expires `2026-09-27` (30 days away).
 - Expired Annual: expires `2026-08-28`.
+- February 29 Annual: purchased `2024-02-29`, valid through `2025-02-28`, and
+  expired beginning `2025-03-01`.
 - Daily Today: start on or before `2026-08-28`, checkout after it.
 - Daily Upcoming: starts between `2026-08-29` and `2026-09-04`.
 - Daily Past: checkout on `2026-08-28`.
-- Daily missing or malformed dates.
+- Daily missing and malformed dates as separate fixtures.
+- Daily unknown booking status on an otherwise current date range; retain its
+  Today date classification but require `is_valid=false` and exclusion from
+  `today_rows` and every operational count.
 - Daily booking status `cancelled` on an otherwise completed order.
 - WooCommerce orders in `cancelled`, `failed`, and `refunded` states.
 - An unpaid `pending` order that remains auditable but is never valid.
+- A missing purchaser name that normalizes to an empty `holder_names` array.
+- A local-midnight boundary fixture where the UTC timestamp falls on an
+  adjacent date.
+- More than 50 configured Observer orders to prove the complete paged scan.
 
 Assert exact `operational_status`, `is_valid`, `valid_quantity`, and date values.
 In particular:
@@ -277,14 +288,18 @@ oras_board_reports_assert_same( $past_row['operational_status'], 'past', 'Daily 
 oras_board_reports_assert_same( $missing_row['operational_status'], 'date_missing', 'Missing Daily dates stay auditable but invalid' );
 ```
 
-**Step 2: Add failing refund and revenue fixtures**
+**Step 2: Add failing quantity-refund and multi-line fixtures**
 
 Create:
 
 - A completed Annual line with quantity 2 and line total `$120`.
-- An attributable refund for quantity 1 and `$60` against that item.
+- An attributable refund for quantity 1 against that item.
+- A dollar-only partial refund without line or quantity attribution; it must
+  not change valid quantity or pass validity.
 - A completed Observer line plus an unrelated merchandise line in the same
   order.
+- One order containing Annual and Daily Observer lines.
+- One order containing multiple Daily Observer lines.
 - A fully refunded Observer order.
 
 Use WooCommerce refund APIs and associate the refund line with the original
@@ -293,23 +308,22 @@ line item. Assert:
 ```php
 oras_board_reports_assert_same( $partial_row['refunded_quantity'], 1, 'Attributable refunded quantity is recorded' );
 oras_board_reports_assert_same( $partial_row['valid_quantity'], 1, 'Partial item refund reduces valid quantity' );
-oras_board_reports_assert_same( $partial_row['net_revenue'], 60.0, 'Partial item refund reduces Observer revenue' );
 oras_board_reports_assert_same( $fully_refunded_row['operational_status'], 'refunded', 'Fully refunded pass stays visible as refunded' );
 oras_board_reports_assert_same( $fully_refunded_row['valid_quantity'], 0, 'Fully refunded pass has no valid quantity' );
 ```
 
-Assert that merchandise totals, shipping, tax, and order totals do not change
-Observer revenue.
+Assert that unrelated merchandise and dollar-only refunds do not alter Observer
+Pass classification or valid quantity.
 
 **Step 3: Add failing summary assertions**
 
 Assert summaries are calculated from all normalized rows before filters:
 
 ```php
-oras_board_reports_assert_same( $report['summary']['active_annual'], $expected_active_qty, 'Active Annual summary uses valid quantity' );
-oras_board_reports_assert_same( $report['summary']['daily_today'], $expected_today_qty, 'Daily Today summary uses valid quantity' );
-oras_board_reports_assert_same( $report['summary']['daily_next_7'], $expected_upcoming_qty, 'Next-seven-days summary excludes Today' );
-oras_board_reports_assert_same( $report['summary']['revenue_ytd'], $expected_ytd_revenue, 'YTD summary uses only net Observer line revenue' );
+oras_board_reports_assert_same( $report['summary']['active_annual_count'], $expected_active_qty, 'Active Annual summary uses valid quantity' );
+oras_board_reports_assert_same( $report['summary']['daily_today_count'], $expected_today_qty, 'Daily Today summary uses valid quantity' );
+oras_board_reports_assert_same( $report['summary']['daily_next_7_days_count'], $expected_upcoming_qty, 'Next-seven-days summary excludes Today' );
+oras_board_reports_assert_same( $report['summary']['daily_this_month_count'], $expected_month_qty, 'This-month summary counts future Daily visits' );
 ```
 
 Run the integration check and expect the first new status assertion to fail.
@@ -341,14 +355,12 @@ Use WooCommerce attribution methods only:
 
 ```php
 $refunded_quantity = abs( (int) $order->get_qty_refunded_for_item( $item_id ) );
-$refunded_total    = abs( (float) $order->get_total_refunded_for_item( $item_id ) );
 $valid_quantity    = max( 0, $quantity - $refunded_quantity );
-$net_revenue       = max( 0.0, (float) $item->get_total() - $refunded_total );
 ```
 
-Revenue YTD includes only paid, non-cancelled Observer rows whose local order
-creation year matches the service clock. It sums net line totals, not tax,
-shipping, fees, or the whole order.
+Do not read or calculate refund dollars, net line revenue, shipping, tax, fees,
+merchandise allocation, or order totals. A dollar-only refund without an
+explicit Observer quantity refund leaves validity unchanged.
 
 **Step 5: Run focused checks**
 
@@ -356,13 +368,14 @@ shipping, fees, or the whole order.
 bash scripts/run-board-reports-integration-checks.sh
 ```
 
-Expected: all validity, refund, quantity, and summary assertions PASS.
+Expected: all validity, quantity-refund, multi-line, and operational-summary
+assertions PASS.
 
 **Step 6: Commit**
 
 ```bash
 git add oras-tickets/includes/Reporting/Observer_Pass_Report_Service.php scripts/board-reports-integration-checks.php
-git commit -m "Calculate Observer Pass validity and revenue"
+git commit -m "Simplify Observer Pass operational reporting"
 ```
 
 ### Task 3: Filter And Sort The Observer Pass Snapshot
@@ -549,8 +562,8 @@ With Observer fixtures active, assert the rendered HTML contains:
 foreach ( array(
 	'Active Annual Passes',
 	'Daily Passes Today',
-	'Upcoming Daily Passes',
-	'Observer Pass Revenue YTD',
+	'Upcoming Daily Passes — Next 7 Days',
+	'Upcoming Daily Passes — This Month',
 	"Today's Daily Observers",
 	'Active Annual Observer Passes',
 	'Purchaser/Passholder',
@@ -597,10 +610,9 @@ remain visible and become effective only for the Custom Range preset.
 
 **Step 3: Render the unfiltered summary cards**
 
-Use the service-provided `summary` before paginating `rows`. Format revenue with
-`wc_price()` only when the report is available and the amount is numeric.
-Otherwise render a clear unavailable state; never convert a query failure into
-four zeroes.
+Use the four operational counts from the service-provided `summary` before
+paginating `rows`. Otherwise render a clear unavailable state; never convert a
+query failure into four zeroes.
 
 **Step 4: Render Today's Daily Observers**
 
@@ -699,7 +711,7 @@ order number, while excluding:
 
 - `wpadminbar` and WordPress navigation;
 - Board Reports filters and tabs;
-- revenue and unrelated customer details;
+- financial data and unrelated customer details;
 - transaction/payment/accounting metadata.
 
 **Step 2: Add failing authorization checks**
@@ -810,7 +822,8 @@ Add a new top entry to `docs/CHANGELOG.md` describing:
 - the read-only Observer Passes tab;
 - Annual anniversary/30-day expiry rules;
 - Daily booking-date and Today/Upcoming behavior;
-- refund-safe quantity and net line revenue;
+- explicit refunded quantity and operational valid quantity;
+- explicit February 29 expiration at the start of March 1 in non-leap years;
 - secure clean printing and unchanged Board capabilities.
 
 Update the existing Board Reports deployment document with a short `0.4.51`
@@ -859,8 +872,10 @@ bash scripts/run-board-reports-integration-checks.sh
 php oras-tickets/tools/phase1h-event-questions-checks.php
 ```
 
-Expected: `Board reports integration checks passed.` and the phase 1H harness
-exits zero.
+Expected: `Board reports integration checks passed.` The phase 1H harness may
+print the pre-existing unrelated `FAIL: Board communications emails use HTML
+content type` and exit `1`; compare it with the original checkout and do not
+treat the unchanged baseline as an Observer Pass regression.
 
 **Step 3: Run repository quality gates**
 

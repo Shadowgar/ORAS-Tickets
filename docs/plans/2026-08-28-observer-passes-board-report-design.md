@@ -70,7 +70,7 @@ Each normalized row will contain, where available:
 - purchaser/passholder name, email, phone, and address;
 - pass type and product identity;
 - order ID, displayed order number, order status, and purchase date;
-- line-item ID, original quantity, valid quantity, and net line revenue;
+- line-item ID, original quantity, refunded quantity, and valid quantity;
 - Daily start date, exclusive checkout date, and booking status;
 - Annual expiration date;
 - calculated operational status and sortable operational date;
@@ -87,7 +87,10 @@ server UTC dates.
 ### Annual Observer Passes
 
 The purchase date is the WooCommerce order creation date. Expiration is the
-same local calendar date one year later. A pass is:
+same local calendar date one year later. February 29 purchases explicitly
+expire at the start of March 1 in the following non-leap year, so they remain
+valid through the end of February 28. The calculation must not rely on PHP's
+implicit date rollover. A pass is:
 
 1. **Active** until the final 30-day window.
 2. **Expiring Soon** from 30 days before expiration through the day before
@@ -109,6 +112,11 @@ Daily status priority is:
 2. **Upcoming** when the booking starts after today.
 3. **Past** when checkout is on or before today.
 
+Only the observed `confirmed` and `paid` booking states are eligible. An
+unknown booking status retains its date classification and source status for
+audit display but has `is_valid=false`; it must never enter Today or Upcoming
+operational lists or counts.
+
 The visible valid-date range will communicate observing nights. For multi-night
 bookings, the final valid night is the calendar day before the exclusive
 checkout date.
@@ -118,12 +126,13 @@ checkout date.
 Cancelled, failed, and fully refunded orders are invalid regardless of their
 calculated dates. A cancelled booking status also invalidates its Daily pass.
 These rows remain visible for audit searches and display their specific status,
-but never count as active Annual passes, Daily attendance, or revenue.
+but never count as active Annual passes or Daily attendance.
 
-For attributable partial line-item refunds, net revenue is the original
-Observer Pass line total less its refund. Valid quantity is reduced when
-WooCommerce records an attributable refunded line-item quantity. The service
-must not infer a quantity refund from an unrelated order-level amount.
+Valid quantity is reduced only when WooCommerce records an attributable
+refunded line-item quantity. A dollar-only partial refund without Observer Pass
+line or quantity attribution does not change pass validity. The report does not
+calculate revenue, allocate refunds, or infer a quantity refund from an
+unrelated order-level amount.
 
 ## Board Reports Integration
 
@@ -143,9 +152,9 @@ The page contains four unfiltered operational summary cards:
 - **Upcoming Daily Passes — Next 7 Days**: valid quantity for future bookings
   that occur during the next seven local calendar dates, excluding passes
   already counted in Today. Each matching purchase is counted once.
-- **Observer Pass Revenue YTD**: Observer Pass line revenue from orders created
-  in the current local calendar year, less attributable refunds. Shipping,
-  tax, fees, and unrelated order lines are excluded.
+- **Upcoming Daily Passes — This Month**: valid quantity for future Daily
+  bookings whose start date falls after today and on or before the final local
+  calendar date of the current month. Each matching line is counted once.
 
 The cards describe the complete current snapshot and do not change when the
 table is filtered.
@@ -203,7 +212,7 @@ handler. The handler requires `oras_tickets_view_board_dashboard` and a valid
 nonce, rebuilds the current list from WooCommerce, and returns standalone,
 escaped print HTML. It includes the report title, local date, names, quantity,
 known holders, and order references, but excludes the WordPress theme,
-navigation, filters, revenue, and unrelated customer or order data.
+navigation, filters, financial data, and unrelated customer or order data.
 
 ## Active Annual Verification List
 
@@ -232,13 +241,11 @@ orders, bookings, refunds, roles, or capabilities.
 - If a Daily booking date is missing or malformed, retain the row with `Date
   unavailable`, flag it in details, and exclude it from Today and Upcoming
   calculations.
-- If purchaser or contact data is missing, display `Not available`; do not
+- If purchaser or contact data is missing, display `Not recorded`; do not
   invent holder data.
 - If an individual order or item cannot be normalized, preserve an auditable
   row where possible and exclude it only from calculations its source data
   cannot support.
-- If revenue cannot be attributed reliably, omit that amount rather than using
-  the entire order total.
 
 ## Performance
 
@@ -261,7 +268,10 @@ fixtures covering:
 - site-timezone date boundaries;
 - paid, failed, cancelled, fully refunded, and attributable partial-refund
   behavior;
-- quantity and Observer-only net revenue calculations;
+- explicit line-item refunded quantity and valid-quantity calculations;
+- February 29 expiration through February 28 with expiration on March 1;
+- unknown Daily booking statuses remaining visible but invalid;
+- more than 50 matching orders and multiple Observer lines in one order;
 - missing dates/contact fields and purchaser-as-passholder fallback;
 - search by name, email, and order number;
 - type, status, and operational-date filters;
@@ -286,5 +296,6 @@ authorized.
 - Modifying existing orders or booking metadata.
 - Adding WooCommerce administration access for Board members.
 - Introducing an Observer Pass database ledger or settings application.
+- Adding Observer Pass revenue, refund-dollar allocation, or accounting reports.
 - Changing unrelated Event Tickets, RSVP, Communications, or Board Reports
   behavior.
