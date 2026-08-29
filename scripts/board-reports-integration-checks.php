@@ -152,6 +152,48 @@ function oras_board_reports_find_product_row( array $rows, int $product_id ): ar
 	oras_board_reports_fail( 'Observer Pass row not found for product ' . $product_id );
 }
 
+/**
+ * @param array<int,array<string,mixed>> $rows
+ * @return array<string,mixed>
+ */
+function oras_board_reports_find_order_row( array $rows, WC_Order $order ): array {
+	foreach ( $rows as $row ) {
+		if ( (int) $order->get_id() === (int) ( $row['order_id'] ?? 0 ) ) {
+			return $row;
+		}
+	}
+
+	oras_board_reports_fail( 'Observer Pass row not found for order ' . $order->get_id() );
+}
+
+function oras_board_reports_refund_item( WC_Order $order, int $quantity, float $amount ): void {
+	$item = current( $order->get_items( 'line_item' ) );
+	if ( ! $item instanceof WC_Order_Item_Product ) {
+		oras_board_reports_fail( 'Observer Pass refund line item missing' );
+	}
+
+	$refund = wc_create_refund(
+		array(
+			'amount'         => $amount,
+			'reason'         => 'Observer Pass integration fixture',
+			'order_id'       => $order->get_id(),
+			'refund_payment' => false,
+			'restock_items'  => false,
+			'line_items'     => array(
+				$item->get_id() => array(
+					'qty'          => -1 * $quantity,
+					'refund_total' => -1 * $amount,
+					'refund_tax'   => array(),
+				),
+			),
+		)
+	);
+
+	if ( is_wp_error( $refund ) || ! $refund instanceof WC_Order_Refund ) {
+		oras_board_reports_fail( 'Unable to create attributable Observer Pass refund' );
+	}
+}
+
 function oras_board_reports_run_checks(): void {
 	if ( ! defined( 'ORAS_TICKETS_DIR' ) ) {
 		oras_board_reports_fail( 'ORAS_TICKETS_DIR not defined. Ensure oras-tickets plugin is active.' );
@@ -258,6 +300,70 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_set_daily_dates( $daily_order, '2026-08-28', '2026-08-30' );
 		$created_orders[] = $daily_order;
 
+		$expiring_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $expiring_order, new DateTimeImmutable( '2025-09-27 12:00:00', wp_timezone() ) );
+		$created_orders[] = $expiring_order;
+
+		$expired_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $expired_order, new DateTimeImmutable( '2025-08-28 12:00:00', wp_timezone() ) );
+		$created_orders[] = $expired_order;
+
+		$upcoming_order = oras_board_reports_create_order( $daily_product_id, 1 );
+		oras_board_reports_set_order_date( $upcoming_order, new DateTimeImmutable( '2026-08-22 12:00:00', wp_timezone() ) );
+		oras_board_reports_set_daily_dates( $upcoming_order, '2026-08-29', '2026-08-30' );
+		$created_orders[] = $upcoming_order;
+
+		$past_order = oras_board_reports_create_order( $daily_product_id, 1 );
+		oras_board_reports_set_order_date( $past_order, new DateTimeImmutable( '2026-08-22 11:00:00', wp_timezone() ) );
+		oras_board_reports_set_daily_dates( $past_order, '2026-08-27', '2026-08-28' );
+		$created_orders[] = $past_order;
+
+		$missing_order = oras_board_reports_create_order( $daily_product_id, 1 );
+		oras_board_reports_set_order_date( $missing_order, new DateTimeImmutable( '2026-08-22 10:00:00', wp_timezone() ) );
+		oras_board_reports_set_daily_dates( $missing_order, 'not-a-date', '' );
+		$created_orders[] = $missing_order;
+
+		$booking_cancelled_order = oras_board_reports_create_order( $daily_product_id, 1 );
+		oras_board_reports_set_order_date( $booking_cancelled_order, new DateTimeImmutable( '2026-08-22 09:00:00', wp_timezone() ) );
+		oras_board_reports_set_daily_dates( $booking_cancelled_order, '2026-08-28', '2026-08-29', 'cancelled' );
+		$created_orders[] = $booking_cancelled_order;
+
+		$cancelled_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $cancelled_order, new DateTimeImmutable( '2026-07-01 12:00:00', wp_timezone() ) );
+		$cancelled_order->update_status( 'cancelled' );
+		$created_orders[] = $cancelled_order;
+
+		$failed_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $failed_order, new DateTimeImmutable( '2026-07-02 12:00:00', wp_timezone() ) );
+		$failed_order->update_status( 'failed' );
+		$created_orders[] = $failed_order;
+
+		$refunded_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $refunded_order, new DateTimeImmutable( '2026-07-03 12:00:00', wp_timezone() ) );
+		$refunded_order->update_status( 'refunded' );
+		$created_orders[] = $refunded_order;
+
+		$pending_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $pending_order, new DateTimeImmutable( '2026-07-04 12:00:00', wp_timezone() ) );
+		$pending_order->update_status( 'pending' );
+		$created_orders[] = $pending_order;
+
+		$partial_refund_order = oras_board_reports_create_order( $annual_product_id, 2 );
+		oras_board_reports_set_order_date( $partial_refund_order, new DateTimeImmutable( '2026-06-01 12:00:00', wp_timezone() ) );
+		oras_board_reports_refund_item( $partial_refund_order, 1, 60.0 );
+		$created_orders[] = $partial_refund_order;
+
+		$mixed_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		$mixed_order->add_product( wc_get_product( $merch_product_id ), 1 );
+		$mixed_order->calculate_totals();
+		oras_board_reports_set_order_date( $mixed_order, new DateTimeImmutable( '2026-08-15 12:00:00', wp_timezone() ) );
+		$created_orders[] = $mixed_order;
+
+		$fully_refunded_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $fully_refunded_order, new DateTimeImmutable( '2026-05-01 12:00:00', wp_timezone() ) );
+		oras_board_reports_refund_item( $fully_refunded_order, 1, 60.0 );
+		$created_orders[] = $fully_refunded_order;
+
 		update_user_meta( $rsvp_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
 		update_user_meta( $rsvp_user_id, '_oras_rsvp_event_' . $event_id . '_attendance_mode', 'onsite' );
 		update_user_meta(
@@ -289,11 +395,24 @@ function oras_board_reports_run_checks(): void {
 
 		$observer_service = new Observer_Pass_Report_Service( $today );
 		$observer_report = $observer_service->get_report();
-		$annual_row = oras_board_reports_find_product_row( $observer_report['all_rows'], $annual_product_id );
-		$daily_row = oras_board_reports_find_product_row( $observer_report['all_rows'], $daily_product_id );
+		$annual_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $annual_order );
+		$daily_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $daily_order );
+		$expiring_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $expiring_order );
+		$expired_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $expired_order );
+		$upcoming_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $upcoming_order );
+		$past_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $past_order );
+		$missing_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $missing_order );
+		$booking_cancelled_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $booking_cancelled_order );
+		$cancelled_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $cancelled_order );
+		$failed_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $failed_order );
+		$refunded_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $refunded_order );
+		$pending_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $pending_order );
+		$partial_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $partial_refund_order );
+		$mixed_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $mixed_order );
+		$fully_refunded_row = oras_board_reports_find_order_row( $observer_report['all_rows'], $fully_refunded_order );
 
 		oras_board_reports_assert_same( $observer_report['available'], true, 'Observer Pass report is available' );
-		oras_board_reports_assert_same( count( $observer_report['all_rows'] ), 2, 'Only configured Observer Pass products are normalized' );
+		oras_board_reports_assert_same( count( $observer_report['all_rows'] ), 15, 'Only configured Observer Pass products are normalized' );
 		oras_board_reports_assert_same( $annual_row['pass_type'], Observer_Pass_Report_Service::PASS_ANNUAL, 'Annual product is identified' );
 		oras_board_reports_assert_same( $annual_row['expiration_date'], '2027-08-01', 'Annual expiration is one calendar year after purchase' );
 		oras_board_reports_assert_same( $annual_row['holder_label'], 'Purchaser/Passholder', 'Purchaser is explicitly labeled as holder fallback' );
@@ -301,6 +420,37 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert_same( $daily_row['valid_checkout'], '2026-08-30', 'Daily checkout stays exclusive' );
 		oras_board_reports_assert_same( $daily_row['last_valid_date'], '2026-08-29', 'Daily visible range ends on the last observing night' );
 		oras_board_reports_assert_same( $daily_row['order_number'], (string) $daily_order->get_order_number(), 'Displayed order number is preserved' );
+		oras_board_reports_assert_same( $annual_row['operational_status'], Observer_Pass_Report_Service::STATUS_ACTIVE, 'Paid Annual pass is active before its final 30 days' );
+		oras_board_reports_assert_same( $annual_row['is_valid'], true, 'Active Annual pass is valid' );
+		oras_board_reports_assert_same( $expiring_row['operational_status'], Observer_Pass_Report_Service::STATUS_EXPIRING_SOON, 'Annual pass enters Expiring Soon at 30 days' );
+		oras_board_reports_assert_same( $expiring_row['is_valid'], true, 'Expiring Soon Annual pass remains valid' );
+		oras_board_reports_assert_same( $expired_row['operational_status'], Observer_Pass_Report_Service::STATUS_EXPIRED, 'Annual pass expires on its anniversary' );
+		oras_board_reports_assert_same( $expired_row['is_valid'], false, 'Expired Annual pass is invalid' );
+		oras_board_reports_assert_same( $daily_row['operational_status'], Observer_Pass_Report_Service::STATUS_TODAY, 'Inclusive Daily start and exclusive checkout contain today' );
+		oras_board_reports_assert_same( $daily_row['is_valid'], true, 'Daily pass spanning Today is valid' );
+		oras_board_reports_assert_same( $upcoming_row['operational_status'], Observer_Pass_Report_Service::STATUS_UPCOMING, 'Future Daily pass is upcoming' );
+		oras_board_reports_assert_same( $upcoming_row['is_valid'], true, 'Upcoming paid Daily pass is valid' );
+		oras_board_reports_assert_same( $past_row['operational_status'], Observer_Pass_Report_Service::STATUS_PAST, 'Daily checkout date is no longer valid' );
+		oras_board_reports_assert_same( $past_row['is_valid'], false, 'Past Daily pass is invalid' );
+		oras_board_reports_assert_same( $missing_row['operational_status'], Observer_Pass_Report_Service::STATUS_DATE_MISSING, 'Missing Daily dates stay auditable but invalid' );
+		oras_board_reports_assert_same( $missing_row['is_valid'], false, 'Daily pass with missing dates is invalid' );
+		oras_board_reports_assert_same( $booking_cancelled_row['operational_status'], Observer_Pass_Report_Service::STATUS_CANCELLED, 'Cancelled booking status takes precedence' );
+		oras_board_reports_assert_same( $booking_cancelled_row['is_valid'], false, 'Cancelled booking is invalid' );
+		oras_board_reports_assert_same( $cancelled_row['operational_status'], Observer_Pass_Report_Service::STATUS_CANCELLED, 'Cancelled Woo order stays auditable' );
+		oras_board_reports_assert_same( $failed_row['operational_status'], Observer_Pass_Report_Service::STATUS_FAILED, 'Failed Woo order stays auditable' );
+		oras_board_reports_assert_same( $refunded_row['operational_status'], Observer_Pass_Report_Service::STATUS_REFUNDED, 'Refunded Woo order stays auditable' );
+		oras_board_reports_assert_same( $pending_row['operational_status'], Observer_Pass_Report_Service::STATUS_UNPAID, 'Pending unpaid order stays auditable but invalid' );
+		oras_board_reports_assert_same( $pending_row['is_valid'], false, 'Pending unpaid order is invalid' );
+		oras_board_reports_assert_same( $partial_row['refunded_quantity'], 1, 'Attributable refunded quantity is recorded' );
+		oras_board_reports_assert_same( $partial_row['valid_quantity'], 1, 'Partial item refund reduces valid quantity' );
+		oras_board_reports_assert_same( $partial_row['net_revenue'], 60.0, 'Partial item refund reduces Observer revenue' );
+		oras_board_reports_assert_same( $fully_refunded_row['operational_status'], Observer_Pass_Report_Service::STATUS_REFUNDED, 'Fully refunded pass stays visible as refunded' );
+		oras_board_reports_assert_same( $fully_refunded_row['valid_quantity'], 0, 'Fully refunded pass has no valid quantity' );
+		oras_board_reports_assert_same( $mixed_row['net_revenue'], 60.0, 'Unrelated merchandise does not change Observer line revenue' );
+		oras_board_reports_assert_same( $observer_report['summary']['active_annual'], 4, 'Active Annual summary uses valid quantity' );
+		oras_board_reports_assert_same( $observer_report['summary']['daily_today'], 2, 'Daily Today summary uses valid quantity' );
+		oras_board_reports_assert_same( $observer_report['summary']['daily_next_7'], 1, 'Next-seven-days summary excludes Today' );
+		oras_board_reports_assert_same( $observer_report['summary']['revenue_ytd'], 260.0, 'YTD summary uses only net Observer line revenue' );
 
 		$payload = wp_json_encode( array( $ticket_rows, $observer_rows, $merch_rows, $observer_report['all_rows'] ) );
 		oras_board_reports_assert( false === strpos( (string) $payload, 'forbidden-transaction' ), 'Board report rows exclude transaction IDs' );
