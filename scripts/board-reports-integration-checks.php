@@ -10,6 +10,7 @@ use ORAS\Tickets\Capabilities;
 use ORAS\Tickets\Frontend\Board_Reports;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
+use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
@@ -75,6 +76,23 @@ function oras_board_reports_create_product( string $name, string $price, string 
 	return $product_id;
 }
 
+function oras_board_reports_create_observer_product( string $name, string $price, string $slug ): int {
+	$product = new WC_Product_Simple();
+	$product->set_name( $name );
+	$product->set_slug( $slug );
+	$product->set_status( 'publish' );
+	$product->set_catalog_visibility( 'hidden' );
+	$product->set_virtual( true );
+	$product->set_regular_price( $price );
+	$product->set_price( $price );
+	$product_id = $product->save();
+	if ( ! is_int( $product_id ) || $product_id <= 0 ) {
+		oras_board_reports_fail( 'Unable to create Observer Pass product: ' . $name );
+	}
+
+	return $product_id;
+}
+
 function oras_board_reports_add_contact_to_order( WC_Order $order ): void {
 	$order->set_billing_first_name( 'Board' );
 	$order->set_billing_last_name( 'Buyer' );
@@ -103,6 +121,37 @@ function oras_board_reports_create_order( int $product_id, int $qty ): WC_Order 
 	return $order;
 }
 
+function oras_board_reports_set_order_date( WC_Order $order, DateTimeImmutable $date ): void {
+	$order->set_date_created( $date->getTimestamp() );
+	$order->save();
+}
+
+function oras_board_reports_set_daily_dates( WC_Order $order, string $start, string $checkout, string $booking_status = 'confirmed' ): void {
+	$item = current( $order->get_items( 'line_item' ) );
+	if ( ! $item instanceof WC_Order_Item_Product ) {
+		oras_board_reports_fail( 'Daily Observer Pass line item missing' );
+	}
+
+	$item->update_meta_data( '_wapbk_booking_date', $start );
+	$item->update_meta_data( '_wapbk_checkout_date', $checkout );
+	$item->update_meta_data( '_wapbk_booking_status', $booking_status );
+	$item->save();
+}
+
+/**
+ * @param array<int,array<string,mixed>> $rows
+ * @return array<string,mixed>
+ */
+function oras_board_reports_find_product_row( array $rows, int $product_id ): array {
+	foreach ( $rows as $row ) {
+		if ( $product_id === (int) ( $row['product_id'] ?? 0 ) ) {
+			return $row;
+		}
+	}
+
+	oras_board_reports_fail( 'Observer Pass row not found for product ' . $product_id );
+}
+
 function oras_board_reports_run_checks(): void {
 	if ( ! defined( 'ORAS_TICKETS_DIR' ) ) {
 		oras_board_reports_fail( 'ORAS_TICKETS_DIR not defined. Ensure oras-tickets plugin is active.' );
@@ -113,6 +162,7 @@ function oras_board_reports_run_checks(): void {
 	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php';
 	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php';
 	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Service.php';
+	require_once ORAS_TICKETS_DIR . 'includes/Reporting/Observer_Pass_Report_Service.php';
 
 	Capabilities::add_caps();
 	Board_Reports::register();
@@ -135,6 +185,7 @@ function oras_board_reports_run_checks(): void {
 	$subscriber_id = oras_board_reports_create_user( 'oras_board_sub', $suffix );
 	$rsvp_user_id = oras_board_reports_create_user( 'oras_board_rsvp', $suffix );
 	$created_posts = array();
+	$created_orders = array();
 
 	try {
 		$event_id = wp_insert_post(
@@ -160,9 +211,26 @@ function oras_board_reports_run_checks(): void {
 		$ticket_product_id = oras_board_reports_create_product( 'Board Reports Ticket ' . $suffix, '10.00' );
 		$observer_product_id = oras_board_reports_create_product( 'Observer Pass ' . $suffix, '5.00', 'observer_pass' );
 		$merch_product_id = oras_board_reports_create_product( 'Merch Shirt ' . $suffix, '20.00', 'merchandise' );
+		$annual_product_id = oras_board_reports_create_observer_product( 'Annual Observer Pass ' . $suffix, '60.00', 'annual-observer-pass-' . strtolower( $suffix ) );
+		$daily_product_id = oras_board_reports_create_observer_product( 'Daily Observer Pass ' . $suffix, '16.00', 'daily-observer-pass-' . strtolower( $suffix ) );
 		$created_posts[] = $ticket_product_id;
 		$created_posts[] = $observer_product_id;
 		$created_posts[] = $merch_product_id;
+		$created_posts[] = $annual_product_id;
+		$created_posts[] = $daily_product_id;
+
+		add_filter(
+			'oras_tickets_observer_annual_product_ids',
+			static function ( array $ids ) use ( $annual_product_id ): array {
+				return array( $annual_product_id );
+			}
+		);
+		add_filter(
+			'oras_tickets_observer_daily_product_ids',
+			static function ( array $ids ) use ( $daily_product_id ): array {
+				return array( $daily_product_id );
+			}
+		);
 
 		$ticket_order = oras_board_reports_create_order( $ticket_product_id, 2 );
 		$ticket_item = current( $ticket_order->get_items( 'line_item' ) );
@@ -173,12 +241,22 @@ function oras_board_reports_run_checks(): void {
 		$ticket_item->update_meta_data( '_oras_ticket_index', '0' );
 		$ticket_item->update_meta_data( '_oras_ticket_name', 'General Admission' );
 		$ticket_item->save();
-		$created_posts[] = (int) $ticket_order->get_id();
+		$created_orders[] = $ticket_order;
 
 		$observer_order = oras_board_reports_create_order( $observer_product_id, 1 );
 		$merch_order = oras_board_reports_create_order( $merch_product_id, 3 );
-		$created_posts[] = (int) $observer_order->get_id();
-		$created_posts[] = (int) $merch_order->get_id();
+		$created_orders[] = $observer_order;
+		$created_orders[] = $merch_order;
+
+		$today = new DateTimeImmutable( '2026-08-28 00:00:00', wp_timezone() );
+		$annual_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		oras_board_reports_set_order_date( $annual_order, new DateTimeImmutable( '2026-08-01 12:00:00', wp_timezone() ) );
+		$created_orders[] = $annual_order;
+
+		$daily_order = oras_board_reports_create_order( $daily_product_id, 2 );
+		oras_board_reports_set_order_date( $daily_order, new DateTimeImmutable( '2026-08-20 12:00:00', wp_timezone() ) );
+		oras_board_reports_set_daily_dates( $daily_order, '2026-08-28', '2026-08-30' );
+		$created_orders[] = $daily_order;
 
 		update_user_meta( $rsvp_user_id, '_oras_rsvp_event_' . $event_id, 'yes' );
 		update_user_meta( $rsvp_user_id, '_oras_rsvp_event_' . $event_id . '_attendance_mode', 'onsite' );
@@ -209,7 +287,22 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( count( $observer_rows ) >= 1, 'Observer pass report returns fixture row' );
 		oras_board_reports_assert( count( $merch_rows ) >= 1, 'Merchandise report returns fixture row' );
 
-		$payload = wp_json_encode( array( $ticket_rows, $observer_rows, $merch_rows ) );
+		$observer_service = new Observer_Pass_Report_Service( $today );
+		$observer_report = $observer_service->get_report();
+		$annual_row = oras_board_reports_find_product_row( $observer_report['all_rows'], $annual_product_id );
+		$daily_row = oras_board_reports_find_product_row( $observer_report['all_rows'], $daily_product_id );
+
+		oras_board_reports_assert_same( $observer_report['available'], true, 'Observer Pass report is available' );
+		oras_board_reports_assert_same( count( $observer_report['all_rows'] ), 2, 'Only configured Observer Pass products are normalized' );
+		oras_board_reports_assert_same( $annual_row['pass_type'], Observer_Pass_Report_Service::PASS_ANNUAL, 'Annual product is identified' );
+		oras_board_reports_assert_same( $annual_row['expiration_date'], '2027-08-01', 'Annual expiration is one calendar year after purchase' );
+		oras_board_reports_assert_same( $annual_row['holder_label'], 'Purchaser/Passholder', 'Purchaser is explicitly labeled as holder fallback' );
+		oras_board_reports_assert_same( $daily_row['valid_start'], '2026-08-28', 'Daily start date is normalized' );
+		oras_board_reports_assert_same( $daily_row['valid_checkout'], '2026-08-30', 'Daily checkout stays exclusive' );
+		oras_board_reports_assert_same( $daily_row['last_valid_date'], '2026-08-29', 'Daily visible range ends on the last observing night' );
+		oras_board_reports_assert_same( $daily_row['order_number'], (string) $daily_order->get_order_number(), 'Displayed order number is preserved' );
+
+		$payload = wp_json_encode( array( $ticket_rows, $observer_rows, $merch_rows, $observer_report['all_rows'] ) );
 		oras_board_reports_assert( false === strpos( (string) $payload, 'forbidden-transaction' ), 'Board report rows exclude transaction IDs' );
 		oras_board_reports_assert( false === strpos( (string) $payload, 'forbidden-stripe-intent' ), 'Board report rows exclude Stripe metadata' );
 		oras_board_reports_assert( false === stripos( (string) $payload, 'payment_method' ), 'Board report rows exclude payment method fields' );
@@ -229,6 +322,11 @@ function oras_board_reports_run_checks(): void {
 	} finally {
 		wp_delete_user( $subscriber_id );
 		wp_delete_user( $rsvp_user_id );
+		foreach ( $created_orders as $order ) {
+			if ( $order instanceof WC_Order ) {
+				$order->delete( true );
+			}
+		}
 		foreach ( $created_posts as $post_id ) {
 			wp_delete_post( (int) $post_id, true );
 		}

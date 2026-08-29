@@ -49,6 +49,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Event_Question_Attention_Store.php'; /
 require_once ORAS_TICKETS_DIR . 'includes/Security/Csv_Safety.php'; // NOSONAR include: CSV export hardening helper
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php'; // NOSONAR include: board-safe contact normalization
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php'; // NOSONAR include: board-safe CSV export
+require_once ORAS_TICKETS_DIR . 'includes/Reporting/Observer_Pass_Report_Service.php'; // NOSONAR include: Observer Pass reporting
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Service.php'; // NOSONAR include: board reports data service
 require_once ORAS_TICKETS_DIR . 'includes/Security/Ticket_Checkin_Token.php'; // NOSONAR include: signed check-in token service
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
