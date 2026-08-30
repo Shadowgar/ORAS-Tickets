@@ -73,19 +73,23 @@ function orasPhase1bRunChecks(): void
 
     orasPhase1bAssert(str_contains($default_html, 'oras-board-reports'), '[oras_board_reports] renders board reports wrapper');
     orasPhase1bAssert(str_contains($default_html, 'Event Management Dashboard'), 'Dashboard shell heading renders');
-    orasPhase1bAssert(str_contains($default_html, 'Ticket Sales'), 'Ticket Sales tab renders');
-    orasPhase1bAssert(str_contains($default_html, 'RSVPs'), 'RSVPs tab renders');
+    orasPhase1bAssert(str_contains($default_html, 'Sales'), 'Sales tab renders');
+    orasPhase1bAssert(str_contains($default_html, 'RSVP Management'), 'RSVP Management tab renders');
     orasPhase1bAssert(str_contains($default_html, 'Communications'), 'Communications tab renders');
-    orasPhase1bAssert(str_contains($default_html, 'Attendees'), 'Attendees tab renders');
-    orasPhase1bAssert(str_contains($default_html, 'Event Statistics'), 'Event Statistics tab renders');
-    orasPhase1bAssert(str_contains($default_html, 'Create Spreadsheet'), 'Existing spreadsheet export link renders');
-    orasPhase1bAssert(str_contains($default_html, 'Create PDF'), 'Existing PDF export link renders');
-    orasPhase1bAssert(str_contains($default_html, 'oras_board_report_type'), 'Existing report filter remains present');
-    orasPhase1bAssert(str_contains($default_html, 'oras_board_after'), 'Existing date filters remain present');
-    orasPhase1bAssert(str_contains($default_html, 'oras_board_status'), 'Existing status filter remains present');
-    orasPhase1bAssert(str_contains($default_html, 'oras_board_search'), 'Existing search filter remains present');
+    orasPhase1bAssert(str_contains($default_html, 'Roster'), 'Roster tab renders');
+    orasPhase1bAssert(str_contains($default_html, 'Event Overview'), 'Event Overview tab renders');
+    orasPhase1bAssert(str_contains($default_html, 'Observer Passes'), 'Observer Passes tab renders');
     orasPhase1bAssert(str_contains($default_html, 'oras-board-reports__cell--email'), 'Board report table email column styling remains available');
     orasPhase1bAssert(str_contains($default_html, 'max-height: min(72vh, 780px)'), 'Board report table uses bounded scrollable data grid styling');
+
+    $_GET = array('oras_board_tab' => 'ticket_sales');
+    $sales_html = Board_Reports::render_shortcode();
+    orasPhase1bAssert(str_contains($sales_html, 'Create Spreadsheet'), 'Existing spreadsheet export link renders');
+    orasPhase1bAssert(str_contains($sales_html, 'Create PDF'), 'Existing PDF export link renders');
+    orasPhase1bAssert(! str_contains($sales_html, '<select name="oras_board_report_type">'), 'Sales tab does not expose the retired generic report filter');
+    orasPhase1bAssert(str_contains($sales_html, 'oras_board_after'), 'Existing date filters remain present');
+    orasPhase1bAssert(str_contains($sales_html, 'oras_board_status'), 'Existing status filter remains present');
+    orasPhase1bAssert(str_contains($sales_html, 'oras_board_search'), 'Existing search filter remains present');
 
     $_GET = array('oras_board_tab' => 'communications');
     $communications_html = Board_Reports::render_shortcode();
@@ -93,11 +97,7 @@ function orasPhase1bRunChecks(): void
 
     $_GET = array('oras_board_tab' => 'attendees');
     $attendees_html = Board_Reports::render_shortcode();
-    orasPhase1bAssert(str_contains($attendees_html, 'Show Attendees'), 'Attendees tab renders implemented dashboard');
-
-    $_GET = array('oras_board_tab' => 'statistics');
-    $statistics_html = Board_Reports::render_shortcode();
-    orasPhase1bAssert(str_contains($statistics_html, 'Show Statistics'), 'Event Statistics tab renders implemented dashboard');
+    orasPhase1bAssert(str_contains($attendees_html, 'Show Roster'), 'Roster tab renders implemented dashboard');
 
     wp_delete_user((int) $user_id);
     remove_role($role_name);

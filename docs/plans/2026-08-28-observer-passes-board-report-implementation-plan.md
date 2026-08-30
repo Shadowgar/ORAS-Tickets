@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add a read-only operational Observer Passes tab to Board Reports that accurately reports Annual and Daily pass validity, attendance, quantity-based refunds, and a clean printable list for today's observers without financial reporting.
+**Goal:** Add a read-only operational Observer Passes tab to Board Reports that accurately reports Annual and Daily pass validity, attendance, refunded pass quantities, and a clean printable list for today's observers.
 
 **Architecture:** Add a dedicated `Observer_Pass_Report_Service` that reads HPOS-compatible WooCommerce order and line-item data and returns one normalized report snapshot. `Board_Reports` will render the snapshot using its existing server-rendered shell, capability model, filters, pagination, CSS language, and expandable-detail pattern; a nonce-protected admin-post handler will render a standalone print document.
 
@@ -359,9 +359,8 @@ $refunded_quantity = abs( (int) $order->get_qty_refunded_for_item( $item_id ) );
 $valid_quantity    = max( 0, $quantity - $refunded_quantity );
 ```
 
-Do not read or calculate refund dollars, net line revenue, shipping, tax, fees,
-merchandise allocation, or order totals. A dollar-only refund without an
-explicit Observer quantity refund leaves validity unchanged.
+Only an explicit Observer line-item quantity refund changes operational valid
+quantity. Other refund records leave valid quantity unchanged.
 
 **Step 5: Run focused checks**
 

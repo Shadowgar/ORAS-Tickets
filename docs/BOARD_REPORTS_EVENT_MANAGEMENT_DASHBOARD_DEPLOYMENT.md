@@ -123,6 +123,23 @@ The virtual meeting link must not be public. It is included only in approved vir
 6. Do not drop `{$wpdb->prefix}oras_ticket_communications` during a normal rollback; it is an audit log. Drop it only after an explicit operations/legal decision.
 7. Restore the database backup only if rollback must remove communication records or RSVP approval metadata created during the release.
 
+## ORAS Tickets 0.4.51 Observer Pass Verification
+
+The Observer Passes release is a read-only reporting update. It requires no database schema migration, no order-data migration, and introduces no production order writes or other persistent data. It grants no new WordPress or WooCommerce administration capabilities; access continues to use the existing `oras_tickets_view_board_dashboard` capability.
+
+The report depends on the existing Annual and Daily Observer Pass product identifiers and the existing Daily booking metadata contract (`_wapbk_booking_date`, `_wapbk_checkout_date`, and `_wapbk_booking_status`). Confirm those identifiers and metadata remain populated before deployment.
+
+After updating and activating ORAS Tickets 0.4.51:
+
+1. Open Board Reports as a Board user and select `Observer Passes`.
+2. Verify the four summary cards: `Active Annual Passes`, `Daily Passes Today`, `Upcoming Daily Passes — Next 7 Days`, and `Upcoming Daily Passes — This Month` against known orders.
+3. Verify active and expiring Annual passes, including the purchaser/passholder search.
+4. Verify a multi-night Daily pass remains valid through the night before its exclusive checkout date.
+5. Verify refunded, cancelled, failed, unpaid, and unconfirmed rows remain historical or invalid and do not enter valid operational counts.
+6. Exercise filtering, search, pagination, expandable details, and the secure printable Today list on desktop and mobile widths.
+
+Rollback is accomplished by restoring the previous ORAS Tickets plugin version and clearing application/CDN caches. No data rollback is required because Observer Pass reporting adds no schema and writes no order data.
+
 ## Remaining Production Checks
 
 These cannot be proven from public HTTP and must be verified with authenticated production WordPress access:

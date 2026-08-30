@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-08-29 - Release 0.4.51
+
+- Added a mobile-friendly Board Reports `Observer Passes` tab for read-only operational verification.
+- Added active Annual pass verification and summaries for today's and upcoming Daily passes.
+- Added Observer Pass filtering, search, pagination, and read-only expandable pass details.
+- Added a secure printable list of today's valid Daily Observers.
+
 ## 2026-07-24 - Release 0.4.50
 
 - Replaced raw Zoom one-tap invitation strings with clear mobile call buttons in approved RSVP and paid virtual-ticket emails.

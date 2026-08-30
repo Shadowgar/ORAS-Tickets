@@ -128,11 +128,9 @@ calculated dates. A cancelled booking status also invalidates its Daily pass.
 These rows remain visible for audit searches and display their specific status,
 but never count as active Annual passes or Daily attendance.
 
-Valid quantity is reduced only when WooCommerce records an attributable
-refunded line-item quantity. A dollar-only partial refund without Observer Pass
-line or quantity attribution does not change pass validity. The report does not
-calculate revenue, allocate refunds, or infer a quantity refund from an
-unrelated order-level amount.
+Valid quantity is reduced only when WooCommerce records an explicit refunded
+quantity for the Observer Pass line item. Other refund records do not change
+operational validity because they do not identify a refunded pass quantity.
 
 ## Board Reports Integration
 
@@ -298,6 +296,6 @@ authorized.
 - Modifying existing orders or booking metadata.
 - Adding WooCommerce administration access for Board members.
 - Introducing an Observer Pass database ledger or settings application.
-- Adding Observer Pass revenue, refund-dollar allocation, or accounting reports.
+- Expanding the report beyond operational pass validity and attendance.
 - Changing unrelated Event Tickets, RSVP, Communications, or Board Reports
   behavior.

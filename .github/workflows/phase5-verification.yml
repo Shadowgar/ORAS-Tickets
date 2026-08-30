@@ -60,6 +60,12 @@ jobs:
         ORAS_WP_ENV_CMD: npx --yes @wordpress/env
       run: bash scripts/run-reports-integration-checks.sh
 
+    - name: Run Board Reports Observer Pass integration checks
+      env:
+        ORAS_WP_ENV_DIR: .
+        ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+      run: bash scripts/run-board-reports-integration-checks.sh
+
     - name: Run QBO integration checks
       env:
         ORAS_WP_ENV_DIR: .
