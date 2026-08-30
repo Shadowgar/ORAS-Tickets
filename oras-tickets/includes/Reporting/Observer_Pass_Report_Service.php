@@ -421,7 +421,7 @@ final class Observer_Pass_Report_Service {
 			}
 		}
 
-		$quantity            = max( 1, (int) $item->get_quantity() );
+		$quantity            = max( 0, (int) $item->get_quantity() );
 		$refunded_quantity   = abs( (int) $order->get_qty_refunded_for_item( $item->get_id() ) );
 		$valid_quantity      = max( 0, $quantity - $refunded_quantity );
 		$booking_status      = sanitize_key( (string) $item->get_meta( '_wapbk_booking_status', true ) );
@@ -442,7 +442,7 @@ final class Observer_Pass_Report_Service {
 			'item_label'         => (string) $item->get_name(),
 			'pass_type'          => $pass_type,
 			'name'               => $contact['name'],
-			'purchaser_name'     => $contact['name'],
+			'purchaser_name'     => $holder_name,
 			'email'              => $contact['email'],
 			'phone'              => $contact['phone'],
 			'address_summary'    => $contact['address_summary'],

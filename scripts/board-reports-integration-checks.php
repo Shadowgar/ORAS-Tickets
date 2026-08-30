@@ -637,6 +637,15 @@ function oras_board_reports_run_checks(): void {
 		$missing_holder_order->save();
 		$created_orders[] = $missing_holder_order;
 
+		$zero_quantity_order = oras_board_reports_create_order( $annual_product_id, 1 );
+		$zero_quantity_item = current( $zero_quantity_order->get_items( 'line_item' ) );
+		if ( ! $zero_quantity_item instanceof WC_Order_Item_Product ) {
+			oras_board_reports_fail( 'Zero-quantity Observer line item missing' );
+		}
+		$zero_quantity_item->set_quantity( 0 );
+		$zero_quantity_item->save();
+		$created_orders[] = $zero_quantity_order;
+
 		$dollar_refund_order = oras_board_reports_create_order( $annual_product_id, 1 );
 		oras_board_reports_set_order_date( $dollar_refund_order, new DateTimeImmutable( '2026-08-03 12:00:00', wp_timezone() ) );
 		oras_board_reports_refund_order_amount( $dollar_refund_order, 20.0 );
@@ -647,6 +656,7 @@ function oras_board_reports_run_checks(): void {
 		$missing_date_row = oras_board_reports_find_order_row( $edge_report['all_rows'], $missing_date_order );
 		$malformed_date_row = oras_board_reports_find_order_row( $edge_report['all_rows'], $malformed_date_order );
 		$missing_holder_row = oras_board_reports_find_order_row( $edge_report['all_rows'], $missing_holder_order );
+		$zero_quantity_row = oras_board_reports_find_order_row( $edge_report['all_rows'], $zero_quantity_order );
 		$dollar_refund_row = oras_board_reports_find_order_row( $edge_report['all_rows'], $dollar_refund_order );
 
 		oras_board_reports_assert_same( $unknown_booking_row['operational_status'], Observer_Pass_Report_Service::STATUS_TODAY, 'Unknown booking retains its Today date classification' );
@@ -657,6 +667,10 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert_same( $missing_date_row['operational_status'], Observer_Pass_Report_Service::STATUS_DATE_MISSING, 'Missing Daily dates remain auditable and invalid' );
 		oras_board_reports_assert_same( $malformed_date_row['operational_status'], Observer_Pass_Report_Service::STATUS_DATE_MISSING, 'Malformed Daily dates remain auditable and invalid' );
 		oras_board_reports_assert_same( $missing_holder_row['holder_names'], array(), 'Missing purchaser billing name produces no holder names' );
+		oras_board_reports_assert_same( $missing_holder_row['purchaser_name'], '', 'Missing purchaser billing name does not substitute private email as identity' );
+		oras_board_reports_assert_same( $zero_quantity_row['quantity'], 0, 'Zero source quantity is not fabricated as one pass' );
+		oras_board_reports_assert_same( $zero_quantity_row['valid_quantity'], 0, 'Zero source quantity has zero valid quantity' );
+		oras_board_reports_assert_same( $zero_quantity_row['is_valid'], false, 'Zero source quantity cannot become a valid pass' );
 		oras_board_reports_assert_same( $dollar_refund_row['refunded_quantity'], 0, 'Dollar-only refund does not invent a refunded quantity' );
 		oras_board_reports_assert_same( $dollar_refund_row['valid_quantity'], 1, 'Dollar-only refund leaves valid quantity unchanged' );
 		oras_board_reports_assert_same( $dollar_refund_row['is_valid'], true, 'Dollar-only refund leaves pass validity unchanged' );
@@ -875,6 +889,11 @@ function oras_board_reports_run_checks(): void {
 			$annual_report,
 			array_merge( $default_observer_filters, array( 'pass_type' => 'annual' ) )
 		);
+		$annual_list_start = strpos( $annual_dashboard_html, 'id="oras-active-annual-list"' );
+		$annual_list_end = false !== $annual_list_start ? strpos( $annual_dashboard_html, '</section>', $annual_list_start ) : false;
+		$annual_list_html = false !== $annual_list_start && false !== $annual_list_end ? substr( $annual_dashboard_html, $annual_list_start, $annual_list_end - $annual_list_start ) : '';
+		oras_board_reports_assert( false !== strpos( $annual_list_html, 'board.buyer@example.org' ), 'Active Annual verification displays email when present' );
+		oras_board_reports_assert( false !== strpos( $annual_list_html, 'data-search="board buyer board buyer board.buyer@example.org"' ), 'Active Annual instant search indexes email' );
 		foreach ( $observer_report['summary'] as $summary_key => $summary_value ) {
 			oras_board_reports_assert( false !== strpos( $annual_dashboard_html, 'data-observer-summary="' . $summary_key . '" data-value="' . $summary_value . '"' ), 'Summary card remains invariant under filtering for ' . $summary_key );
 		}
@@ -1066,8 +1085,9 @@ function oras_board_reports_run_checks(): void {
 		$prepare_print = new ReflectionMethod( Board_Reports::class, 'prepare_observer_print_response' );
 		$fresh_print_today = current_datetime()->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
 		$fresh_print_order = oras_board_reports_create_order( $daily_product_id, 1 );
-		$fresh_print_order->set_billing_first_name( 'Fresh' );
-		$fresh_print_order->set_billing_last_name( 'Print Visitor' );
+		$fresh_print_order->set_billing_first_name( '' );
+		$fresh_print_order->set_billing_last_name( '' );
+		$fresh_print_order->set_billing_email( 'fresh.private@example.org' );
 		$fresh_print_order->save();
 		oras_board_reports_set_daily_dates(
 			$fresh_print_order,
@@ -1084,10 +1104,11 @@ function oras_board_reports_run_checks(): void {
 		$prepared_print_response = $prepare_print->invoke( null );
 		oras_board_reports_assert_same( $prepared_print_response['status'], 200, 'Authorized user with valid nonce receives a print response' );
 		oras_board_reports_assert(
-			false !== strpos( $prepared_print_response['document'], 'Fresh Print Visitor' )
+			false !== strpos( $prepared_print_response['document'], 'Not recorded' )
 			&& false !== strpos( $prepared_print_response['document'], '#' . $fresh_print_order->get_order_number() ),
-			'Print request obtains a fresh unfiltered Observer snapshot'
+			'Print request obtains a fresh unfiltered Observer snapshot with a safe missing-identity fallback'
 		);
+		oras_board_reports_assert( false === strpos( $prepared_print_response['document'], 'fresh.private@example.org' ), 'Service-produced print rows never substitute private email as identity' );
 		oras_board_reports_assert( false === strpos( $prepared_print_response['document'], 'Injected Visitor' ) && false === strpos( $prepared_print_response['document'], '999999' ), 'Query-string values cannot inject arbitrary print rows' );
 
 		$print_scan_failure = static function ( array $ids ): array {

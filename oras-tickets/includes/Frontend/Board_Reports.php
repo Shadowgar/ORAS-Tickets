@@ -1361,11 +1361,11 @@ final class Board_Reports {
 			<div class="oras-board-reports__observer-section-heading oras-board-reports__observer-annual-heading">
 				<div>
 					<h4 id="oras-observer-annual-title"><?php echo esc_html__( 'Active Annual Observer Passes', 'oras-tickets' ); ?></h4>
-					<p><?php echo esc_html__( 'Search by purchaser or passholder name for quick verification.', 'oras-tickets' ); ?></p>
+					<p><?php echo esc_html__( 'Search by purchaser or passholder name or email for quick verification.', 'oras-tickets' ); ?></p>
 				</div>
 				<label class="oras-board-reports__observer-annual-search">
 					<?php echo esc_html__( 'Find an active passholder', 'oras-tickets' ); ?>
-					<input type="search" autocomplete="off" placeholder="<?php echo esc_attr__( 'Search names', 'oras-tickets' ); ?>" aria-controls="oras-active-annual-list" data-oras-observer-annual-search />
+					<input type="search" autocomplete="off" placeholder="<?php echo esc_attr__( 'Search names or email', 'oras-tickets' ); ?>" aria-controls="oras-active-annual-list" data-oras-observer-annual-search />
 				</label>
 			</div>
 			<p class="oras-board-reports__observer-live-count" aria-live="polite" data-oras-observer-annual-status>
@@ -1387,13 +1387,17 @@ final class Board_Reports {
 						<?php
 						$identity = self::get_observer_identity( $row );
 						$holder_names = self::get_observer_holder_names( $row );
-						$search_value = strtolower( trim( $identity . ' ' . implode( ' ', $holder_names ) ) );
+						$email = self::get_observer_value( $row, 'email' );
+						$search_value = strtolower( trim( $identity . ' ' . implode( ' ', $holder_names ) . ' ' . $email ) );
 						$status = self::get_observer_status_presentation( $row );
 						?>
 						<article class="oras-board-reports__observer-annual-card" data-observer-annual-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>">
 							<div>
 								<h5><?php echo esc_html( $identity ); ?></h5>
 								<p><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></p>
+								<?php if ( '' !== $email ) : ?>
+									<p><?php echo esc_html( $email ); ?></p>
+								<?php endif; ?>
 							</div>
 							<div class="oras-board-reports__observer-annual-expiration">
 								<span><?php echo esc_html__( 'Expires', 'oras-tickets' ); ?></span>
