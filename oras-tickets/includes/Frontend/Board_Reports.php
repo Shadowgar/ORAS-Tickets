@@ -27,6 +27,8 @@ final class Board_Reports {
 	private const WAITLIST_ACTION = 'oras_board_reports_update_waitlist';
 	private const ATTENTION_NONCE_ACTION = 'oras_board_reports_attention';
 	private const ATTENTION_ACTION = 'oras_board_reports_update_attention_status';
+	private const OBSERVER_PRINT_ACTION = 'oras_board_reports_print_observers_today';
+	private const OBSERVER_PRINT_NONCE = 'oras_board_reports_print_observers_today';
 	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
@@ -46,6 +48,7 @@ final class Board_Reports {
 		add_action( 'admin_post_' . self::APPROVAL_ACTION, array( self::class, 'handle_update_rsvp_approval' ) );
 		add_action( 'admin_post_' . self::WAITLIST_ACTION, array( self::class, 'handle_update_waitlist' ) );
 		add_action( 'admin_post_' . self::ATTENTION_ACTION, array( self::class, 'handle_update_attention_status' ) );
+		add_action( 'admin_post_' . self::OBSERVER_PRINT_ACTION, array( self::class, 'handle_print_observers_today' ) );
 	}
 
 	/**
@@ -1272,7 +1275,7 @@ final class Board_Reports {
 				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'No Observer Pass records found.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
 				<?php self::render_observer_summary_cards( is_array( $report['summary'] ?? null ) ? $report['summary'] : array() ); ?>
-				<?php self::render_observer_today_list( is_array( $report['today_rows'] ?? null ) ? $report['today_rows'] : array() ); ?>
+				<?php self::render_observer_today_list( is_array( $report['today_rows'] ?? null ) ? $report['today_rows'] : array(), $page_id ); ?>
 				<?php self::render_observer_annual_list( is_array( $report['active_annual_rows'] ?? null ) ? $report['active_annual_rows'] : array() ); ?>
 				<?php self::render_observer_filters( $filters, $page_id ); ?>
 				<?php self::render_observer_table( is_array( $report['rows'] ?? null ) ? $report['rows'] : array(), $filters, $page_id ); ?>
@@ -1307,7 +1310,7 @@ final class Board_Reports {
 	/**
 	 * @param array<int,array<string,mixed>> $rows Valid Daily passes for today.
 	 */
-	private static function render_observer_today_list( array $rows ): void {
+	private static function render_observer_today_list( array $rows, int $page_id = 0 ): void {
 		$today = current_datetime()->setTimezone( wp_timezone() );
 		?>
 		<section class="oras-board-reports__observer-section oras-board-reports__observer-today" aria-labelledby="oras-observer-today-title">
@@ -1316,6 +1319,9 @@ final class Board_Reports {
 					<h4 id="oras-observer-today-title"><?php echo esc_html__( "Today's Daily Observers", 'oras-tickets' ); ?></h4>
 					<p><?php echo esc_html( wp_date( get_option( 'date_format' ), $today->getTimestamp(), wp_timezone() ) ); ?></p>
 				</div>
+				<?php if ( ! empty( $rows ) ) : ?>
+					<a class="button" href="<?php echo esc_url( self::build_observer_print_url( $page_id ) ); ?>" data-oras-observer-print><?php echo esc_html__( "Print Today's List", 'oras-tickets' ); ?></a>
+				<?php endif; ?>
 			</div>
 			<?php if ( empty( $rows ) ) : ?>
 				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No Daily Observers scheduled for today.', 'oras-tickets' ); ?></div>
@@ -1783,6 +1789,147 @@ final class Board_Reports {
 		}
 
 		return add_query_arg( $args, self::get_form_action_url() );
+	}
+
+	private static function build_observer_print_url( int $page_id ): string {
+		$args = array( 'action' => self::OBSERVER_PRINT_ACTION );
+		if ( $page_id > 0 ) {
+			$args['page_id'] = $page_id;
+		}
+
+		return wp_nonce_url( add_query_arg( $args, admin_url( 'admin-post.php' ) ), self::OBSERVER_PRINT_NONCE );
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Normalized Observer rows.
+	 */
+	private static function build_observer_print_document( array $rows, \DateTimeImmutable $today ): string {
+		return self::build_observer_print_document_for_state( $rows, $today, true );
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Normalized Observer rows.
+	 */
+	private static function build_observer_print_document_for_state( array $rows, \DateTimeImmutable $today, bool $available ): string {
+		$rows = array_values(
+			array_filter(
+				$rows,
+				static function ( array $row ): bool {
+					return Observer_Pass_Report_Service::PASS_DAILY === ( $row['pass_type'] ?? '' )
+						&& Observer_Pass_Report_Service::STATUS_TODAY === ( $row['operational_status'] ?? '' )
+						&& ! empty( $row['is_valid'] )
+						&& absint( $row['valid_quantity'] ?? 0 ) > 0;
+				}
+			)
+		);
+
+		usort(
+			$rows,
+			static function ( array $left, array $right ): int {
+				$name_comparison = strcasecmp( self::get_observer_identity( $left ), self::get_observer_identity( $right ) );
+				if ( 0 !== $name_comparison ) {
+					return $name_comparison;
+				}
+
+				return absint( $left['order_id'] ?? 0 ) <=> absint( $right['order_id'] ?? 0 );
+			}
+		);
+
+		$total    = array_sum( array_map( static fn( array $row ): int => absint( $row['valid_quantity'] ?? 0 ), $rows ) );
+		$date     = wp_date( get_option( 'date_format' ), $today->getTimestamp(), $today->getTimezone() );
+		$back_url = self::build_observer_print_back_url();
+
+		ob_start();
+		?>
+<!doctype html>
+<html lang="<?php echo esc_attr( get_bloginfo( 'language' ) ); ?>">
+<head>
+	<meta charset="<?php echo esc_attr( get_bloginfo( 'charset' ) ); ?>">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title><?php echo esc_html__( "Today's Daily Observers", 'oras-tickets' ); ?></title>
+	<style>
+		:root { color-scheme: light; }
+		* { box-sizing: border-box; }
+		body { margin: 0; background: #eef2f6; color: #172033; font: 16px/1.45 Arial, sans-serif; }
+		.observer-print { width: min(8.5in, 100%); min-height: 11in; margin: 24px auto; padding: .65in; background: #fff; }
+		.observer-print__brand { margin: 0 0 6px; color: #315f3a; font-size: 14px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+		h1 { margin: 0; font-size: 28px; }
+		.observer-print__date { margin: 8px 0 28px; color: #4b5563; }
+		.observer-print__controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }
+		.observer-print__controls button, .observer-print__controls a { display: inline-block; border: 1px solid #315f3a; border-radius: 4px; padding: 9px 14px; background: #315f3a; color: #fff; font: inherit; text-decoration: none; cursor: pointer; }
+		.observer-print__controls a { background: #fff; color: #315f3a; }
+		table { width: 100%; border-collapse: collapse; }
+		th, td { border-bottom: 1px solid #cfd6df; padding: 10px 8px; text-align: left; vertical-align: top; }
+		th { border-top: 2px solid #315f3a; background: #f5f7f5; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; }
+		.quantity { width: 100px; text-align: center; }
+		.order { width: 110px; white-space: nowrap; }
+		.observer-print__empty { border: 1px solid #cfd6df; padding: 18px; background: #f8fafc; }
+		.observer-print__total { margin: 22px 0 0; padding-top: 14px; border-top: 2px solid #315f3a; font-weight: 700; text-align: right; }
+		@media (max-width: 520px) {
+			.observer-print { min-height: 0; margin: 0; padding: 24px 16px; }
+			h1 { font-size: 24px; }
+			th, td { padding: 9px 5px; }
+			.quantity { width: 74px; }
+			.order { width: 82px; }
+		}
+		@page { size: Letter; margin: .5in; }
+		@media print {
+			body { background: #fff; }
+			.observer-print { width: auto; min-height: 0; margin: 0; padding: 0; }
+			.observer-print__controls { display: none !important; }
+		}
+	</style>
+</head>
+<body>
+	<main class="observer-print">
+		<p class="observer-print__brand">ORAS</p>
+		<h1><?php echo esc_html__( "Today's Daily Observers", 'oras-tickets' ); ?></h1>
+		<p class="observer-print__date"><?php echo esc_html( $date ); ?></p>
+		<div class="observer-print__controls">
+			<button type="button" onclick="window.print()"><?php echo esc_html__( 'Print', 'oras-tickets' ); ?></button>
+			<a href="<?php echo esc_url( $back_url ); ?>"><?php echo esc_html__( 'Back to Board Reports', 'oras-tickets' ); ?></a>
+		</div>
+		<?php if ( ! $available ) : ?>
+			<p class="observer-print__empty"><?php echo esc_html__( 'Observer Pass reporting is currently unavailable.', 'oras-tickets' ); ?></p>
+		<?php elseif ( empty( $rows ) ) : ?>
+			<p class="observer-print__empty"><?php echo esc_html__( 'No Daily Observers scheduled for today.', 'oras-tickets' ); ?></p>
+		<?php else : ?>
+			<table>
+				<thead>
+					<tr>
+						<th scope="col"><?php echo esc_html__( 'Purchaser / Passholder', 'oras-tickets' ); ?></th>
+						<th scope="col" class="quantity"><?php echo esc_html__( 'Valid Qty', 'oras-tickets' ); ?></th>
+						<th scope="col" class="order"><?php echo esc_html__( 'Order', 'oras-tickets' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
+						<?php $order_number = trim( self::get_observer_value( $row, 'order_number' ) ); ?>
+						<tr>
+							<td><?php echo esc_html( self::get_observer_identity( $row ) ); ?></td>
+							<td class="quantity"><?php echo esc_html( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?></td>
+							<td class="order"><?php echo '' !== $order_number ? esc_html( '#' . ltrim( $order_number, '#' ) ) : esc_html__( 'Not recorded', 'oras-tickets' ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p class="observer-print__total"><?php echo esc_html( sprintf( /* translators: %d: valid Daily Observer pass quantity. */ __( 'Total valid Daily passes: %d', 'oras-tickets' ), $total ) ); ?></p>
+		<?php endif; ?>
+	</main>
+</body>
+</html>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	private static function build_observer_print_back_url(): string {
+		$page_id = isset( $_REQUEST['page_id'] ) && is_scalar( $_REQUEST['page_id'] ) ? absint( wp_unslash( $_REQUEST['page_id'] ) ) : 0;
+		$base_url = $page_id > 0 ? get_permalink( $page_id ) : '';
+		if ( ! is_string( $base_url ) || '' === $base_url ) {
+			$base_url = home_url( '/' );
+		}
+
+		return add_query_arg( 'oras_board_tab', self::TAB_OBSERVER_PASSES, $base_url );
 	}
 
 	private static function render_ticket_sales_tab( int $page_id ): void {
@@ -2809,6 +2956,50 @@ final class Board_Reports {
 
 		wp_safe_redirect( add_query_arg( 'oras_attention_status', $updated ? 'updated' : 'failed', $redirect ) );
 		exit;
+	}
+
+	public static function handle_print_observers_today(): void {
+		$response = self::prepare_observer_print_response();
+
+		status_header( $response['status'] );
+		nocache_headers();
+		if ( ! headers_sent() ) {
+			header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+		}
+
+		echo $response['document']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Complete document is escaped by the private renderer.
+		exit;
+	}
+
+	/**
+	 * @return array{status:int,document:string}
+	 */
+	private static function prepare_observer_print_response(): array {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_view_board_dashboard' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die(
+				esc_html__( 'You do not have permission to print this report.', 'oras-tickets' ),
+				'',
+				array( 'response' => 403 )
+			);
+		}
+
+		check_admin_referer( self::OBSERVER_PRINT_NONCE );
+
+		$today  = current_datetime()->setTimezone( wp_timezone() );
+		$report = ( new Observer_Pass_Report_Service() )->get_report();
+		if ( true !== ( $report['available'] ?? false ) ) {
+			return array(
+				'status'   => 503,
+				'document' => self::build_observer_print_document_for_state( array(), $today, false ),
+			);
+		}
+
+		$rows = is_array( $report['today_rows'] ?? null ) ? $report['today_rows'] : array();
+
+		return array(
+			'status'   => 200,
+			'document' => self::build_observer_print_document( $rows, $today ),
+		);
 	}
 
 	public static function handle_export_csv(): void {

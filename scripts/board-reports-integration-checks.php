@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Oras_Board_Reports_Check_Exception extends RuntimeException {}
+final class Oras_Board_Reports_Wp_Die_Exception extends RuntimeException {}
 function oras_board_reports_fail( string $message ): void {
 	throw new Oras_Board_Reports_Check_Exception( $message );
 }
@@ -43,6 +44,28 @@ function oras_board_reports_assert_same( $actual, $expected, string $message ): 
 	}
 
 	echo 'PASS: ' . $message . "\n";
+}
+
+/**
+ * @param callable():void $callback
+ */
+function oras_board_reports_capture_wp_die( callable $callback ): string {
+	$handler_filter = static function (): callable {
+		return static function ( $message ): void {
+			$text = is_scalar( $message ) ? wp_strip_all_tags( (string) $message ) : '';
+			throw new Oras_Board_Reports_Wp_Die_Exception( $text );
+		};
+	};
+	add_filter( 'wp_die_handler', $handler_filter );
+	try {
+		$callback();
+	} catch ( Oras_Board_Reports_Wp_Die_Exception $error ) {
+		return $error->getMessage();
+	} finally {
+		remove_filter( 'wp_die_handler', $handler_filter );
+	}
+
+	oras_board_reports_fail( 'Expected WordPress to reject the request' );
 }
 
 /**
@@ -266,6 +289,11 @@ function oras_board_reports_run_checks(): void {
 
 	oras_board_reports_assert( shortcode_exists( 'oras_board_reports' ), 'Board reports shortcode is registered' );
 	oras_board_reports_assert( has_action( 'admin_post_oras_board_reports_export_csv' ) !== false, 'Board reports export action is registered' );
+	oras_board_reports_assert(
+		has_action( 'admin_post_oras_board_reports_print_observers_today', array( Board_Reports::class, 'handle_print_observers_today' ) ) !== false,
+		'Authenticated Today Observer print action is registered'
+	);
+	oras_board_reports_assert( false === has_action( 'admin_post_nopriv_oras_board_reports_print_observers_today' ), 'No unauthenticated Today Observer print action is registered' );
 	oras_board_reports_assert( function_exists( 'wc_create_order' ), 'WooCommerce is available' );
 
 	$admin_ids = get_users(
@@ -285,6 +313,8 @@ function oras_board_reports_run_checks(): void {
 	$created_orders = array();
 	$created_attention_ids = array();
 	$original_get = $_GET;
+	$original_post = $_POST;
+	$original_request = $_REQUEST;
 
 	try {
 		$event_id = wp_insert_post(
@@ -891,11 +921,199 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-oras-observer-annual-search' ), 'Active Annual verification includes instant search' );
 		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'aria-live="polite" data-oras-observer-annual-status' ), 'Active Annual verification includes an accessible live count' );
 		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-observer-annual-order="' . $missing_holder_order->get_id() . '"' ) && false !== strpos( $edge_dashboard_html, 'Not recorded' ), 'Missing purchaser name renders Not recorded' );
+
+		preg_match( '/href="([^"]+)"[^>]*data-oras-observer-print/', $edge_dashboard_html, $print_url_match );
+		$print_url = isset( $print_url_match[1] ) ? html_entity_decode( $print_url_match[1], ENT_QUOTES ) : '';
+		parse_str( (string) wp_parse_url( $print_url, PHP_URL_QUERY ), $print_url_args );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, esc_html__( "Print Today's List", 'oras-tickets' ) ), 'Today list exposes the print action when valid observers exist' );
+		oras_board_reports_assert( false !== strpos( (string) wp_parse_url( $print_url, PHP_URL_PATH ), '/wp-admin/admin-post.php' ), 'Today print action targets authenticated admin-post.php' );
+		oras_board_reports_assert_same( $print_url_args['action'] ?? '', 'oras_board_reports_print_observers_today', 'Today print URL uses the dedicated action' );
+		oras_board_reports_assert( isset( $print_url_args['_wpnonce'] ) && 1 === wp_verify_nonce( (string) $print_url_args['_wpnonce'], 'oras_board_reports_print_observers_today' ), 'Today print URL contains a valid dedicated nonce' );
+		foreach ( array( 'rows', 'names', 'order_ids', 'oras_observer_search', 'oras_observer_page' ) as $untrusted_print_arg ) {
+			oras_board_reports_assert( ! isset( $print_url_args[ $untrusted_print_arg ] ), 'Today print URL excludes browser-supplied report data: ' . $untrusted_print_arg );
+		}
+
+		$valid_alpha_later = array_merge(
+			$daily_row,
+			array(
+				'purchaser_name' => 'Alpha Visitor',
+				'order_id'       => 7001,
+				'order_number'   => '7001',
+				'quantity'       => 1,
+				'valid_quantity' => 1,
+				'email'          => 'alpha.private@example.org',
+				'phone'          => '555-7001',
+				'payment_method' => 'forbidden-gateway',
+			)
+		);
+		$valid_alpha_first = array_merge( $valid_alpha_later, array( 'order_id' => 7000, 'order_number' => '7000' ) );
+		$valid_partial = array_merge(
+			$daily_row,
+			array(
+				'purchaser_name' => 'Zulu Visitor',
+				'order_id'       => 7002,
+				'order_number'   => '7002',
+				'quantity'       => 3,
+				'valid_quantity' => 2,
+				'refunded_quantity' => 1,
+				'transaction_id' => 'forbidden-transaction',
+			)
+		);
+		$valid_missing_name = array_merge(
+			$daily_row,
+			array(
+				'purchaser_name' => '',
+				'order_id'       => 7003,
+				'order_number'   => '7003',
+				'quantity'       => 1,
+				'valid_quantity' => 1,
+			)
+		);
+		$excluded_print_rows = array(
+			array_merge( $daily_row, array( 'purchaser_name' => 'Upcoming Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_UPCOMING ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Past Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_PAST, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Unknown Excluded', 'booking_status' => 'awaiting-review', 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Cancelled Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_CANCELLED, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Refunded Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_REFUNDED, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Failed Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_FAILED, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Unpaid Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_UNPAID, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Missing Date Excluded', 'operational_status' => Observer_Pass_Report_Service::STATUS_DATE_MISSING, 'is_valid' => false ) ),
+			array_merge( $daily_row, array( 'purchaser_name' => 'Zero Quantity Excluded', 'valid_quantity' => 0 ) ),
+			array_merge( $annual_row, array( 'purchaser_name' => 'Annual Excluded' ) ),
+		);
+		$print_builder = new ReflectionMethod( Board_Reports::class, 'build_observer_print_document' );
+		$print_today = new DateTimeImmutable( '2026-08-29 12:00:00', new DateTimeZone( 'America/New_York' ) );
+		$print_document = (string) $print_builder->invoke(
+			null,
+			array_merge( $excluded_print_rows, array( $valid_partial, $valid_alpha_later, $valid_missing_name, $valid_alpha_first ) ),
+			$print_today
+		);
+		$print_text = html_entity_decode( wp_strip_all_tags( $print_document ), ENT_QUOTES | ENT_HTML5 );
+		oras_board_reports_assert( 0 === strpos( $print_document, '<!doctype html>' ), 'Print output is a standalone HTML document' );
+		oras_board_reports_assert( false !== strpos( $print_text, "Today's Daily Observers" ), 'Print output contains the operational title' );
+		oras_board_reports_assert( false !== strpos( $print_document, wp_date( get_option( 'date_format' ), $print_today->getTimestamp(), $print_today->getTimezone() ) ), 'Print date uses the supplied WordPress-local instant' );
+		foreach ( array( 'Alpha Visitor', 'Zulu Visitor', 'Not recorded', '#7000', '#7001', '#7002', '#7003' ) as $expected_print_value ) {
+			oras_board_reports_assert( false !== strpos( $print_document, $expected_print_value ), 'Print output contains allowed operational value: ' . $expected_print_value );
+		}
+		oras_board_reports_assert( strpos( $print_document, '#7000' ) < strpos( $print_document, '#7001' ) && strpos( $print_document, '#7001' ) < strpos( $print_document, 'Zulu Visitor' ), 'Print rows sort by identity with stable order-ID tie-breaker' );
+		oras_board_reports_assert( false !== strpos( $print_document, '<td class="quantity">2</td>' ), 'Partial quantity refund prints only remaining valid quantity' );
+		oras_board_reports_assert( false !== strpos( $print_document, 'Total valid Daily passes: 5' ), 'Print total sums valid quantity rather than row count' );
+		foreach ( array( 'Upcoming Excluded', 'Past Excluded', 'Unknown Excluded', 'Cancelled Excluded', 'Refunded Excluded', 'Failed Excluded', 'Unpaid Excluded', 'Missing Date Excluded', 'Zero Quantity Excluded', 'Annual Excluded' ) as $excluded_print_value ) {
+			oras_board_reports_assert( false === strpos( $print_document, $excluded_print_value ), 'Print output excludes ineligible row: ' . $excluded_print_value );
+		}
+		foreach ( array( 'alpha.private@example.org', '555-7001', 'forbidden-gateway', 'forbidden-transaction', 'wpadminbar', 'oras-board-reports__tabs', 'Filter Observer Passes', 'Active Annual Observer Passes' ) as $private_print_value ) {
+			oras_board_reports_assert( false === stripos( $print_document, $private_print_value ), 'Print output excludes private or unrelated content: ' . $private_print_value );
+		}
+		oras_board_reports_assert( false !== strpos( $print_document, '@media print' ) && false !== strpos( $print_document, 'window.print()' ), 'Print document provides print-safe CSS and an explicit print control' );
+		$print_media_position = strpos( $print_document, '@media print' );
+		$hidden_controls_position = false !== $print_media_position ? strpos( $print_document, '.observer-print__controls { display: none !important; }', $print_media_position ) : false;
+		oras_board_reports_assert( false !== $hidden_controls_position, 'Print and Back controls are hidden by the print-media rule' );
+		$empty_print_document = (string) $print_builder->invoke( null, array(), $print_today );
+		oras_board_reports_assert( false !== strpos( $empty_print_document, 'No Daily Observers scheduled for today.' ), 'Empty Today print list renders a safe operational state' );
+		$translate_not_recorded = static function ( string $translation, string $text, string $domain ): string {
+			return 'oras-tickets' === $domain && 'Not recorded' === $text ? 'Nicht erfasst' : $translation;
+		};
+		add_filter( 'gettext', $translate_not_recorded, 10, 3 );
+		try {
+			$missing_order_document = (string) $print_builder->invoke(
+				null,
+				array( array_merge( $daily_row, array( 'purchaser_name' => 'Missing Order Visitor', 'order_number' => '' ) ) ),
+				$print_today
+			);
+		} finally {
+			remove_filter( 'gettext', $translate_not_recorded, 10 );
+		}
+		oras_board_reports_assert( false !== strpos( $missing_order_document, 'Nicht erfasst' ) && false === strpos( $missing_order_document, '#Nicht erfasst' ), 'Missing order fallback remains correct when translated' );
+
+		wp_set_current_user( $subscriber_id );
+		$subscriber_print_nonce = wp_create_nonce( 'oras_board_reports_print_observers_today' );
+		$_GET = array( '_wpnonce' => $subscriber_print_nonce );
+		$_POST = array();
+		$_REQUEST = $_GET;
+		$unauthorized_print_error = oras_board_reports_capture_wp_die(
+			static function (): void {
+				Board_Reports::handle_print_observers_today();
+			}
+		);
+		oras_board_reports_assert( false !== strpos( $unauthorized_print_error, 'do not have permission' ), 'Unauthorized print request with a valid nonce is rejected' );
+		$_GET = array( '_wpnonce' => 'invalid' );
+		$_REQUEST = $_GET;
+		$authorization_order_error = oras_board_reports_capture_wp_die(
+			static function (): void {
+				Board_Reports::handle_print_observers_today();
+			}
+		);
+		oras_board_reports_assert( false !== strpos( $authorization_order_error, 'do not have permission' ), 'Print capability is checked before nonce validation' );
+
+		wp_set_current_user( $admin_id );
+		$_GET = array( '_wpnonce' => 'invalid' );
+		$_REQUEST = $_GET;
+		$invalid_nonce_error = oras_board_reports_capture_wp_die(
+			static function (): void {
+				Board_Reports::handle_print_observers_today();
+			}
+		);
+		oras_board_reports_assert( '' !== $invalid_nonce_error, 'Authorized print request with invalid nonce is rejected' );
+		$_GET = array();
+		$_REQUEST = array();
+		$missing_nonce_error = oras_board_reports_capture_wp_die(
+			static function (): void {
+				Board_Reports::handle_print_observers_today();
+			}
+		);
+		oras_board_reports_assert( '' !== $missing_nonce_error, 'Authorized print request with missing nonce is rejected' );
+
+		$prepare_print = new ReflectionMethod( Board_Reports::class, 'prepare_observer_print_response' );
+		$fresh_print_today = current_datetime()->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
+		$fresh_print_order = oras_board_reports_create_order( $daily_product_id, 1 );
+		$fresh_print_order->set_billing_first_name( 'Fresh' );
+		$fresh_print_order->set_billing_last_name( 'Print Visitor' );
+		$fresh_print_order->save();
+		oras_board_reports_set_daily_dates(
+			$fresh_print_order,
+			$fresh_print_today->format( 'Y-m-d' ),
+			$fresh_print_today->modify( '+1 day' )->format( 'Y-m-d' )
+		);
+		$created_orders[] = $fresh_print_order;
+		$_GET = array(
+			'_wpnonce' => wp_create_nonce( 'oras_board_reports_print_observers_today' ),
+			'rows'     => 'Injected Visitor',
+			'order_id' => '999999',
+		);
+		$_REQUEST = $_GET;
+		$prepared_print_response = $prepare_print->invoke( null );
+		oras_board_reports_assert_same( $prepared_print_response['status'], 200, 'Authorized user with valid nonce receives a print response' );
+		oras_board_reports_assert(
+			false !== strpos( $prepared_print_response['document'], 'Fresh Print Visitor' )
+			&& false !== strpos( $prepared_print_response['document'], '#' . $fresh_print_order->get_order_number() ),
+			'Print request obtains a fresh unfiltered Observer snapshot'
+		);
+		oras_board_reports_assert( false === strpos( $prepared_print_response['document'], 'Injected Visitor' ) && false === strpos( $prepared_print_response['document'], '999999' ), 'Query-string values cannot inject arbitrary print rows' );
+
+		$print_scan_failure = static function ( array $ids ): array {
+			throw new RuntimeException( 'Intentional private print failure' );
+		};
+		add_filter( 'oras_tickets_observer_daily_product_ids', $print_scan_failure, 999 );
+		$_GET = array( '_wpnonce' => wp_create_nonce( 'oras_board_reports_print_observers_today' ) );
+		$_REQUEST = $_GET;
+		try {
+			$failed_print_response = $prepare_print->invoke( null );
+		} finally {
+			remove_filter( 'oras_tickets_observer_daily_product_ids', $print_scan_failure, 999 );
+		}
+		oras_board_reports_assert_same( $failed_print_response['status'], 503, 'Observer print service failure fails closed with an unavailable response' );
+		oras_board_reports_assert( false !== strpos( $failed_print_response['document'], 'Observer Pass reporting is currently unavailable.' ), 'Observer print service failure shows a generic safe message' );
+		oras_board_reports_assert( false === strpos( $failed_print_response['document'], 'Intentional private print failure' ), 'Observer print failure does not expose exception details' );
+		$_POST = $original_post;
+		$_REQUEST = $original_request;
+		wp_set_current_user( $admin_id );
+
 		$empty_quick_lists_report = $edge_report;
 		$empty_quick_lists_report['today_rows'] = array();
 		$empty_quick_lists_report['active_annual_rows'] = array();
 		$empty_quick_lists_html = oras_board_reports_render_observer_dashboard( $empty_quick_lists_report, $default_observer_filters );
 		oras_board_reports_assert( false !== strpos( $empty_quick_lists_html, 'No Daily Observers scheduled for today.' ), 'Today quick list has a specific empty state' );
+		oras_board_reports_assert( false === strpos( $empty_quick_lists_html, 'data-oras-observer-print' ), 'Today quick list omits the print action when there are no valid observers' );
 		oras_board_reports_assert( false !== strpos( $empty_quick_lists_html, 'No active Annual Observer Passes found.' ), 'Active Annual quick list has a specific empty state' );
 
 		$expiring_dashboard_html = oras_board_reports_render_observer_dashboard(
@@ -1019,6 +1237,8 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( false === stripos( $failed_observer_html, 'Intentional Observer Pass integration failure' ), 'Observer failure does not expose exception details' );
 	} finally {
 		$_GET = $original_get;
+		$_POST = $original_post;
+		$_REQUEST = $original_request;
 		global $wpdb;
 		foreach ( $created_attention_ids as $attention_id ) {
 			$wpdb->delete( Event_Question_Attention_Store::table_name(), array( 'id' => $attention_id ), array( '%d' ) );
