@@ -308,7 +308,7 @@ oras_phase1h_assert( false !== strpos( $board_reports, "'Roster'" ), 'Board repo
 oras_phase1h_assert( false !== strpos( $board_reports, 'TAB_OBSERVER_PASSES' ), 'Board reports include Observer Passes tab' );
 oras_phase1h_assert( false !== strpos( $board_reports, "'Observer Passes'" ), 'Board reports expose Observer Passes label' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'render_observer_passes_tab' ), 'Observer Passes uses a dedicated renderer' );
-oras_phase1h_assert( 1 === substr_count( $board_reports, '( new Observer_Pass_Report_Service() )->get_report()' ), 'Observer Passes obtains exactly one normalized report snapshot' );
+oras_phase1h_assert( 1 === substr_count( $board_reports, 'new Observer_Pass_Report_Service()' ), 'Observer Passes obtains exactly one normalized report snapshot' );
 oras_phase1h_assert( false !== strpos( $board_reports, '$filters[\'type\'] = Board_Report_Service::TYPE_TICKETS;' ), 'Ticket Sales tab is locked to ticket rows' );
 oras_phase1h_assert( false === strpos( $board_reports, '<select name="oras_board_report_type">' ), 'Ticket Sales tab no longer exposes generic report type dropdown' );
 oras_phase1h_assert( false !== strpos( $board_reports, 'Content-Type: text/html; charset=UTF-8' ), 'Board communications emails use HTML content type' );

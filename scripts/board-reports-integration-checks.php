@@ -45,6 +45,23 @@ function oras_board_reports_assert_same( $actual, $expected, string $message ): 
 	echo 'PASS: ' . $message . "\n";
 }
 
+/**
+ * @param array<string,mixed> $report
+ * @param array<string,mixed> $filters
+ */
+function oras_board_reports_render_observer_dashboard( array $report, array $filters, int $page_id = 0 ): string {
+	$renderer = new ReflectionMethod( Board_Reports::class, 'render_observer_passes_tab' );
+	ob_start();
+	try {
+		$renderer->invoke( null, $report, $filters, $page_id );
+	} catch ( Throwable $error ) {
+		ob_end_clean();
+		throw $error;
+	}
+
+	return (string) ob_get_clean();
+}
+
 function oras_board_reports_create_user( string $prefix, string $suffix, string $role = 'subscriber' ): int {
 	$login = sanitize_user( $prefix . '_' . $suffix . '_' . wp_generate_password( 4, false ) );
 	$id = wp_create_user( $login, wp_generate_password( 20, true, true ), $login . '@example.org' );
@@ -738,7 +755,20 @@ function oras_board_reports_run_checks(): void {
 			oras_board_reports_assert( false !== strpos( $observer_html, '>' . $existing_tab_label . '<' ), 'Existing tab remains present: ' . $existing_tab_label );
 		}
 		oras_board_reports_assert( false !== strpos( $observer_html, 'oras-board-reports__observer' ), 'Observer Passes routes to its dedicated renderer' );
-		oras_board_reports_assert( false !== strpos( $observer_html, 'Observer Pass records found: ' . count( $after_pagination_report['all_rows'] ) ), 'Observer Passes renders normalized service data' );
+		foreach (
+			array(
+				'Active Annual Passes',
+				'Daily Passes Today',
+				'Upcoming Daily Passes — Next 7 Days',
+				'Upcoming Daily Passes — This Month',
+				"Today's Daily Observers",
+				'Active Annual Observer Passes',
+			) as $required_observer_text
+		) {
+			oras_board_reports_assert( false !== strpos( $observer_html, esc_html( $required_observer_text ) ), 'Observer dashboard contains ' . $required_observer_text );
+		}
+		oras_board_reports_assert_same( substr_count( $observer_html, 'data-observer-summary=' ), 4, 'Observer dashboard renders exactly four summary cards' );
+		oras_board_reports_assert( false === stripos( $observer_html, 'revenue' ), 'Observer dashboard has no revenue card or financial total' );
 		oras_board_reports_assert( false === strpos( $observer_html, 'Load Event Dashboard' ), 'Observer Passes omits the event selector' );
 		oras_board_reports_assert( false === strpos( $observer_html, '<section class="oras-board-reports__overview-grid"' ), 'Observer Passes omits event metrics' );
 		oras_board_reports_assert( false === strpos( $observer_html, '<section class="oras-board-reports__attention-notice"' ), 'Observer Passes omits the event attention center' );
@@ -797,16 +827,182 @@ function oras_board_reports_run_checks(): void {
 			}
 		}
 
-		$observer_renderer = new ReflectionMethod( Board_Reports::class, 'render_observer_passes_tab' );
-		ob_start();
-		$observer_renderer->invoke(
-			null,
+		$default_observer_filters = array(
+			'pass_type'   => 'all',
+			'status'      => 'all',
+			'date_preset' => 'all',
+			'after'       => '',
+			'before'      => '',
+			'search'      => '',
+			'page'        => 1,
+			'per_page'    => 25,
+		);
+		$base_dashboard_html = oras_board_reports_render_observer_dashboard( $observer_report, $default_observer_filters );
+		foreach ( $observer_report['summary'] as $summary_key => $summary_value ) {
+			oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'data-observer-summary="' . $summary_key . '" data-value="' . $summary_value . '"' ), 'Summary card renders complete-snapshot value for ' . $summary_key );
+		}
+		$annual_dashboard_html = oras_board_reports_render_observer_dashboard(
+			$annual_report,
+			array_merge( $default_observer_filters, array( 'pass_type' => 'annual' ) )
+		);
+		foreach ( $observer_report['summary'] as $summary_key => $summary_value ) {
+			oras_board_reports_assert( false !== strpos( $annual_dashboard_html, 'data-observer-summary="' . $summary_key . '" data-value="' . $summary_value . '"' ), 'Summary card remains invariant under filtering for ' . $summary_key );
+		}
+		oras_board_reports_assert( false !== strpos( $annual_dashboard_html, 'data-pass-type="annual"' ), 'Pass-type filter renders Annual rows' );
+		oras_board_reports_assert( false === strpos( $annual_dashboard_html, 'data-pass-type="daily"' ), 'Pass-type filter excludes Daily main-table rows' );
+
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_pass_type"' ), 'Observer filter form uses namespaced pass type' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_status"' ), 'Observer filter form uses namespaced status' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_date_preset"' ), 'Observer filter form uses namespaced operational date' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_after"' ), 'Observer filter form includes a namespaced From date' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_before"' ), 'Observer filter form includes a namespaced To date' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_search"' ), 'Observer filter form uses namespaced search' );
+		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_per_page"' ), 'Observer filter form uses namespaced page size' );
+
+		$get_observer_filters = new ReflectionMethod( Board_Reports::class, 'get_observer_filters_from_request' );
+		$_GET = array(
+			'oras_observer_pass_type'   => 'daily',
+			'oras_observer_status'      => 'today',
+			'oras_observer_date_preset' => 'custom',
+			'oras_observer_after'       => '2026-08-01',
+			'oras_observer_before'      => 'not-a-date',
+			'oras_observer_search'      => ' Board Buyer ',
+			'oras_observer_page'        => '0',
+			'oras_observer_per_page'    => '77',
+		);
+		$parsed_observer_filters = $get_observer_filters->invoke( null );
+		oras_board_reports_assert_same( $parsed_observer_filters['pass_type'], 'daily', 'Observer pass-type request filter is parsed' );
+		oras_board_reports_assert_same( $parsed_observer_filters['status'], 'today', 'Observer status request filter is parsed' );
+		oras_board_reports_assert_same( $parsed_observer_filters['date_preset'], 'custom', 'Observer date-preset request filter is parsed' );
+		oras_board_reports_assert_same( $parsed_observer_filters['after'], '2026-08-01', 'Valid Observer custom From date is retained' );
+		oras_board_reports_assert_same( $parsed_observer_filters['before'], '', 'Invalid Observer custom To date is rejected' );
+		oras_board_reports_assert_same( $parsed_observer_filters['search'], 'Board Buyer', 'Observer search is sanitized' );
+		oras_board_reports_assert_same( $parsed_observer_filters['page'], 1, 'Observer page cannot be below one' );
+		oras_board_reports_assert_same( $parsed_observer_filters['per_page'], 25, 'Unsupported Observer page size falls back safely' );
+
+		$today_order_id = (string) $daily_order->get_id();
+		$edge_dashboard_html = oras_board_reports_render_observer_dashboard( $edge_report, $default_observer_filters );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-observer-today-order="' . $today_order_id . '"' ), 'Today list includes a valid Daily Observer pass' );
+		oras_board_reports_assert( false === strpos( $edge_dashboard_html, 'data-observer-today-order="' . $unknown_booking_order->get_id() . '"' ), 'Today list excludes unknown booking status' );
+		oras_board_reports_assert( false === strpos( $edge_dashboard_html, 'data-observer-today-order="' . $booking_cancelled_order->get_id() . '"' ), 'Today list excludes cancelled Daily booking' );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-observer-annual-order="' . $annual_order->get_id() . '"' ), 'Active Annual verification includes Active pass' );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-observer-annual-order="' . $expiring_order->get_id() . '"' ), 'Active Annual verification includes Expiring Soon pass' );
+		oras_board_reports_assert( false === strpos( $edge_dashboard_html, 'data-observer-annual-order="' . $expired_order->get_id() . '"' ), 'Active Annual verification excludes Expired pass' );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-oras-observer-annual-search' ), 'Active Annual verification includes instant search' );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'aria-live="polite" data-oras-observer-annual-status' ), 'Active Annual verification includes an accessible live count' );
+		oras_board_reports_assert( false !== strpos( $edge_dashboard_html, 'data-observer-annual-order="' . $missing_holder_order->get_id() . '"' ) && false !== strpos( $edge_dashboard_html, 'Not recorded' ), 'Missing purchaser name renders Not recorded' );
+		$empty_quick_lists_report = $edge_report;
+		$empty_quick_lists_report['today_rows'] = array();
+		$empty_quick_lists_report['active_annual_rows'] = array();
+		$empty_quick_lists_html = oras_board_reports_render_observer_dashboard( $empty_quick_lists_report, $default_observer_filters );
+		oras_board_reports_assert( false !== strpos( $empty_quick_lists_html, 'No Daily Observers scheduled for today.' ), 'Today quick list has a specific empty state' );
+		oras_board_reports_assert( false !== strpos( $empty_quick_lists_html, 'No active Annual Observer Passes found.' ), 'Active Annual quick list has a specific empty state' );
+
+		$expiring_dashboard_html = oras_board_reports_render_observer_dashboard(
+			$expiring_report,
+			array_merge( $default_observer_filters, array( 'status' => 'expiring_soon' ) )
+		);
+		oras_board_reports_assert_same( substr_count( $expiring_dashboard_html, 'data-observer-row=' ), count( $expiring_report['rows'] ), 'Status filter controls main-table rows' );
+		$today_dashboard_html = oras_board_reports_render_observer_dashboard(
+			$today_report,
+			array_merge( $default_observer_filters, array( 'date_preset' => 'today' ) )
+		);
+		oras_board_reports_assert_same( substr_count( $today_dashboard_html, 'data-observer-row=' ), count( $today_report['rows'] ), 'Date preset controls main-table rows' );
+		$custom_dashboard_html = oras_board_reports_render_observer_dashboard(
+			$custom_report,
+			array_merge(
+				$default_observer_filters,
+				array(
+					'date_preset' => 'custom',
+					'after'       => '2026-09-01',
+					'before'      => '2026-09-30',
+				)
+			)
+		);
+		oras_board_reports_assert_same( substr_count( $custom_dashboard_html, 'data-observer-row=' ), count( $custom_report['rows'] ), 'Custom date range controls main-table rows' );
+		$order_dashboard_html = oras_board_reports_render_observer_dashboard(
+			$order_report,
+			array_merge( $default_observer_filters, array( 'search' => (string) $daily_order->get_order_number() ) )
+		);
+		oras_board_reports_assert_same( substr_count( $order_dashboard_html, 'data-observer-row=' ), 1, 'Search controls main-table rows' );
+		oras_board_reports_assert( false !== strpos( $order_dashboard_html, (string) $daily_order->get_order_number() ), 'Search result shows matching order number' );
+
+		$main_table_report = $observer_report;
+		$main_table_report['rows'] = array( $annual_row, $daily_row );
+		$main_table_html = oras_board_reports_render_observer_dashboard( $main_table_report, $default_observer_filters );
+		oras_board_reports_assert( false !== strpos( $main_table_html, 'data-pass-type="annual"' ) && false !== strpos( $main_table_html, '2027-08-01' ), 'Main table renders Annual expiration' );
+		oras_board_reports_assert( false !== strpos( $main_table_html, 'data-pass-type="daily"' ) && false !== strpos( $main_table_html, '2026-08-28' ) && false !== strpos( $main_table_html, '2026-08-29' ), 'Main table renders Daily observing range' );
+		foreach ( array( 'Purchaser / Passholder', 'Pass Type', 'Purchase Date', 'Valid Date / Expiration', 'Qty', 'Order', 'Status', 'Details' ) as $column_label ) {
+			oras_board_reports_assert( false !== strpos( $main_table_html, $column_label ), 'Main table contains column ' . $column_label );
+		}
+		oras_board_reports_assert( false !== strpos( $main_table_html, '<details' ), 'Main table rows contain expandable details' );
+		foreach ( array( 'Email', 'Phone', 'WooCommerce status', 'Booking status', 'Validity' ) as $detail_label ) {
+			oras_board_reports_assert( false !== strpos( $main_table_html, $detail_label ), 'Expandable details contain ' . $detail_label );
+		}
+		oras_board_reports_assert( false === strpos( $main_table_html, 'post.php?post=' ), 'Observer details do not link to WooCommerce order editing' );
+		oras_board_reports_assert( false === stripos( $main_table_html, 'payment_method' ), 'Observer details exclude payment method fields' );
+		oras_board_reports_assert( false === strpos( $main_table_html, 'forbidden-transaction' ) && false === strpos( $main_table_html, 'forbidden-stripe-intent' ), 'Observer details exclude transaction metadata' );
+
+		$state_report = $observer_report;
+		$state_report['rows'] = array( $partial_row, $fully_refunded_row, $cancelled_row, $failed_row, $dollar_refund_row, $unknown_booking_row );
+		$state_dashboard_html = oras_board_reports_render_observer_dashboard( $state_report, $default_observer_filters );
+		foreach ( array( 'Refunded', 'Cancelled', 'Failed' ) as $explicit_status ) {
+			oras_board_reports_assert( false !== strpos( $state_dashboard_html, '>' . $explicit_status . '<' ), 'Historical state is visibly explicit: ' . $explicit_status );
+		}
+		oras_board_reports_assert( false !== strpos( $state_dashboard_html, '1 of 2 valid' ), 'Attributable partial refund displays valid quantity' );
+		oras_board_reports_assert( false !== strpos( $state_dashboard_html, 'data-observer-order="' . $dollar_refund_order->get_id() . '"' ) && false !== strpos( $state_dashboard_html, '>1<' ), 'Dollar-only refund leaves visible valid quantity unchanged' );
+		oras_board_reports_assert( false !== strpos( $state_dashboard_html, 'Today — Unconfirmed' ), 'Unknown Daily booking status is visibly invalid or unconfirmed' );
+
+		$page_one_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $default_observer_filters );
+		oras_board_reports_assert_same( substr_count( $page_one_html, 'data-observer-row=' ), 25, 'Default Observer page size renders 25 rows' );
+		$page_fifty_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'per_page' => 50 ) ) );
+		oras_board_reports_assert_same( substr_count( $page_fifty_html, 'data-observer-row=' ), min( 50, count( $after_pagination_report['rows'] ) ), 'Observer page size 50 renders the expected rows' );
+		$page_one_hundred_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'per_page' => 100 ) ) );
+		oras_board_reports_assert_same( substr_count( $page_one_hundred_html, 'data-observer-row=' ), min( 100, count( $after_pagination_report['rows'] ) ), 'Observer page size 100 renders the expected rows' );
+		oras_board_reports_assert( false !== strpos( $page_one_html, 'Page 1 of ' ), 'Observer pagination renders page 1' );
+		preg_match( '/href="([^"]*oras_observer_page=2[^"]*)"[^>]*>Next<\/a>/', $page_one_html, $next_page_match );
+		$next_page_url = isset( $next_page_match[1] ) ? html_entity_decode( $next_page_match[1], ENT_QUOTES ) : '';
+		parse_str( (string) wp_parse_url( $next_page_url, PHP_URL_QUERY ), $next_page_args );
+		oras_board_reports_assert_same( $next_page_args['oras_board_tab'] ?? '', 'observer_passes', 'Observer pagination remains in Observer Passes' );
+		oras_board_reports_assert_same( $next_page_args['oras_observer_per_page'] ?? '', '25', 'Observer pagination preserves page size' );
+		oras_board_reports_assert( ! isset( $next_page_args['oras_board_event_id'] ), 'Observer pagination excludes stale event ID' );
+
+		$page_two_filters = array_merge( $default_observer_filters, array( 'page' => 2 ) );
+		$page_two_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $page_two_filters );
+		oras_board_reports_assert( false !== strpos( $page_two_html, 'Page 2 of ' ), 'Observer pagination renders page 2' );
+		oras_board_reports_assert( false !== strpos( $page_two_html, '>Previous</a>' ) && false !== strpos( $page_two_html, '>Next</a>' ), 'Observer middle page has Previous and Next links' );
+		$last_page = (int) ceil( count( $after_pagination_report['rows'] ) / 25 );
+		$last_page_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'page' => $last_page ) ) );
+		oras_board_reports_assert( false !== strpos( $last_page_html, 'Page ' . $last_page . ' of ' . $last_page ), 'Observer pagination renders the last page' );
+		oras_board_reports_assert( false === strpos( $last_page_html, '>Next</a>' ), 'Observer last page omits Next link' );
+		$invalid_page_html = oras_board_reports_render_observer_dashboard( $expiring_report, array_merge( $default_observer_filters, array( 'page' => 99 ) ) );
+		oras_board_reports_assert( false !== strpos( $invalid_page_html, 'Page 1 of 1' ), 'Invalid filtered Observer page resets to page 1' );
+		$combined_filters = array_merge(
+			$default_observer_filters,
+			array(
+				'pass_type' => 'annual',
+				'status'    => 'active',
+				'search'    => 'Board Buyer',
+				'page'      => 2,
+				'per_page'  => 25,
+			)
+		);
+		$combined_page_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $combined_filters );
+		oras_board_reports_assert( false !== strpos( $combined_page_html, 'oras_observer_pass_type=annual' ) && false !== strpos( $combined_page_html, 'oras_observer_status=active' ) && false !== strpos( $combined_page_html, 'oras_observer_search=Board%20Buyer' ), 'Pagination preserves combined Observer filters' );
+
+		$empty_filtered_report = $observer_report;
+		$empty_filtered_report['rows'] = array();
+		$empty_filtered_html = oras_board_reports_render_observer_dashboard( $empty_filtered_report, array_merge( $default_observer_filters, array( 'search' => 'no-match' ) ) );
+		oras_board_reports_assert( false !== strpos( $empty_filtered_html, 'No Observer Passes match these filters.' ), 'Empty filtered result has a useful message' );
+
+		$empty_observer_html = oras_board_reports_render_observer_dashboard(
 			array(
 				'available' => true,
 				'all_rows'  => array(),
-			)
+				'rows'      => array(),
+			),
+			$default_observer_filters
 		);
-		$empty_observer_html = (string) ob_get_clean();
 		oras_board_reports_assert( false !== strpos( $empty_observer_html, 'No Observer Pass records found.' ), 'Empty Observer data renders a safe board-facing state' );
 
 		$observer_scan_failure = static function ( array $ids ): array {

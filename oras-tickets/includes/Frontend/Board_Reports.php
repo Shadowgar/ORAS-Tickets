@@ -67,8 +67,10 @@ final class Board_Reports {
 		$events = array();
 		$filters = array( 'event_id' => 0 );
 		$observer_report = array( 'available' => false );
+		$observer_filters = array();
 		if ( self::TAB_OBSERVER_PASSES === $active_tab ) {
-			$observer_report = ( new Observer_Pass_Report_Service() )->get_report();
+			$observer_filters = self::get_observer_filters_from_request();
+			$observer_report = ( new Observer_Pass_Report_Service() )->get_report( $observer_filters );
 		} else {
 			$service = new Board_Report_Service();
 			$events = $service->get_events();
@@ -640,6 +642,179 @@ final class Board_Reports {
 					color: #111827;
 					white-space: pre-wrap;
 				}
+				.oras-board-reports .oras-board-reports__observer > h3 {
+					margin: 0 0 16px;
+					font-size: 1.45rem;
+				}
+				.oras-board-reports .oras-board-reports__observer-summary {
+					display: grid;
+					grid-template-columns: repeat(4, minmax(0, 1fr));
+					gap: 12px;
+					margin: 0 0 18px;
+				}
+				.oras-board-reports .oras-board-reports__observer-summary-card {
+					min-width: 0;
+				}
+				.oras-board-reports .oras-board-reports__observer-section {
+					margin: 0 0 18px;
+					padding: 18px;
+					border: 1px solid #d8dee9;
+					border-radius: 14px;
+					background: #ffffff;
+					box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+				}
+				.oras-board-reports .oras-board-reports__observer-section h4 {
+					margin: 0;
+					color: #0f172a;
+					font-size: 1.2rem;
+				}
+				.oras-board-reports .oras-board-reports__observer-section-heading {
+					display: flex;
+					align-items: flex-start;
+					justify-content: space-between;
+					gap: 16px;
+					margin-bottom: 14px;
+				}
+				.oras-board-reports .oras-board-reports__observer-section-heading p {
+					margin: 5px 0 0;
+					color: #475569;
+				}
+				.oras-board-reports .oras-board-reports__observer-operational-list,
+				.oras-board-reports .oras-board-reports__observer-annual-list {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+					gap: 12px;
+				}
+				.oras-board-reports .oras-board-reports__observer-operational-card,
+				.oras-board-reports .oras-board-reports__observer-annual-card {
+					padding: 15px;
+					border: 1px solid #d8dee9;
+					border-radius: 12px;
+					background: #f8fafc;
+				}
+				.oras-board-reports .oras-board-reports__observer-operational-card h5,
+				.oras-board-reports .oras-board-reports__observer-annual-card h5 {
+					margin: 0 0 5px;
+					color: #0f172a;
+					font-size: 1.04rem;
+				}
+				.oras-board-reports .oras-board-reports__observer-operational-card p,
+				.oras-board-reports .oras-board-reports__observer-annual-card p {
+					margin: 4px 0;
+					color: #475569;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-heading {
+					align-items: end;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-search {
+					width: min(100%, 360px);
+				}
+				.oras-board-reports .oras-board-reports__observer-live-count {
+					margin: -4px 0 12px;
+					color: #334155;
+					font-weight: 750;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-card {
+					display: grid;
+					grid-template-columns: minmax(0, 1fr) auto;
+					gap: 10px 14px;
+					align-items: center;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-expiration {
+					display: grid;
+					gap: 2px;
+					text-align: right;
+					font-weight: 700;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-expiration span {
+					color: #64748b;
+					font-size: 0.76rem;
+					font-weight: 800;
+					letter-spacing: 0.04em;
+					text-transform: uppercase;
+				}
+				.oras-board-reports .oras-board-reports__observer-annual-card .oras-board-reports__observer-status {
+					grid-column: 1 / -1;
+					justify-self: start;
+				}
+				.oras-board-reports .oras-board-reports__observer-status {
+					display: inline-flex;
+					align-items: center;
+					min-height: 28px;
+					padding: 4px 9px;
+					border: 1px solid #cbd5e1;
+					border-radius: 999px;
+					font-size: 0.82rem;
+					font-weight: 800;
+					line-height: 1.2;
+					white-space: nowrap;
+				}
+				.oras-board-reports .oras-board-reports__observer-status--valid {
+					border-color: #6ee7b7;
+					background: #ecfdf5;
+					color: #065f46;
+				}
+				.oras-board-reports .oras-board-reports__observer-status--warning {
+					border-color: #fbbf24;
+					background: #fffbeb;
+					color: #78350f;
+				}
+				.oras-board-reports .oras-board-reports__observer-status--invalid {
+					border-color: #fca5a5;
+					background: #fef2f2;
+					color: #991b1b;
+				}
+				.oras-board-reports .oras-board-reports__observer-filters {
+					margin-bottom: 0;
+					padding: 0;
+					border: 0;
+					box-shadow: none;
+				}
+				.oras-board-reports .oras-board-reports__observer-table-wrap {
+					max-height: none;
+				}
+				.oras-board-reports .oras-board-reports__observer-table th small {
+					display: block;
+					margin-top: 3px;
+					color: #64748b;
+					font-weight: 500;
+				}
+				.oras-board-reports .oras-board-reports__observer-details {
+					min-width: 155px;
+				}
+				.oras-board-reports .oras-board-reports__observer-details[open] {
+					min-width: min(480px, 70vw);
+				}
+				.oras-board-reports .oras-board-reports__observer-details dl {
+					display: grid;
+					grid-template-columns: repeat(2, minmax(150px, 1fr));
+					gap: 8px;
+					margin: 12px 0 0;
+				}
+				.oras-board-reports .oras-board-reports__observer-details dl div {
+					padding: 8px;
+					border: 1px solid #e5e7eb;
+					border-radius: 8px;
+					background: #f8fafc;
+				}
+				.oras-board-reports .oras-board-reports__observer-details dt,
+				.oras-board-reports .oras-board-reports__observer-details dd {
+					margin: 0;
+				}
+				.oras-board-reports .oras-board-reports__observer-details dt {
+					color: #64748b;
+					font-size: 0.75rem;
+					font-weight: 800;
+					text-transform: uppercase;
+				}
+				.oras-board-reports .oras-board-reports__observer-details dd {
+					margin-top: 3px;
+					color: #0f172a;
+					font-weight: 650;
+				}
+				.oras-board-reports .oras-board-reports__observer-unavailable {
+					border-left: 4px solid #b45309;
+				}
 				html.oras-dark-on .oras-board-reports label,
 				html[data-wp-dark-mode-active] .oras-board-reports label,
 				body.wp-dark-mode-active .oras-board-reports label {
@@ -825,6 +1000,61 @@ final class Board_Reports {
 				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__metric-value {
 					color: #f8fafc;
 				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-section,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-section,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-section,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-operational-card,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-operational-card,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-operational-card,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-annual-card,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-annual-card,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-annual-card {
+					background: rgba(15, 23, 42, 0.92);
+					border-color: rgba(148, 163, 184, 0.35);
+					color: #e6edf7;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-section h4,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-section h4,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-section h4,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-operational-card h5,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-operational-card h5,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-operational-card h5,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-annual-card h5,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-annual-card h5,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-annual-card h5,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-details dd,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-details dd,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-details dd {
+					color: #f8fafc;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-section-heading p,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-section-heading p,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-section-heading p,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-operational-card p,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-operational-card p,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-operational-card p,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-annual-card p,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-annual-card p,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-annual-card p,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-live-count,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-live-count,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-live-count {
+					color: #cbd5e1;
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-details dl div,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-details dl div,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-details dl div {
+					background: rgba(2, 6, 23, 0.72);
+					border-color: rgba(148, 163, 184, 0.28);
+				}
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-details dt,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-details dt,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-details dt,
+				html.oras-dark-on .oras-board-reports .oras-board-reports__observer-table th small,
+				html[data-wp-dark-mode-active] .oras-board-reports .oras-board-reports__observer-table th small,
+				body.wp-dark-mode-active .oras-board-reports .oras-board-reports__observer-table th small {
+					color: #cbd5e1;
+				}
 				html:not(.oras-dark-on) .oras-board-reports label {
 					color: #1f2937;
 				}
@@ -854,6 +1084,44 @@ final class Board_Reports {
 						grid-template-columns: 1fr;
 					}
 				}
+				@media (max-width: 700px) {
+					.oras-board-reports {
+						max-width: calc(100vw - 24px);
+						margin: 12px auto;
+					}
+					.oras-board-reports .oras-board-reports__observer-summary {
+						grid-template-columns: repeat(2, minmax(0, 1fr));
+					}
+					.oras-board-reports .oras-board-reports__observer-section {
+						padding: 14px;
+					}
+					.oras-board-reports .oras-board-reports__observer-section-heading,
+					.oras-board-reports .oras-board-reports__observer-annual-heading {
+						flex-direction: column;
+						align-items: stretch;
+					}
+					.oras-board-reports .oras-board-reports__observer-annual-search {
+						width: 100%;
+					}
+					.oras-board-reports .oras-board-reports__observer-annual-search input {
+						min-height: 46px;
+						font-size: 16px;
+					}
+					.oras-board-reports .oras-board-reports__observer-operational-list,
+					.oras-board-reports .oras-board-reports__observer-annual-list,
+					.oras-board-reports .oras-board-reports__observer-annual-card {
+						grid-template-columns: 1fr;
+					}
+					.oras-board-reports .oras-board-reports__observer-annual-expiration {
+						text-align: left;
+					}
+					.oras-board-reports .oras-board-reports__observer-details[open] {
+						min-width: min(440px, 82vw);
+					}
+					.oras-board-reports .oras-board-reports__observer-details dl {
+						grid-template-columns: 1fr;
+					}
+				}
 			</style>
 
 			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
@@ -868,7 +1136,7 @@ final class Board_Reports {
 			<?php endif; ?>
 			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_OBSERVER_PASSES === $active_tab ) : ?>
-				<?php self::render_observer_passes_tab( $observer_report ); ?>
+				<?php self::render_observer_passes_tab( $observer_report, $observer_filters, $page_id ); ?>
 			<?php elseif ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
@@ -991,31 +1259,530 @@ final class Board_Reports {
 
 	/**
 	 * @param array<string,mixed> $report Normalized Observer Pass report snapshot.
+	 * @param array<string,mixed> $filters Observer Pass request filters.
 	 */
-	private static function render_observer_passes_tab( array $report ): void {
-		$rows = isset( $report['all_rows'] ) && is_array( $report['all_rows'] ) ? $report['all_rows'] : array();
+	private static function render_observer_passes_tab( array $report, array $filters = array(), int $page_id = 0 ): void {
+		$all_rows = isset( $report['all_rows'] ) && is_array( $report['all_rows'] ) ? $report['all_rows'] : array();
 		?>
-		<section class="oras-board-reports__placeholder oras-board-reports__observer" aria-live="polite">
+		<section class="oras-board-reports__observer" data-oras-observer-dashboard>
 			<h3><?php echo esc_html__( 'Observer Passes', 'oras-tickets' ); ?></h3>
 			<?php if ( true !== ( $report['available'] ?? false ) ) : ?>
-				<p><?php echo esc_html__( 'Observer Pass reporting is currently unavailable.', 'oras-tickets' ); ?></p>
-			<?php elseif ( empty( $rows ) ) : ?>
-				<p><?php echo esc_html__( 'No Observer Pass records found.', 'oras-tickets' ); ?></p>
+				<div class="oras-board-reports__empty oras-board-reports__observer-unavailable" role="status"><?php echo esc_html__( 'Observer Pass reporting is currently unavailable.', 'oras-tickets' ); ?></div>
+			<?php elseif ( empty( $all_rows ) ) : ?>
+				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'No Observer Pass records found.', 'oras-tickets' ); ?></div>
 			<?php else : ?>
-				<p>
-					<?php
-					echo esc_html(
-						sprintf(
-							/* translators: %d: normalized Observer Pass record count */
-							__( 'Observer Pass records found: %d', 'oras-tickets' ),
-							count( $rows )
-						)
-					);
-					?>
-				</p>
+				<?php self::render_observer_summary_cards( is_array( $report['summary'] ?? null ) ? $report['summary'] : array() ); ?>
+				<?php self::render_observer_today_list( is_array( $report['today_rows'] ?? null ) ? $report['today_rows'] : array() ); ?>
+				<?php self::render_observer_annual_list( is_array( $report['active_annual_rows'] ?? null ) ? $report['active_annual_rows'] : array() ); ?>
+				<?php self::render_observer_filters( $filters, $page_id ); ?>
+				<?php self::render_observer_table( is_array( $report['rows'] ?? null ) ? $report['rows'] : array(), $filters, $page_id ); ?>
 			<?php endif; ?>
 		</section>
 		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $summary Complete unfiltered operational summary.
+	 */
+	private static function render_observer_summary_cards( array $summary ): void {
+		$cards = array(
+			'active_annual_count'     => __( 'Active Annual Passes', 'oras-tickets' ),
+			'daily_today_count'       => __( 'Daily Passes Today', 'oras-tickets' ),
+			'daily_next_7_days_count' => __( 'Upcoming Daily Passes — Next 7 Days', 'oras-tickets' ),
+			'daily_this_month_count'  => __( 'Upcoming Daily Passes — This Month', 'oras-tickets' ),
+		);
+		?>
+		<div class="oras-board-reports__observer-summary" aria-label="<?php echo esc_attr__( 'Observer Pass operational summary', 'oras-tickets' ); ?>">
+			<?php foreach ( $cards as $key => $label ) : ?>
+				<?php $value = absint( $summary[ $key ] ?? 0 ); ?>
+				<article class="oras-board-reports__metric oras-board-reports__observer-summary-card" data-observer-summary="<?php echo esc_attr( $key ); ?>" data-value="<?php echo esc_attr( (string) $value ); ?>">
+					<p class="oras-board-reports__metric-label"><?php echo esc_html( $label ); ?></p>
+					<p class="oras-board-reports__metric-value"><?php echo esc_html( (string) $value ); ?></p>
+				</article>
+			<?php endforeach; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Valid Daily passes for today.
+	 */
+	private static function render_observer_today_list( array $rows ): void {
+		$today = current_datetime()->setTimezone( wp_timezone() );
+		?>
+		<section class="oras-board-reports__observer-section oras-board-reports__observer-today" aria-labelledby="oras-observer-today-title">
+			<div class="oras-board-reports__observer-section-heading">
+				<div>
+					<h4 id="oras-observer-today-title"><?php echo esc_html__( "Today's Daily Observers", 'oras-tickets' ); ?></h4>
+					<p><?php echo esc_html( wp_date( get_option( 'date_format' ), $today->getTimestamp(), wp_timezone() ) ); ?></p>
+				</div>
+			</div>
+			<?php if ( empty( $rows ) ) : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No Daily Observers scheduled for today.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<div class="oras-board-reports__observer-operational-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<article class="oras-board-reports__observer-operational-card" data-observer-today-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>">
+							<h5><?php echo esc_html( self::get_observer_identity( $row ) ); ?></h5>
+							<p><strong><?php echo esc_html( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?></strong> <?php echo esc_html__( 'valid Daily pass(es)', 'oras-tickets' ); ?></p>
+							<p>
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %s: order number. */
+										__( 'Order #%s', 'oras-tickets' ),
+										self::get_observer_value( $row, 'order_number' )
+									)
+								);
+								?>
+							</p>
+							<span class="oras-board-reports__observer-status oras-board-reports__observer-status--valid"><?php echo esc_html__( 'Valid Today', 'oras-tickets' ); ?></span>
+						</article>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Valid Annual passes.
+	 */
+	private static function render_observer_annual_list( array $rows ): void {
+		$count = count( $rows );
+		?>
+		<section class="oras-board-reports__observer-section oras-board-reports__observer-annual" aria-labelledby="oras-observer-annual-title">
+			<div class="oras-board-reports__observer-section-heading oras-board-reports__observer-annual-heading">
+				<div>
+					<h4 id="oras-observer-annual-title"><?php echo esc_html__( 'Active Annual Observer Passes', 'oras-tickets' ); ?></h4>
+					<p><?php echo esc_html__( 'Search by purchaser or passholder name for quick verification.', 'oras-tickets' ); ?></p>
+				</div>
+				<label class="oras-board-reports__observer-annual-search">
+					<?php echo esc_html__( 'Find an active passholder', 'oras-tickets' ); ?>
+					<input type="search" autocomplete="off" placeholder="<?php echo esc_attr__( 'Search names', 'oras-tickets' ); ?>" aria-controls="oras-active-annual-list" data-oras-observer-annual-search />
+				</label>
+			</div>
+			<p class="oras-board-reports__observer-live-count" aria-live="polite" data-oras-observer-annual-status>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %d: active Annual passholder count. */
+						_n( '%d active passholder', '%d active passholders', $count, 'oras-tickets' ),
+						$count
+					)
+				);
+				?>
+			</p>
+			<?php if ( empty( $rows ) ) : ?>
+				<div class="oras-board-reports__empty"><?php echo esc_html__( 'No active Annual Observer Passes found.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<div id="oras-active-annual-list" class="oras-board-reports__observer-annual-list">
+					<?php foreach ( $rows as $row ) : ?>
+						<?php
+						$identity = self::get_observer_identity( $row );
+						$holder_names = self::get_observer_holder_names( $row );
+						$search_value = strtolower( trim( $identity . ' ' . implode( ' ', $holder_names ) ) );
+						$status = self::get_observer_status_presentation( $row );
+						?>
+						<article class="oras-board-reports__observer-annual-card" data-observer-annual-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>">
+							<div>
+								<h5><?php echo esc_html( $identity ); ?></h5>
+								<p><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></p>
+							</div>
+							<div class="oras-board-reports__observer-annual-expiration">
+								<span><?php echo esc_html__( 'Expires', 'oras-tickets' ); ?></span>
+								<?php self::render_observer_date( self::get_observer_value( $row, 'expiration_date' ) ); ?>
+							</div>
+							<span class="oras-board-reports__observer-status <?php echo esc_attr( $status['class'] ); ?>"><?php echo esc_html( $status['label'] ); ?></span>
+						</article>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		</section>
+		<script>
+			(function () {
+				'use strict';
+				var script = document.currentScript;
+				var root = script ? script.closest('[data-oras-observer-dashboard]') : null;
+				if (!root) { return; }
+				var input = root.querySelector('[data-oras-observer-annual-search]');
+				var status = root.querySelector('[data-oras-observer-annual-status]');
+				var items = Array.prototype.slice.call(root.querySelectorAll('[data-observer-annual-order]'));
+				if (!input || !status) { return; }
+				var activeSingular = <?php echo wp_json_encode( __( 'active passholder', 'oras-tickets' ) ); ?>;
+				var activePlural = <?php echo wp_json_encode( __( 'active passholders', 'oras-tickets' ) ); ?>;
+				var matchSingular = <?php echo wp_json_encode( __( 'match', 'oras-tickets' ) ); ?>;
+				var matchPlural = <?php echo wp_json_encode( __( 'matches', 'oras-tickets' ) ); ?>;
+				input.addEventListener('input', function () {
+					var query = input.value.trim().toLowerCase();
+					var visible = 0;
+					items.forEach(function (item) {
+						var matches = !query || (item.getAttribute('data-search') || '').indexOf(query) !== -1;
+						item.hidden = !matches;
+						if (matches) { visible += 1; }
+					});
+					status.textContent = visible + ' ' + (query ? (visible === 1 ? matchSingular : matchPlural) : (visible === 1 ? activeSingular : activePlural));
+				});
+			}());
+		</script>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $filters Observer filters.
+	 */
+	private static function render_observer_filters( array $filters, int $page_id ): void {
+		?>
+		<section class="oras-board-reports__observer-section" aria-labelledby="oras-observer-filters-title">
+			<h4 id="oras-observer-filters-title"><?php echo esc_html__( 'Filter Observer Passes', 'oras-tickets' ); ?></h4>
+			<form class="oras-board-reports__filters oras-board-reports__observer-filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+				<?php if ( $page_id > 0 ) : ?>
+					<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+				<?php endif; ?>
+				<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_OBSERVER_PASSES ); ?>" />
+				<label>
+					<?php echo esc_html__( 'Pass type', 'oras-tickets' ); ?>
+					<select name="oras_observer_pass_type">
+						<?php foreach ( self::get_observer_pass_type_options() as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['pass_type'] ?? 'all' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'Status', 'oras-tickets' ); ?>
+					<select name="oras_observer_status">
+						<?php foreach ( self::get_observer_status_options() as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['status'] ?? 'all' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'Operational date', 'oras-tickets' ); ?>
+					<select name="oras_observer_date_preset">
+						<?php foreach ( self::get_observer_date_options() as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['date_preset'] ?? 'all' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php echo esc_html__( 'From', 'oras-tickets' ); ?>
+					<input type="date" name="oras_observer_after" value="<?php echo esc_attr( (string) ( $filters['after'] ?? '' ) ); ?>" />
+				</label>
+				<label>
+					<?php echo esc_html__( 'To', 'oras-tickets' ); ?>
+					<input type="date" name="oras_observer_before" value="<?php echo esc_attr( (string) ( $filters['before'] ?? '' ) ); ?>" />
+				</label>
+				<label>
+					<?php echo esc_html__( 'Search', 'oras-tickets' ); ?>
+					<input type="search" name="oras_observer_search" value="<?php echo esc_attr( (string) ( $filters['search'] ?? '' ) ); ?>" placeholder="<?php echo esc_attr__( 'Name, email, or order number', 'oras-tickets' ); ?>" />
+				</label>
+				<label>
+					<?php echo esc_html__( 'Rows', 'oras-tickets' ); ?>
+					<select name="oras_observer_per_page">
+						<?php foreach ( array( 25, 50, 100 ) as $size ) : ?>
+							<option value="<?php echo esc_attr( (string) $size ); ?>" <?php selected( absint( $filters['per_page'] ?? 25 ), $size ); ?>><?php echo esc_html( (string) $size ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<div class="oras-board-reports__actions">
+					<a class="button" href="<?php echo esc_url( self::build_observer_page_url( array(), 1, $page_id ) ); ?>"><?php echo esc_html__( 'Clear Filters', 'oras-tickets' ); ?></a>
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Apply Filters', 'oras-tickets' ); ?></button>
+				</div>
+			</form>
+		</section>
+		<?php
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Filtered Observer Pass rows.
+	 * @param array<string,mixed>            $filters Observer filters.
+	 */
+	private static function render_observer_table( array $rows, array $filters, int $page_id ): void {
+		$page_data = self::paginate_observer_rows( $rows, $filters );
+		?>
+		<section class="oras-board-reports__observer-section" aria-labelledby="oras-observer-table-title">
+			<div class="oras-board-reports__observer-section-heading">
+				<div>
+					<h4 id="oras-observer-table-title"><?php echo esc_html__( 'Observer Pass Records', 'oras-tickets' ); ?></h4>
+					<p><?php echo esc_html__( 'Read-only operational history. Expand Details for board-safe contact and validity information.', 'oras-tickets' ); ?></p>
+				</div>
+			</div>
+			<?php if ( empty( $rows ) ) : ?>
+				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'No Observer Passes match these filters.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<div class="oras-board-reports__table-wrap oras-board-reports__observer-table-wrap">
+					<table class="oras-board-reports__observer-table">
+						<thead>
+							<tr>
+								<th scope="col"><?php echo esc_html__( 'Purchaser / Passholder', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Pass Type', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Purchase Date', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Valid Date / Expiration', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Order', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $page_data['rows'] as $row ) : ?>
+								<?php
+								$status = self::get_observer_status_presentation( $row );
+								$pass_type = self::get_observer_value( $row, 'pass_type' );
+								?>
+								<tr data-observer-row="<?php echo esc_attr( (string) absint( $row['item_id'] ?? 0 ) ); ?>" data-observer-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-pass-type="<?php echo esc_attr( $pass_type ); ?>" data-valid-quantity="<?php echo esc_attr( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?>">
+									<th scope="row" class="oras-board-reports__cell--name">
+										<?php echo esc_html( self::get_observer_identity( $row ) ); ?>
+										<small><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></small>
+									</th>
+									<td><?php echo esc_html( self::get_observer_pass_type_label( $pass_type ) ); ?></td>
+									<td><?php self::render_observer_date( self::get_observer_value( $row, 'purchase_date' ) ); ?></td>
+									<td><?php self::render_observer_valid_date( $row ); ?></td>
+									<td class="oras-board-reports__cell--qty"><?php echo esc_html( self::get_observer_quantity_label( $row ) ); ?></td>
+									<td><?php echo esc_html( '#' . self::get_observer_value( $row, 'order_number' ) ); ?></td>
+									<td><span class="oras-board-reports__observer-status <?php echo esc_attr( $status['class'] ); ?>"><?php echo esc_html( $status['label'] ); ?></span></td>
+									<td><?php self::render_observer_details( $row ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+				<?php self::render_observer_pagination( $page_data, $filters, $page_id ); ?>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer Pass row.
+	 */
+	private static function render_observer_details( array $row ): void {
+		$pass_type = self::get_observer_value( $row, 'pass_type' );
+		$booking_status = self::get_observer_value( $row, 'booking_status' );
+		?>
+		<details class="oras-board-reports__observer-details">
+			<summary><?php echo esc_html__( 'View details', 'oras-tickets' ); ?></summary>
+			<dl>
+				<div><dt><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_identity( $row ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'email' ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'phone' ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Pass type', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_pass_type_label( $pass_type ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Purchased quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['quantity'] ?? 0 ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Valid quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Refunded quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['refunded_quantity'] ?? 0 ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Purchase date', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'purchase_date' ) ); ?></dd></div>
+				<?php if ( Observer_Pass_Report_Service::PASS_DAILY === $pass_type ) : ?>
+					<div><dt><?php echo esc_html__( 'Daily booking start', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'valid_start' ) ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'Daily checkout date', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'valid_checkout' ) ); ?></dd></div>
+				<?php else : ?>
+					<div><dt><?php echo esc_html__( 'Annual expiration', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'expiration_date' ) ); ?></dd></div>
+				<?php endif; ?>
+				<div><dt><?php echo esc_html__( 'Order number', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'order_number' ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'WooCommerce status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_source_status_label( self::get_observer_value( $row, 'order_status' ) ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Booking status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( '' !== $booking_status ? self::get_observer_source_status_label( $booking_status ) : __( 'Not recorded', 'oras-tickets' ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Validity', 'oras-tickets' ); ?></dt><dd><?php echo ! empty( $row['is_valid'] ) ? esc_html__( 'Valid', 'oras-tickets' ) : esc_html__( 'Invalid', 'oras-tickets' ); ?></dd></div>
+			</dl>
+		</details>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 */
+	private static function get_observer_identity( array $row ): string {
+		$name = trim( self::get_observer_value( $row, 'purchaser_name' ) );
+
+		return '' !== $name ? $name : __( 'Not recorded', 'oras-tickets' );
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 * @return string[]
+	 */
+	private static function get_observer_holder_names( array $row ): array {
+		$names = is_array( $row['holder_names'] ?? null ) ? $row['holder_names'] : array();
+
+		return array_values( array_filter( array_map( 'strval', $names ) ) );
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 */
+	private static function get_observer_value( array $row, string $key ): string {
+		$value = $row[ $key ] ?? '';
+
+		return is_scalar( $value ) ? (string) $value : '';
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 */
+	private static function get_observer_recorded_value( array $row, string $key ): string {
+		$value = trim( self::get_observer_value( $row, $key ) );
+
+		return '' !== $value ? $value : __( 'Not recorded', 'oras-tickets' );
+	}
+
+	private static function get_observer_pass_type_label( string $pass_type ): string {
+		$options = self::get_observer_pass_type_options();
+
+		return $options[ $pass_type ] ?? __( 'Unknown', 'oras-tickets' );
+	}
+
+	private static function get_observer_source_status_label( string $status ): string {
+		$status = str_replace( array( '-', '_' ), ' ', trim( $status ) );
+
+		return '' !== $status ? ucwords( $status ) : __( 'Not recorded', 'oras-tickets' );
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 * @return array{label:string,class:string}
+	 */
+	private static function get_observer_status_presentation( array $row ): array {
+		$status = self::get_observer_value( $row, 'operational_status' );
+		$booking_status = self::get_observer_value( $row, 'booking_status' );
+		$confirmed = in_array( $booking_status, array( 'confirmed', 'paid' ), true );
+		if ( Observer_Pass_Report_Service::PASS_DAILY === self::get_observer_value( $row, 'pass_type' ) && ! $confirmed && in_array( $status, array( Observer_Pass_Report_Service::STATUS_TODAY, Observer_Pass_Report_Service::STATUS_UPCOMING ), true ) ) {
+			$base_label = Observer_Pass_Report_Service::STATUS_TODAY === $status ? __( 'Today', 'oras-tickets' ) : __( 'Upcoming', 'oras-tickets' );
+
+			return array(
+				'label' => sprintf(
+					/* translators: %s: Today or Upcoming operational date status. */
+					__( '%s — Unconfirmed', 'oras-tickets' ),
+					$base_label
+				),
+				'class' => 'oras-board-reports__observer-status--invalid',
+			);
+		}
+
+		$labels = self::get_observer_status_options();
+		$warning_statuses = array(
+			Observer_Pass_Report_Service::STATUS_EXPIRING_SOON,
+			Observer_Pass_Report_Service::STATUS_EXPIRED,
+			Observer_Pass_Report_Service::STATUS_PAST,
+			Observer_Pass_Report_Service::STATUS_REFUNDED,
+			Observer_Pass_Report_Service::STATUS_CANCELLED,
+			Observer_Pass_Report_Service::STATUS_FAILED,
+			Observer_Pass_Report_Service::STATUS_UNPAID,
+			Observer_Pass_Report_Service::STATUS_DATE_MISSING,
+		);
+		$class = in_array( $status, $warning_statuses, true ) ? 'oras-board-reports__observer-status--warning' : 'oras-board-reports__observer-status--valid';
+		if ( empty( $row['is_valid'] ) ) {
+			$class = 'oras-board-reports__observer-status--invalid';
+		}
+
+		return array(
+			'label' => $labels[ $status ] ?? self::get_observer_source_status_label( $status ),
+			'class' => $class,
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 */
+	private static function get_observer_quantity_label( array $row ): string {
+		$quantity = absint( $row['quantity'] ?? 0 );
+		$valid_quantity = absint( $row['valid_quantity'] ?? 0 );
+
+		if ( $valid_quantity !== $quantity ) {
+			return sprintf(
+				/* translators: 1: valid quantity, 2: purchased quantity. */
+				__( '%1$d of %2$d valid', 'oras-tickets' ),
+				$valid_quantity,
+				$quantity
+			);
+		}
+
+		return (string) $quantity;
+	}
+
+	private static function render_observer_date( string $date ): void {
+		if ( ! self::is_valid_observer_date( $date ) ) {
+			echo esc_html__( 'Date unavailable', 'oras-tickets' );
+			return;
+		}
+
+		$timestamp = ( new \DateTimeImmutable( $date . ' 00:00:00', wp_timezone() ) )->getTimestamp();
+		echo '<time datetime="' . esc_attr( $date ) . '">' . esc_html( wp_date( get_option( 'date_format' ), $timestamp, wp_timezone() ) ) . '</time>';
+	}
+
+	/**
+	 * @param array<string,mixed> $row Normalized Observer row.
+	 */
+	private static function render_observer_valid_date( array $row ): void {
+		if ( Observer_Pass_Report_Service::PASS_ANNUAL === self::get_observer_value( $row, 'pass_type' ) ) {
+			self::render_observer_date( self::get_observer_value( $row, 'expiration_date' ) );
+			return;
+		}
+
+		$start = self::get_observer_value( $row, 'valid_start' );
+		$end = self::get_observer_value( $row, 'last_valid_date' );
+		if ( ! self::is_valid_observer_date( $start ) || ! self::is_valid_observer_date( $end ) ) {
+			echo esc_html__( 'Date unavailable', 'oras-tickets' );
+			return;
+		}
+
+		self::render_observer_date( $start );
+		if ( $end !== $start ) {
+			echo ' <span aria-hidden="true">—</span><span class="screen-reader-text"> ' . esc_html__( 'through', 'oras-tickets' ) . ' </span> ';
+			self::render_observer_date( $end );
+		}
+	}
+
+	/**
+	 * @param array{page:int,per_page:int,total:int,total_pages:int} $page_data Pagination data.
+	 * @param array<string,mixed>                                  $filters Observer filters.
+	 */
+	private static function render_observer_pagination( array $page_data, array $filters, int $page_id ): void {
+		if ( $page_data['total'] <= 0 ) {
+			return;
+		}
+		?>
+		<nav class="oras-board-reports__pagination oras-board-reports__observer-pagination" aria-label="<?php echo esc_attr__( 'Observer Pass pages', 'oras-tickets' ); ?>">
+			<span>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: current page, 2: total pages, 3: total records. */
+						__( 'Page %1$d of %2$d (%3$d records)', 'oras-tickets' ),
+						$page_data['page'],
+						$page_data['total_pages'],
+						$page_data['total']
+					)
+				);
+				?>
+			</span>
+			<?php if ( $page_data['page'] > 1 ) : ?>
+				<a class="button" href="<?php echo esc_url( self::build_observer_page_url( $filters, $page_data['page'] - 1, $page_id ) ); ?>"><?php echo esc_html__( 'Previous', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+			<?php if ( $page_data['page'] < $page_data['total_pages'] ) : ?>
+				<a class="button" href="<?php echo esc_url( self::build_observer_page_url( $filters, $page_data['page'] + 1, $page_id ) ); ?>"><?php echo esc_html__( 'Next', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+		</nav>
+		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $filters Observer filters.
+	 */
+	private static function build_observer_page_url( array $filters, int $page, int $page_id ): string {
+		$args = array(
+			'oras_board_tab'            => self::TAB_OBSERVER_PASSES,
+			'oras_observer_pass_type'   => (string) ( $filters['pass_type'] ?? Observer_Pass_Report_Service::PASS_ALL ),
+			'oras_observer_status'      => (string) ( $filters['status'] ?? Observer_Pass_Report_Service::PASS_ALL ),
+			'oras_observer_date_preset' => (string) ( $filters['date_preset'] ?? Observer_Pass_Report_Service::PASS_ALL ),
+			'oras_observer_after'       => (string) ( $filters['after'] ?? '' ),
+			'oras_observer_before'      => (string) ( $filters['before'] ?? '' ),
+			'oras_observer_search'      => (string) ( $filters['search'] ?? '' ),
+			'oras_observer_page'        => max( 1, $page ),
+			'oras_observer_per_page'    => absint( $filters['per_page'] ?? 25 ),
+		);
+		if ( $page_id > 0 ) {
+			$args['page_id'] = $page_id;
+		}
+
+		return add_query_arg( $args, self::get_form_action_url() );
 	}
 
 	private static function render_ticket_sales_tab( int $page_id ): void {
@@ -2597,6 +3364,95 @@ final class Board_Reports {
 	}
 
 	/**
+	 * @return array{pass_type:string,status:string,date_preset:string,after:string,before:string,search:string,page:int,per_page:int}
+	 */
+	private static function get_observer_filters_from_request(): array {
+		$pass_type = isset( $_GET['oras_observer_pass_type'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_pass_type'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
+		if ( ! isset( self::get_observer_pass_type_options()[ $pass_type ] ) ) {
+			$pass_type = Observer_Pass_Report_Service::PASS_ALL;
+		}
+
+		$status = isset( $_GET['oras_observer_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_status'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
+		if ( ! isset( self::get_observer_status_options()[ $status ] ) ) {
+			$status = Observer_Pass_Report_Service::PASS_ALL;
+		}
+
+		$date_preset = isset( $_GET['oras_observer_date_preset'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_date_preset'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
+		if ( ! isset( self::get_observer_date_options()[ $date_preset ] ) ) {
+			$date_preset = Observer_Pass_Report_Service::PASS_ALL;
+		}
+
+		$after = isset( $_GET['oras_observer_after'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_observer_after'] ) ) : '';
+		$before = isset( $_GET['oras_observer_before'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_observer_before'] ) ) : '';
+		$per_page = isset( $_GET['oras_observer_per_page'] ) ? absint( $_GET['oras_observer_per_page'] ) : 25;
+
+		return array(
+			'pass_type'   => $pass_type,
+			'status'      => $status,
+			'date_preset' => $date_preset,
+			'after'       => self::is_valid_observer_date( $after ) ? $after : '',
+			'before'      => self::is_valid_observer_date( $before ) ? $before : '',
+			'search'      => isset( $_GET['oras_observer_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_observer_search'] ) ) : '',
+			'page'        => isset( $_GET['oras_observer_page'] ) ? max( 1, absint( $_GET['oras_observer_page'] ) ) : 1,
+			'per_page'    => in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25,
+		);
+	}
+
+	private static function is_valid_observer_date( string $value ): bool {
+		if ( 1 !== preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches ) ) {
+			return false;
+		}
+
+		return checkdate( (int) $matches[2], (int) $matches[3], (int) $matches[1] );
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private static function get_observer_pass_type_options(): array {
+		return array(
+			Observer_Pass_Report_Service::PASS_ALL    => __( 'All Passes', 'oras-tickets' ),
+			Observer_Pass_Report_Service::PASS_ANNUAL => __( 'Annual', 'oras-tickets' ),
+			Observer_Pass_Report_Service::PASS_DAILY  => __( 'Daily', 'oras-tickets' ),
+		);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private static function get_observer_status_options(): array {
+		return array(
+			Observer_Pass_Report_Service::PASS_ALL         => __( 'All Statuses', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_ACTIVE    => __( 'Active', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_EXPIRING_SOON => __( 'Expiring Soon', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_EXPIRED   => __( 'Expired', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_TODAY     => __( 'Today', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_UPCOMING  => __( 'Upcoming', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_PAST      => __( 'Past', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_REFUNDED  => __( 'Refunded', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_CANCELLED => __( 'Cancelled', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_FAILED    => __( 'Failed', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_UNPAID    => __( 'Unpaid / Invalid', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_DATE_MISSING => __( 'Date Missing / Invalid', 'oras-tickets' ),
+			'refunded_cancelled'                           => __( 'Refunded or Cancelled', 'oras-tickets' ),
+		);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private static function get_observer_date_options(): array {
+		return array(
+			Observer_Pass_Report_Service::PASS_ALL => __( 'Any Operational Date', 'oras-tickets' ),
+			'today'                                => __( 'Today', 'oras-tickets' ),
+			'next_7'                               => __( 'Next 7 Days', 'oras-tickets' ),
+			'this_month'                           => __( 'This Month', 'oras-tickets' ),
+			'this_year'                            => __( 'This Year', 'oras-tickets' ),
+			'custom'                               => __( 'Custom Range', 'oras-tickets' ),
+		);
+	}
+
+	/**
 	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string,attendance_type:string,approval_status:string,attendee_source:string,ticket_status:string,rsvp_status:string,page:int,per_page:int}
 	 */
 	private static function get_filters_from_request(): array {
@@ -2652,6 +3508,30 @@ final class Board_Reports {
 		$total = count( $rows );
 		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
 		$page = min( max( 1, absint( $filters['page'] ?? 1 ) ), $total_pages );
+
+		return array(
+			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),
+			'page'        => $page,
+			'per_page'    => $per_page,
+			'total'       => $total,
+			'total_pages' => $total_pages,
+		);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows Filtered Observer rows.
+	 * @param array<string,mixed>            $filters Observer filters.
+	 * @return array{rows:array<int,array<string,mixed>>,page:int,per_page:int,total:int,total_pages:int}
+	 */
+	private static function paginate_observer_rows( array $rows, array $filters ): array {
+		$per_page = absint( $filters['per_page'] ?? 25 );
+		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
+		$total = count( $rows );
+		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
+		$page = max( 1, absint( $filters['page'] ?? 1 ) );
+		if ( $page > $total_pages ) {
+			$page = 1;
+		}
 
 		return array(
 			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),
