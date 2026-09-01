@@ -9,7 +9,9 @@ use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
+use ORAS\Tickets\Reporting\Membership_Report_Service;
 use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
+use ORAS\Tickets\Storage\Legacy_Membership_Store;
 use ORAS\Tickets\Storage\Manual_Observer_Pass_Store;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -32,6 +34,8 @@ final class Board_Reports {
 	private const OBSERVER_PRINT_NONCE = 'oras_board_reports_print_observers_today';
 	private const MANUAL_OBSERVER_SAVE_ACTION = 'oras_board_reports_save_manual_observer_pass';
 	private const MANUAL_OBSERVER_SAVE_NONCE = 'oras_board_reports_save_manual_observer_pass';
+	private const LEGACY_MEMBERSHIP_SAVE_ACTION = 'oras_board_reports_save_legacy_membership';
+	private const LEGACY_MEMBERSHIP_SAVE_NONCE = 'oras_board_reports_save_legacy_membership';
 	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
@@ -40,7 +44,9 @@ final class Board_Reports {
 	private const TAB_ATTENDEES = 'attendees';
 	private const TAB_STATISTICS = 'statistics';
 	private const TAB_OBSERVER_PASSES = 'observer_passes';
+	private const TAB_MEMBERSHIPS = 'memberships';
 	private const OBSERVER_QUERY_PREFIX = 'oras_observer_';
+	private const MEMBERSHIP_QUERY_PREFIX = 'oras_membership_';
 
 	public static function register(): void {
 		add_shortcode( 'oras_board_reports', array( self::class, 'render_shortcode' ) );
@@ -53,6 +59,7 @@ final class Board_Reports {
 		add_action( 'admin_post_' . self::ATTENTION_ACTION, array( self::class, 'handle_update_attention_status' ) );
 		add_action( 'admin_post_' . self::OBSERVER_PRINT_ACTION, array( self::class, 'handle_print_observers_today' ) );
 		add_action( 'admin_post_' . self::MANUAL_OBSERVER_SAVE_ACTION, array( self::class, 'handle_save_manual_observer_pass' ) );
+		add_action( 'admin_post_' . self::LEGACY_MEMBERSHIP_SAVE_ACTION, array( self::class, 'handle_save_legacy_membership' ) );
 	}
 
 	/**
@@ -75,9 +82,14 @@ final class Board_Reports {
 		$filters = array( 'event_id' => 0 );
 		$observer_report = array( 'available' => false );
 		$observer_filters = array();
+		$membership_report = array( 'available' => false );
+		$membership_filters = array();
 		if ( self::TAB_OBSERVER_PASSES === $active_tab ) {
 			$observer_filters = self::get_observer_filters_from_request();
 			$observer_report = ( new Observer_Pass_Report_Service() )->get_report( $observer_filters );
+		} elseif ( self::TAB_MEMBERSHIPS === $active_tab ) {
+			$membership_filters = self::get_membership_filters_from_request();
+			$membership_report = ( new Membership_Report_Service() )->get_report( $membership_filters );
 		} else {
 			$service = new Board_Report_Service();
 			$events = $service->get_events();
@@ -1144,6 +1156,8 @@ final class Board_Reports {
 			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_OBSERVER_PASSES === $active_tab ) : ?>
 				<?php self::render_observer_passes_tab( $observer_report, $observer_filters, $page_id ); ?>
+			<?php elseif ( self::TAB_MEMBERSHIPS === $active_tab ) : ?>
+				<?php self::render_memberships_tab( $membership_report, $membership_filters, $page_id ); ?>
 			<?php elseif ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
@@ -1262,6 +1276,331 @@ final class Board_Reports {
 			<?php endif; ?>
 		</section>
 		<?php
+	}
+
+	/**
+	 * @param array<string,mixed> $report Unified website and legacy membership report.
+	 * @param array<string,mixed> $filters Membership request filters.
+	 */
+	private static function render_memberships_tab( array $report, array $filters = array(), int $page_id = 0 ): void {
+		$all_rows = isset( $report['all_rows'] ) && is_array( $report['all_rows'] ) ? $report['all_rows'] : array();
+		?>
+		<section class="oras-board-reports__observer" data-oras-membership-dashboard>
+			<h3><?php echo esc_html__( 'Memberships', 'oras-tickets' ); ?></h3>
+			<p><?php echo esc_html__( 'This unified, read-only roster keeps website memberships and legacy PayPal records independently identifiable.', 'oras-tickets' ); ?></p>
+			<?php self::render_legacy_membership_notice(); ?>
+			<?php if ( current_user_can( 'oras_tickets_manage_memberships' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<?php self::render_legacy_membership_management( $page_id ); ?>
+			<?php endif; ?>
+			<?php if ( true !== ( $report['available'] ?? false ) ) : ?>
+				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'Membership reporting is currently unavailable.', 'oras-tickets' ); ?></div>
+			<?php else : ?>
+				<?php if ( true !== ( $report['website_available'] ?? false ) ) : ?>
+					<div class="oras-board-reports__notice" role="status"><?php echo esc_html__( 'Paid Memberships Pro data is unavailable. Legacy PayPal records remain available.', 'oras-tickets' ); ?></div>
+				<?php endif; ?>
+				<?php self::render_membership_summary_cards( is_array( $report['summary'] ?? null ) ? $report['summary'] : array() ); ?>
+				<?php self::render_membership_filters( $filters, $page_id ); ?>
+				<?php if ( empty( $all_rows ) ) : ?>
+					<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'No membership records found.', 'oras-tickets' ); ?></div>
+				<?php else : ?>
+					<?php self::render_membership_table( is_array( $report['rows'] ?? null ) ? $report['rows'] : array(), is_array( $report['pagination'] ?? null ) ? $report['pagination'] : array(), $filters, $page_id ); ?>
+				<?php endif; ?>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	private static function render_legacy_membership_notice(): void {
+		$notice = isset( $_GET['oras_legacy_membership_notice'] ) ? sanitize_key( wp_unslash( $_GET['oras_legacy_membership_notice'] ) ) : '';
+		$messages = array(
+			'created' => __( 'Legacy PayPal membership added.', 'oras-tickets' ),
+			'updated' => __( 'Legacy PayPal membership updated.', 'oras-tickets' ),
+			'error'   => __( 'The legacy PayPal membership could not be saved. Check the required fields and try again.', 'oras-tickets' ),
+		);
+		if ( isset( $messages[ $notice ] ) ) {
+			?>
+			<div class="oras-board-reports__notice" role="status"><?php echo esc_html( $messages[ $notice ] ); ?></div>
+			<?php
+		}
+	}
+
+	private static function render_legacy_membership_management( int $page_id ): void {
+		$records = Legacy_Membership_Store::query();
+		?>
+		<section class="oras-board-reports__observer-section" aria-labelledby="oras-legacy-membership-title">
+			<h4 id="oras-legacy-membership-title"><?php echo esc_html__( 'Add Legacy PayPal Membership', 'oras-tickets' ); ?></h4>
+			<p><?php echo esc_html__( 'Maintain the operational membership fields only. Do not enter billing details, credentials, or transaction payloads.', 'oras-tickets' ); ?></p>
+			<?php self::render_legacy_membership_form( array(), $page_id ); ?>
+			<?php if ( ! empty( $records ) ) : ?>
+				<details class="oras-board-reports__observer-details">
+					<summary><?php echo esc_html__( 'Edit Legacy PayPal Memberships', 'oras-tickets' ); ?></summary>
+					<?php foreach ( $records as $record ) : ?>
+						<?php self::render_legacy_membership_form( $record, $page_id ); ?>
+					<?php endforeach; ?>
+				</details>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/** @param array<string,mixed> $record */
+	private static function render_legacy_membership_form( array $record, int $page_id ): void {
+		$record_id = absint( $record['id'] ?? 0 );
+		$redirect = self::build_membership_page_url( array(), 1, $page_id );
+		?>
+		<form class="oras-board-reports__filters oras-board-reports__legacy-membership-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::LEGACY_MEMBERSHIP_SAVE_ACTION ); ?>" />
+			<input type="hidden" name="legacy_membership_id" value="<?php echo esc_attr( (string) $record_id ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
+			<?php wp_nonce_field( self::LEGACY_MEMBERSHIP_SAVE_NONCE ); ?>
+			<label><?php echo esc_html__( 'Member name', 'oras-tickets' ); ?><input type="text" name="legacy_member_name" value="<?php echo esc_attr( (string) ( $record['member_name'] ?? '' ) ); ?>" required /></label>
+			<label><?php echo esc_html__( 'Email', 'oras-tickets' ); ?><input type="email" name="legacy_email" value="<?php echo esc_attr( (string) ( $record['email'] ?? '' ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Start date', 'oras-tickets' ); ?><input type="date" name="legacy_start_date" value="<?php echo esc_attr( (string) ( $record['start_date'] ?? '' ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Expiration or next-renewal date', 'oras-tickets' ); ?><input type="date" name="legacy_end_date" value="<?php echo esc_attr( (string) ( $record['end_date'] ?? '' ) ); ?>" required /></label>
+			<label><?php echo esc_html__( 'Status', 'oras-tickets' ); ?><select name="legacy_status">
+				<?php foreach ( self::get_legacy_membership_status_options() as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $record['status'] ?? 'active' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'PayPal reference (optional)', 'oras-tickets' ); ?><input type="text" name="legacy_paypal_reference" value="<?php echo esc_attr( (string) ( $record['paypal_reference'] ?? '' ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Linked WordPress user ID (optional)', 'oras-tickets' ); ?><input type="number" name="legacy_linked_user_id" min="0" value="<?php echo esc_attr( (string) absint( $record['linked_user_id'] ?? 0 ) ); ?>" /></label>
+			<label><input type="checkbox" name="legacy_transitioned" value="1" <?php checked( ! empty( $record['transitioned'] ) ); ?> /> <?php echo esc_html__( 'Transitioned to website membership', 'oras-tickets' ); ?></label>
+			<label><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?><textarea name="legacy_notes" rows="3"><?php echo esc_textarea( (string) ( $record['notes'] ?? '' ) ); ?></textarea></label>
+			<div class="oras-board-reports__actions"><button class="button button-primary" type="submit"><?php echo esc_html( $record_id > 0 ? __( 'Update Legacy Membership', 'oras-tickets' ) : __( 'Add Legacy Membership', 'oras-tickets' ) ); ?></button></div>
+		</form>
+		<?php
+	}
+
+	/** @return array<string,string> */
+	private static function get_legacy_membership_status_options(): array {
+		return array(
+			'active'    => __( 'Active', 'oras-tickets' ),
+			'inactive'  => __( 'Inactive', 'oras-tickets' ),
+			'cancelled' => __( 'Cancelled', 'oras-tickets' ),
+			'expired'   => __( 'Expired', 'oras-tickets' ),
+		);
+	}
+
+	/** @param array<string,mixed> $summary */
+	private static function render_membership_summary_cards( array $summary ): void {
+		$cards = array(
+			'active_count'         => __( 'Active Memberships', 'oras-tickets' ),
+			'website_active_count' => __( 'Website Active', 'oras-tickets' ),
+			'legacy_active_count'  => __( 'Legacy Active', 'oras-tickets' ),
+			'expiring_count'       => __( 'Expiring Soon', 'oras-tickets' ),
+		);
+		?>
+		<div class="oras-board-reports__observer-summary" aria-label="<?php echo esc_attr__( 'Membership operational summary', 'oras-tickets' ); ?>">
+			<?php foreach ( $cards as $key => $label ) : ?>
+				<article class="oras-board-reports__metric" data-membership-summary="<?php echo esc_attr( $key ); ?>">
+					<p class="oras-board-reports__metric-label"><?php echo esc_html( $label ); ?></p>
+					<p class="oras-board-reports__metric-value"><?php echo esc_html( (string) absint( $summary[ $key ] ?? 0 ) ); ?></p>
+				</article>
+			<?php endforeach; ?>
+		</div>
+		<?php
+	}
+
+	/** @param array<string,mixed> $filters */
+	private static function render_membership_filters( array $filters, int $page_id ): void {
+		?>
+		<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
+			<?php if ( $page_id > 0 ) : ?>
+				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
+			<?php endif; ?>
+			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_MEMBERSHIPS ); ?>" />
+			<label><?php echo esc_html__( 'Source', 'oras-tickets' ); ?><select name="oras_membership_source">
+				<?php foreach ( self::get_membership_source_options() as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['source'] ?? Membership_Report_Service::SOURCE_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'Status', 'oras-tickets' ); ?><select name="oras_membership_status">
+				<?php foreach ( self::get_membership_status_options() as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['status'] ?? Membership_Report_Service::STATUS_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'Account link', 'oras-tickets' ); ?><select name="oras_membership_account_link">
+				<?php foreach ( self::get_membership_link_options() as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['account_link'] ?? Membership_Report_Service::LINK_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'Name, email, or username', 'oras-tickets' ); ?><input type="search" name="oras_membership_search" value="<?php echo esc_attr( (string) ( $filters['search'] ?? '' ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Rows', 'oras-tickets' ); ?><select name="oras_membership_per_page">
+				<?php foreach ( array( 25, 50, 100 ) as $size ) : ?>
+					<option value="<?php echo esc_attr( (string) $size ); ?>" <?php selected( absint( $filters['per_page'] ?? 25 ), $size ); ?>><?php echo esc_html( (string) $size ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<div class="oras-board-reports__actions">
+				<button class="button button-primary" type="submit"><?php echo esc_html__( 'Apply Filters', 'oras-tickets' ); ?></button>
+				<a class="button" href="<?php echo esc_url( self::build_membership_page_url( array(), 1, $page_id ) ); ?>"><?php echo esc_html__( 'Clear Filters', 'oras-tickets' ); ?></a>
+			</div>
+		</form>
+		<?php
+	}
+
+	/** @param array<int,array<string,mixed>> $rows @param array<string,mixed> $pagination @param array<string,mixed> $filters */
+	private static function render_membership_table( array $rows, array $pagination, array $filters, int $page_id ): void {
+		if ( empty( $rows ) ) {
+			echo '<div class="oras-board-reports__empty" role="status">' . esc_html__( 'No memberships match the current filters.', 'oras-tickets' ) . '</div>';
+			return;
+		}
+		?>
+		<div class="oras-board-reports__table-wrap">
+			<table class="oras-board-reports__table">
+				<thead>
+					<tr>
+						<th><?php echo esc_html__( 'Member', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Level', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Start', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Expiration / Renewal', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Account Link', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
+						<tr>
+							<td>
+								<strong><?php echo esc_html( (string) ( $row['member_name'] ?? '' ) ); ?></strong>
+								<?php if ( '' !== (string) ( $row['email'] ?? '' ) ) : ?>
+									<br /><span><?php echo esc_html( (string) $row['email'] ); ?></span>
+								<?php endif; ?>
+							</td>
+							<td><?php echo esc_html( (string) ( $row['source_label'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $row['level_name'] ?? '' ) ); ?></td>
+							<td><?php self::render_observer_date( (string) ( $row['start_date'] ?? '' ) ); ?></td>
+							<td><?php self::render_observer_date( (string) ( $row['end_date'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( self::get_membership_status_label( (string) ( $row['operational_status'] ?? '' ) ) ); ?></td>
+							<td><?php echo esc_html( self::get_membership_link_label( (string) ( $row['account_link_status'] ?? '' ) ) ); ?></td>
+							<td><?php self::render_membership_details( $row ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php self::render_membership_pagination( $pagination, $filters, $page_id ); ?>
+		<?php
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function render_membership_details( array $row ): void {
+		$matching_ids = isset( $row['matching_user_ids'] ) && is_array( $row['matching_user_ids'] ) ? array_filter( array_map( 'absint', $row['matching_user_ids'] ) ) : array();
+		?>
+		<details class="oras-board-reports__observer-details">
+			<summary><?php echo esc_html__( 'View', 'oras-tickets' ); ?></summary>
+			<dl>
+				<div><dt><?php echo esc_html__( 'Source record', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['source_record_id'] ?? 0 ) ); ?></dd></div>
+				<div><dt><?php echo esc_html__( 'Source status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( ucfirst( (string) ( $row['source_status'] ?? '' ) ) ); ?></dd></div>
+				<?php if ( '' !== (string) ( $row['username'] ?? '' ) ) : ?>
+					<div><dt><?php echo esc_html__( 'Username', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) $row['username'] ); ?></dd></div>
+				<?php endif; ?>
+				<?php if ( absint( $row['linked_user_id'] ?? 0 ) > 0 ) : ?>
+					<div><dt><?php echo esc_html__( 'Linked WordPress user ID', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['linked_user_id'] ) ); ?></dd></div>
+				<?php endif; ?>
+				<?php if ( ! empty( $matching_ids ) ) : ?>
+					<div><dt><?php echo esc_html__( 'Possible matching user IDs', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( implode( ', ', $matching_ids ) ); ?></dd></div>
+				<?php endif; ?>
+				<?php if ( '' !== (string) ( $row['paypal_reference'] ?? '' ) ) : ?>
+					<div><dt><?php echo esc_html__( 'PayPal reference', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) $row['paypal_reference'] ); ?></dd></div>
+				<?php endif; ?>
+				<?php if ( '' !== (string) ( $row['notes'] ?? '' ) ) : ?>
+					<div><dt><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?></dt><dd><?php echo nl2br( esc_html( (string) $row['notes'] ) ); ?></dd></div>
+				<?php endif; ?>
+			</dl>
+		</details>
+		<?php
+	}
+
+	/** @param array<string,mixed> $pagination @param array<string,mixed> $filters */
+	private static function render_membership_pagination( array $pagination, array $filters, int $page_id ): void {
+		$total_pages = max( 1, absint( $pagination['total_pages'] ?? 1 ) );
+		$page = min( $total_pages, max( 1, absint( $pagination['page'] ?? 1 ) ) );
+		if ( $total_pages <= 1 ) {
+			return;
+		}
+		?>
+		<nav class="oras-board-reports__pagination" aria-label="<?php echo esc_attr__( 'Membership pages', 'oras-tickets' ); ?>">
+			<?php if ( $page > 1 ) : ?>
+				<a class="button" href="<?php echo esc_url( self::build_membership_page_url( $filters, $page - 1, $page_id ) ); ?>"><?php echo esc_html__( 'Previous', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+			<span><?php echo esc_html( sprintf( /* translators: 1: current page, 2: total pages */ __( 'Page %1$d of %2$d', 'oras-tickets' ), $page, $total_pages ) ); ?></span>
+			<?php if ( $page < $total_pages ) : ?>
+				<a class="button" href="<?php echo esc_url( self::build_membership_page_url( $filters, $page + 1, $page_id ) ); ?>"><?php echo esc_html__( 'Next', 'oras-tickets' ); ?></a>
+			<?php endif; ?>
+		</nav>
+		<?php
+	}
+
+	/** @return array<string,string> */
+	private static function get_membership_source_options(): array {
+		return array(
+			Membership_Report_Service::SOURCE_ALL     => __( 'All Sources', 'oras-tickets' ),
+			Membership_Report_Service::SOURCE_WEBSITE => __( 'Website / PMPro', 'oras-tickets' ),
+			Membership_Report_Service::SOURCE_LEGACY  => __( 'Legacy PayPal', 'oras-tickets' ),
+		);
+	}
+
+	/** @return array<string,string> */
+	private static function get_membership_status_options(): array {
+		return array(
+			Membership_Report_Service::STATUS_ALL       => __( 'All Statuses', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_ACTIVE    => __( 'Active', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_EXPIRING_SOON => __( 'Expiring Soon', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_EXPIRED   => __( 'Expired', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_INACTIVE  => __( 'Inactive', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_CANCELLED => __( 'Cancelled', 'oras-tickets' ),
+		);
+	}
+
+	/** @return array<string,string> */
+	private static function get_membership_link_options(): array {
+		return array(
+			Membership_Report_Service::LINK_ALL           => __( 'All Account Links', 'oras-tickets' ),
+			Membership_Report_Service::LINK_WEBSITE_ACCOUNT => __( 'Website Account', 'oras-tickets' ),
+			Membership_Report_Service::LINK_LINKED        => __( 'Explicitly Linked', 'oras-tickets' ),
+			Membership_Report_Service::LINK_UNLINKED      => __( 'Unlinked', 'oras-tickets' ),
+			Membership_Report_Service::LINK_EXACT_EMAIL   => __( 'Exact Email Match', 'oras-tickets' ),
+			Membership_Report_Service::LINK_POSSIBLE_NAME => __( 'Possible Name Match', 'oras-tickets' ),
+			Membership_Report_Service::LINK_TRANSITIONED  => __( 'Transitioned', 'oras-tickets' ),
+		);
+	}
+
+	private static function get_membership_status_label( string $status ): string {
+		$options = self::get_membership_status_options();
+
+		return $options[ $status ] ?? ucfirst( str_replace( '_', ' ', $status ) );
+	}
+
+	private static function get_membership_link_label( string $status ): string {
+		if ( Membership_Report_Service::LINK_EXACT_EMAIL === $status ) {
+			return __( 'Website account/membership match found', 'oras-tickets' );
+		}
+		if ( Membership_Report_Service::LINK_POSSIBLE_NAME === $status ) {
+			return __( 'Possible name match — review required', 'oras-tickets' );
+		}
+		$options = self::get_membership_link_options();
+
+		return $options[ $status ] ?? ucfirst( str_replace( '_', ' ', $status ) );
+	}
+
+	/** @param array<string,mixed> $filters */
+	private static function build_membership_page_url( array $filters, int $page, int $page_id ): string {
+		$args = array(
+			'oras_board_tab'               => self::TAB_MEMBERSHIPS,
+			'oras_membership_source'       => (string) ( $filters['source'] ?? Membership_Report_Service::SOURCE_ALL ),
+			'oras_membership_status'       => (string) ( $filters['status'] ?? Membership_Report_Service::STATUS_ALL ),
+			'oras_membership_account_link' => (string) ( $filters['account_link'] ?? Membership_Report_Service::LINK_ALL ),
+			'oras_membership_search'       => (string) ( $filters['search'] ?? '' ),
+			'oras_membership_page'         => max( 1, $page ),
+			'oras_membership_per_page'     => absint( $filters['per_page'] ?? 25 ),
+		);
+		if ( $page_id > 0 ) {
+			$args['page_id'] = $page_id;
+		}
+
+		return add_query_arg( $args, self::get_form_action_url() );
 	}
 
 	/**
@@ -3129,6 +3468,46 @@ final class Board_Reports {
 		exit;
 	}
 
+	public static function handle_save_legacy_membership(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_memberships' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'You do not have permission to manage memberships.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( self::LEGACY_MEMBERSHIP_SAVE_NONCE );
+
+		$record_id = isset( $_POST['legacy_membership_id'] ) ? absint( wp_unslash( $_POST['legacy_membership_id'] ) ) : 0;
+		$input = array(
+			'member_name'      => isset( $_POST['legacy_member_name'] ) && is_scalar( $_POST['legacy_member_name'] ) ? sanitize_text_field( wp_unslash( $_POST['legacy_member_name'] ) ) : '',
+			'email'            => isset( $_POST['legacy_email'] ) && is_scalar( $_POST['legacy_email'] ) ? sanitize_text_field( wp_unslash( $_POST['legacy_email'] ) ) : '',
+			'start_date'       => isset( $_POST['legacy_start_date'] ) && is_scalar( $_POST['legacy_start_date'] ) ? sanitize_text_field( wp_unslash( $_POST['legacy_start_date'] ) ) : '',
+			'end_date'         => isset( $_POST['legacy_end_date'] ) && is_scalar( $_POST['legacy_end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['legacy_end_date'] ) ) : '',
+			'status'           => isset( $_POST['legacy_status'] ) && is_scalar( $_POST['legacy_status'] ) ? sanitize_key( wp_unslash( $_POST['legacy_status'] ) ) : 'active',
+			'paypal_reference' => isset( $_POST['legacy_paypal_reference'] ) && is_scalar( $_POST['legacy_paypal_reference'] ) ? sanitize_text_field( wp_unslash( $_POST['legacy_paypal_reference'] ) ) : '',
+			'linked_user_id'   => isset( $_POST['legacy_linked_user_id'] ) ? absint( wp_unslash( $_POST['legacy_linked_user_id'] ) ) : 0,
+			'transitioned'     => isset( $_POST['legacy_transitioned'] ) && '1' === (string) wp_unslash( $_POST['legacy_transitioned'] ),
+			'notes'            => isset( $_POST['legacy_notes'] ) && is_scalar( $_POST['legacy_notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['legacy_notes'] ) ) : '',
+		);
+
+		$result = $record_id > 0
+			? Legacy_Membership_Store::update( $record_id, $input, get_current_user_id() )
+			: Legacy_Membership_Store::create( $input, get_current_user_id() );
+		$notice = is_wp_error( $result ) ? 'error' : ( $record_id > 0 ? 'updated' : 'created' );
+
+		$fallback = self::get_current_dashboard_url( self::TAB_MEMBERSHIPS, 0 );
+		$requested_redirect = isset( $_POST['redirect_to'] ) && is_scalar( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : '';
+		$redirect = wp_validate_redirect( $requested_redirect, $fallback );
+		$redirect = add_query_arg(
+			array(
+				'oras_board_tab'                => self::TAB_MEMBERSHIPS,
+				'oras_legacy_membership_notice' => $notice,
+			),
+			remove_query_arg( 'oras_legacy_membership_notice', $redirect )
+		);
+
+		wp_safe_redirect( $redirect );
+		exit;
+	}
+
 	public static function handle_print_observers_today(): void {
 		$response = self::prepare_observer_print_response();
 
@@ -3311,6 +3690,7 @@ final class Board_Reports {
 			self::TAB_COMMUNICATIONS  => __( 'Communications', 'oras-tickets' ),
 			self::TAB_ATTENDEES       => __( 'Roster', 'oras-tickets' ),
 			self::TAB_OBSERVER_PASSES => __( 'Observer Passes', 'oras-tickets' ),
+			self::TAB_MEMBERSHIPS     => __( 'Memberships', 'oras-tickets' ),
 		);
 	}
 
@@ -3384,11 +3764,14 @@ final class Board_Reports {
 	}
 
 	private static function should_remove_tab_query_arg( string $key, string $tab ): bool {
-		if ( self::TAB_OBSERVER_PASSES !== $tab ) {
-			return 0 === strpos( $key, self::OBSERVER_QUERY_PREFIX );
+		if ( 0 === strpos( $key, self::OBSERVER_QUERY_PREFIX ) ) {
+			return self::TAB_OBSERVER_PASSES !== $tab;
+		}
+		if ( 0 === strpos( $key, self::MEMBERSHIP_QUERY_PREFIX ) ) {
+			return self::TAB_MEMBERSHIPS !== $tab;
 		}
 
-		if ( 'oras_board_tab' === $key ) {
+		if ( ! in_array( $tab, array( self::TAB_OBSERVER_PASSES, self::TAB_MEMBERSHIPS ), true ) || 'oras_board_tab' === $key ) {
 			return false;
 		}
 
@@ -3723,6 +4106,35 @@ final class Board_Reports {
 		}
 
 		return 'mass_email';
+	}
+
+	/** @return array{source:string,status:string,account_link:string,search:string,page:int,per_page:int} */
+	private static function get_membership_filters_from_request(): array {
+		$source = isset( $_GET['oras_membership_source'] ) ? sanitize_key( wp_unslash( $_GET['oras_membership_source'] ) ) : Membership_Report_Service::SOURCE_ALL;
+		if ( ! isset( self::get_membership_source_options()[ $source ] ) ) {
+			$source = Membership_Report_Service::SOURCE_ALL;
+		}
+
+		$status = isset( $_GET['oras_membership_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_membership_status'] ) ) : Membership_Report_Service::STATUS_ALL;
+		if ( ! isset( self::get_membership_status_options()[ $status ] ) ) {
+			$status = Membership_Report_Service::STATUS_ALL;
+		}
+
+		$account_link = isset( $_GET['oras_membership_account_link'] ) ? sanitize_key( wp_unslash( $_GET['oras_membership_account_link'] ) ) : Membership_Report_Service::LINK_ALL;
+		if ( ! isset( self::get_membership_link_options()[ $account_link ] ) ) {
+			$account_link = Membership_Report_Service::LINK_ALL;
+		}
+
+		$per_page = isset( $_GET['oras_membership_per_page'] ) ? absint( $_GET['oras_membership_per_page'] ) : 25;
+
+		return array(
+			'source'       => $source,
+			'status'       => $status,
+			'account_link' => $account_link,
+			'search'       => isset( $_GET['oras_membership_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_membership_search'] ) ) : '',
+			'page'         => isset( $_GET['oras_membership_page'] ) ? max( 1, absint( $_GET['oras_membership_page'] ) ) : 1,
+			'per_page'     => in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25,
+		);
 	}
 
 	/**

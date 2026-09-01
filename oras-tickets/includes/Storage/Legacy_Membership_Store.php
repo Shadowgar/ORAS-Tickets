@@ -43,7 +43,7 @@ final class Legacy_Membership_Store {
 	public static function sanitize_record( array $input ) {
 		$member_name = sanitize_text_field( (string) ( $input['member_name'] ?? '' ) );
 		$raw_email   = trim( (string) ( $input['email'] ?? '' ) );
-		$email       = sanitize_email( $raw_email );
+		$email       = strtolower( sanitize_email( $raw_email ) );
 		$start_raw   = trim( (string) ( $input['start_date'] ?? '' ) );
 		$start_date  = '' !== $start_raw ? self::sanitize_date( $start_raw ) : '';
 		$end_date    = self::sanitize_date( trim( (string) ( $input['end_date'] ?? '' ) ) );
@@ -111,7 +111,13 @@ final class Legacy_Membership_Store {
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		$updated = wp_update_post( array( 'ID' => $post_id, 'post_title' => $record['member_name'] ), true );
+		$updated = wp_update_post(
+			array(
+				'ID'         => $post_id,
+				'post_title' => $record['member_name'],
+			),
+			true
+		);
 		if ( is_wp_error( $updated ) ) {
 			return $updated;
 		}
