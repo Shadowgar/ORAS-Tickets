@@ -10,6 +10,7 @@ use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
 use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
+use ORAS\Tickets\Storage\Manual_Observer_Pass_Store;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -29,6 +30,8 @@ final class Board_Reports {
 	private const ATTENTION_ACTION = 'oras_board_reports_update_attention_status';
 	private const OBSERVER_PRINT_ACTION = 'oras_board_reports_print_observers_today';
 	private const OBSERVER_PRINT_NONCE = 'oras_board_reports_print_observers_today';
+	private const MANUAL_OBSERVER_SAVE_ACTION = 'oras_board_reports_save_manual_observer_pass';
+	private const MANUAL_OBSERVER_SAVE_NONCE = 'oras_board_reports_save_manual_observer_pass';
 	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
@@ -49,6 +52,7 @@ final class Board_Reports {
 		add_action( 'admin_post_' . self::WAITLIST_ACTION, array( self::class, 'handle_update_waitlist' ) );
 		add_action( 'admin_post_' . self::ATTENTION_ACTION, array( self::class, 'handle_update_attention_status' ) );
 		add_action( 'admin_post_' . self::OBSERVER_PRINT_ACTION, array( self::class, 'handle_print_observers_today' ) );
+		add_action( 'admin_post_' . self::MANUAL_OBSERVER_SAVE_ACTION, array( self::class, 'handle_save_manual_observer_pass' ) );
 	}
 
 	/**
@@ -1269,6 +1273,10 @@ final class Board_Reports {
 		?>
 		<section class="oras-board-reports__observer" data-oras-observer-dashboard>
 			<h3><?php echo esc_html__( 'Observer Passes', 'oras-tickets' ); ?></h3>
+			<?php self::render_manual_observer_notice(); ?>
+			<?php if ( current_user_can( 'oras_tickets_manage_observer_passes' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<?php self::render_manual_observer_management( $page_id ); ?>
+			<?php endif; ?>
 			<?php if ( true !== ( $report['available'] ?? false ) ) : ?>
 				<div class="oras-board-reports__empty oras-board-reports__observer-unavailable" role="status"><?php echo esc_html__( 'Observer Pass reporting is currently unavailable.', 'oras-tickets' ); ?></div>
 			<?php elseif ( empty( $all_rows ) ) : ?>
@@ -1282,6 +1290,81 @@ final class Board_Reports {
 			<?php endif; ?>
 		</section>
 		<?php
+	}
+
+	private static function render_manual_observer_notice(): void {
+		$notice = isset( $_GET['oras_manual_pass_notice'] ) ? sanitize_key( wp_unslash( $_GET['oras_manual_pass_notice'] ) ) : '';
+		$messages = array(
+			'created' => __( 'Manual Annual Observer Pass added.', 'oras-tickets' ),
+			'updated' => __( 'Manual Annual Observer Pass updated.', 'oras-tickets' ),
+			'error'   => __( 'The Manual Annual Observer Pass could not be saved. Check the required fields and try again.', 'oras-tickets' ),
+		);
+		if ( isset( $messages[ $notice ] ) ) {
+			?>
+			<div class="oras-board-reports__notice" role="status"><?php echo esc_html( $messages[ $notice ] ); ?></div>
+			<?php
+		}
+	}
+
+	private static function render_manual_observer_management( int $page_id ): void {
+		$records = Manual_Observer_Pass_Store::query();
+		?>
+		<section class="oras-board-reports__observer-section" aria-labelledby="oras-manual-observer-title">
+			<h4 id="oras-manual-observer-title"><?php echo esc_html__( 'Add Manual Annual Pass', 'oras-tickets' ); ?></h4>
+			<p><?php echo esc_html__( 'Record an Annual Observer Pass received outside WooCommerce. Expiration is calculated as one year after the start date.', 'oras-tickets' ); ?></p>
+			<?php self::render_manual_observer_form( array(), $page_id ); ?>
+			<?php if ( ! empty( $records ) ) : ?>
+				<details class="oras-board-reports__observer-details">
+					<summary><?php echo esc_html__( 'Edit Manual Annual Passes', 'oras-tickets' ); ?></summary>
+					<?php foreach ( $records as $record ) : ?>
+						<?php self::render_manual_observer_form( $record, $page_id ); ?>
+					<?php endforeach; ?>
+				</details>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/** @param array<string,mixed> $record */
+	private static function render_manual_observer_form( array $record, int $page_id ): void {
+		$record_id = absint( $record['id'] ?? 0 );
+		$holders = is_array( $record['holder_names'] ?? null ) ? implode( "\n", array_map( 'strval', $record['holder_names'] ) ) : '';
+		$redirect = self::build_observer_page_url( array(), 1, $page_id );
+		?>
+		<form class="oras-board-reports__filters oras-board-reports__manual-observer-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::MANUAL_OBSERVER_SAVE_ACTION ); ?>" />
+			<input type="hidden" name="manual_pass_id" value="<?php echo esc_attr( (string) $record_id ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
+			<?php wp_nonce_field( self::MANUAL_OBSERVER_SAVE_NONCE ); ?>
+			<label><?php echo esc_html__( 'Passholder names (one per line)', 'oras-tickets' ); ?><textarea name="manual_holder_names" rows="3" required><?php echo esc_textarea( $holders ); ?></textarea></label>
+			<label><?php echo esc_html__( 'Pass quantity', 'oras-tickets' ); ?><input type="number" name="manual_quantity" min="1" max="100" value="<?php echo esc_attr( (string) absint( $record['quantity'] ?? 1 ) ); ?>" required /></label>
+			<label><?php echo esc_html__( 'Email', 'oras-tickets' ); ?><input type="email" name="manual_email" value="<?php echo esc_attr( (string) ( $record['email'] ?? '' ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Start date', 'oras-tickets' ); ?><input type="date" name="manual_start_date" value="<?php echo esc_attr( (string) ( $record['start_date'] ?? '' ) ); ?>" required /></label>
+			<label><?php echo esc_html__( 'Source', 'oras-tickets' ); ?><select name="manual_source">
+				<?php foreach ( self::get_manual_observer_source_options() as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $record['source'] ?? 'other' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'Linked WordPress user ID (optional)', 'oras-tickets' ); ?><input type="number" name="manual_linked_user_id" min="0" value="<?php echo esc_attr( (string) absint( $record['linked_user_id'] ?? 0 ) ); ?>" /></label>
+			<label><?php echo esc_html__( 'Record state', 'oras-tickets' ); ?><select name="manual_record_state">
+				<option value="active" <?php selected( (string) ( $record['record_state'] ?? 'active' ), 'active' ); ?>><?php echo esc_html__( 'Active record', 'oras-tickets' ); ?></option>
+				<option value="invalid" <?php selected( (string) ( $record['record_state'] ?? 'active' ), 'invalid' ); ?>><?php echo esc_html__( 'Invalid record', 'oras-tickets' ); ?></option>
+			</select></label>
+			<label><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?><textarea name="manual_notes" rows="3"><?php echo esc_textarea( (string) ( $record['notes'] ?? '' ) ); ?></textarea></label>
+			<div class="oras-board-reports__actions"><button class="button button-primary" type="submit"><?php echo esc_html( $record_id > 0 ? __( 'Update Manual Pass', 'oras-tickets' ) : __( 'Add Manual Pass', 'oras-tickets' ) ); ?></button></div>
+		</form>
+		<?php
+	}
+
+	/** @return array<string,string> */
+	private static function get_manual_observer_source_options(): array {
+		return array(
+			'legacy_import' => __( 'Legacy Import', 'oras-tickets' ),
+			'cash'          => __( 'Cash', 'oras-tickets' ),
+			'check'         => __( 'Check', 'oras-tickets' ),
+			'complimentary' => __( 'Complimentary', 'oras-tickets' ),
+			'other'         => __( 'Other', 'oras-tickets' ),
+		);
 	}
 
 	/**
@@ -1391,7 +1474,7 @@ final class Board_Reports {
 						$search_value = strtolower( trim( $identity . ' ' . implode( ' ', $holder_names ) . ' ' . $email ) );
 						$status = self::get_observer_status_presentation( $row );
 						?>
-						<article class="oras-board-reports__observer-annual-card" data-observer-annual-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>">
+						<article class="oras-board-reports__observer-annual-card" data-observer-annual-order="<?php echo esc_attr( self::get_observer_row_key( $row ) ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>">
 							<div>
 								<h5><?php echo esc_html( $identity ); ?></h5>
 								<p><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></p>
@@ -1467,6 +1550,14 @@ final class Board_Reports {
 					</select>
 				</label>
 				<label>
+					<?php echo esc_html__( 'Source', 'oras-tickets' ); ?>
+					<select name="oras_observer_source">
+						<?php foreach ( self::get_observer_source_options() as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['source'] ?? Observer_Pass_Report_Service::SOURCE_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
 					<?php echo esc_html__( 'Operational date', 'oras-tickets' ); ?>
 					<select name="oras_observer_date_preset">
 						<?php foreach ( self::get_observer_date_options() as $value => $label ) : ?>
@@ -1526,6 +1617,7 @@ final class Board_Reports {
 							<tr>
 								<th scope="col"><?php echo esc_html__( 'Purchaser / Passholder', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Pass Type', 'oras-tickets' ); ?></th>
+								<th scope="col"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Purchase Date', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Valid Date / Expiration', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
@@ -1546,10 +1638,11 @@ final class Board_Reports {
 										<small><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></small>
 									</th>
 									<td><?php echo esc_html( self::get_observer_pass_type_label( $pass_type ) ); ?></td>
+									<td><?php echo esc_html( self::get_observer_value( $row, 'source_label' ) ); ?></td>
 									<td><?php self::render_observer_date( self::get_observer_value( $row, 'purchase_date' ) ); ?></td>
 									<td><?php self::render_observer_valid_date( $row ); ?></td>
 									<td class="oras-board-reports__cell--qty"><?php echo esc_html( self::get_observer_quantity_label( $row ) ); ?></td>
-									<td><?php echo esc_html( '#' . self::get_observer_value( $row, 'order_number' ) ); ?></td>
+									<td><?php echo esc_html( self::get_observer_record_label( $row ) ); ?></td>
 									<td><span class="oras-board-reports__observer-status <?php echo esc_attr( $status['class'] ); ?>"><?php echo esc_html( $status['label'] ); ?></span></td>
 									<td><?php self::render_observer_details( $row ); ?></td>
 								</tr>
@@ -1569,17 +1662,23 @@ final class Board_Reports {
 	private static function render_observer_details( array $row ): void {
 		$pass_type = self::get_observer_value( $row, 'pass_type' );
 		$booking_status = self::get_observer_value( $row, 'booking_status' );
+		$is_manual = Observer_Pass_Report_Service::SOURCE_MANUAL === self::get_observer_value( $row, 'source' );
 		?>
 		<details class="oras-board-reports__observer-details">
 			<summary><?php echo esc_html__( 'View details', 'oras-tickets' ); ?></summary>
 			<dl>
+				<div><dt><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'source_label' ) . ' — ' . self::get_observer_recorded_value( $row, 'source_detail' ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_identity( $row ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'email' ) ); ?></dd></div>
-				<div><dt><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'phone' ) ); ?></dd></div>
+				<?php if ( ! $is_manual ) : ?>
+					<div><dt><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'phone' ) ); ?></dd></div>
+				<?php endif; ?>
 				<div><dt><?php echo esc_html__( 'Pass type', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_pass_type_label( $pass_type ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Purchased quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['quantity'] ?? 0 ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Valid quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?></dd></div>
-				<div><dt><?php echo esc_html__( 'Refunded quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['refunded_quantity'] ?? 0 ) ); ?></dd></div>
+				<?php if ( ! $is_manual ) : ?>
+					<div><dt><?php echo esc_html__( 'Refunded quantity', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['refunded_quantity'] ?? 0 ) ); ?></dd></div>
+				<?php endif; ?>
 				<div><dt><?php echo esc_html__( 'Purchase date', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'purchase_date' ) ); ?></dd></div>
 				<?php if ( Observer_Pass_Report_Service::PASS_DAILY === $pass_type ) : ?>
 					<div><dt><?php echo esc_html__( 'Daily booking start', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'valid_start' ) ); ?></dd></div>
@@ -1587,9 +1686,15 @@ final class Board_Reports {
 				<?php else : ?>
 					<div><dt><?php echo esc_html__( 'Annual expiration', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( self::get_observer_value( $row, 'expiration_date' ) ); ?></dd></div>
 				<?php endif; ?>
-				<div><dt><?php echo esc_html__( 'Order number', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'order_number' ) ); ?></dd></div>
-				<div><dt><?php echo esc_html__( 'WooCommerce status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_source_status_label( self::get_observer_value( $row, 'order_status' ) ) ); ?></dd></div>
-				<div><dt><?php echo esc_html__( 'Booking status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( '' !== $booking_status ? self::get_observer_source_status_label( $booking_status ) : __( 'Not recorded', 'oras-tickets' ) ); ?></dd></div>
+				<?php if ( $is_manual ) : ?>
+					<div><dt><?php echo esc_html__( 'Manual record ID', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['source_record_id'] ?? 0 ) ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'Linked WordPress user ID', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( absint( $row['linked_user_id'] ?? 0 ) > 0 ? (string) absint( $row['linked_user_id'] ) : __( 'Not linked', 'oras-tickets' ) ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'notes' ) ); ?></dd></div>
+				<?php else : ?>
+					<div><dt><?php echo esc_html__( 'Order number', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'order_number' ) ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'WooCommerce status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_source_status_label( self::get_observer_value( $row, 'order_status' ) ) ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'Booking status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( '' !== $booking_status ? self::get_observer_source_status_label( $booking_status ) : __( 'Not recorded', 'oras-tickets' ) ); ?></dd></div>
+				<?php endif; ?>
 				<div><dt><?php echo esc_html__( 'Validity', 'oras-tickets' ); ?></dt><dd><?php echo ! empty( $row['is_valid'] ) ? esc_html__( 'Valid', 'oras-tickets' ) : esc_html__( 'Invalid', 'oras-tickets' ); ?></dd></div>
 			</dl>
 		</details>
@@ -1603,6 +1708,28 @@ final class Board_Reports {
 		$name = trim( self::get_observer_value( $row, 'purchaser_name' ) );
 
 		return '' !== $name ? $name : __( 'Not recorded', 'oras-tickets' );
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function get_observer_row_key( array $row ): string {
+		if ( Observer_Pass_Report_Service::SOURCE_MANUAL === self::get_observer_value( $row, 'source' ) ) {
+			return 'manual-' . absint( $row['source_record_id'] ?? 0 );
+		}
+
+		return (string) absint( $row['order_id'] ?? 0 );
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function get_observer_record_label( array $row ): string {
+		if ( Observer_Pass_Report_Service::SOURCE_MANUAL === self::get_observer_value( $row, 'source' ) ) {
+			return sprintf(
+				/* translators: %d: internal manual record ID. */
+				__( 'Manual #%d', 'oras-tickets' ),
+				absint( $row['source_record_id'] ?? 0 )
+			);
+		}
+
+		return '#' . self::get_observer_value( $row, 'order_number' );
 	}
 
 	/**
@@ -1781,6 +1908,7 @@ final class Board_Reports {
 			'oras_board_tab'            => self::TAB_OBSERVER_PASSES,
 			'oras_observer_pass_type'   => (string) ( $filters['pass_type'] ?? Observer_Pass_Report_Service::PASS_ALL ),
 			'oras_observer_status'      => (string) ( $filters['status'] ?? Observer_Pass_Report_Service::PASS_ALL ),
+			'oras_observer_source'      => (string) ( $filters['source'] ?? Observer_Pass_Report_Service::SOURCE_ALL ),
 			'oras_observer_date_preset' => (string) ( $filters['date_preset'] ?? Observer_Pass_Report_Service::PASS_ALL ),
 			'oras_observer_after'       => (string) ( $filters['after'] ?? '' ),
 			'oras_observer_before'      => (string) ( $filters['before'] ?? '' ),
@@ -2962,6 +3090,45 @@ final class Board_Reports {
 		exit;
 	}
 
+	public static function handle_save_manual_observer_pass(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_observer_passes' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'You do not have permission to manage Observer Passes.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( self::MANUAL_OBSERVER_SAVE_NONCE );
+
+		$record_id = isset( $_POST['manual_pass_id'] ) ? absint( wp_unslash( $_POST['manual_pass_id'] ) ) : 0;
+		$input = array(
+			'holder_names'   => isset( $_POST['manual_holder_names'] ) && is_scalar( $_POST['manual_holder_names'] ) ? sanitize_textarea_field( wp_unslash( $_POST['manual_holder_names'] ) ) : '',
+			'quantity'       => isset( $_POST['manual_quantity'] ) ? absint( wp_unslash( $_POST['manual_quantity'] ) ) : 0,
+			'email'          => isset( $_POST['manual_email'] ) && is_scalar( $_POST['manual_email'] ) ? sanitize_text_field( wp_unslash( $_POST['manual_email'] ) ) : '',
+			'start_date'     => isset( $_POST['manual_start_date'] ) && is_scalar( $_POST['manual_start_date'] ) ? sanitize_text_field( wp_unslash( $_POST['manual_start_date'] ) ) : '',
+			'source'         => isset( $_POST['manual_source'] ) && is_scalar( $_POST['manual_source'] ) ? sanitize_key( wp_unslash( $_POST['manual_source'] ) ) : 'other',
+			'linked_user_id' => isset( $_POST['manual_linked_user_id'] ) ? absint( wp_unslash( $_POST['manual_linked_user_id'] ) ) : 0,
+			'notes'          => isset( $_POST['manual_notes'] ) && is_scalar( $_POST['manual_notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['manual_notes'] ) ) : '',
+			'record_state'   => isset( $_POST['manual_record_state'] ) && is_scalar( $_POST['manual_record_state'] ) ? sanitize_key( wp_unslash( $_POST['manual_record_state'] ) ) : 'active',
+		);
+
+		$result = $record_id > 0
+			? Manual_Observer_Pass_Store::update( $record_id, $input, get_current_user_id() )
+			: Manual_Observer_Pass_Store::create( $input, get_current_user_id() );
+		$notice = is_wp_error( $result ) ? 'error' : ( $record_id > 0 ? 'updated' : 'created' );
+
+		$fallback = self::get_current_dashboard_url( self::TAB_OBSERVER_PASSES, 0 );
+		$requested_redirect = isset( $_POST['redirect_to'] ) && is_scalar( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : '';
+		$redirect = wp_validate_redirect( $requested_redirect, $fallback );
+		$redirect = add_query_arg(
+			array(
+				'oras_board_tab'          => self::TAB_OBSERVER_PASSES,
+				'oras_manual_pass_notice' => $notice,
+			),
+			remove_query_arg( 'oras_manual_pass_notice', $redirect )
+		);
+
+		wp_safe_redirect( $redirect );
+		exit;
+	}
+
 	public static function handle_print_observers_today(): void {
 		$response = self::prepare_observer_print_response();
 
@@ -3559,7 +3726,7 @@ final class Board_Reports {
 	}
 
 	/**
-	 * @return array{pass_type:string,status:string,date_preset:string,after:string,before:string,search:string,page:int,per_page:int}
+	 * @return array{pass_type:string,status:string,source:string,date_preset:string,after:string,before:string,search:string,page:int,per_page:int}
 	 */
 	private static function get_observer_filters_from_request(): array {
 		$pass_type = isset( $_GET['oras_observer_pass_type'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_pass_type'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
@@ -3570,6 +3737,11 @@ final class Board_Reports {
 		$status = isset( $_GET['oras_observer_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_status'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
 		if ( ! isset( self::get_observer_status_options()[ $status ] ) ) {
 			$status = Observer_Pass_Report_Service::PASS_ALL;
+		}
+
+		$source = isset( $_GET['oras_observer_source'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_source'] ) ) : Observer_Pass_Report_Service::SOURCE_ALL;
+		if ( ! isset( self::get_observer_source_options()[ $source ] ) ) {
+			$source = Observer_Pass_Report_Service::SOURCE_ALL;
 		}
 
 		$date_preset = isset( $_GET['oras_observer_date_preset'] ) ? sanitize_key( wp_unslash( $_GET['oras_observer_date_preset'] ) ) : Observer_Pass_Report_Service::PASS_ALL;
@@ -3584,6 +3756,7 @@ final class Board_Reports {
 		return array(
 			'pass_type'   => $pass_type,
 			'status'      => $status,
+			'source'      => $source,
 			'date_preset' => $date_preset,
 			'after'       => self::is_valid_observer_date( $after ) ? $after : '',
 			'before'      => self::is_valid_observer_date( $before ) ? $before : '',
@@ -3612,6 +3785,15 @@ final class Board_Reports {
 		);
 	}
 
+	/** @return array<string,string> */
+	private static function get_observer_source_options(): array {
+		return array(
+			Observer_Pass_Report_Service::SOURCE_ALL     => __( 'All Sources', 'oras-tickets' ),
+			Observer_Pass_Report_Service::SOURCE_WEBSITE => __( 'Website', 'oras-tickets' ),
+			Observer_Pass_Report_Service::SOURCE_MANUAL  => __( 'Manual / Offline', 'oras-tickets' ),
+		);
+	}
+
 	/**
 	 * @return array<string,string>
 	 */
@@ -3629,6 +3811,7 @@ final class Board_Reports {
 			Observer_Pass_Report_Service::STATUS_FAILED    => __( 'Failed', 'oras-tickets' ),
 			Observer_Pass_Report_Service::STATUS_UNPAID    => __( 'Unpaid / Invalid', 'oras-tickets' ),
 			Observer_Pass_Report_Service::STATUS_DATE_MISSING => __( 'Date Missing / Invalid', 'oras-tickets' ),
+			Observer_Pass_Report_Service::STATUS_INVALID   => __( 'Invalid Record', 'oras-tickets' ),
 			'refunded_cancelled'                           => __( 'Refunded or Cancelled', 'oras-tickets' ),
 		);
 	}

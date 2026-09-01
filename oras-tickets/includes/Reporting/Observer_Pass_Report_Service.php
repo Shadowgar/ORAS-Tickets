@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Reporting;
 
+use ORAS\Tickets\Domain\Annual_Pass_Validity;
+use ORAS\Tickets\Storage\Manual_Observer_Pass_Store;
 use ORAS\Tickets\Support\Logger;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -25,6 +27,11 @@ final class Observer_Pass_Report_Service {
 	public const STATUS_FAILED        = 'failed';
 	public const STATUS_UNPAID        = 'unpaid';
 	public const STATUS_DATE_MISSING  = 'date_missing';
+	public const STATUS_INVALID       = 'invalid';
+
+	public const SOURCE_ALL     = 'all';
+	public const SOURCE_WEBSITE = 'website';
+	public const SOURCE_MANUAL  = 'manual';
 
 	private const ORDER_STATUSES = array(
 		'completed',
@@ -88,7 +95,7 @@ final class Observer_Pass_Report_Service {
 
 	/**
 	 * @param array<string,mixed> $filters Raw report filters.
-	 * @return array{pass_type:string,status:string,search:string,date_preset:string,after:string,before:string}
+	 * @return array{pass_type:string,status:string,source:string,search:string,date_preset:string,after:string,before:string}
 	 */
 	private function normalize_filters( array $filters ): array {
 		$pass_type = sanitize_key( (string) ( $filters['pass_type'] ?? self::PASS_ALL ) );
@@ -110,6 +117,7 @@ final class Observer_Pass_Report_Service {
 			self::STATUS_FAILED,
 			self::STATUS_UNPAID,
 			self::STATUS_DATE_MISSING,
+			self::STATUS_INVALID,
 			'refunded_cancelled',
 		);
 		if ( ! in_array( $status, $allowed_statuses, true ) ) {
@@ -119,6 +127,11 @@ final class Observer_Pass_Report_Service {
 		$date_preset = sanitize_key( (string) ( $filters['date_preset'] ?? self::PASS_ALL ) );
 		if ( ! in_array( $date_preset, array( self::PASS_ALL, 'today', 'next_7', 'this_month', 'this_year', 'custom' ), true ) ) {
 			$date_preset = self::PASS_ALL;
+		}
+
+		$source = sanitize_key( (string) ( $filters['source'] ?? self::SOURCE_ALL ) );
+		if ( ! in_array( $source, array( self::SOURCE_ALL, self::SOURCE_WEBSITE, self::SOURCE_MANUAL ), true ) ) {
+			$source = self::SOURCE_ALL;
 		}
 
 		$after  = '';
@@ -145,6 +158,7 @@ final class Observer_Pass_Report_Service {
 		return array(
 			'pass_type'   => $pass_type,
 			'status'      => $status,
+			'source'      => $source,
 			'search'      => sanitize_text_field( (string) ( $filters['search'] ?? '' ) ),
 			'date_preset' => $date_preset,
 			'after'       => $after,
@@ -154,7 +168,7 @@ final class Observer_Pass_Report_Service {
 
 	/**
 	 * @param array<int,array<string,mixed>> $rows Normalized rows.
-	 * @param array{pass_type:string,status:string,search:string,date_preset:string,after:string,before:string} $filters Normalized filters.
+	 * @param array{pass_type:string,status:string,source:string,search:string,date_preset:string,after:string,before:string} $filters Normalized filters.
 	 * @return array<int,array<string,mixed>>
 	 */
 	private function filter_rows( array $rows, array $filters ): array {
@@ -162,6 +176,10 @@ final class Observer_Pass_Report_Service {
 			array_filter(
 				$rows,
 				function ( array $row ) use ( $filters ): bool {
+					if ( self::SOURCE_ALL !== $filters['source'] && $filters['source'] !== ( $row['source'] ?? '' ) ) {
+						return false;
+					}
+
 					if ( self::PASS_ALL !== $filters['pass_type'] && $filters['pass_type'] !== ( $row['pass_type'] ?? '' ) ) {
 						return false;
 					}
@@ -203,6 +221,9 @@ final class Observer_Pass_Report_Service {
 					$holder_names,
 					(string) ( $row['email'] ?? '' ),
 					(string) ( $row['order_number'] ?? '' ),
+					(string) ( $row['source_label'] ?? '' ),
+					(string) ( $row['source_detail'] ?? '' ),
+					(string) ( $row['notes'] ?? '' ),
 				)
 			)
 		);
@@ -274,6 +295,74 @@ final class Observer_Pass_Report_Service {
 		);
 
 		return $rows;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function get_manual_rows(): array {
+		$rows = array();
+		foreach ( Manual_Observer_Pass_Store::query() as $record ) {
+			$expiration = $this->parse_date( (string) ( $record['expiration_date'] ?? '' ) );
+			$state = 'invalid' === ( $record['record_state'] ?? '' )
+				? array(
+					'status'   => self::STATUS_INVALID,
+					'is_valid' => false,
+				)
+				: $this->get_annual_state( $expiration );
+			$holder_names = is_array( $record['holder_names'] ?? null ) ? array_values( array_filter( array_map( 'strval', $record['holder_names'] ) ) ) : array();
+			$identity = implode( ' & ', $holder_names );
+			$record_id = absint( $record['id'] ?? 0 );
+			$quantity = absint( $record['quantity'] ?? 0 );
+
+			$rows[] = array(
+				'product_id'         => 0,
+				'item_id'            => $record_id,
+				'item_label'         => __( 'Manual Annual Observer Pass', 'oras-tickets' ),
+				'pass_type'          => self::PASS_ANNUAL,
+				'name'               => $identity,
+				'purchaser_name'     => $identity,
+				'email'              => (string) ( $record['email'] ?? '' ),
+				'phone'              => '',
+				'address_summary'    => '',
+				'holder_label'       => _n( 'Passholder', 'Passholders', count( $holder_names ), 'oras-tickets' ),
+				'holder_names'       => $holder_names,
+				'purchase_date'      => (string) ( $record['start_date'] ?? '' ),
+				'order_date'         => '',
+				'expiration_date'    => null !== $expiration ? $expiration->format( 'Y-m-d' ) : '',
+				'valid_start'        => '',
+				'valid_checkout'     => '',
+				'last_valid_date'    => '',
+				'quantity'           => $quantity,
+				'valid_quantity'     => ! empty( $state['is_valid'] ) ? $quantity : 0,
+				'refunded_quantity'  => 0,
+				'order_id'           => 0,
+				'order_number'       => '',
+				'order_status'       => '',
+				'booking_status'     => '',
+				'operational_status' => $state['status'],
+				'is_valid'           => $state['is_valid'],
+				'source'             => self::SOURCE_MANUAL,
+				'source_label'       => __( 'Manual / Offline', 'oras-tickets' ),
+				'source_detail'      => self::get_manual_source_label( (string) ( $record['source'] ?? '' ) ),
+				'source_record_id'   => $record_id,
+				'linked_user_id'     => absint( $record['linked_user_id'] ?? 0 ),
+				'notes'              => (string) ( $record['notes'] ?? '' ),
+				'record_state'       => (string) ( $record['record_state'] ?? '' ),
+			);
+		}
+
+		return $rows;
+	}
+
+	private static function get_manual_source_label( string $source ): string {
+		$labels = array(
+			'legacy_import' => __( 'Legacy Import', 'oras-tickets' ),
+			'cash'          => __( 'Cash', 'oras-tickets' ),
+			'check'         => __( 'Check', 'oras-tickets' ),
+			'complimentary' => __( 'Complimentary', 'oras-tickets' ),
+			'other'         => __( 'Other', 'oras-tickets' ),
+		);
+
+		return $labels[ $source ] ?? __( 'Other', 'oras-tickets' );
 	}
 
 	/**
@@ -361,7 +450,7 @@ final class Observer_Pass_Report_Service {
 			++$page;
 		} while ( $count === $per_page );
 
-		return $rows;
+		return array_merge( $rows, $this->get_manual_rows() );
 	}
 
 	private function get_pass_type( \WC_Order_Item_Product $item ): string {
@@ -463,20 +552,17 @@ final class Observer_Pass_Report_Service {
 			'booking_status'     => $booking_status,
 			'operational_status' => $operational['status'],
 			'is_valid'           => $operational['is_valid'],
+			'source'             => self::SOURCE_WEBSITE,
+			'source_label'       => __( 'Website', 'oras-tickets' ),
+			'source_detail'      => __( 'WooCommerce', 'oras-tickets' ),
+			'source_record_id'   => (int) $item->get_id(),
+			'linked_user_id'     => (int) $order->get_user_id(),
+			'notes'              => '',
 		);
 	}
 
 	private function get_annual_expiration( \DateTimeImmutable $purchase_date ): \DateTimeImmutable {
-		$local_date = $purchase_date->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
-		$next_year  = (int) $local_date->format( 'Y' ) + 1;
-		$month      = (int) $local_date->format( 'n' );
-		$day        = (int) $local_date->format( 'j' );
-
-		if ( 2 === $month && 29 === $day && ! checkdate( 2, 29, $next_year ) ) {
-			return $local_date->setDate( $next_year, 3, 1 );
-		}
-
-		return $local_date->setDate( $next_year, $month, $day );
+		return Annual_Pass_Validity::expiration_for( $purchase_date->setTimezone( wp_timezone() ) );
 	}
 
 	/**
@@ -535,26 +621,7 @@ final class Observer_Pass_Report_Service {
 	 * @return array{status:string,is_valid:bool}
 	 */
 	private function get_annual_state( ?\DateTimeImmutable $expiration_date ): array {
-		if ( null === $expiration_date ) {
-			return array(
-				'status'   => self::STATUS_DATE_MISSING,
-				'is_valid' => false,
-			);
-		}
-
-		if ( $this->today >= $expiration_date ) {
-			return array(
-				'status'   => self::STATUS_EXPIRED,
-				'is_valid' => false,
-			);
-		}
-
-		$status = $this->today >= $expiration_date->modify( '-30 days' ) ? self::STATUS_EXPIRING_SOON : self::STATUS_ACTIVE;
-
-		return array(
-			'status'   => $status,
-			'is_valid' => true,
-		);
+		return Annual_Pass_Validity::state_for( $expiration_date, $this->today );
 	}
 
 	/**
