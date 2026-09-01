@@ -10,6 +10,9 @@ require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR inclu
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Annual_Pass_Validity.php'; // NOSONAR include: shared Annual pass policy
+require_once ORAS_TICKETS_DIR . 'includes/Storage/Manual_Observer_Pass_Store.php'; // NOSONAR include: internal manual pass registry
+require_once ORAS_TICKETS_DIR . 'includes/Storage/Legacy_Membership_Store.php'; // NOSONAR include: internal legacy membership registry
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Pricing/Price_Resolver.php'; // NOSONAR legacy include
 // Admin metabox for Phase 1.2
 // Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
@@ -86,6 +89,8 @@ final class Bootstrap
         \ORAS\Tickets\Data_Retention::register();
         \ORAS\Tickets\Privacy_Manager::register();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
+        \ORAS\Tickets\Storage\Manual_Observer_Pass_Store::register();
+        \ORAS\Tickets\Storage\Legacy_Membership_Store::register();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
             \ORAS\Tickets\Capabilities::reconcile_roles();
         }

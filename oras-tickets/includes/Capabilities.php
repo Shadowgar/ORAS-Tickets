@@ -26,6 +26,8 @@ final class Capabilities {
 		'oras_tickets_view_reports',
 		'oras_tickets_export_reports',
 		'oras_tickets_view_board_dashboard',
+		'oras_tickets_manage_observer_passes',
+		'oras_tickets_manage_memberships',
 		'oras_tickets_manage_speakers',
 	];
 
