@@ -32,6 +32,40 @@ final class Membership_Report_Service {
 	private string $memberships_table;
 	private string $levels_table;
 
+	/** @var array<string,array{label:string,type:string,options:array<string,string>}> */
+	private const MEMBERSHIP_QUESTION_DEFINITIONS = array(
+		'share'        => array(
+			'label'   => 'Is it okay to share your Demographics with members?',
+			'type'    => 'radio',
+			'options' => array(),
+		),
+		'astro_league' => array(
+			'label'   => 'Do you have a Astro league membership?',
+			'type'    => 'select',
+			'options' => array(),
+		),
+		'texting'      => array(
+			'label'   => 'Can we send you text messages?',
+			'type'    => 'text',
+			'options' => array(),
+		),
+		'committees'   => array(
+			'label'   => 'Are you interested in joining an ORAS committee?',
+			'type'    => 'checkbox_grouped',
+			'options' => array(
+				'education'   => 'Education and Outreach Committee',
+				'observatory' => 'Observatory/Facilities Committee',
+				'fund'        => 'Fund Development Committee',
+				'astroblast'  => 'Astroblast Working Group',
+			),
+		),
+		'family'       => array(
+			'label'   => 'Do you have additional family contact information?',
+			'type'    => 'textarea',
+			'options' => array(),
+		),
+	);
+
 	public function __construct( ?\DateTimeImmutable $today = null, string $memberships_table = '', string $levels_table = '' ) {
 		global $wpdb;
 		$this->today = ( $today ?? current_datetime() )->setTimezone( wp_timezone() )->setTime( 0, 0, 0 );
@@ -102,6 +136,7 @@ final class Membership_Report_Service {
 		$user_id = absint( $raw['user_id'] ?? 0 );
 		$contact = $this->get_website_contact( $user_id );
 		$membership_date = $this->get_website_membership_date( $source_status, $end_date, $raw_end_date, $user_id );
+		$membership_questions = $this->get_membership_questions( $user_id );
 
 		return array(
 			'source'              => self::SOURCE_WEBSITE,
@@ -134,7 +169,82 @@ final class Membership_Report_Service {
 			'postcode'            => $contact['postcode'],
 			'country'             => $contact['country'],
 			'address_summary'     => $contact['address_summary'],
+			'membership_questions'=> $membership_questions,
 		);
+	}
+
+	/** @return array<int,array{label:string,value:string}> */
+	private function get_membership_questions( int $user_id ): array {
+		if ( $user_id <= 0 ) {
+			return array();
+		}
+
+		$definitions = self::MEMBERSHIP_QUESTION_DEFINITIONS;
+		$settings = get_option( 'pmpro_user_fields_settings', array() );
+		foreach ( is_array( $settings ) ? $settings : array() as $group ) {
+			$fields = is_object( $group ) ? ( $group->fields ?? array() ) : ( is_array( $group ) ? ( $group['fields'] ?? array() ) : array() );
+			foreach ( is_array( $fields ) ? $fields : array() as $field ) {
+				$name = is_object( $field ) ? (string) ( $field->name ?? '' ) : ( is_array( $field ) ? (string) ( $field['name'] ?? '' ) : '' );
+				if ( ! isset( $definitions[ $name ] ) ) {
+					continue;
+				}
+				$label = is_object( $field ) ? (string) ( $field->label ?? '' ) : ( is_array( $field ) ? (string) ( $field['label'] ?? '' ) : '' );
+				$options = is_object( $field ) ? (string) ( $field->options ?? '' ) : ( is_array( $field ) ? (string) ( $field['options'] ?? '' ) : '' );
+				if ( '' !== $label ) {
+					$definitions[ $name ]['label'] = sanitize_text_field( $label );
+				}
+				if ( '' !== $options ) {
+					$definitions[ $name ]['options'] = $this->parse_membership_question_options( $options );
+				}
+			}
+		}
+
+		$questions = array();
+		foreach ( $definitions as $name => $definition ) {
+			$value = $this->format_membership_question_answer( get_user_meta( $user_id, $name, true ), $definition );
+			if ( '' !== $value ) {
+				$questions[] = array(
+					'label' => $definition['label'],
+					'value' => $value,
+				);
+			}
+		}
+
+		return $questions;
+	}
+
+	/** @return array<string,string> */
+	private function parse_membership_question_options( string $options ): array {
+		$parsed = array();
+		foreach ( preg_split( '/\r\n|\r|\n/', $options ) ?: array() as $option ) {
+			$parts = explode( ':', $option, 2 );
+			if ( 2 === count( $parts ) && '' !== trim( $parts[0] ) && '' !== trim( $parts[1] ) ) {
+				$parsed[ sanitize_key( $parts[0] ) ] = sanitize_text_field( $parts[1] );
+			}
+		}
+
+		return $parsed;
+	}
+
+	/** @param array{label:string,type:string,options:array<string,string>} $definition */
+	private function format_membership_question_answer( $raw_value, array $definition ): string {
+		if ( 'checkbox_grouped' === $definition['type'] ) {
+			$values = maybe_unserialize( $raw_value );
+			if ( ! is_array( $values ) ) {
+				return '';
+			}
+			$labels = array();
+			foreach ( $values as $value ) {
+				$key = sanitize_key( (string) $value );
+				if ( isset( $definition['options'][ $key ] ) ) {
+					$labels[] = $definition['options'][ $key ];
+				}
+			}
+
+			return implode( ', ', array_unique( $labels ) );
+		}
+
+		return is_scalar( $raw_value ) ? sanitize_textarea_field( (string) $raw_value ) : '';
 	}
 
 	/**
@@ -367,6 +477,7 @@ final class Membership_Report_Service {
 				'postcode'            => '',
 				'country'             => '',
 				'address_summary'     => '',
+				'membership_questions'=> array(),
 			);
 		}
 

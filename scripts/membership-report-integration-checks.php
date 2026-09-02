@@ -89,6 +89,11 @@ function oras_membership_run_checks(): void {
 		update_user_meta( $created_users[0], 'billing_country', 'US' );
 		update_user_meta( $created_users[0], 'pmpro_bphone', '555-0999' );
 		update_user_meta( $created_users[0], 'pmpro_baddress1', '123 PMPro Street' );
+		update_user_meta( $created_users[0], 'share', 'Yes' );
+		update_user_meta( $created_users[0], 'astro_league', 'No' );
+		update_user_meta( $created_users[0], 'texting', '555-0112' );
+		update_user_meta( $created_users[0], 'committees', array( 'education', 'fund' ) );
+		update_user_meta( $created_users[0], 'family', "Jane Doe\n555-0113" );
 		$GLOBALS['oras_membership_subscription_fixtures'] = array(
 			$created_users[4] => (object) array( 'next_payment_date' => '2026-10-01 00:00:00' ),
 			$created_users[5] => (object) array(),
@@ -149,6 +154,13 @@ function oras_membership_run_checks(): void {
 		oras_membership_assert_same( $website_active['operational_status'], 'active', 'Future active website membership is Active' );
 		oras_membership_assert_same( $website_active['phone'], '555-0999', 'Website row gives existing PMPro billing phone precedence over WooCommerce profile data' );
 		oras_membership_assert_same( $website_active['address_summary'], '123 PMPro Street Suite 4 Oil City, PA 16301 US', 'Website row uses PMPro billing address with WooCommerce user-profile fallback fields' );
+		oras_membership_assert_same( $website_active['membership_questions'], array(
+			array( 'label' => 'Is it okay to share your Demographics with members?', 'value' => 'Yes' ),
+			array( 'label' => 'Do you have a Astro league membership?', 'value' => 'No' ),
+			array( 'label' => 'Can we send you text messages?', 'value' => '555-0112' ),
+			array( 'label' => 'Are you interested in joining an ORAS committee?', 'value' => 'Education and Outreach Committee, Fund Development Committee' ),
+			array( 'label' => 'Do you have additional family contact information?', 'value' => "Jane Doe\n555-0113" ),
+		), 'Website row exposes only the configured membership-question answers with readable committee labels' );
 		oras_membership_assert_same( $website_active['membership_date_state'], 'expires', 'Fixed PMPro end dates are presented as expiration dates' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[1] )['operational_status'], 'expiring_soon', 'Website membership within 30 days is Expiring Soon' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[2] )['operational_status'], 'expired', 'Past website end date is Expired' );

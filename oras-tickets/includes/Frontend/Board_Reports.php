@@ -1731,7 +1731,30 @@ final class Board_Reports {
 					<div><dt><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?></dt><dd><?php echo nl2br( esc_html( (string) $row['notes'] ) ); ?></dd></div>
 				<?php endif; ?>
 			</dl>
+			<?php self::render_membership_questions( $row ); ?>
 		</dialog>
+		<?php
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function render_membership_questions( array $row ): void {
+		$questions = isset( $row['membership_questions'] ) && is_array( $row['membership_questions'] ) ? $row['membership_questions'] : array();
+		if ( empty( $questions ) ) {
+			return;
+		}
+		?>
+		<section aria-label="<?php echo esc_attr__( 'Membership Questions', 'oras-tickets' ); ?>">
+			<h5><?php echo esc_html__( 'Membership Questions', 'oras-tickets' ); ?></h5>
+			<dl>
+				<?php foreach ( $questions as $question ) : ?>
+					<?php $label = sanitize_text_field( (string) ( $question['label'] ?? '' ) ); ?>
+					<?php $value = sanitize_textarea_field( (string) ( $question['value'] ?? '' ) ); ?>
+					<?php if ( '' !== $label && '' !== $value ) : ?>
+						<div><dt><?php echo esc_html( $label ); ?></dt><dd><?php echo nl2br( esc_html( $value ) ); ?></dd></div>
+					<?php endif; ?>
+				<?php endforeach; ?>
+			</dl>
+		</section>
 		<?php
 	}
 

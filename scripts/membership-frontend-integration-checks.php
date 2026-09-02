@@ -123,6 +123,24 @@ function oras_membership_frontend_run_checks(): void {
 		oras_membership_frontend_assert( false === strpos( $viewer_html, '<form class="oras-board-reports__event-shell"' ), 'Memberships is a global report without an event selector' );
 		oras_membership_frontend_assert( false === strpos( $viewer_html, 'name="legacy_member_name"' ), 'View-only user does not receive membership write controls' );
 		oras_membership_frontend_assert( false === strpos( $viewer_html, 'Import Legacy PayPal Memberships' ), 'View-only user does not receive membership import controls' );
+		$render_details = new ReflectionMethod( Board_Reports::class, 'render_membership_details' );
+		$render_details->setAccessible( true );
+		ob_start();
+		$render_details->invoke(
+			null,
+			array(
+				'source'             => 'website',
+				'source_record_id'   => 991,
+				'member_name'        => 'Question Member',
+				'membership_questions' => array(
+					array( 'label' => 'Can we send you text messages?', 'value' => '555-0100' ),
+					array( 'label' => 'Are you interested in joining an ORAS committee?', 'value' => 'Astroblast Working Group' ),
+				),
+			)
+		);
+		$question_dialog_html = (string) ob_get_clean();
+		oras_membership_frontend_assert( false !== strpos( $question_dialog_html, 'Membership Questions' ), 'Member dialog renders the membership question section' );
+		oras_membership_frontend_assert( false !== strpos( $question_dialog_html, 'Astroblast Working Group' ), 'Member dialog renders formatted membership-question answers' );
 
 		$_POST = array(
 			'_wpnonce'          => wp_create_nonce( 'oras_board_reports_save_legacy_membership' ),
