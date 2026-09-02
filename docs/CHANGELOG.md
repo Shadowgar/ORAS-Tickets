@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-02 - Release 0.4.54
+
+- Simplified Membership and Observer Pass Records to compact operational columns, reducing horizontal-scroll dependency.
+- Added clickable, keyboard-accessible detail dialogs for members and Observer Pass records.
+- Added approved membership signup questions and answers to the member detail dialog.
+- Moved Add, Edit, and Import Legacy PayPal Membership sections into collapsed manager-only panels.
+
 ## 2026-09-02 - Release 0.4.53
 
 - Corrected PMPro expiration and renewal display, and added member phone and address details.
