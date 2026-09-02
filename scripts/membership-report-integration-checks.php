@@ -3,6 +3,13 @@
 use ORAS\Tickets\Reporting\Membership_Report_Service;
 use ORAS\Tickets\Storage\Legacy_Membership_Store;
 
+if ( ! function_exists( 'pmpro_getSubscriptionForUser' ) ) {
+	/** @return object|null */
+	function pmpro_getSubscriptionForUser( int $user_id ) {
+		return $GLOBALS['oras_membership_subscription_fixtures'][ $user_id ] ?? null;
+	}
+}
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
 }
@@ -63,6 +70,9 @@ function oras_membership_run_checks(): void {
 			array( 'expiring_member', 'Expiring Member', 'expiring@example.org' ),
 			array( 'expired_member', 'Expired Member', 'expired@example.org' ),
 			array( 'inactive_member', 'Inactive Member', 'inactive@example.org' ),
+			array( 'renewing_member', 'Renewing Member', 'renewing@example.org' ),
+			array( 'recurring_member', 'Recurring Member', 'recurring@example.org' ),
+			array( 'no_expiration_member', 'No Expiration Member', 'noexpiration@example.org' ),
 		);
 		foreach ( $user_specs as $spec ) {
 			$user_id = wp_create_user( $spec[0] . '_' . $suffix, wp_generate_password( 20 ), $suffix . '.' . $spec[2] );
@@ -70,12 +80,28 @@ function oras_membership_run_checks(): void {
 			wp_update_user( array( 'ID' => $user_id, 'display_name' => $spec[1] ) );
 			$created_users[] = $user_id;
 		}
+		update_user_meta( $created_users[0], 'billing_phone', '555-0123' );
+		update_user_meta( $created_users[0], 'billing_address_1', '123 WooCommerce Street' );
+		update_user_meta( $created_users[0], 'billing_address_2', 'Suite 4' );
+		update_user_meta( $created_users[0], 'billing_city', 'Oil City' );
+		update_user_meta( $created_users[0], 'billing_state', 'PA' );
+		update_user_meta( $created_users[0], 'billing_postcode', '16301' );
+		update_user_meta( $created_users[0], 'billing_country', 'US' );
+		update_user_meta( $created_users[0], 'pmpro_bphone', '555-0999' );
+		update_user_meta( $created_users[0], 'pmpro_baddress1', '123 PMPro Street' );
+		$GLOBALS['oras_membership_subscription_fixtures'] = array(
+			$created_users[4] => (object) array( 'next_payment_date' => '2026-10-01 00:00:00' ),
+			$created_users[5] => (object) array(),
+		);
 
 		$website_specs = array(
 			array( $created_users[0], 1, 'active', '2026-01-01 00:00:00', '2027-01-01 00:00:00' ),
 			array( $created_users[1], 2, 'active', '2026-01-01 00:00:00', '2026-09-15 00:00:00' ),
 			array( $created_users[2], 2, 'active', '2025-01-01 00:00:00', '2026-08-31 00:00:00' ),
 			array( $created_users[3], 2, 'inactive', '2025-01-01 00:00:00', '2027-01-01 00:00:00' ),
+			array( $created_users[4], 1, 'active', '2026-01-01 00:00:00', '0000-00-00 00:00:00' ),
+			array( $created_users[5], 1, 'active', '2026-01-01 00:00:00', '0000-00-00 00:00:00' ),
+			array( $created_users[6], 1, 'active', '2026-01-01 00:00:00', '0000-00-00 00:00:00' ),
 		);
 		$membership_ids = array();
 		foreach ( $website_specs as $spec ) {
@@ -115,15 +141,22 @@ function oras_membership_run_checks(): void {
 		$report = $service->get_report();
 		oras_membership_assert_same( $report['available'], true, 'Unified membership report is available with legacy and PMPro-compatible sources' );
 		oras_membership_assert_same( $report['website_available'], true, 'PMPro-compatible website source is detected' );
-		oras_membership_assert_same( count( $report['all_rows'] ), 8, 'Website and legacy membership rows are combined without merging' );
+		oras_membership_assert_same( count( $report['all_rows'] ), 11, 'Website and legacy membership rows are combined without merging' );
 
 		$website_active = oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[0] );
 		oras_membership_assert_same( $website_active['username'], 'exact_member_' . $suffix, 'Website row includes the WordPress username' );
 		oras_membership_assert_same( $website_active['level_name'], 'Family', 'Website row includes the PMPro-compatible level name' );
 		oras_membership_assert_same( $website_active['operational_status'], 'active', 'Future active website membership is Active' );
+		oras_membership_assert_same( $website_active['phone'], '555-0999', 'Website row gives existing PMPro billing phone precedence over WooCommerce profile data' );
+		oras_membership_assert_same( $website_active['address_summary'], '123 PMPro Street Suite 4 Oil City, PA 16301 US', 'Website row uses PMPro billing address with WooCommerce user-profile fallback fields' );
+		oras_membership_assert_same( $website_active['membership_date_state'], 'expires', 'Fixed PMPro end dates are presented as expiration dates' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[1] )['operational_status'], 'expiring_soon', 'Website membership within 30 days is Expiring Soon' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[2] )['operational_status'], 'expired', 'Past website end date is Expired' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[3] )['operational_status'], 'inactive', 'Inactive PMPro source status remains Inactive' );
+		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[4] )['membership_date_state'], 'renews', 'PMPro subscription next-payment dates are presented as renewal dates' );
+		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[4] )['membership_date'], '2026-10-01', 'PMPro subscription next-payment date is normalized without inventing a billing cycle' );
+		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[5] )['membership_date_state'], 'auto_renewing', 'Active PMPro subscriptions without a next-payment date are presented as auto-renewing' );
+		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'website', $membership_ids[6] )['membership_date_state'], 'no_expiration', 'Active fixed-free PMPro memberships without an end date are presented as no expiration' );
 
 		$legacy_exact = oras_membership_find_row( $report['all_rows'], 'legacy_paypal', $created_legacy[0] );
 		oras_membership_assert_same( $legacy_exact['match_type'], 'exact_email', 'Exact normalized legacy email receives a match indicator' );
@@ -133,9 +166,9 @@ function oras_membership_run_checks(): void {
 		oras_membership_assert_same( $legacy_name['match_type'], 'possible_name', 'Name-only legacy match remains advisory' );
 		oras_membership_assert_same( oras_membership_find_row( $report['all_rows'], 'legacy_paypal', $created_legacy[2] )['account_link_status'], 'linked', 'Explicit legacy linkage is retained' );
 
-		oras_membership_assert_same( $report['summary']['total_count'], 8, 'Membership summary counts all source records' );
-		oras_membership_assert_same( $report['summary']['active_count'], 5, 'Active summary includes Active and Expiring Soon memberships' );
-		oras_membership_assert_same( $report['summary']['website_active_count'], 2, 'Website active summary is source-specific' );
+		oras_membership_assert_same( $report['summary']['total_count'], 11, 'Membership summary counts all source records' );
+		oras_membership_assert_same( $report['summary']['active_count'], 8, 'Active summary includes Active and Expiring Soon memberships' );
+		oras_membership_assert_same( $report['summary']['website_active_count'], 5, 'Website active summary is source-specific' );
 		oras_membership_assert_same( $report['summary']['legacy_active_count'], 3, 'Legacy active summary is source-specific' );
 		oras_membership_assert_same( $report['summary']['exact_email_match_count'], 1, 'Summary counts exact-email review indicators' );
 		oras_membership_assert_same( $report['summary']['possible_name_match_count'], 1, 'Summary counts possible name indicators' );
@@ -145,10 +178,11 @@ function oras_membership_run_checks(): void {
 		oras_membership_assert_same( count( $service->get_report( array( 'account_link' => 'exact_email' ) )['rows'] ), 1, 'Account-link filter isolates exact-email review rows' );
 		oras_membership_assert_same( count( $service->get_report( array( 'search' => 'exact_member_' . $suffix ) )['rows'] ), 1, 'Search includes website usernames' );
 		$page = $service->get_report( array( 'page' => 2, 'per_page' => 3 ) );
-		oras_membership_assert_same( count( $page['rows'] ), 3, 'Membership report paginates normalized rows' );
-		oras_membership_assert_same( $page['pagination']['total_pages'], 3, 'Membership pagination reports total pages' );
+		oras_membership_assert_same( count( $page['rows'] ), 11, 'Membership report returns the complete filtered list without pagination' );
+		oras_membership_assert_same( $page['pagination']['total_pages'], 1, 'Membership report reports one continuous list page' );
 		oras_membership_assert_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$quoted_memberships}" ), $before_membership_count, 'Membership reporting performs no PMPro-compatible writes' );
 	} finally {
+		unset( $GLOBALS['oras_membership_subscription_fixtures'] );
 		foreach ( $created_legacy as $post_id ) {
 			wp_delete_post( (int) $post_id, true );
 		}

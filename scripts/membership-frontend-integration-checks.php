@@ -107,8 +107,15 @@ function oras_membership_frontend_run_checks(): void {
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_status"' ), 'Membership roster includes status filtering' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_account_link"' ), 'Membership roster includes account-link filtering' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_search"' ), 'Membership roster includes search' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, '>Phone<' ), 'Membership roster includes a phone column' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, '>Address<' ), 'Membership roster includes an address column' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, '<dialog id="oras-membership-legacy_paypal-' ), 'Membership roster renders a native member detail dialog' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'data-membership-dialog-trigger=' ), 'Membership rows are keyboard-activatable dialog triggers' );
+		oras_membership_frontend_assert( false === strpos( $viewer_html, 'name="oras_membership_per_page"' ), 'Membership roster does not render a pagination page-size selector' );
+		oras_membership_frontend_assert( false === strpos( $viewer_html, 'aria-label="Membership pages"' ), 'Membership roster does not render pagination controls' );
 		oras_membership_frontend_assert( false === strpos( $viewer_html, '<form class="oras-board-reports__event-shell"' ), 'Memberships is a global report without an event selector' );
 		oras_membership_frontend_assert( false === strpos( $viewer_html, 'name="legacy_member_name"' ), 'View-only user does not receive membership write controls' );
+		oras_membership_frontend_assert( false === strpos( $viewer_html, 'Import Legacy PayPal Memberships' ), 'View-only user does not receive membership import controls' );
 
 		$_POST = array(
 			'_wpnonce'          => wp_create_nonce( 'oras_board_reports_save_legacy_membership' ),
@@ -128,6 +135,8 @@ function oras_membership_frontend_run_checks(): void {
 		$admin_html = do_shortcode( '[oras_board_reports]' );
 		oras_membership_frontend_assert( false !== strpos( $admin_html, 'Add Legacy PayPal Membership' ), 'Membership manager sees the frontend add control' );
 		oras_membership_frontend_assert( false !== strpos( $admin_html, 'name="legacy_member_name"' ), 'Membership manager receives the frontend form' );
+		oras_membership_frontend_assert( false !== strpos( $admin_html, '<summary>Import Legacy PayPal Memberships</summary>' ), 'Membership manager receives a collapsed Legacy PayPal import panel' );
+		oras_membership_frontend_assert( strpos( $admin_html, 'Observer Pass Records' ) === false || strpos( $admin_html, 'Import Legacy PayPal Memberships' ) > strpos( $admin_html, 'Memberships' ), 'Membership import remains within the Memberships report' );
 
 		$_POST = array(
 			'_wpnonce'           => 'invalid',

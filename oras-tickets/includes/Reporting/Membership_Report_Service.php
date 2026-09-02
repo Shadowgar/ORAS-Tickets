@@ -51,21 +51,20 @@ final class Membership_Report_Service {
 		$legacy_rows = $this->get_legacy_rows( $website_rows );
 		$all_rows = $this->sort_rows( array_merge( $website_rows, $legacy_rows ) );
 		$filtered_rows = $this->filter_rows( $all_rows, $normalized );
-		$pagination = $this->paginate( $filtered_rows, $normalized['page'], $normalized['per_page'] );
 
 		return array(
 			'available'         => true,
 			'website_available' => $website_available,
 			'all_rows'          => $all_rows,
 			'filtered_rows'     => $filtered_rows,
-			'rows'              => $pagination['rows'],
+			'rows'              => $filtered_rows,
 			'summary'           => $this->build_summary( $all_rows ),
 			'filters'           => $normalized,
 			'pagination'        => array(
-				'page'        => $pagination['page'],
-				'per_page'    => $normalized['per_page'],
+				'page'        => 1,
+				'per_page'    => count( $filtered_rows ),
 				'total'       => count( $filtered_rows ),
-				'total_pages' => $pagination['total_pages'],
+				'total_pages' => 1,
 			),
 		);
 	}
@@ -98,8 +97,11 @@ final class Membership_Report_Service {
 	private function normalize_website_row( array $raw ): array {
 		$source_status = sanitize_key( (string) ( $raw['status'] ?? '' ) );
 		$start_date = $this->normalize_database_date( (string) ( $raw['startdate'] ?? '' ) );
-		$end_date = $this->normalize_database_date( (string) ( $raw['enddate'] ?? '' ) );
+		$raw_end_date = trim( (string) ( $raw['enddate'] ?? '' ) );
+		$end_date = $this->normalize_database_date( $raw_end_date );
 		$user_id = absint( $raw['user_id'] ?? 0 );
+		$contact = $this->get_website_contact( $user_id );
+		$membership_date = $this->get_website_membership_date( $source_status, $end_date, $raw_end_date, $user_id );
 
 		return array(
 			'source'              => self::SOURCE_WEBSITE,
@@ -115,6 +117,8 @@ final class Membership_Report_Service {
 			'source_status'       => $source_status,
 			'start_date'          => $start_date,
 			'end_date'            => $end_date,
+			'membership_date'     => $membership_date['date'],
+			'membership_date_state' => $membership_date['state'],
 			'operational_status'  => $this->get_operational_status( $source_status, $end_date ),
 			'account_link_status' => self::LINK_WEBSITE_ACCOUNT,
 			'match_type'          => 'none',
@@ -122,6 +126,168 @@ final class Membership_Report_Service {
 			'paypal_reference'    => '',
 			'transitioned'        => false,
 			'notes'               => '',
+			'phone'               => $contact['phone'],
+			'address_1'           => $contact['address_1'],
+			'address_2'           => $contact['address_2'],
+			'city'                => $contact['city'],
+			'state'               => $contact['state'],
+			'postcode'            => $contact['postcode'],
+			'country'             => $contact['country'],
+			'address_summary'     => $contact['address_summary'],
+		);
+	}
+
+	/**
+	 * PMPro retains billing profile values under the pmpro_b* user-meta keys.
+	 * WooCommerce billing meta remains a read-only per-field fallback for shared users.
+	 *
+	 * @return array<string,string>
+	 */
+	private function get_website_contact( int $user_id ): array {
+		$fallback = Contact_Normalizer::from_user( $user_id );
+		$contact = array(
+			'phone'           => '',
+			'address_1'       => '',
+			'address_2'       => '',
+			'city'            => '',
+			'state'           => '',
+			'postcode'        => '',
+			'country'         => '',
+			'address_summary' => '',
+		);
+		$pmpro_meta = array(
+			'phone'     => 'pmpro_bphone',
+			'address_1' => 'pmpro_baddress1',
+			'address_2' => 'pmpro_baddress2',
+			'city'      => 'pmpro_bcity',
+			'state'     => 'pmpro_bstate',
+			'postcode'  => 'pmpro_bzipcode',
+			'country'   => 'pmpro_bcountry',
+		);
+		foreach ( $pmpro_meta as $field => $meta_key ) {
+			$value = $user_id > 0 ? sanitize_text_field( (string) get_user_meta( $user_id, $meta_key, true ) ) : '';
+			$contact[ $field ] = '' !== $value ? $value : (string) ( $fallback[ $field ] ?? '' );
+		}
+
+		$contact['address_summary'] = $this->build_address_summary( $contact );
+
+		return $contact;
+	}
+
+	/**
+	 * @return array{state:string,date:string}
+	 */
+	private function get_website_membership_date( string $source_status, string $end_date, string $raw_end_date, int $user_id ): array {
+		if ( '' !== $end_date ) {
+			return array(
+				'state' => 'expires',
+				'date'  => $end_date,
+			);
+		}
+
+		if ( 'active' !== $source_status ) {
+			return array(
+				'state' => 'unavailable',
+				'date'  => '',
+			);
+		}
+		if ( '' !== $raw_end_date && 0 !== strpos( $raw_end_date, '0000-00-00' ) ) {
+			return array(
+				'state' => 'unavailable',
+				'date'  => '',
+			);
+		}
+
+		$subscription = $this->get_pmpro_subscription( $user_id );
+		if ( null !== $subscription ) {
+			$next_payment = $this->normalize_pmpro_date( $subscription->next_payment_date ?? '' );
+			if ( '' !== $next_payment ) {
+				return array(
+					'state' => 'renews',
+					'date'  => $next_payment,
+				);
+			}
+
+			return array(
+				'state' => 'auto_renewing',
+				'date'  => '',
+			);
+		}
+
+		return array(
+			'state' => 'no_expiration',
+			'date'  => '',
+		);
+	}
+
+	private function get_pmpro_subscription( int $user_id ): ?object {
+		$subscription = null;
+		if ( $user_id > 0 && function_exists( 'pmpro_getSubscriptionForUser' ) ) {
+			try {
+				$candidate = pmpro_getSubscriptionForUser( $user_id );
+				$subscription = is_object( $candidate ) ? $candidate : null;
+			} catch ( \Throwable $error ) {
+				$subscription = null;
+			}
+		}
+
+		/**
+		 * Allows PMPro integrations to supply their supported subscription object.
+		 *
+		 * @param object|null $subscription PMPro subscription object, if available.
+		 */
+		$subscription = apply_filters( 'oras_tickets_membership_pmpro_subscription', $subscription, $user_id );
+
+		return is_object( $subscription ) ? $subscription : null;
+	}
+
+	private function normalize_pmpro_date( $value ): string {
+		if ( $value instanceof \DateTimeInterface ) {
+			return wp_date( 'Y-m-d', $value->getTimestamp(), wp_timezone() );
+		}
+		if ( ! is_scalar( $value ) ) {
+			return '';
+		}
+
+		$raw = trim( (string) $value );
+		if ( '' === $raw || 0 === strpos( $raw, '0000-00-00' ) ) {
+			return '';
+		}
+
+		try {
+			return ( new \DateTimeImmutable( $raw, wp_timezone() ) )->setTimezone( wp_timezone() )->format( 'Y-m-d' );
+		} catch ( \Exception $error ) {
+			return '';
+		}
+	}
+
+	/** @param array<string,string> $contact */
+	private function build_address_summary( array $contact ): string {
+		$city_region = trim(
+			implode(
+				', ',
+				array_filter(
+					array(
+						$contact['city'] ?? '',
+						$contact['state'] ?? '',
+					)
+				)
+			)
+		);
+
+		return trim(
+			implode(
+				' ',
+				array_filter(
+					array(
+						$contact['address_1'] ?? '',
+						$contact['address_2'] ?? '',
+						$city_region,
+						$contact['postcode'] ?? '',
+						$contact['country'] ?? '',
+					)
+				)
+			)
 		);
 	}
 
@@ -184,6 +350,8 @@ final class Membership_Report_Service {
 				'source_status'       => $source_status,
 				'start_date'          => (string) ( $record['start_date'] ?? '' ),
 				'end_date'            => $end_date,
+				'membership_date'     => $end_date,
+				'membership_date_state' => 'expiration_or_renewal',
 				'operational_status'  => $this->get_operational_status( $source_status, $end_date ),
 				'account_link_status' => $link_status,
 				'match_type'          => $match_type,
@@ -191,6 +359,14 @@ final class Membership_Report_Service {
 				'paypal_reference'    => (string) ( $record['paypal_reference'] ?? '' ),
 				'transitioned'        => ! empty( $record['transitioned'] ),
 				'notes'               => (string) ( $record['notes'] ?? '' ),
+				'phone'               => '',
+				'address_1'           => '',
+				'address_2'           => '',
+				'city'                => '',
+				'state'               => '',
+				'postcode'            => '',
+				'country'             => '',
+				'address_summary'     => '',
 			);
 		}
 
@@ -350,18 +526,6 @@ final class Membership_Report_Service {
 		}
 
 		return $summary;
-	}
-
-	/** @param array<int,array<string,mixed>> $rows @return array{rows:array<int,array<string,mixed>>,page:int,total_pages:int} */
-	private function paginate( array $rows, int $page, int $per_page ): array {
-		$total_pages = max( 1, (int) ceil( count( $rows ) / $per_page ) );
-		$page = min( $page, $total_pages );
-
-		return array(
-			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),
-			'page'        => $page,
-			'total_pages' => $total_pages,
-		);
 	}
 
 	private function table_exists( string $table ): bool {

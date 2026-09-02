@@ -128,6 +128,8 @@ function oras_manual_pass_run_checks(): void {
 		oras_manual_pass_assert( false !== strpos( $viewer_html, 'John O’Hara' ), 'View-only Board Reports user sees manual passholders' );
 		oras_manual_pass_assert( false !== strpos( $viewer_html, 'Manual / Offline' ), 'Observer Pass UI displays the manual source' );
 		oras_manual_pass_assert( false === strpos( $viewer_html, 'name="manual_holder_names"' ), 'View-only user does not receive manual pass write controls' );
+		oras_manual_pass_assert( false === strpos( $viewer_html, 'name="oras_observer_per_page"' ), 'Observer Pass records do not render a pagination page-size selector' );
+		oras_manual_pass_assert( false === strpos( $viewer_html, 'aria-label="Observer Pass pages"' ), 'Observer Pass records do not render pagination controls' );
 
 		$_POST = array(
 			'_wpnonce'           => wp_create_nonce( 'oras_board_reports_save_manual_observer_pass' ),
@@ -147,8 +149,9 @@ function oras_manual_pass_run_checks(): void {
 		wp_set_current_user( $admin_id );
 		$_GET = array( 'oras_board_tab' => 'observer_passes' );
 		$admin_html = do_shortcode( '[oras_board_reports]' );
-		oras_manual_pass_assert( false !== strpos( $admin_html, 'Add Manual Annual Pass' ), 'Observer Pass manager sees the frontend add control' );
+		oras_manual_pass_assert( false !== strpos( $admin_html, '<summary id="oras-manual-observer-title">Add Manual Annual Observer Pass</summary>' ), 'Observer Pass manager receives a collapsed add form' );
 		oras_manual_pass_assert( false !== strpos( $admin_html, 'name="manual_holder_names"' ), 'Observer Pass manager receives the frontend form' );
+		oras_manual_pass_assert( strpos( $admin_html, 'Add Manual Annual Observer Pass' ) > strpos( $admin_html, 'Observer Pass Records' ), 'Manual Annual add form follows the Observer Pass records list' );
 
 		$_POST = array(
 			'_wpnonce'           => 'invalid',
