@@ -7,6 +7,7 @@ use ORAS\Tickets\Communication_Queue;
 use ORAS\Tickets\Communication_Recipients;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
+use ORAS\Tickets\Import\Legacy_Membership_Csv_Importer;
 use ORAS\Tickets\Reporting\Board_Report_Exporter;
 use ORAS\Tickets\Reporting\Board_Report_Service;
 use ORAS\Tickets\Reporting\Membership_Report_Service;
@@ -36,6 +37,12 @@ final class Board_Reports {
 	private const MANUAL_OBSERVER_SAVE_NONCE = 'oras_board_reports_save_manual_observer_pass';
 	private const LEGACY_MEMBERSHIP_SAVE_ACTION = 'oras_board_reports_save_legacy_membership';
 	private const LEGACY_MEMBERSHIP_SAVE_NONCE = 'oras_board_reports_save_legacy_membership';
+	private const LEGACY_IMPORT_PREVIEW_ACTION = 'oras_board_reports_preview_legacy_memberships';
+	private const LEGACY_IMPORT_PREVIEW_NONCE = 'oras_board_reports_preview_legacy_memberships';
+	private const LEGACY_IMPORT_COMMIT_ACTION = 'oras_board_reports_commit_legacy_memberships';
+	private const LEGACY_IMPORT_COMMIT_NONCE = 'oras_board_reports_commit_legacy_memberships';
+	private const LEGACY_IMPORT_CANCEL_ACTION = 'oras_board_reports_cancel_legacy_membership_import';
+	private const LEGACY_IMPORT_CANCEL_NONCE = 'oras_board_reports_cancel_legacy_membership_import';
 	private const TAB_OVERVIEW = 'overview';
 	private const TAB_TICKET_SALES = 'ticket_sales';
 	private const TAB_RSVPS = 'rsvps';
@@ -60,6 +67,9 @@ final class Board_Reports {
 		add_action( 'admin_post_' . self::OBSERVER_PRINT_ACTION, array( self::class, 'handle_print_observers_today' ) );
 		add_action( 'admin_post_' . self::MANUAL_OBSERVER_SAVE_ACTION, array( self::class, 'handle_save_manual_observer_pass' ) );
 		add_action( 'admin_post_' . self::LEGACY_MEMBERSHIP_SAVE_ACTION, array( self::class, 'handle_save_legacy_membership' ) );
+		add_action( 'admin_post_' . self::LEGACY_IMPORT_PREVIEW_ACTION, array( self::class, 'handle_preview_legacy_memberships' ) );
+		add_action( 'admin_post_' . self::LEGACY_IMPORT_COMMIT_ACTION, array( self::class, 'handle_commit_legacy_memberships' ) );
+		add_action( 'admin_post_' . self::LEGACY_IMPORT_CANCEL_ACTION, array( self::class, 'handle_cancel_legacy_membership_import' ) );
 	}
 
 	/**
@@ -1317,9 +1327,27 @@ final class Board_Reports {
 			'updated' => __( 'Legacy PayPal membership updated.', 'oras-tickets' ),
 			'error'   => __( 'The legacy PayPal membership could not be saved. Check the required fields and try again.', 'oras-tickets' ),
 		);
+		$import_notice = isset( $_GET['oras_legacy_import_notice'] ) ? sanitize_key( wp_unslash( $_GET['oras_legacy_import_notice'] ) ) : '';
+		$import_messages = array(
+			'preview'   => __( 'CSV preview ready. Review and approve rows before importing.', 'oras-tickets' ),
+			'cancelled' => __( 'CSV import preview cancelled and deleted.', 'oras-tickets' ),
+			'imported'  => sprintf(
+				/* translators: 1: imported row count, 2: skipped duplicate count, 3: error count */
+				__( 'CSV import finished: %1$d imported, %2$d skipped, %3$d errors.', 'oras-tickets' ),
+				isset( $_GET['oras_legacy_imported'] ) ? absint( $_GET['oras_legacy_imported'] ) : 0,
+				isset( $_GET['oras_legacy_skipped'] ) ? absint( $_GET['oras_legacy_skipped'] ) : 0,
+				isset( $_GET['oras_legacy_errors'] ) ? absint( $_GET['oras_legacy_errors'] ) : 0
+			),
+			'error'     => __( 'The CSV import request could not be completed. Check the file and try again.', 'oras-tickets' ),
+		);
 		if ( isset( $messages[ $notice ] ) ) {
 			?>
 			<div class="oras-board-reports__notice" role="status"><?php echo esc_html( $messages[ $notice ] ); ?></div>
+			<?php
+		}
+		if ( isset( $import_messages[ $import_notice ] ) ) {
+			?>
+			<div class="oras-board-reports__notice" role="status"><?php echo esc_html( $import_messages[ $import_notice ] ); ?></div>
 			<?php
 		}
 	}
@@ -1328,6 +1356,7 @@ final class Board_Reports {
 		$records = Legacy_Membership_Store::query();
 		?>
 		<section class="oras-board-reports__observer-section" aria-labelledby="oras-legacy-membership-title">
+			<?php self::render_legacy_membership_import( $page_id ); ?>
 			<h4 id="oras-legacy-membership-title"><?php echo esc_html__( 'Add Legacy PayPal Membership', 'oras-tickets' ); ?></h4>
 			<p><?php echo esc_html__( 'Maintain the operational membership fields only. Do not enter billing details, credentials, or transaction payloads.', 'oras-tickets' ); ?></p>
 			<?php self::render_legacy_membership_form( array(), $page_id ); ?>
@@ -1341,6 +1370,97 @@ final class Board_Reports {
 			<?php endif; ?>
 		</section>
 		<?php
+	}
+
+	private static function render_legacy_membership_import( int $page_id ): void {
+		$token = isset( $_GET['oras_legacy_import_token'] ) ? sanitize_key( wp_unslash( $_GET['oras_legacy_import_token'] ) ) : '';
+		$preview = '' !== $token ? Legacy_Membership_Csv_Importer::get_preview( get_current_user_id(), $token ) : null;
+		$redirect = self::build_membership_page_url( array(), 1, $page_id );
+		?>
+		<section aria-labelledby="oras-legacy-import-title">
+			<h4 id="oras-legacy-import-title"><?php echo esc_html__( 'Import Legacy PayPal Memberships', 'oras-tickets' ); ?></h4>
+			<p><?php echo esc_html__( 'Upload a CSV no larger than 1 MB. Required columns are Member Name and End Date. The preview retains only normalized membership fields for 15 minutes.', 'oras-tickets' ); ?></p>
+			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::LEGACY_IMPORT_PREVIEW_ACTION ); ?>" />
+				<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
+				<?php wp_nonce_field( self::LEGACY_IMPORT_PREVIEW_NONCE ); ?>
+				<label><?php echo esc_html__( 'Legacy membership CSV', 'oras-tickets' ); ?> <input type="file" name="legacy_membership_csv" accept=".csv,text/csv" required /></label>
+				<button class="button" type="submit"><?php echo esc_html__( 'Preview CSV', 'oras-tickets' ); ?></button>
+			</form>
+			<?php if ( is_array( $preview ) ) : ?>
+				<?php self::render_legacy_membership_import_preview( $preview, $token, $redirect ); ?>
+			<?php elseif ( '' !== $token ) : ?>
+				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'This import preview is unavailable or has expired.', 'oras-tickets' ); ?></div>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	/** @param array<string,mixed> $preview */
+	private static function render_legacy_membership_import_preview( array $preview, string $token, string $redirect ): void {
+		$rows = isset( $preview['rows'] ) && is_array( $preview['rows'] ) ? $preview['rows'] : array();
+		?>
+		<h5><?php echo esc_html__( 'Legacy PayPal Import Preview', 'oras-tickets' ); ?></h5>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::LEGACY_IMPORT_COMMIT_ACTION ); ?>" />
+			<input type="hidden" name="legacy_import_token" value="<?php echo esc_attr( $token ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
+			<?php wp_nonce_field( self::LEGACY_IMPORT_COMMIT_NONCE ); ?>
+			<div class="oras-board-reports__table-wrap">
+				<table class="oras-board-reports__table">
+					<thead>
+						<tr>
+							<th><?php echo esc_html__( 'Import', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'Row', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'Member', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'End Date', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'Classification', 'oras-tickets' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $rows as $row ) : ?>
+							<?php $display = isset( $row['display'] ) && is_array( $row['display'] ) ? $row['display'] : array(); ?>
+							<tr>
+								<td>
+									<?php if ( true === ( $row['importable'] ?? false ) ) : ?>
+										<input type="checkbox" name="approved_rows[]" value="<?php echo esc_attr( (string) ( $row['row_token'] ?? '' ) ); ?>" <?php checked( true === ( $row['default_approved'] ?? false ) ); ?> aria-label="<?php echo esc_attr__( 'Approve this row for import', 'oras-tickets' ); ?>" />
+									<?php else : ?>
+										<?php echo esc_html__( 'Not importable', 'oras-tickets' ); ?>
+									<?php endif; ?>
+								</td>
+								<td><?php echo esc_html( (string) absint( $row['row_number'] ?? 0 ) ); ?></td>
+								<td><?php echo esc_html( (string) ( $display['member_name'] ?? '' ) ); ?></td>
+								<td><?php echo esc_html( (string) ( $display['email'] ?? '' ) ); ?></td>
+								<td><?php echo esc_html( (string) ( $display['end_date'] ?? '' ) ); ?></td>
+								<td><strong><?php echo esc_html( self::get_legacy_import_classification_label( (string) ( $row['classification'] ?? '' ) ) ); ?></strong><br /><?php echo esc_html( (string) ( $row['message'] ?? '' ) ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+			<button class="button button-primary" type="submit"><?php echo esc_html__( 'Import Approved Rows', 'oras-tickets' ); ?></button>
+		</form>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::LEGACY_IMPORT_CANCEL_ACTION ); ?>" />
+			<input type="hidden" name="legacy_import_token" value="<?php echo esc_attr( $token ); ?>" />
+			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
+			<?php wp_nonce_field( self::LEGACY_IMPORT_CANCEL_NONCE ); ?>
+			<button class="button" type="submit"><?php echo esc_html__( 'Cancel Import', 'oras-tickets' ); ?></button>
+		</form>
+		<?php
+	}
+
+	private static function get_legacy_import_classification_label( string $classification ): string {
+		$labels = array(
+			Legacy_Membership_Csv_Importer::CLASS_NEW    => __( 'Valid New', 'oras-tickets' ),
+			Legacy_Membership_Csv_Importer::CLASS_EXACT_EMAIL => __( 'Exact Email Match', 'oras-tickets' ),
+			Legacy_Membership_Csv_Importer::CLASS_DUPLICATE => __( 'Existing Legacy Duplicate', 'oras-tickets' ),
+			Legacy_Membership_Csv_Importer::CLASS_POSSIBLE_NAME => __( 'Possible Name Match', 'oras-tickets' ),
+			Legacy_Membership_Csv_Importer::CLASS_REVIEW => __( 'Needs Review', 'oras-tickets' ),
+		);
+
+		return $labels[ $classification ] ?? __( 'Needs Review', 'oras-tickets' );
 	}
 
 	/** @param array<string,mixed> $record */
@@ -3508,6 +3628,98 @@ final class Board_Reports {
 		exit;
 	}
 
+	public static function handle_preview_legacy_memberships(): void {
+		self::require_membership_manager();
+		check_admin_referer( self::LEGACY_IMPORT_PREVIEW_NONCE );
+
+		$file = isset( $_FILES['legacy_membership_csv'] ) && is_array( $_FILES['legacy_membership_csv'] ) ? $_FILES['legacy_membership_csv'] : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each scalar is validated below; temporary file contents are parsed by the bounded importer.
+		$name = isset( $file['name'] ) && is_scalar( $file['name'] ) ? sanitize_file_name( wp_unslash( (string) $file['name'] ) ) : '';
+		$type = isset( $file['type'] ) && is_scalar( $file['type'] ) ? sanitize_mime_type( wp_unslash( (string) $file['type'] ) ) : '';
+		$tmp_name = isset( $file['tmp_name'] ) && is_scalar( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+		$error = isset( $file['error'] ) ? absint( $file['error'] ) : UPLOAD_ERR_NO_FILE;
+		$size = isset( $file['size'] ) ? absint( $file['size'] ) : 0;
+		$allowed_types = array( '', 'text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel', 'application/octet-stream' );
+		$is_uploaded = '' !== $tmp_name && is_uploaded_file( $tmp_name );
+		$is_uploaded = (bool) apply_filters( 'oras_tickets_legacy_import_is_uploaded_file', $is_uploaded, $tmp_name );
+		if (
+			UPLOAD_ERR_OK !== $error
+			|| 'csv' !== strtolower( pathinfo( $name, PATHINFO_EXTENSION ) )
+			|| ! in_array( $type, $allowed_types, true )
+			|| $size <= 0
+			|| $size > Legacy_Membership_Csv_Importer::MAX_UPLOAD_BYTES
+			|| ! $is_uploaded
+			|| ! is_readable( $tmp_name )
+		) {
+			self::redirect_legacy_import( 'error' );
+		}
+
+		$preview = ( new Legacy_Membership_Csv_Importer() )->preview_file( $tmp_name );
+		if ( is_wp_error( $preview ) ) {
+			self::redirect_legacy_import( 'error' );
+		}
+		$token = Legacy_Membership_Csv_Importer::store_preview( get_current_user_id(), $preview );
+		self::redirect_legacy_import( 'preview', array( 'oras_legacy_import_token' => $token ) );
+	}
+
+	public static function handle_commit_legacy_memberships(): void {
+		self::require_membership_manager();
+		check_admin_referer( self::LEGACY_IMPORT_COMMIT_NONCE );
+
+		$token = isset( $_POST['legacy_import_token'] ) && is_scalar( $_POST['legacy_import_token'] ) ? sanitize_key( wp_unslash( $_POST['legacy_import_token'] ) ) : '';
+		$preview = Legacy_Membership_Csv_Importer::get_preview( get_current_user_id(), $token );
+		if ( null === $preview ) {
+			self::redirect_legacy_import( 'error' );
+		}
+		$approved = array();
+		if ( isset( $_POST['approved_rows'] ) && is_array( $_POST['approved_rows'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each token is scalar-checked and sanitized below.
+			foreach ( $_POST['approved_rows'] as $row_token ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				if ( is_scalar( $row_token ) ) {
+					$approved[] = sanitize_key( wp_unslash( (string) $row_token ) );
+				}
+			}
+		}
+		$result = Legacy_Membership_Csv_Importer::commit_preview( $preview, $approved, get_current_user_id() );
+		Legacy_Membership_Csv_Importer::delete_preview( get_current_user_id(), $token );
+		self::redirect_legacy_import(
+			'imported',
+			array(
+				'oras_legacy_imported' => $result['created'],
+				'oras_legacy_skipped'  => $result['skipped'],
+				'oras_legacy_errors'   => $result['errors'],
+			)
+		);
+	}
+
+	public static function handle_cancel_legacy_membership_import(): void {
+		self::require_membership_manager();
+		check_admin_referer( self::LEGACY_IMPORT_CANCEL_NONCE );
+
+		$token = isset( $_POST['legacy_import_token'] ) && is_scalar( $_POST['legacy_import_token'] ) ? sanitize_key( wp_unslash( $_POST['legacy_import_token'] ) ) : '';
+		Legacy_Membership_Csv_Importer::delete_preview( get_current_user_id(), $token );
+		self::redirect_legacy_import( 'cancelled' );
+	}
+
+	private static function require_membership_manager(): void {
+		if ( ! is_user_logged_in() || ! current_user_can( 'oras_tickets_manage_memberships' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown
+			wp_die( esc_html__( 'You do not have permission to manage memberships.', 'oras-tickets' ), '', array( 'response' => 403 ) );
+		}
+	}
+
+	/** @param array<string,int|string> $args */
+	private static function redirect_legacy_import( string $notice, array $args = array() ): void {
+		$fallback = self::get_current_dashboard_url( self::TAB_MEMBERSHIPS, 0 );
+		$requested = isset( $_POST['redirect_to'] ) && is_scalar( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Every caller validates its action-specific nonce before redirecting.
+		$redirect = wp_validate_redirect( $requested, $fallback );
+		$redirect = remove_query_arg(
+			array( 'oras_legacy_import_notice', 'oras_legacy_import_token', 'oras_legacy_imported', 'oras_legacy_skipped', 'oras_legacy_errors' ),
+			$redirect
+		);
+		$args['oras_board_tab'] = self::TAB_MEMBERSHIPS;
+		$args['oras_legacy_import_notice'] = sanitize_key( $notice );
+		wp_safe_redirect( add_query_arg( $args, $redirect ) );
+		exit;
+	}
+
 	public static function handle_print_observers_today(): void {
 		$response = self::prepare_observer_print_response();
 
@@ -3768,6 +3980,9 @@ final class Board_Reports {
 			return self::TAB_OBSERVER_PASSES !== $tab;
 		}
 		if ( 0 === strpos( $key, self::MEMBERSHIP_QUERY_PREFIX ) ) {
+			return self::TAB_MEMBERSHIPS !== $tab;
+		}
+		if ( 0 === strpos( $key, 'oras_legacy_' ) ) {
 			return self::TAB_MEMBERSHIPS !== $tab;
 		}
 

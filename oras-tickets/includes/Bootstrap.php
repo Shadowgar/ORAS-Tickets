@@ -54,6 +54,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Reporting/Contact_Normalizer.php'; // 
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Exporter.php'; // NOSONAR include: board-safe CSV export
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Observer_Pass_Report_Service.php'; // NOSONAR include: Observer Pass reporting
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Membership_Report_Service.php'; // NOSONAR include: unified membership reporting
+require_once ORAS_TICKETS_DIR . 'includes/Import/Legacy_Membership_Csv_Importer.php'; // NOSONAR include: bounded legacy membership CSV workflow
 require_once ORAS_TICKETS_DIR . 'includes/Reporting/Board_Report_Service.php'; // NOSONAR include: board reports data service
 require_once ORAS_TICKETS_DIR . 'includes/Security/Ticket_Checkin_Token.php'; // NOSONAR include: signed check-in token service
 require_once ORAS_TICKETS_DIR . 'includes/Templates/Template_Loader.php'; // NOSONAR legacy include
