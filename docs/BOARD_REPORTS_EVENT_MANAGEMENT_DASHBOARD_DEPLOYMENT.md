@@ -140,6 +140,21 @@ After updating and activating ORAS Tickets 0.4.51:
 
 Rollback is accomplished by restoring the previous ORAS Tickets plugin version and clearing application/CDN caches. No data rollback is required because Observer Pass reporting adds no schema and writes no order data.
 
+## ORAS Tickets 0.4.52 Membership and Manual Pass Verification
+
+This release adds unified PMPro and Legacy PayPal membership reporting plus frontend management of manual Annual Observer Passes. It adds no custom database tables and does not modify PMPro memberships or WooCommerce orders. Manual passes and imported legacy memberships are stored as private, non-public plugin post types with namespaced metadata.
+
+Before deployment, retain the normal database and plugin backups. After updating and activating ORAS Tickets 0.4.52:
+
+1. Open Board Reports as an authorized Board user and confirm the `Memberships` and `Observer Passes` tabs load.
+2. Confirm PMPro rows show website account, level, source status, start date, end date, and operational status; ordinary WordPress users without PMPro history must not appear.
+3. Confirm existing Annual and Daily WooCommerce Observer rows remain labeled `Website`, while manual Annual rows remain labeled `Manual / Offline` and contribute to the shared Active Annual total.
+4. Preview the native PayPal Active Subscriptions CSV and verify metadata/footer rows are ignored, duplicate-email profiles are held for review, exact-email PMPro matches are identified, and `Next Bill Date` is labeled `Next Renewal`.
+5. Commit only approved import rows, then repeat the preview to confirm the same PayPal Profile IDs are treated as existing records instead of duplicates.
+6. Confirm users with view-only Board access cannot see membership or manual-pass management controls, and that managers receive no WooCommerce or PMPro administration permissions.
+
+Rollback is accomplished by restoring the previous ORAS Tickets plugin version and clearing application/CDN caches. Do not delete `oras_manual_pass` or `oras_legacy_member` records during a code rollback; the previous release ignores them and a later 0.4.52 restoration can read them again.
+
 ## Remaining Production Checks
 
 These cannot be proven from public HTTP and must be verified with authenticated production WordPress access:

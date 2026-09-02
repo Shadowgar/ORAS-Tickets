@@ -1,5 +1,12 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-02 - Release 0.4.52
+
+- Added unified Board Reports membership reporting for Paid Memberships Pro and Legacy PayPal records.
+- Added native PayPal Active Subscriptions CSV preview and import with duplicate and reconciliation review safeguards.
+- Added frontend management and import for manual Annual Observer Passes alongside website purchases.
+- Added source-aware filtering, matching, and operational status details without granting WooCommerce or PMPro administration access.
+
 ## 2026-08-29 - Release 0.4.51
 
 - Added a mobile-friendly Board Reports `Observer Passes` tab for read-only operational verification.
