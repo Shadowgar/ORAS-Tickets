@@ -1,5 +1,11 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-02 - Release 0.4.53
+
+- Corrected PMPro expiration and renewal display, and added member phone and address details.
+- Added clickable, keyboard-accessible member detail dialogs and continuous Membership and Observer Pass Records rosters without pagination.
+- Moved the Legacy PayPal importer and Manual Annual Observer Pass form into collapsed manager-only sections below their rosters.
+
 ## 2026-09-02 - Release 0.4.52
 
 - Added unified Board Reports membership reporting for Paid Memberships Pro and Legacy PayPal records.

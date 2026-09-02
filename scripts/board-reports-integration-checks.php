@@ -906,7 +906,10 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_after"' ), 'Observer filter form includes a namespaced From date' );
 		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_before"' ), 'Observer filter form includes a namespaced To date' );
 		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_search"' ), 'Observer filter form uses namespaced search' );
-		oras_board_reports_assert( false !== strpos( $base_dashboard_html, 'name="oras_observer_per_page"' ), 'Observer filter form uses namespaced page size' );
+		oras_board_reports_assert(
+			false === strpos( $base_dashboard_html, 'name="oras_observer_per_page"' ),
+			'Observer filter form omits page-size controls'
+		);
 
 		$get_observer_filters = new ReflectionMethod( Board_Reports::class, 'get_observer_filters_from_request' );
 		$_GET = array(
@@ -1192,42 +1195,42 @@ function oras_board_reports_run_checks(): void {
 		oras_board_reports_assert( false !== strpos( $state_dashboard_html, 'data-observer-order="' . $dollar_refund_order->get_id() . '"' ) && false !== strpos( $state_dashboard_html, '>1<' ), 'Dollar-only refund leaves visible valid quantity unchanged' );
 		oras_board_reports_assert( false !== strpos( $state_dashboard_html, 'Today — Unconfirmed' ), 'Unknown Daily booking status is visibly invalid or unconfirmed' );
 
-		$page_one_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $default_observer_filters );
-		oras_board_reports_assert_same( substr_count( $page_one_html, 'data-observer-row=' ), 25, 'Default Observer page size renders 25 rows' );
-		$page_fifty_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'per_page' => 50 ) ) );
-		oras_board_reports_assert_same( substr_count( $page_fifty_html, 'data-observer-row=' ), min( 50, count( $after_pagination_report['rows'] ) ), 'Observer page size 50 renders the expected rows' );
-		$page_one_hundred_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'per_page' => 100 ) ) );
-		oras_board_reports_assert_same( substr_count( $page_one_hundred_html, 'data-observer-row=' ), min( 100, count( $after_pagination_report['rows'] ) ), 'Observer page size 100 renders the expected rows' );
-		oras_board_reports_assert( false !== strpos( $page_one_html, 'Page 1 of ' ), 'Observer pagination renders page 1' );
-		preg_match( '/href="([^"]*oras_observer_page=2[^"]*)"[^>]*>Next<\/a>/', $page_one_html, $next_page_match );
-		$next_page_url = isset( $next_page_match[1] ) ? html_entity_decode( $next_page_match[1], ENT_QUOTES ) : '';
-		parse_str( (string) wp_parse_url( $next_page_url, PHP_URL_QUERY ), $next_page_args );
-		oras_board_reports_assert_same( $next_page_args['oras_board_tab'] ?? '', 'observer_passes', 'Observer pagination remains in Observer Passes' );
-		oras_board_reports_assert_same( $next_page_args['oras_observer_per_page'] ?? '', '25', 'Observer pagination preserves page size' );
-		oras_board_reports_assert( ! isset( $next_page_args['oras_board_event_id'] ), 'Observer pagination excludes stale event ID' );
-
-		$page_two_filters = array_merge( $default_observer_filters, array( 'page' => 2 ) );
-		$page_two_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $page_two_filters );
-		oras_board_reports_assert( false !== strpos( $page_two_html, 'Page 2 of ' ), 'Observer pagination renders page 2' );
-		oras_board_reports_assert( false !== strpos( $page_two_html, '>Previous</a>' ) && false !== strpos( $page_two_html, '>Next</a>' ), 'Observer middle page has Previous and Next links' );
-		$last_page = (int) ceil( count( $after_pagination_report['rows'] ) / 25 );
-		$last_page_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, array_merge( $default_observer_filters, array( 'page' => $last_page ) ) );
-		oras_board_reports_assert( false !== strpos( $last_page_html, 'Page ' . $last_page . ' of ' . $last_page ), 'Observer pagination renders the last page' );
-		oras_board_reports_assert( false === strpos( $last_page_html, '>Next</a>' ), 'Observer last page omits Next link' );
-		$invalid_page_html = oras_board_reports_render_observer_dashboard( $expiring_report, array_merge( $default_observer_filters, array( 'page' => 99 ) ) );
-		oras_board_reports_assert( false !== strpos( $invalid_page_html, 'Page 1 of 1' ), 'Invalid filtered Observer page resets to page 1' );
+		$continuous_observer_html = oras_board_reports_render_observer_dashboard(
+			$after_pagination_report,
+			array_merge(
+				$default_observer_filters,
+				array(
+					'page'     => 99,
+					'per_page' => 25,
+				)
+			)
+		);
+		oras_board_reports_assert_same(
+			substr_count( $continuous_observer_html, 'data-observer-row=' ),
+			count( $after_pagination_report['rows'] ),
+			'Observer roster renders every filtered row without pagination'
+		);
+		oras_board_reports_assert(
+			false === strpos( $continuous_observer_html, 'Page 1 of ' )
+			&& false === strpos( $continuous_observer_html, '>Previous</a>' )
+			&& false === strpos( $continuous_observer_html, '>Next</a>' ),
+			'Observer roster omits pagination navigation'
+		);
 		$combined_filters = array_merge(
 			$default_observer_filters,
 			array(
 				'pass_type' => 'annual',
 				'status'    => 'active',
 				'search'    => 'Board Buyer',
-				'page'      => 2,
-				'per_page'  => 25,
 			)
 		);
-		$combined_page_html = oras_board_reports_render_observer_dashboard( $after_pagination_report, $combined_filters );
-		oras_board_reports_assert( false !== strpos( $combined_page_html, 'oras_observer_pass_type=annual' ) && false !== strpos( $combined_page_html, 'oras_observer_status=active' ) && false !== strpos( $combined_page_html, 'oras_observer_search=Board%20Buyer' ), 'Pagination preserves combined Observer filters' );
+		$combined_filter_report = $observer_service->get_report( $combined_filters );
+		$combined_filter_html = oras_board_reports_render_observer_dashboard( $combined_filter_report, $combined_filters );
+		oras_board_reports_assert_same(
+			substr_count( $combined_filter_html, 'data-observer-row=' ),
+			count( $combined_filter_report['rows'] ),
+			'Continuous Observer roster respects combined filters'
+		);
 
 		$empty_filtered_report = $observer_report;
 		$empty_filtered_report['rows'] = array();
