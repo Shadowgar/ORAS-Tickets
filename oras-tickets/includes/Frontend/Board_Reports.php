@@ -345,10 +345,21 @@ final class Board_Reports {
 				.oras-board-reports .oras-board-reports__member-row {
 					cursor: pointer;
 				}
-				.oras-board-reports .oras-board-reports__member-row:focus > td {
+				.oras-board-reports .oras-board-reports__member-row:focus > th,
+				.oras-board-reports .oras-board-reports__member-row:focus > td,
+				.oras-board-reports .oras-board-reports__observer-row:focus > th,
+				.oras-board-reports .oras-board-reports__observer-row:focus > td {
 					outline: 3px solid #2d7dbf;
 					outline-offset: -3px;
 					background: #e8f3fb;
+				}
+				.oras-board-reports .oras-board-reports__membership-table,
+				.oras-board-reports .oras-board-reports__observer-table {
+					width: 100%;
+					table-layout: fixed;
+				}
+				.oras-board-reports .oras-board-reports__observer-row {
+					cursor: pointer;
 				}
 				.oras-board-reports .oras-board-reports__member-dialog {
 					width: min(680px, calc(100vw - 32px));
@@ -1417,10 +1428,13 @@ final class Board_Reports {
 	private static function render_legacy_membership_management( int $page_id ): void {
 		$records = Legacy_Membership_Store::query();
 		?>
-		<section class="oras-board-reports__observer-section" aria-labelledby="oras-legacy-membership-title">
-			<h4 id="oras-legacy-membership-title"><?php echo esc_html__( 'Add Legacy PayPal Membership', 'oras-tickets' ); ?></h4>
+		<section class="oras-board-reports__observer-section">
+			<details class="oras-board-reports__observer-details">
+				<summary><?php echo esc_html__( 'Add Legacy PayPal Membership', 'oras-tickets' ); ?></summary>
+				<h4 id="oras-legacy-membership-title"><?php echo esc_html__( 'Add Legacy PayPal Membership', 'oras-tickets' ); ?></h4>
 			<p><?php echo esc_html__( 'Maintain the operational membership fields only. Do not enter billing details, credentials, or transaction payloads.', 'oras-tickets' ); ?></p>
 			<?php self::render_legacy_membership_form( array(), $page_id ); ?>
+			</details>
 			<?php if ( ! empty( $records ) ) : ?>
 				<details class="oras-board-reports__observer-details">
 					<summary><?php echo esc_html__( 'Edit Legacy PayPal Memberships', 'oras-tickets' ); ?></summary>
@@ -1632,19 +1646,13 @@ final class Board_Reports {
 		}
 		?>
 		<div class="oras-board-reports__table-wrap">
-			<table class="oras-board-reports__table">
+			<table class="oras-board-reports__table oras-board-reports__membership-table">
 				<thead>
 					<tr>
 						<th><?php echo esc_html__( 'Member', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Phone', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Address', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Level', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Start', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Expiration / Renewal', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Account Link', 'oras-tickets' ); ?></th>
-						<th><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -1653,19 +1661,10 @@ final class Board_Reports {
 						<tr class="oras-board-reports__member-row" data-membership-dialog-trigger="<?php echo esc_attr( $dialog_id ); ?>" tabindex="0" role="button" aria-haspopup="dialog" aria-controls="<?php echo esc_attr( $dialog_id ); ?>">
 							<td>
 								<strong><?php echo esc_html( (string) ( $row['member_name'] ?? '' ) ); ?></strong>
-								<?php if ( '' !== (string) ( $row['email'] ?? '' ) ) : ?>
-									<br /><span><?php echo esc_html( (string) $row['email'] ); ?></span>
-								<?php endif; ?>
 							</td>
-							<td class="oras-board-reports__cell--phone"><?php echo esc_html( self::get_membership_recorded_value( $row, 'phone' ) ); ?></td>
-							<td class="oras-board-reports__cell--address"><?php self::render_membership_address( $row ); ?></td>
 							<td><?php echo esc_html( (string) ( $row['source_label'] ?? '' ) ); ?></td>
 							<td><?php echo esc_html( (string) ( $row['level_name'] ?? '' ) ); ?></td>
-							<td><?php self::render_observer_date( (string) ( $row['start_date'] ?? '' ) ); ?></td>
-							<td><?php self::render_membership_date( $row ); ?></td>
 							<td><?php echo esc_html( self::get_membership_status_label( (string) ( $row['operational_status'] ?? '' ) ) ); ?></td>
-							<td><?php echo esc_html( self::get_membership_link_label( (string) ( $row['account_link_status'] ?? '' ) ) ); ?></td>
-							<td><?php echo esc_html__( 'View details', 'oras-tickets' ); ?></td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>
@@ -1711,7 +1710,7 @@ final class Board_Reports {
 				<div><dt><?php echo esc_html__( 'Membership level', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_recorded_value( $row, 'level_name' ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Membership status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_status_label( (string) ( $row['operational_status'] ?? '' ) ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Start date', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( (string) ( $row['start_date'] ?? '' ) ); ?></dd></div>
-				<div><dt><?php echo esc_html__( 'Expiration / Renewal', 'oras-tickets' ); ?></dt><dd><?php self::render_membership_date( $row ); ?></dd></div>
+				<?php self::render_membership_timing_detail( $row ); ?>
 				<div><dt><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_recorded_value( $row, 'source_label' ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Website-account linkage', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_link_label( (string) ( $row['account_link_status'] ?? '' ) ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Source record', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['source_record_id'] ?? 0 ) ); ?></dd></div>
@@ -1739,6 +1738,26 @@ final class Board_Reports {
 	/** @param array<string,mixed> $row */
 	private static function get_membership_dialog_id( array $row ): string {
 		return 'oras-membership-' . sanitize_html_class( (string) ( $row['source'] ?? '' ) ) . '-' . absint( $row['source_record_id'] ?? 0 );
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function render_membership_timing_detail( array $row ): void {
+		$state = (string) ( $row['membership_date_state'] ?? 'unavailable' );
+		$label = __( 'Membership date', 'oras-tickets' );
+		if ( 'expires' === $state ) {
+			$label = __( 'Expiration date', 'oras-tickets' );
+		} elseif ( 'renews' === $state ) {
+			$label = __( 'Next renewal date', 'oras-tickets' );
+		} elseif ( 'expiration_or_renewal' === $state ) {
+			$label = __( 'Expiration / next renewal date', 'oras-tickets' );
+		} elseif ( 'auto_renewing' === $state ) {
+			$label = __( 'Renewal state', 'oras-tickets' );
+		} elseif ( 'no_expiration' === $state ) {
+			$label = __( 'Expiration state', 'oras-tickets' );
+		}
+		?>
+		<div><dt><?php echo esc_html( $label ); ?></dt><dd><?php self::render_membership_date( $row ); ?></dd></div>
+		<?php
 	}
 
 	/** @param array<string,mixed> $row */
@@ -2194,7 +2213,7 @@ final class Board_Reports {
 			<div class="oras-board-reports__observer-section-heading">
 				<div>
 					<h4 id="oras-observer-table-title"><?php echo esc_html__( 'Observer Pass Records', 'oras-tickets' ); ?></h4>
-					<p><?php echo esc_html__( 'Read-only operational history. Expand Details for board-safe contact and validity information.', 'oras-tickets' ); ?></p>
+					<p><?php echo esc_html__( 'Read-only operational history. Select a record for board-safe contact and validity information.', 'oras-tickets' ); ?></p>
 				</div>
 			</div>
 			<?php if ( empty( $rows ) ) : ?>
@@ -2207,12 +2226,9 @@ final class Board_Reports {
 								<th scope="col"><?php echo esc_html__( 'Purchaser / Passholder', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Pass Type', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
-								<th scope="col"><?php echo esc_html__( 'Purchase Date', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Valid Date / Expiration', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Qty', 'oras-tickets' ); ?></th>
-								<th scope="col"><?php echo esc_html__( 'Order', 'oras-tickets' ); ?></th>
 								<th scope="col"><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
-								<th scope="col"><?php echo esc_html__( 'Details', 'oras-tickets' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -2220,25 +2236,44 @@ final class Board_Reports {
 								<?php
 								$status = self::get_observer_status_presentation( $row );
 								$pass_type = self::get_observer_value( $row, 'pass_type' );
+								$dialog_id = self::get_observer_dialog_id( $row );
 								?>
-								<tr data-observer-row="<?php echo esc_attr( (string) absint( $row['item_id'] ?? 0 ) ); ?>" data-observer-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-pass-type="<?php echo esc_attr( $pass_type ); ?>" data-valid-quantity="<?php echo esc_attr( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?>">
+								<tr class="oras-board-reports__observer-row" data-observer-dialog-trigger="<?php echo esc_attr( $dialog_id ); ?>" data-observer-row="<?php echo esc_attr( (string) absint( $row['item_id'] ?? 0 ) ); ?>" data-observer-order="<?php echo esc_attr( (string) absint( $row['order_id'] ?? 0 ) ); ?>" data-pass-type="<?php echo esc_attr( $pass_type ); ?>" data-valid-quantity="<?php echo esc_attr( (string) absint( $row['valid_quantity'] ?? 0 ) ); ?>" tabindex="0" role="button" aria-haspopup="dialog" aria-controls="<?php echo esc_attr( $dialog_id ); ?>">
 									<th scope="row" class="oras-board-reports__cell--name">
 										<?php echo esc_html( self::get_observer_identity( $row ) ); ?>
 										<small><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></small>
 									</th>
 									<td><?php echo esc_html( self::get_observer_pass_type_label( $pass_type ) ); ?></td>
 									<td><?php echo esc_html( self::get_observer_value( $row, 'source_label' ) ); ?></td>
-									<td><?php self::render_observer_date( self::get_observer_value( $row, 'purchase_date' ) ); ?></td>
 									<td><?php self::render_observer_valid_date( $row ); ?></td>
 									<td class="oras-board-reports__cell--qty"><?php echo esc_html( self::get_observer_quantity_label( $row ) ); ?></td>
-									<td><?php echo esc_html( self::get_observer_record_label( $row ) ); ?></td>
 									<td><span class="oras-board-reports__observer-status <?php echo esc_attr( $status['class'] ); ?>"><?php echo esc_html( $status['label'] ); ?></span></td>
-									<td><?php self::render_observer_details( $row ); ?></td>
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
 					</table>
 				</div>
+				<?php foreach ( $rows as $row ) : ?>
+					<?php self::render_observer_details( $row ); ?>
+				<?php endforeach; ?>
+				<script>
+					(function () {
+						'use strict';
+						var script = document.currentScript;
+						var root = script ? script.closest('.oras-board-reports__observer-section') : null;
+						if (!root) { return; }
+						function openDialog(row) {
+							var dialog = document.getElementById(row.getAttribute('data-observer-dialog-trigger'));
+							if (dialog && typeof dialog.showModal === 'function') { dialog.showModal(); }
+						}
+						Array.prototype.forEach.call(root.querySelectorAll('[data-observer-dialog-trigger]'), function (row) {
+							row.addEventListener('click', function () { openDialog(row); });
+							row.addEventListener('keydown', function (event) {
+								if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDialog(row); }
+							});
+						});
+					}());
+				</script>
 			<?php endif; ?>
 		</section>
 		<?php
@@ -2252,8 +2287,11 @@ final class Board_Reports {
 		$booking_status = self::get_observer_value( $row, 'booking_status' );
 		$is_manual = Observer_Pass_Report_Service::SOURCE_MANUAL === self::get_observer_value( $row, 'source' );
 		?>
-		<details class="oras-board-reports__observer-details">
-			<summary><?php echo esc_html__( 'View details', 'oras-tickets' ); ?></summary>
+		<dialog id="<?php echo esc_attr( self::get_observer_dialog_id( $row ) ); ?>" class="oras-board-reports__member-dialog" aria-labelledby="<?php echo esc_attr( self::get_observer_dialog_id( $row ) . '-title' ); ?>">
+			<div class="oras-board-reports__member-dialog-heading">
+				<h4 id="<?php echo esc_attr( self::get_observer_dialog_id( $row ) . '-title' ); ?>"><?php echo esc_html( self::get_observer_identity( $row ) ); ?></h4>
+				<form method="dialog"><button class="button" type="submit" aria-label="<?php echo esc_attr__( 'Close Observer Pass details', 'oras-tickets' ); ?>">&times;</button></form>
+			</div>
 			<dl>
 				<div><dt><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_recorded_value( $row, 'source_label' ) . ' — ' . self::get_observer_recorded_value( $row, 'source_detail' ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Purchaser/Passholder', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_observer_identity( $row ) ); ?></dd></div>
@@ -2285,8 +2323,13 @@ final class Board_Reports {
 				<?php endif; ?>
 				<div><dt><?php echo esc_html__( 'Validity', 'oras-tickets' ); ?></dt><dd><?php echo ! empty( $row['is_valid'] ) ? esc_html__( 'Valid', 'oras-tickets' ) : esc_html__( 'Invalid', 'oras-tickets' ); ?></dd></div>
 			</dl>
-		</details>
+		</dialog>
 		<?php
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function get_observer_dialog_id( array $row ): string {
+		return 'oras-observer-' . sanitize_html_class( self::get_observer_row_key( $row ) );
 	}
 
 	/**
@@ -2305,19 +2348,6 @@ final class Board_Reports {
 		}
 
 		return (string) absint( $row['order_id'] ?? 0 );
-	}
-
-	/** @param array<string,mixed> $row */
-	private static function get_observer_record_label( array $row ): string {
-		if ( Observer_Pass_Report_Service::SOURCE_MANUAL === self::get_observer_value( $row, 'source' ) ) {
-			return sprintf(
-				/* translators: %d: internal manual record ID. */
-				__( 'Manual #%d', 'oras-tickets' ),
-				absint( $row['source_record_id'] ?? 0 )
-			);
-		}
-
-		return '#' . self::get_observer_value( $row, 'order_number' );
 	}
 
 	/**
@@ -2453,39 +2483,6 @@ final class Board_Reports {
 			echo ' <span aria-hidden="true">—</span><span class="screen-reader-text"> ' . esc_html__( 'through', 'oras-tickets' ) . ' </span> ';
 			self::render_observer_date( $end );
 		}
-	}
-
-	/**
-	 * @param array{page:int,per_page:int,total:int,total_pages:int} $page_data Pagination data.
-	 * @param array<string,mixed>                                  $filters Observer filters.
-	 */
-	private static function render_observer_pagination( array $page_data, array $filters, int $page_id ): void {
-		if ( $page_data['total'] <= 0 ) {
-			return;
-		}
-		?>
-		<nav class="oras-board-reports__pagination oras-board-reports__observer-pagination" aria-label="<?php echo esc_attr__( 'Observer Pass pages', 'oras-tickets' ); ?>">
-			<span>
-				<?php
-				echo esc_html(
-					sprintf(
-						/* translators: 1: current page, 2: total pages, 3: total records. */
-						__( 'Page %1$d of %2$d (%3$d records)', 'oras-tickets' ),
-						$page_data['page'],
-						$page_data['total_pages'],
-						$page_data['total']
-					)
-				);
-				?>
-			</span>
-			<?php if ( $page_data['page'] > 1 ) : ?>
-				<a class="button" href="<?php echo esc_url( self::build_observer_page_url( $filters, $page_data['page'] - 1, $page_id ) ); ?>"><?php echo esc_html__( 'Previous', 'oras-tickets' ); ?></a>
-			<?php endif; ?>
-			<?php if ( $page_data['page'] < $page_data['total_pages'] ) : ?>
-				<a class="button" href="<?php echo esc_url( self::build_observer_page_url( $filters, $page_data['page'] + 1, $page_id ) ); ?>"><?php echo esc_html__( 'Next', 'oras-tickets' ); ?></a>
-			<?php endif; ?>
-		</nav>
-		<?php
 	}
 
 	/**
@@ -4643,30 +4640,6 @@ final class Board_Reports {
 		$total = count( $rows );
 		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
 		$page = min( max( 1, absint( $filters['page'] ?? 1 ) ), $total_pages );
-
-		return array(
-			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),
-			'page'        => $page,
-			'per_page'    => $per_page,
-			'total'       => $total,
-			'total_pages' => $total_pages,
-		);
-	}
-
-	/**
-	 * @param array<int,array<string,mixed>> $rows Filtered Observer rows.
-	 * @param array<string,mixed>            $filters Observer filters.
-	 * @return array{rows:array<int,array<string,mixed>>,page:int,per_page:int,total:int,total_pages:int}
-	 */
-	private static function paginate_observer_rows( array $rows, array $filters ): array {
-		$per_page = absint( $filters['per_page'] ?? 25 );
-		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
-		$total = count( $rows );
-		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
-		$page = max( 1, absint( $filters['page'] ?? 1 ) );
-		if ( $page > $total_pages ) {
-			$page = 1;
-		}
 
 		return array(
 			'rows'        => array_slice( $rows, ( $page - 1 ) * $per_page, $per_page ),

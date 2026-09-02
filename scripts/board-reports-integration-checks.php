@@ -1174,12 +1174,16 @@ function oras_board_reports_run_checks(): void {
 		$main_table_html = oras_board_reports_render_observer_dashboard( $main_table_report, $default_observer_filters );
 		oras_board_reports_assert( false !== strpos( $main_table_html, 'data-pass-type="annual"' ) && false !== strpos( $main_table_html, '2027-08-01' ), 'Main table renders Annual expiration' );
 		oras_board_reports_assert( false !== strpos( $main_table_html, 'data-pass-type="daily"' ) && false !== strpos( $main_table_html, '2026-08-28' ) && false !== strpos( $main_table_html, '2026-08-29' ), 'Main table renders Daily observing range' );
-		foreach ( array( 'Purchaser / Passholder', 'Pass Type', 'Purchase Date', 'Valid Date / Expiration', 'Qty', 'Order', 'Status', 'Details' ) as $column_label ) {
+		foreach ( array( 'Purchaser / Passholder', 'Pass Type', 'Source', 'Valid Date / Expiration', 'Qty', 'Status' ) as $column_label ) {
 			oras_board_reports_assert( false !== strpos( $main_table_html, $column_label ), 'Main table contains column ' . $column_label );
 		}
-		oras_board_reports_assert( false !== strpos( $main_table_html, '<details' ), 'Main table rows contain expandable details' );
+		foreach ( array( 'Purchase Date', 'Order', 'Details' ) as $column_label ) {
+			oras_board_reports_assert( false === strpos( $main_table_html, '<th scope="col">' . $column_label . '</th>' ), 'Main table omits detail column ' . $column_label );
+		}
+		oras_board_reports_assert( false !== strpos( $main_table_html, '<dialog id="oras-observer-' ), 'Main table rows render native detail dialogs' );
+		oras_board_reports_assert( false !== strpos( $main_table_html, 'data-observer-dialog-trigger=' ), 'Main table rows are keyboard-activatable dialog triggers' );
 		foreach ( array( 'Email', 'Phone', 'WooCommerce status', 'Booking status', 'Validity' ) as $detail_label ) {
-			oras_board_reports_assert( false !== strpos( $main_table_html, $detail_label ), 'Expandable details contain ' . $detail_label );
+			oras_board_reports_assert( false !== strpos( $main_table_html, $detail_label ), 'Observer dialog contains ' . $detail_label );
 		}
 		oras_board_reports_assert( false === strpos( $main_table_html, 'post.php?post=' ), 'Observer details do not link to WooCommerce order editing' );
 		oras_board_reports_assert( false === stripos( $main_table_html, 'payment_method' ), 'Observer details exclude payment method fields' );
