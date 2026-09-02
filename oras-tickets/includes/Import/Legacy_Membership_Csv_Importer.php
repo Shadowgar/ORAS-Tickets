@@ -18,6 +18,7 @@ final class Legacy_Membership_Csv_Importer {
 	public const CLASS_NEW = 'valid_new';
 	public const CLASS_EXACT_EMAIL = 'exact_email_match';
 	public const CLASS_DUPLICATE = 'existing_legacy_duplicate';
+	public const CLASS_UPDATE = 'existing_profile_update';
 	public const CLASS_POSSIBLE_NAME = 'possible_name_match';
 	public const CLASS_REVIEW = 'needs_review';
 
@@ -69,7 +70,16 @@ final class Legacy_Membership_Csv_Importer {
 			if ( false === $header || 0 === count( $header ) || count( $header ) > 32 ) {
 				return new \WP_Error( 'legacy_import_headers', __( 'The CSV header row is missing or unsupported.', 'oras-tickets' ) );
 			}
-			$columns = $this->map_headers( $header );
+			$row_number = 1;
+			$native_format = $this->is_native_row_type( $header, array( 'RH', 'FH', 'SH', 'CH' ) );
+			while ( $native_format && 'CH' !== $this->get_row_type( $header ) ) {
+				$header = fgetcsv( $handle, 65536, ',', '"', '\\' );
+				++$row_number;
+				if ( false === $header || 0 === count( $header ) || count( $header ) > 32 ) {
+					return new \WP_Error( 'legacy_import_headers', __( 'The PayPal report does not contain a supported CH column-header row.', 'oras-tickets' ) );
+				}
+			}
+			$columns = $this->map_headers( $header, $native_format );
 			if ( is_wp_error( $columns ) ) {
 				return $columns;
 			}
@@ -78,20 +88,33 @@ final class Legacy_Membership_Csv_Importer {
 			$website_names = $this->index_values( $this->website_rows, 'member_name', false );
 			$legacy_emails = $this->index_values( $this->legacy_rows, 'email', true );
 			$legacy_references = $this->index_values( $this->legacy_rows, 'paypal_reference', false );
-			$rows = array();
-			$row_number = 1;
+			$raw_rows = array();
+			$data_rows = 0;
 			while ( false !== ( $values = fgetcsv( $handle, 65536, ',', '"', '\\' ) ) ) { // phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition -- Stream rows until EOF without retaining the raw file.
 				++$row_number;
-				if ( $row_number > self::MAX_ROWS + 1 ) {
-					return new \WP_Error( 'legacy_import_rows', __( 'The CSV contains more than 2,000 data rows.', 'oras-tickets' ) );
-				}
 				if ( $this->row_is_empty( $values ) ) {
 					continue;
 				}
-				$raw = $this->extract_row( $columns, $values );
-				$row = $this->build_preview_row( $raw, $row_number, $website_emails, $website_names, $legacy_emails, $legacy_references );
+				if ( $native_format && 'SB' !== $this->get_row_type( $values ) ) {
+					continue;
+				}
+				++$data_rows;
+				if ( $data_rows > self::MAX_ROWS ) {
+					return new \WP_Error( 'legacy_import_rows', __( 'The CSV contains more than 2,000 data rows.', 'oras-tickets' ) );
+				}
+				$raw_rows[] = array(
+					'raw'        => $this->extract_row( $columns, $values ),
+					'row_number' => $row_number,
+				);
+			}
+			$duplicate_native_emails = $native_format ? $this->find_duplicate_native_emails( $raw_rows ) : array();
+			$rows = array();
+			foreach ( $raw_rows as $raw_row ) {
+				$raw = $raw_row['raw'];
+				$email = $this->normalize_email( (string) ( $raw['email'] ?? '' ) );
+				$row = $this->build_preview_row( $raw, (int) $raw_row['row_number'], $website_emails, $website_names, $legacy_emails, $legacy_references, $native_format, isset( $duplicate_native_emails[ $email ] ) );
 				$rows[] = $row;
-				if ( true === $row['importable'] ) {
+				if ( ! $native_format && true === $row['importable'] ) {
 					$email = $this->normalize_email( (string) ( $row['record']['email'] ?? '' ) );
 					$reference = $this->normalize_text( (string) ( $row['record']['paypal_reference'] ?? '' ) );
 					if ( '' !== $email ) {
@@ -149,15 +172,17 @@ final class Legacy_Membership_Csv_Importer {
 	/**
 	 * @param array<string,mixed> $preview Stored normalized preview payload.
 	 * @param string[] $approved_tokens Explicit row approvals.
-	 * @return array{created:int,skipped:int,errors:int}
+	 * @return array{created:int,updated:int,skipped:int,errors:int}
 	 */
 	public static function commit_preview( array $preview, array $approved_tokens, int $actor_user_id ): array {
 		$approved = array_fill_keys( array_map( 'sanitize_key', $approved_tokens ), true );
 		$legacy_rows = Legacy_Membership_Store::query();
 		$emails = self::static_index( $legacy_rows, 'email', true );
 		$references = self::static_index( $legacy_rows, 'paypal_reference', false );
+		$reference_ids = self::static_id_index( $legacy_rows, 'paypal_reference' );
 		$result = array(
 			'created' => 0,
+			'updated' => 0,
 			'skipped' => 0,
 			'errors'  => 0,
 		);
@@ -177,7 +202,17 @@ final class Legacy_Membership_Csv_Importer {
 			}
 			$email = strtolower( trim( (string) $record['email'] ) );
 			$reference = strtolower( trim( (string) $record['paypal_reference'] ) );
-			if ( ( '' !== $email && isset( $emails[ $email ] ) ) || ( '' !== $reference && isset( $references[ $reference ] ) ) ) {
+			$native_format = 'paypal_active_subscriptions' === ( $row['source_format'] ?? '' );
+			if ( $native_format && '' !== $reference && isset( $reference_ids[ $reference ] ) ) {
+				$updated = Legacy_Membership_Store::update( $reference_ids[ $reference ], $record, $actor_user_id );
+				if ( is_wp_error( $updated ) ) {
+					++$result['errors'];
+				} else {
+					++$result['updated'];
+				}
+				continue;
+			}
+			if ( ! $native_format && ( ( '' !== $email && isset( $emails[ $email ] ) ) || ( '' !== $reference && isset( $references[ $reference ] ) ) ) ) {
 				++$result['skipped'];
 				continue;
 			}
@@ -192,6 +227,7 @@ final class Legacy_Membership_Csv_Importer {
 			}
 			if ( '' !== $reference ) {
 				$references[ $reference ] = true;
+				$reference_ids[ $reference ] = (int) $created;
 			}
 		}
 
@@ -199,15 +235,15 @@ final class Legacy_Membership_Csv_Importer {
 	}
 
 	/** @param string[] $headers @return array<int,string>|\WP_Error */
-	private function map_headers( array $headers ) {
+	private function map_headers( array $headers, bool $native_format = false ) {
 		$aliases = array(
-			'member_name'      => array( 'member_name', 'member name', 'name' ),
-			'email'            => array( 'email', 'email address' ),
-			'start_date'       => array( 'start_date', 'start date', 'membership start date' ),
-			'end_date'         => array( 'end_date', 'end date', 'expiration date', 'renewal date', 'next renewal date' ),
-			'status'           => array( 'status', 'membership status' ),
-			'paypal_reference' => array( 'paypal_reference', 'paypal reference', 'reference' ),
-			'notes'            => array( 'notes', 'note' ),
+			'member_name'      => array( 'member_name', 'member name', 'name', 'payer name' ),
+			'email'            => array( 'email', 'email address', 'payer email' ),
+			'start_date'       => array( 'start_date', 'start date', 'membership start date', 'date last paid' ),
+			'end_date'         => array( 'end_date', 'end date', 'expiration date', 'renewal date', 'next renewal date', 'next bill date' ),
+			'status'           => array( 'status', 'membership status', 'profile status' ),
+			'paypal_reference' => array( 'paypal_reference', 'paypal reference', 'reference', 'profile id' ),
+			'notes'            => array( 'notes', 'note', 'description' ),
 		);
 		$lookup = array();
 		foreach ( $aliases as $canonical => $names ) {
@@ -225,7 +261,8 @@ final class Legacy_Membership_Csv_Importer {
 				$found[ $canonical ] = true;
 			}
 		}
-		if ( ! isset( $found['member_name'], $found['end_date'] ) ) {
+		$required = $native_format ? array( 'member_name', 'email', 'start_date', 'end_date', 'status', 'paypal_reference', 'notes' ) : array( 'member_name', 'end_date' );
+		if ( array_diff( $required, array_keys( $found ) ) ) {
 			return new \WP_Error( 'legacy_import_required_headers', __( 'The CSV must include Member Name and End Date columns.', 'oras-tickets' ) );
 		}
 
@@ -250,13 +287,13 @@ final class Legacy_Membership_Csv_Importer {
 	 * @param array<string,bool> $legacy_references
 	 * @return array<string,mixed>
 	 */
-	private function build_preview_row( array $raw, int $row_number, array $website_emails, array $website_names, array $legacy_emails, array $legacy_references ): array {
+	private function build_preview_row( array $raw, int $row_number, array $website_emails, array $website_names, array $legacy_emails, array $legacy_references, bool $native_format = false, bool $duplicate_native_email = false ): array {
 		$candidate = array(
 			'member_name'      => sanitize_text_field( (string) ( $raw['member_name'] ?? '' ) ),
 			'email'            => strtolower( sanitize_email( (string) ( $raw['email'] ?? '' ) ) ),
-			'start_date'       => sanitize_text_field( (string) ( $raw['start_date'] ?? '' ) ),
-			'end_date'         => sanitize_text_field( (string) ( $raw['end_date'] ?? '' ) ),
-			'status'           => sanitize_key( (string) ( $raw['status'] ?? 'active' ) ),
+			'start_date'       => $native_format ? self::normalize_native_date( (string) ( $raw['start_date'] ?? '' ) ) : sanitize_text_field( (string) ( $raw['start_date'] ?? '' ) ),
+			'end_date'         => $native_format ? self::normalize_native_date( (string) ( $raw['end_date'] ?? '' ) ) : sanitize_text_field( (string) ( $raw['end_date'] ?? '' ) ),
+			'status'           => self::normalize_status( (string) ( $raw['status'] ?? 'active' ) ),
 			'paypal_reference' => sanitize_text_field( (string) ( $raw['paypal_reference'] ?? '' ) ),
 			'linked_user_id'   => 0,
 			'transitioned'     => false,
@@ -271,16 +308,28 @@ final class Legacy_Membership_Csv_Importer {
 		$importable = false;
 		$default_approved = false;
 		$record = $candidate;
-		if ( is_wp_error( $sanitized ) ) {
+		if ( $native_format && '' === $candidate['paypal_reference'] ) {
+			$message = __( 'The PayPal subscription row does not contain a Profile ID.', 'oras-tickets' );
+		} elseif ( is_wp_error( $sanitized ) ) {
 			$message = $sanitized->get_error_message();
 		} else {
 			$record = $sanitized;
 			$email = $this->normalize_email( (string) $record['email'] );
 			$name = $this->normalize_text( (string) $record['member_name'] );
 			$reference = $this->normalize_text( (string) $record['paypal_reference'] );
-			if ( ( '' !== $email && isset( $legacy_emails[ $email ] ) ) || ( '' !== $reference && isset( $legacy_references[ $reference ] ) ) ) {
-				$classification = self::CLASS_DUPLICATE;
-				$message = __( 'An existing legacy membership has the same email or PayPal reference.', 'oras-tickets' );
+			if ( $duplicate_native_email ) {
+				$classification = self::CLASS_REVIEW;
+				$message = __( 'Multiple PayPal Profile IDs use this payer email. Review before importing.', 'oras-tickets' );
+				$importable = true;
+			} elseif ( $native_format && '' !== $reference && isset( $legacy_references[ $reference ] ) ) {
+				$classification = self::CLASS_UPDATE;
+				$message = __( 'This PayPal Profile ID will update its existing legacy membership.', 'oras-tickets' );
+				$importable = true;
+				$default_approved = true;
+			} elseif ( ( '' !== $email && isset( $legacy_emails[ $email ] ) ) || ( '' !== $reference && isset( $legacy_references[ $reference ] ) ) ) {
+				$classification = $native_format ? self::CLASS_REVIEW : self::CLASS_DUPLICATE;
+				$message = $native_format ? __( 'Another legacy membership uses this payer email. Review before importing.', 'oras-tickets' ) : __( 'An existing legacy membership has the same email or PayPal reference.', 'oras-tickets' );
+				$importable = $native_format;
 			} elseif ( '' !== $email && isset( $website_emails[ $email ] ) ) {
 				$classification = self::CLASS_EXACT_EMAIL;
 				$message = __( 'Website account/membership match found. Review before importing.', 'oras-tickets' );
@@ -318,7 +367,28 @@ final class Legacy_Membership_Csv_Importer {
 			'message'          => sanitize_text_field( $message ),
 			'importable'       => $importable,
 			'default_approved' => $default_approved,
+			'source_format'    => $native_format ? 'paypal_active_subscriptions' : 'legacy_csv',
 		);
+	}
+
+	/** @param array<int,array{raw:array<string,string>,row_number:int}> $raw_rows @return array<string,bool> */
+	private function find_duplicate_native_emails( array $raw_rows ): array {
+		$profiles_by_email = array();
+		foreach ( $raw_rows as $raw_row ) {
+			$email = $this->normalize_email( (string) ( $raw_row['raw']['email'] ?? '' ) );
+			$profile = $this->normalize_text( (string) ( $raw_row['raw']['paypal_reference'] ?? '' ) );
+			if ( '' !== $email && '' !== $profile ) {
+				$profiles_by_email[ $email ][ $profile ] = true;
+			}
+		}
+		$duplicates = array();
+		foreach ( $profiles_by_email as $email => $profiles ) {
+			if ( count( $profiles ) > 1 ) {
+				$duplicates[ $email ] = true;
+			}
+		}
+
+		return $duplicates;
 	}
 
 	/** @param array<int,array<string,mixed>> $rows @return array<string,int> */
@@ -353,6 +423,76 @@ final class Legacy_Membership_Csv_Importer {
 		}
 
 		return $index;
+	}
+
+	/** @param array<int,array<string,mixed>> $rows @return array<string,int> */
+	private static function static_id_index( array $rows, string $field ): array {
+		$index = array();
+		foreach ( $rows as $row ) {
+			$value = self::normalize_static_text( (string) ( $row[ $field ] ?? '' ) );
+			$id = absint( $row['id'] ?? 0 );
+			if ( '' !== $value && $id > 0 ) {
+				$index[ $value ] = $id;
+			}
+		}
+
+		return $index;
+	}
+
+	/** @param string[] $allowed_types */
+	private function is_native_row_type( array $row, array $allowed_types ): bool {
+		return in_array( $this->get_row_type( $row ), $allowed_types, true );
+	}
+
+	/** @param string[] $row */
+	private function get_row_type( array $row ): string {
+		$value = (string) ( $row[0] ?? '' );
+
+		return strtoupper( trim( (string) preg_replace( '/^\xEF\xBB\xBF/', '', $value ) ) );
+	}
+
+	private static function normalize_native_date( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+		if ( 1 === preg_match( '/^(\d{4}-\d{2}-\d{2})/', $value, $matches ) ) {
+			$value = $matches[1];
+			$formats = array( '!Y-m-d' );
+		} elseif ( 1 === preg_match( '/^(\d{1,2}\/\d{1,2}\/\d{4})/', $value, $matches ) ) {
+			$value = $matches[1];
+			$formats = array( '!n/j/Y' );
+		} elseif ( 1 === preg_match( '/^([A-Za-z]+\s+\d{1,2},\s*\d{4})/', $value, $matches ) ) {
+			$value = $matches[1];
+			$formats = array( '!M j, Y', '!F j, Y' );
+		} else {
+			return '';
+		}
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+		foreach ( $formats as $format ) {
+			$date = \DateTimeImmutable::createFromFormat( $format, $value, $timezone );
+			$errors = \DateTimeImmutable::getLastErrors();
+			if ( false !== $date && ( false === $errors || ( 0 === $errors['warning_count'] && 0 === $errors['error_count'] ) ) ) {
+				return $date->format( 'Y-m-d' );
+			}
+		}
+
+		return '';
+	}
+
+	private static function normalize_status( string $value ): string {
+		$status = sanitize_key( $value );
+		if ( in_array( $status, array( 'cancelled', 'canceled' ), true ) ) {
+			return 'cancelled';
+		}
+		if ( 'expired' === $status ) {
+			return 'expired';
+		}
+		if ( in_array( $status, array( 'inactive', 'suspended' ), true ) ) {
+			return 'inactive';
+		}
+
+		return 'active';
 	}
 
 	private function normalize_email( string $value ): string {

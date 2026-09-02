@@ -155,6 +155,68 @@ function oras_legacy_import_run_checks(): void {
 		$review_rows = array_values( array_filter( $rows, static fn( array $row ): bool => Legacy_Membership_Csv_Importer::CLASS_REVIEW === ( $row['classification'] ?? '' ) ) );
 		oras_legacy_import_assert_same( count( $review_rows ), 2, 'Missing and invalid required dates require review' );
 
+		$native_existing_id = Legacy_Membership_Store::create(
+			array(
+				'member_name'      => 'Native Existing',
+				'email'            => 'native.existing@example.org',
+				'end_date'         => '2026-09-15',
+				'status'           => 'active',
+				'paypal_reference' => 'I-NATIVE-UPDATE',
+			),
+			$admin_id
+		);
+		oras_legacy_import_assert( is_int( $native_existing_id ) && $native_existing_id > 0, 'Existing native PayPal profile fixture created' );
+		$created_ids[] = $native_existing_id;
+		$native_csv = "\xEF\xBB\xBFRH,Active Subscriptions Report,Generated 2026-09-01\n"
+			. "FH,Account,ORAS\n"
+			. "CH,Profile ID,Description,Payer Name,Payer Email,Profile Status,Date Last Paid,Next Bill Date,Gross Amount,Currency\n"
+			. "SB,I-NATIVE-UPDATE,Annual membership,Native Existing Updated,native.existing@example.org,Active,08/31/2026,\"Sep 30, 2026\",99.00,USD\n"
+			. "SB,I-NATIVE-DUP-1,Annual membership,Duplicate Payer One,shared.payer@example.org,Active,08/15/2026,09/15/2026,99.00,USD\n"
+			. "SB,I-NATIVE-DUP-2,Annual membership,Duplicate Payer Two,shared.payer@example.org,Suspended,08/16/2026,09/16/2026,199.00,USD\n"
+			. "SF,3\nSC,3\nRF,3\nRC,3\nFF,End of report\n";
+		$native_path = oras_legacy_import_temp_csv( $native_csv );
+		$temp_files[] = $native_path;
+		$native_preview = ( new Legacy_Membership_Csv_Importer( array(), Legacy_Membership_Store::query() ) )->preview_file( $native_path );
+		oras_legacy_import_assert( ! is_wp_error( $native_preview ), 'Native PayPal report metadata is skipped and the CH row supplies column names' );
+		oras_legacy_import_assert_same( $native_preview['total'], 3, 'Only native PayPal SB subscription rows enter the preview' );
+		$native_rows = $native_preview['rows'];
+		$native_update = array_values( array_filter( $native_rows, static fn( array $row ): bool => 'I-NATIVE-UPDATE' === ( $row['record']['paypal_reference'] ?? '' ) ) )[0];
+		oras_legacy_import_assert_same( $native_update['classification'], 'existing_profile_update', 'Existing Profile ID is classified as an update' );
+		oras_legacy_import_assert_same( $native_update['record']['member_name'], 'Native Existing Updated', 'Payer Name maps to member name' );
+		oras_legacy_import_assert_same( $native_update['record']['email'], 'native.existing@example.org', 'Payer Email maps to normalized email' );
+		oras_legacy_import_assert_same( $native_update['record']['start_date'], '2026-08-31', 'Date Last Paid maps to a normalized date' );
+		oras_legacy_import_assert_same( $native_update['record']['end_date'], '2026-09-30', 'Next Bill Date maps to the next-renewal date' );
+		oras_legacy_import_assert_same( $native_update['record']['notes'], 'Annual membership', 'Description maps to notes' );
+		oras_legacy_import_assert( ! isset( $native_update['record']['gross_amount'], $native_update['record']['currency'] ), 'Native PayPal financial fields are ignored' );
+		$native_duplicate_email_rows = array_values( array_filter( $native_rows, static fn( array $row ): bool => 'shared.payer@example.org' === ( $row['record']['email'] ?? '' ) ) );
+		oras_legacy_import_assert_same( count( $native_duplicate_email_rows ), 2, 'Distinct Profile IDs sharing an email remain visible in preview' );
+		oras_legacy_import_assert_same( array_unique( array_column( $native_duplicate_email_rows, 'classification' ) ), array( Legacy_Membership_Csv_Importer::CLASS_REVIEW ), 'Duplicate-email Profile IDs are flagged for review' );
+		oras_legacy_import_assert_same( array_unique( array_column( $native_duplicate_email_rows, 'default_approved' ) ), array( false ), 'Duplicate-email Profile IDs are never approved automatically' );
+		oras_legacy_import_assert_same( $native_duplicate_email_rows[1]['record']['status'], 'inactive', 'Suspended PayPal profiles normalize to inactive status' );
+		$native_preview_token = Legacy_Membership_Csv_Importer::store_preview( $admin_id, $native_preview );
+		wp_set_current_user( $admin_id );
+		$_GET = array( 'oras_board_tab' => 'memberships', 'oras_legacy_import_token' => $native_preview_token );
+		$native_preview_html = do_shortcode( '[oras_board_reports]' );
+		oras_legacy_import_assert( false !== strpos( $native_preview_html, 'Existing Profile Update' ), 'Native Profile ID updates have a clear preview classification' );
+		oras_legacy_import_assert( false !== strpos( $native_preview_html, 'Expiration / Next Renewal' ), 'Native Next Bill Date is presented as a next-renewal date' );
+		Legacy_Membership_Csv_Importer::delete_preview( $admin_id, $native_preview_token );
+		$native_update_result = Legacy_Membership_Csv_Importer::commit_preview( $native_preview, array( $native_update['row_token'] ), $admin_id );
+		oras_legacy_import_assert_same( $native_update_result['created'], 0, 'Repeat Profile ID import does not create a new record' );
+		oras_legacy_import_assert_same( $native_update_result['updated'], 1, 'Repeat Profile ID import updates the existing record' );
+		$native_matches = array_values( array_filter( Legacy_Membership_Store::query(), static fn( array $record ): bool => 'I-NATIVE-UPDATE' === ( $record['paypal_reference'] ?? '' ) ) );
+		oras_legacy_import_assert_same( count( $native_matches ), 1, 'Repeat Profile ID import leaves exactly one stored record' );
+		oras_legacy_import_assert_same( $native_matches[0]['id'], $native_existing_id, 'Repeat Profile ID import preserves the stored record identity' );
+		oras_legacy_import_assert_same( $native_matches[0]['end_date'], '2026-09-30', 'Repeat Profile ID import refreshes the next-renewal date' );
+		$_GET = array(
+			'oras_board_tab'            => 'memberships',
+			'oras_legacy_import_notice' => 'imported',
+			'oras_legacy_imported'       => 0,
+			'oras_legacy_updated'        => 1,
+			'oras_legacy_skipped'        => 0,
+			'oras_legacy_errors'         => 0,
+		);
+		oras_legacy_import_assert( false !== strpos( do_shortcode( '[oras_board_reports]' ), '1 updated' ), 'Import completion notice reports Profile ID updates' );
+
 		$bad_headers = oras_legacy_import_temp_csv( "Full Name,Email\nMissing Mapping,x@example.org\n" );
 		$temp_files[] = $bad_headers;
 		oras_legacy_import_assert( is_wp_error( $importer->preview_file( $bad_headers ) ), 'CSV without required allowed headers is rejected' );

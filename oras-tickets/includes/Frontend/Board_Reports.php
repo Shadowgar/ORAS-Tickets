@@ -1332,9 +1332,10 @@ final class Board_Reports {
 			'preview'   => __( 'CSV preview ready. Review and approve rows before importing.', 'oras-tickets' ),
 			'cancelled' => __( 'CSV import preview cancelled and deleted.', 'oras-tickets' ),
 			'imported'  => sprintf(
-				/* translators: 1: imported row count, 2: skipped duplicate count, 3: error count */
-				__( 'CSV import finished: %1$d imported, %2$d skipped, %3$d errors.', 'oras-tickets' ),
+				/* translators: 1: imported row count, 2: updated row count, 3: skipped duplicate count, 4: error count */
+				__( 'CSV import finished: %1$d imported, %2$d updated, %3$d skipped, %4$d errors.', 'oras-tickets' ),
 				isset( $_GET['oras_legacy_imported'] ) ? absint( $_GET['oras_legacy_imported'] ) : 0,
+				isset( $_GET['oras_legacy_updated'] ) ? absint( $_GET['oras_legacy_updated'] ) : 0,
 				isset( $_GET['oras_legacy_skipped'] ) ? absint( $_GET['oras_legacy_skipped'] ) : 0,
 				isset( $_GET['oras_legacy_errors'] ) ? absint( $_GET['oras_legacy_errors'] ) : 0
 			),
@@ -1379,7 +1380,7 @@ final class Board_Reports {
 		?>
 		<section aria-labelledby="oras-legacy-import-title">
 			<h4 id="oras-legacy-import-title"><?php echo esc_html__( 'Import Legacy PayPal Memberships', 'oras-tickets' ); ?></h4>
-			<p><?php echo esc_html__( 'Upload a CSV no larger than 1 MB. Required columns are Member Name and End Date. The preview retains only normalized membership fields for 15 minutes.', 'oras-tickets' ); ?></p>
+			<p><?php echo esc_html__( 'Upload a CSV no larger than 1 MB. Native PayPal Active Subscriptions reports and the existing membership CSV format are supported. The preview retains only normalized membership fields for 15 minutes.', 'oras-tickets' ); ?></p>
 			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::LEGACY_IMPORT_PREVIEW_ACTION ); ?>" />
 				<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect ); ?>" />
@@ -1414,7 +1415,7 @@ final class Board_Reports {
 							<th><?php echo esc_html__( 'Row', 'oras-tickets' ); ?></th>
 							<th><?php echo esc_html__( 'Member', 'oras-tickets' ); ?></th>
 							<th><?php echo esc_html__( 'Email', 'oras-tickets' ); ?></th>
-							<th><?php echo esc_html__( 'End Date', 'oras-tickets' ); ?></th>
+							<th><?php echo esc_html__( 'Expiration / Next Renewal', 'oras-tickets' ); ?></th>
 							<th><?php echo esc_html__( 'Classification', 'oras-tickets' ); ?></th>
 						</tr>
 					</thead>
@@ -1456,6 +1457,7 @@ final class Board_Reports {
 			Legacy_Membership_Csv_Importer::CLASS_NEW    => __( 'Valid New', 'oras-tickets' ),
 			Legacy_Membership_Csv_Importer::CLASS_EXACT_EMAIL => __( 'Exact Email Match', 'oras-tickets' ),
 			Legacy_Membership_Csv_Importer::CLASS_DUPLICATE => __( 'Existing Legacy Duplicate', 'oras-tickets' ),
+			Legacy_Membership_Csv_Importer::CLASS_UPDATE => __( 'Existing Profile Update', 'oras-tickets' ),
 			Legacy_Membership_Csv_Importer::CLASS_POSSIBLE_NAME => __( 'Possible Name Match', 'oras-tickets' ),
 			Legacy_Membership_Csv_Importer::CLASS_REVIEW => __( 'Needs Review', 'oras-tickets' ),
 		);
@@ -3684,6 +3686,7 @@ final class Board_Reports {
 			'imported',
 			array(
 				'oras_legacy_imported' => $result['created'],
+				'oras_legacy_updated'  => $result['updated'],
 				'oras_legacy_skipped'  => $result['skipped'],
 				'oras_legacy_errors'   => $result['errors'],
 			)
@@ -3711,7 +3714,7 @@ final class Board_Reports {
 		$requested = isset( $_POST['redirect_to'] ) && is_scalar( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Every caller validates its action-specific nonce before redirecting.
 		$redirect = wp_validate_redirect( $requested, $fallback );
 		$redirect = remove_query_arg(
-			array( 'oras_legacy_import_notice', 'oras_legacy_import_token', 'oras_legacy_imported', 'oras_legacy_skipped', 'oras_legacy_errors' ),
+			array( 'oras_legacy_import_notice', 'oras_legacy_import_token', 'oras_legacy_imported', 'oras_legacy_updated', 'oras_legacy_skipped', 'oras_legacy_errors' ),
 			$redirect
 		);
 		$args['oras_board_tab'] = self::TAB_MEMBERSHIPS;
