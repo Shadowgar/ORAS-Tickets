@@ -447,8 +447,9 @@ final class Legacy_Membership_Csv_Importer {
 	/** @param string[] $row */
 	private function get_row_type( array $row ): string {
 		$value = (string) ( $row[0] ?? '' );
+		$value = (string) preg_replace( '/^\xEF\xBB\xBF/', '', $value );
 
-		return strtoupper( trim( (string) preg_replace( '/^\xEF\xBB\xBF/', '', $value ) ) );
+		return strtoupper( trim( $value, " \t\n\r\0\x0B\"" ) );
 	}
 
 	private static function normalize_native_date( string $value ): string {
@@ -459,6 +460,9 @@ final class Legacy_Membership_Csv_Importer {
 		if ( 1 === preg_match( '/^(\d{4}-\d{2}-\d{2})/', $value, $matches ) ) {
 			$value = $matches[1];
 			$formats = array( '!Y-m-d' );
+		} elseif ( 1 === preg_match( '/^(\d{4}\/\d{2}\/\d{2})/', $value, $matches ) ) {
+			$value = $matches[1];
+			$formats = array( '!Y/m/d' );
 		} elseif ( 1 === preg_match( '/^(\d{1,2}\/\d{1,2}\/\d{4})/', $value, $matches ) ) {
 			$value = $matches[1];
 			$formats = array( '!n/j/Y' );

@@ -167,10 +167,10 @@ function oras_legacy_import_run_checks(): void {
 		);
 		oras_legacy_import_assert( is_int( $native_existing_id ) && $native_existing_id > 0, 'Existing native PayPal profile fixture created' );
 		$created_ids[] = $native_existing_id;
-		$native_csv = "\xEF\xBB\xBFRH,Active Subscriptions Report,Generated 2026-09-01\n"
+		$native_csv = "\xEF\xBB\xBF\"RH\",Active Subscriptions Report,Generated 2026-09-01\n"
 			. "FH,Account,ORAS\n"
 			. "CH,Profile ID,Description,Payer Name,Payer Email,Profile Status,Date Last Paid,Next Bill Date,Gross Amount,Currency\n"
-			. "SB,I-NATIVE-UPDATE,Annual membership,Native Existing Updated,native.existing@example.org,Active,08/31/2026,\"Sep 30, 2026\",99.00,USD\n"
+			. "SB,I-NATIVE-UPDATE,Annual membership,Native Existing Updated,native.existing@example.org,Active,2026/08/31 21:37:07 -0700,2026/09/30 21:37:07 -0700,99.00,USD\n"
 			. "SB,I-NATIVE-DUP-1,Annual membership,Duplicate Payer One,shared.payer@example.org,Active,08/15/2026,09/15/2026,99.00,USD\n"
 			. "SB,I-NATIVE-DUP-2,Annual membership,Duplicate Payer Two,shared.payer@example.org,Suspended,08/16/2026,09/16/2026,199.00,USD\n"
 			. "SF,3\nSC,3\nRF,3\nRC,3\nFF,End of report\n";
