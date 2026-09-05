@@ -1,5 +1,20 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-05 - Release 0.4.55
+
+### Changed
+
+- Membership roster now represents unique people rather than raw PMPro and PayPal records.
+- Historical PMPro memberships are retained in member detail history instead of duplicate roster rows.
+- Multiple Legacy PayPal Profile IDs remain attached to one member, and exact-email PMPro/PayPal matches combine into one person.
+- Current, Former / Inactive, and All filters operate on normalized people; summary cards distinguish Current Unique Members from source-record metrics.
+- Added manager-only diagnostics for unresolved PMPro relationships.
+
+### Notes
+
+- No membership, PayPal, WordPress user, or PMPro source data is modified; no database migration is required.
+- Name-only similarities are not automatically merged.
+
 ## 2026-09-02 - Release 0.4.54
 
 - Simplified Membership and Observer Pass Records to compact operational columns, reducing horizontal-scroll dependency.
