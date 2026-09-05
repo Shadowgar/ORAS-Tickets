@@ -19,6 +19,9 @@ final class Membership_Report_Service {
 	public const STATUS_EXPIRED = 'expired';
 	public const STATUS_INACTIVE = 'inactive';
 	public const STATUS_CANCELLED = 'cancelled';
+	public const ROSTER_CURRENT = 'current';
+	public const ROSTER_FORMER = 'former';
+	public const ROSTER_ALL = 'all_people';
 
 	public const LINK_ALL = 'all';
 	public const LINK_LINKED = 'linked';
@@ -83,7 +86,9 @@ final class Membership_Report_Service {
 		$website_available = $this->table_exists( $this->memberships_table );
 		$website_rows = $website_available ? $this->get_website_rows() : array();
 		$legacy_rows = $this->get_legacy_rows( $website_rows );
-		$all_rows = $this->sort_rows( array_merge( $website_rows, $legacy_rows ) );
+		$raw_rows = array_merge( $website_rows, $legacy_rows );
+		$aggregation = $this->aggregate_people( $raw_rows );
+		$all_rows = $this->sort_rows( $aggregation['people'] );
 		$filtered_rows = $this->filter_rows( $all_rows, $normalized );
 
 		return array(
@@ -92,7 +97,8 @@ final class Membership_Report_Service {
 			'all_rows'          => $all_rows,
 			'filtered_rows'     => $filtered_rows,
 			'rows'              => $filtered_rows,
-			'summary'           => $this->build_summary( $all_rows ),
+			'summary'           => $this->build_summary( $all_rows, $raw_rows ),
+			'orphan_pmpro_rows' => $aggregation['orphans'],
 			'filters'           => $normalized,
 			'pagination'        => array(
 				'page'        => 1,
@@ -102,6 +108,49 @@ final class Membership_Report_Service {
 			),
 		);
 	}
+
+	/** @param array<int,array<string,mixed>> $rows @return array{people:array<int,array<string,mixed>>,orphans:array<int,array<string,mixed>>} */
+	private function aggregate_people( array $rows ): array {
+		$people = array(); $email_keys = array(); $orphans = array();
+		foreach ( $rows as $row ) {
+			$source = (string) ( $row['source'] ?? '' ); $user_id = absint( $row['user_id'] ?? 0 );
+			$linked_id = absint( $row['linked_user_id'] ?? 0 ); $email = $this->normalize_email( (string) ( $row['email'] ?? '' ) );
+			$key = '';
+			if ( $user_id > 0 ) { $key = 'wp:' . $user_id; }
+			elseif ( $linked_id > 0 ) { $key = 'wp:' . $linked_id; }
+			elseif ( '' !== $email && isset( $email_keys[ $email ] ) ) { $key = $email_keys[ $email ]; }
+			elseif ( '' !== $email ) { $key = 'email:' . $email; }
+			elseif ( self::SOURCE_WEBSITE === $source ) { $orphans[] = $row; continue; }
+			elseif ( '' !== trim( (string) ( $row['member_name'] ?? '' ) ) ) { $key = 'legacy:' . absint( $row['source_record_id'] ?? 0 ); }
+			else { continue; }
+			if ( ! isset( $people[ $key ] ) ) { $people[ $key ] = array( 'person_key' => $key, 'website_records' => array(), 'legacy_paypal_records' => array(), 'matching_user_ids' => array(), 'review_indicators' => array() ); }
+			if ( self::SOURCE_WEBSITE === $source ) { $people[ $key ]['website_records'][] = $row; if ( '' !== $email ) { $email_keys[ $email ] = $key; } }
+			else { $people[ $key ]['legacy_paypal_records'][] = $row; }
+			if ( self::LINK_POSSIBLE_NAME === ( $row['match_type'] ?? '' ) ) { $people[ $key ]['review_indicators'][] = self::LINK_POSSIBLE_NAME; }
+		}
+		$result = array();
+		foreach ( $people as $person ) { $result[] = $this->finalize_person( $person ); }
+		return array( 'people' => $result, 'orphans' => $orphans );
+	}
+
+	/** @param array<string,mixed> $person @return array<string,mixed> */
+	private function finalize_person( array $person ): array {
+		$website = $person['website_records']; $legacy = $person['legacy_paypal_records'];
+		$current_website = array_values( array_filter( $website, fn( array $r ): bool => $this->is_current( $r ) ) );
+		$current_legacy = array_values( array_filter( $legacy, fn( array $r ): bool => $this->is_current( $r ) ) );
+		$primary = ! empty( $current_website ) ? $current_website[0] : ( ! empty( $website ) ? $website[0] : $legacy[0] );
+		$status = $this->person_status( array_merge( $website, $legacy ) );
+		$primary['source'] = ! empty( $website ) && ! empty( $legacy ) ? 'website_legacy' : ( ! empty( $website ) ? self::SOURCE_WEBSITE : self::SOURCE_LEGACY );
+		$primary['source_label'] = ! empty( $website ) && ! empty( $legacy ) ? __( 'Website / PMPro + Legacy PayPal', 'oras-tickets' ) : ( ! empty( $website ) ? __( 'Website / PMPro', 'oras-tickets' ) : __( 'Legacy PayPal', 'oras-tickets' ) );
+		$primary['operational_status'] = $status; $primary['website_membership'] = ! empty( $current_website ) ? $current_website[0] : array();
+		$primary['membership_history'] = array_values( array_filter( $website, fn( array $r ): bool => empty( $current_website ) || (int) $r['source_record_id'] !== (int) $current_website[0]['source_record_id'] ) );
+		$primary['legacy_paypal_records'] = $legacy; $primary['person_key'] = $person['person_key'];
+		if ( empty( $current_website ) && ! empty( $current_legacy ) ) { $primary['level_name'] = __( 'Legacy PayPal Membership', 'oras-tickets' ); }
+		return $primary;
+	}
+
+	/** @param array<string,mixed> $row */ private function is_current( array $row ): bool { return in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true ); }
+	/** @param array<int,array<string,mixed>> $rows */ private function person_status( array $rows ): string { foreach ( array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_INACTIVE, self::STATUS_EXPIRED, self::STATUS_CANCELLED ) as $status ) { foreach ( $rows as $row ) { if ( $status === ( $row['operational_status'] ?? '' ) ) return $status; } } return self::STATUS_INACTIVE; }
 
 	/** @return array<int,array<string,mixed>> */
 	private function get_website_rows(): array {
@@ -506,8 +555,10 @@ final class Membership_Report_Service {
 		return $end <= $this->today->modify( '+30 days' ) ? self::STATUS_EXPIRING_SOON : self::STATUS_ACTIVE;
 	}
 
-	/** @param array<string,mixed> $filters @return array{source:string,status:string,account_link:string,search:string,page:int,per_page:int} */
+	/** @param array<string,mixed> $filters @return array<string,mixed> */
 	private function normalize_filters( array $filters ): array {
+		$scope = sanitize_key( (string) ( $filters['roster_scope'] ?? self::ROSTER_CURRENT ) );
+		if ( ! in_array( $scope, array( self::ROSTER_CURRENT, self::ROSTER_FORMER, self::ROSTER_ALL ), true ) ) { $scope = self::ROSTER_CURRENT; }
 		$source = sanitize_key( (string) ( $filters['source'] ?? self::SOURCE_ALL ) );
 		if ( ! in_array( $source, array( self::SOURCE_ALL, self::SOURCE_WEBSITE, self::SOURCE_LEGACY ), true ) ) {
 			$source = self::SOURCE_ALL;
@@ -522,6 +573,7 @@ final class Membership_Report_Service {
 		}
 
 		return array(
+			'roster_scope' => $scope,
 			'source'       => $source,
 			'status'       => $status,
 			'account_link' => $link,
@@ -531,7 +583,7 @@ final class Membership_Report_Service {
 		);
 	}
 
-	/** @param array<int,array<string,mixed>> $rows @param array{source:string,status:string,account_link:string,search:string,page:int,per_page:int} $filters @return array<int,array<string,mixed>> */
+	/** @param array<int,array<string,mixed>> $rows @param array<string,mixed> $filters @return array<int,array<string,mixed>> */
 	private function filter_rows( array $rows, array $filters ): array {
 		$needle = strtolower( trim( $filters['search'] ) );
 
@@ -539,6 +591,9 @@ final class Membership_Report_Service {
 			array_filter(
 				$rows,
 				static function ( array $row ) use ( $filters, $needle ): bool {
+					$current = in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
+					if ( self::ROSTER_CURRENT === $filters['roster_scope'] && ! $current ) return false;
+					if ( self::ROSTER_FORMER === $filters['roster_scope'] && $current ) return false;
 					if ( self::SOURCE_ALL !== $filters['source'] && $filters['source'] !== ( $row['source'] ?? '' ) ) {
 						return false;
 					}
@@ -598,8 +653,8 @@ final class Membership_Report_Service {
 		return $rows;
 	}
 
-	/** @param array<int,array<string,mixed>> $rows @return array<string,int> */
-	private function build_summary( array $rows ): array {
+	/** @param array<int,array<string,mixed>> $rows @param array<int,array<string,mixed>> $raw_rows @return array<string,int> */
+	private function build_summary( array $rows, array $raw_rows ): array {
 		$summary = array(
 			'total_count'               => count( $rows ),
 			'active_count'              => 0,
@@ -610,14 +665,15 @@ final class Membership_Report_Service {
 			'linked_count'              => 0,
 			'exact_email_match_count'   => 0,
 			'possible_name_match_count' => 0,
+			'current_unique_members'    => 0,
+			'matched_across_sources'    => 0,
 		);
 		foreach ( $rows as $row ) {
 			$status = (string) ( $row['operational_status'] ?? '' );
 			$is_active = in_array( $status, array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
 			if ( $is_active ) {
 				++$summary['active_count'];
-				$key = self::SOURCE_WEBSITE === ( $row['source'] ?? '' ) ? 'website_active_count' : 'legacy_active_count';
-				++$summary[ $key ];
+				++$summary['current_unique_members'];
 			}
 			if ( self::STATUS_EXPIRING_SOON === $status ) {
 				++$summary['expiring_count'];
@@ -634,7 +690,9 @@ final class Membership_Report_Service {
 			if ( self::LINK_POSSIBLE_NAME === ( $row['match_type'] ?? '' ) ) {
 				++$summary['possible_name_match_count'];
 			}
+			if ( ! empty( $row['website_records'] ) || ( ! empty( $row['website_membership'] ) && ! empty( $row['legacy_paypal_records'] ) ) ) { if ( ! empty( $row['legacy_paypal_records'] ) ) ++$summary['matched_across_sources']; }
 		}
+		foreach ( $raw_rows as $row ) { if ( $this->is_current( $row ) ) { ++$summary[ self::SOURCE_WEBSITE === ( $row['source'] ?? '' ) ? 'website_active_count' : 'legacy_active_count' ]; } }
 
 		return $summary;
 	}

@@ -1368,7 +1368,7 @@ final class Board_Reports {
 		?>
 		<section class="oras-board-reports__observer" data-oras-membership-dashboard>
 			<h3><?php echo esc_html__( 'Memberships', 'oras-tickets' ); ?></h3>
-			<p><?php echo esc_html__( 'This unified, read-only roster keeps website memberships and legacy PayPal records independently identifiable.', 'oras-tickets' ); ?></p>
+			<p><?php echo esc_html__( 'This read-only roster shows one normalized person while preserving their source records in the detail view.', 'oras-tickets' ); ?></p>
 			<?php self::render_legacy_membership_notice(); ?>
 			<?php if ( true !== ( $report['available'] ?? false ) ) : ?>
 				<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'Membership reporting is currently unavailable.', 'oras-tickets' ); ?></div>
@@ -1385,6 +1385,7 @@ final class Board_Reports {
 				<?php endif; ?>
 			<?php endif; ?>
 			<?php if ( current_user_can( 'oras_tickets_manage_memberships' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
+				<?php self::render_membership_orphan_diagnostics( $report ); ?>
 				<?php self::render_legacy_membership_management( $page_id ); ?>
 				<?php self::render_legacy_membership_import_panel( $page_id ); ?>
 			<?php endif; ?>
@@ -1589,10 +1590,10 @@ final class Board_Reports {
 	/** @param array<string,mixed> $summary */
 	private static function render_membership_summary_cards( array $summary ): void {
 		$cards = array(
-			'active_count'         => __( 'Active Memberships', 'oras-tickets' ),
-			'website_active_count' => __( 'Website Active', 'oras-tickets' ),
-			'legacy_active_count'  => __( 'Legacy Active', 'oras-tickets' ),
-			'expiring_count'       => __( 'Expiring Soon', 'oras-tickets' ),
+			'current_unique_members' => __( 'Current Unique Members', 'oras-tickets' ),
+			'website_active_count' => __( 'PMPro Current Memberships', 'oras-tickets' ),
+			'legacy_active_count'  => __( 'Legacy PayPal Active Subscription Records', 'oras-tickets' ),
+			'matched_across_sources' => __( 'Matched Across Both Sources', 'oras-tickets' ),
 		);
 		?>
 		<div class="oras-board-reports__observer-summary" aria-label="<?php echo esc_attr__( 'Membership operational summary', 'oras-tickets' ); ?>">
@@ -1614,6 +1615,11 @@ final class Board_Reports {
 				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 			<?php endif; ?>
 			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_MEMBERSHIPS ); ?>" />
+			<label><?php echo esc_html__( 'Roster', 'oras-tickets' ); ?><select name="oras_membership_roster_scope">
+				<option value="current" <?php selected( (string) ( $filters['roster_scope'] ?? 'current' ), 'current' ); ?>><?php echo esc_html__( 'Current Members', 'oras-tickets' ); ?></option>
+				<option value="former" <?php selected( (string) ( $filters['roster_scope'] ?? '' ), 'former' ); ?>><?php echo esc_html__( 'Former / Inactive', 'oras-tickets' ); ?></option>
+				<option value="all_people" <?php selected( (string) ( $filters['roster_scope'] ?? '' ), 'all_people' ); ?>><?php echo esc_html__( 'All', 'oras-tickets' ); ?></option>
+			</select></label>
 			<label><?php echo esc_html__( 'Source', 'oras-tickets' ); ?><select name="oras_membership_source">
 				<?php foreach ( self::get_membership_source_options() as $value => $label ) : ?>
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['source'] ?? Membership_Report_Service::SOURCE_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
@@ -1731,9 +1737,26 @@ final class Board_Reports {
 					<div><dt><?php echo esc_html__( 'Notes', 'oras-tickets' ); ?></dt><dd><?php echo nl2br( esc_html( (string) $row['notes'] ) ); ?></dd></div>
 				<?php endif; ?>
 			</dl>
+			<?php self::render_membership_source_sections( $row ); ?>
 			<?php self::render_membership_questions( $row ); ?>
 		</dialog>
 		<?php
+	}
+
+	/** @param array<string,mixed> $row */
+	private static function render_membership_source_sections( array $row ): void {
+		$website = isset( $row['website_membership'] ) && is_array( $row['website_membership'] ) ? $row['website_membership'] : array();
+		$history = isset( $row['membership_history'] ) && is_array( $row['membership_history'] ) ? $row['membership_history'] : array();
+		$legacy = isset( $row['legacy_paypal_records'] ) && is_array( $row['legacy_paypal_records'] ) ? $row['legacy_paypal_records'] : array();
+		if ( ! empty( $website ) ) echo '<section><h5>' . esc_html__( 'Website Membership', 'oras-tickets' ) . '</h5><p>' . esc_html( (string) ( $website['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $website['source_status'] ?? '' ) ) ) . '</p></section>';
+		if ( ! empty( $history ) ) { echo '<section><h5>' . esc_html__( 'Membership History', 'oras-tickets' ) . '</h5><ul>'; foreach ( $history as $record ) echo '<li>' . esc_html( (string) ( $record['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
+		if ( ! empty( $legacy ) ) { echo '<section><h5>' . esc_html__( 'Legacy PayPal', 'oras-tickets' ) . '</h5><ul>'; foreach ( $legacy as $record ) echo '<li>' . esc_html__( 'Profile ID:', 'oras-tickets' ) . ' ' . esc_html( (string) ( $record['paypal_reference'] ?? '' ) ) . ' — ' . esc_html( ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
+	}
+
+	/** @param array<string,mixed> $report */
+	private static function render_membership_orphan_diagnostics( array $report ): void {
+		$orphans = isset( $report['orphan_pmpro_rows'] ) && is_array( $report['orphan_pmpro_rows'] ) ? $report['orphan_pmpro_rows'] : array();
+		?> <details class="oras-board-reports__observer-details"><summary><?php echo esc_html( sprintf( __( 'Unresolved PMPro history (%d)', 'oras-tickets' ), count( $orphans ) ) ); ?></summary><p><?php echo esc_html__( 'Read-only unresolved source relationships; they are not roster people.', 'oras-tickets' ); ?></p><?php foreach ( $orphans as $orphan ) : ?><p><?php echo esc_html( sprintf( __( 'Record #%d — %s', 'oras-tickets' ), absint( $orphan['source_record_id'] ?? 0 ), (string) ( $orphan['level_name'] ?? '' ) ) ); ?></p><?php endforeach; ?></details><?php
 	}
 
 	/** @param array<string,mixed> $row */
@@ -4493,6 +4516,7 @@ final class Board_Reports {
 		$per_page = isset( $_GET['oras_membership_per_page'] ) ? absint( $_GET['oras_membership_per_page'] ) : 25;
 
 		return array(
+			'roster_scope' => isset( $_GET['oras_membership_roster_scope'] ) && in_array( sanitize_key( wp_unslash( $_GET['oras_membership_roster_scope'] ) ), array( 'current', 'former', 'all_people' ), true ) ? sanitize_key( wp_unslash( $_GET['oras_membership_roster_scope'] ) ) : 'current',
 			'source'       => $source,
 			'status'       => $status,
 			'account_link' => $account_link,

@@ -102,7 +102,10 @@ function oras_membership_frontend_run_checks(): void {
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Memberships' ), 'View-only Board Reports user can open Memberships' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Legacy Front Member' ), 'View-only user sees legacy PayPal members' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Legacy PayPal' ), 'Membership roster identifies the legacy source' );
-		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Active Memberships' ), 'Membership roster includes operational summary cards' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Current Unique Members' ), 'Membership roster labels unique people separately from source records' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'PMPro Current Memberships' ), 'Membership roster labels PMPro source records precisely' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'Legacy PayPal Active Subscription Records' ), 'Membership roster labels PayPal source records precisely' );
+		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_roster_scope"' ), 'Membership roster includes Current, Former, and All person scopes' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_source"' ), 'Membership roster includes source filtering' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_status"' ), 'Membership roster includes status filtering' );
 		oras_membership_frontend_assert( false !== strpos( $viewer_html, 'name="oras_membership_account_link"' ), 'Membership roster includes account-link filtering' );
