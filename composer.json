@@ -14,7 +14,7 @@
   },
   "scripts": {
     "phpcs": [
-      "phpcs -p -s config/phpcs.xml"
+      "phpcs -p -s --standard=config/phpcs.xml oras-tickets"
     ],
     "phpstan": [
       "phpstan analyse -c config/phpstan.neon"
