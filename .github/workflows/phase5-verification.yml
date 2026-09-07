@@ -18,6 +18,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
@@ -34,8 +36,11 @@ jobs:
     - name: Role capability model
       run: composer role-check
 
-    - name: PHPCS
-      run: composer phpcs
+    - name: PHPCS gate regression checks
+      run: bash scripts/qbo-phpcs-diff-check-tests.sh
+
+    - name: PHPCS committed release comparison
+      run: bash scripts/qbo-phpcs-diff-check.sh --baseline 1440cab86c1b7cb3de311764f0c28886f2da4a4b
 
     - name: PHPStan
       run: composer phpstan

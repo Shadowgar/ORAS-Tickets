@@ -68,8 +68,15 @@ if mode == "execution-failure":
 if mode == "malformed-json":
     print("{not-json")
     raise SystemExit(0)
+if mode == "invalid-schema":
+    print(json.dumps({"totals": [], "files": {}}))
+    raise SystemExit(0)
 
 paths: list[Path] = []
+standards = [value.split("=", 1)[1] for value in sys.argv[1:] if value.startswith("--standard=")]
+if len(standards) != 1:
+    print("fixture expected exactly one explicit ruleset", file=sys.stderr)
+    raise SystemExit(7)
 for value in sys.argv[1:]:
     if value.startswith("-"):
         continue
@@ -78,6 +85,13 @@ for value in sys.argv[1:]:
         paths.extend(sorted(candidate.rglob("*.php")))
     elif candidate.suffix.lower() == ".php":
         paths.append(candidate)
+
+test_markers = ("/scripts/", "/dev-tools/", "/tests/", "/test/", "/fixtures/", "/oras-tickets/tools/")
+uses_test_path = any(any(marker in path.as_posix() for marker in test_markers) for path in paths)
+expected_ruleset = "phpcs-tests.xml" if uses_test_path else "phpcs.xml"
+if not standards[0].endswith(expected_ruleset):
+    print(f"fixture expected {expected_ruleset}, got {standards[0]}", file=sys.stderr)
+    raise SystemExit(7)
 
 files: dict[str, dict[str, object]] = {}
 error_count = 0
@@ -197,10 +211,10 @@ baseline_for_simple_change() {
 }
 
 new_case
-write_file "$CASE_ROOT/oras-tickets/legacy.php" $'<?php // PHPCS_ERROR\n$value = "before";\n'
+write_file "$CASE_ROOT/oras-tickets/legacy.php" $'<?php\n$value = "before"; // PHPCS_ERROR\n'
 commit_case 'baseline'
 BASELINE_SHA="$(git -C "$CASE_ROOT" rev-parse HEAD)"
-write_file "$CASE_ROOT/oras-tickets/legacy.php" $'<?php // PHPCS_ERROR\n$value = "after";\n'
+write_file "$CASE_ROOT/oras-tickets/legacy.php" $'<?php\n$value = "after"; // PHPCS_ERROR\n'
 commit_case 'candidate'
 run_case --baseline "$BASELINE_SHA"
 assert_status 0 'inherited diagnostics do not block'
@@ -242,6 +256,18 @@ assert_output 'Differential PHPCS legacy diagnostics: 1' 'renamed-file baseline 
 pass 'renamed-file comparison'
 
 new_case
+write_file "$CASE_ROOT/oras-tickets/old-name.php" $'<?php\n// stable one\n// stable two\n// stable three\n// stable four\n$value = "before";\n'
+commit_case 'baseline'
+BASELINE_SHA="$(git -C "$CASE_ROOT" rev-parse HEAD)"
+git -C "$CASE_ROOT" mv oras-tickets/old-name.php oras-tickets/new-name.php
+write_file "$CASE_ROOT/oras-tickets/new-name.php" $'<?php // PHPCS_ERROR\n// stable one\n// stable two\n// stable three\n// stable four\n$value = "after";\n'
+commit_case 'rename with violation'
+run_case --baseline "$BASELINE_SHA"
+assert_status 1 'renamed-file introduced violation blocks'
+assert_output 'oras-tickets/new-name.php:1:1: ERROR Fixture.Rule.Error' 'renamed-file violation is identified'
+pass 'renamed-file introduced violation'
+
+new_case
 write_file "$CASE_ROOT/oras-tickets/plugin.php" $'<?php\n'
 commit_case 'baseline'
 BASELINE_SHA="$(git -C "$CASE_ROOT" rev-parse HEAD)"
@@ -251,6 +277,17 @@ run_case --baseline "$BASELINE_SHA"
 assert_status 1 'added-file violation blocks'
 assert_output 'scripts/new-test.php:1:1: ERROR Fixture.Rule.Error' 'added file receives full-file PHPCS'
 pass 'added-file full scan'
+
+new_case
+write_file "$CASE_ROOT/oras-tickets/plugin.php" $'<?php\n'
+commit_case 'baseline'
+BASELINE_SHA="$(git -C "$CASE_ROOT" rev-parse HEAD)"
+write_file "$CASE_ROOT/fixtures/new-fixture.php" $'<?php // PHPCS_ERROR\n'
+commit_case 'add violating fixture'
+run_case --baseline "$BASELINE_SHA"
+assert_status 1 'added-fixture violation blocks'
+assert_output 'fixtures/new-fixture.php:1:1: ERROR Fixture.Rule.Error' 'fixture receives full-file test PHPCS'
+pass 'added-fixture full scan'
 
 new_case
 write_file "$CASE_ROOT/oras-tickets/plugin.php" $'<?php\n'
@@ -310,6 +347,15 @@ run_case --baseline "$BASELINE_SHA"
 assert_status 2 'malformed PHPCS output fails closed'
 assert_output 'invalid JSON' 'malformed output explains parser failure'
 pass 'malformed PHPCS output'
+
+new_case
+baseline_for_simple_change
+write_file "$CASE_ROOT/.fake-phpcs-mode" 'invalid-schema'
+commit_case 'invalid schema mode'
+run_case --baseline "$BASELINE_SHA"
+assert_status 2 'invalid PHPCS schema fails closed'
+assert_output 'unsupported schema' 'invalid schema explains parser failure'
+pass 'invalid PHPCS schema'
 
 new_case
 baseline_for_simple_change

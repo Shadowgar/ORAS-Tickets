@@ -58,8 +58,9 @@ require it to be a proper ancestor of committed `HEAD`.
 
 Use `git diff --name-status -z --find-renames --find-copies-harder
 <baseline>..HEAD -- '*.php'`. Materialize baseline and current blobs in separate
-temporary roots. Compare modified and renamed diagnostics through unchanged-line
-mapping; treat all diagnostics in added and copied files as introduced.
+temporary roots. Compare modified and renamed diagnostics through diff-aligned
+line mapping and exact diagnostic identity; treat all diagnostics in added and
+copied files as introduced.
 
 **Step 3: Add whole-plugin debt reporting**
 

@@ -25,8 +25,11 @@ The checker examines every PHP file changed between the committed baseline and
 committed `HEAD`, including production code, tests, and fixtures. Git rename and
 copy detection is enabled. Modified and renamed files are scanned in both Git
 trees; diagnostics on the current tree are matched to equivalent baseline
-diagnostics through unchanged-line mapping. A diagnostic with no baseline match
-is introduced even when PHPCS reports it on an unchanged neighboring line.
+diagnostics through diff-aligned line mapping. Equal lines map directly, while
+the common positional portion of a replacement block maps only when the exact
+diagnostic identity and occurrence already existed at the aligned baseline
+line. A diagnostic with no baseline match is introduced even when PHPCS reports
+it on an unchanged neighboring line.
 
 Added and copied PHP files receive a full-file scan, and any diagnostic blocks
 the gate. Deleted PHP files have no current diagnostics to gate.
