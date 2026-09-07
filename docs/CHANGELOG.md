@@ -1,5 +1,19 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-07 - Release 0.4.56
+
+### Changed
+
+- Hardened QuickBooks JournalEntry dispatch with durable request ownership and exact remote accounting-content validation before completion or adoption.
+- Corrected scheduler commitment, exact-action compensation, bounded lock-contention retries, and dry-run logging boundaries.
+- Added lookup-only reconciliation that cannot refresh OAuth credentials, persist local state, or retry an uncertain write.
+- Strengthened the disposable QuickBooks harness against Node startup injection and invalid fixture cleanup identifiers.
+
+### Notes
+
+- QuickBooks synchronization must remain disabled during deployment and is enabled only through a separate controlled operational step.
+- Unknown or incompletely verified QuickBooks writes remain protected for read-only inventory and manual reconciliation.
+
 ## 2026-09-05 - Release 0.4.55
 
 ### Changed
