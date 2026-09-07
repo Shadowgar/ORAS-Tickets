@@ -40,7 +40,12 @@ final class OAuth_Client {
     /**
      * Exchange OAuth authorization code for access/refresh tokens.
      */
-    public function exchange_code( string $code, string $realm_id ) {
+	public function exchange_code( string $code, string $realm_id, ?callable $settings_guard = null ) {
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
         $settings = Settings::get_quickbooks_settings();
         if ( empty( $settings['client_id'] ) || empty( $settings['client_secret'] ) ) {
             return new \WP_Error( 'oras_qbo_missing_credentials', 'QuickBooks client ID/secret are not configured.' );
@@ -53,20 +58,26 @@ final class OAuth_Client {
                 'redirect_uri' => Settings::get_redirect_uri(),
             ),
             (string) $settings['client_id'],
-            (string) $settings['client_secret']
+			(string) $settings['client_secret'],
+			$settings_guard
         );
 
         if ( is_wp_error( $response ) ) {
             return $response;
         }
 
-        return $this->persist_token_response( $response, $realm_id );
+		return $this->persist_token_response( $response, $realm_id, $settings_guard );
     }
 
     /**
      * Refresh tokens using the stored refresh token.
      */
-    public function refresh_access_token() {
+	public function refresh_access_token( ?callable $settings_guard = null ) {
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
         $settings = Settings::get_quickbooks_settings();
         if ( empty( $settings['refresh_token'] ) ) {
             return new \WP_Error( 'oras_qbo_auth_error_refresh', 'Auth Error Refresh: QuickBooks refresh token is missing. Reconnect QuickBooks.' );
@@ -82,23 +93,41 @@ final class OAuth_Client {
                 'refresh_token' => (string) $settings['refresh_token'],
             ),
             (string) $settings['client_id'],
-            (string) $settings['client_secret']
+			(string) $settings['client_secret'],
+			$settings_guard
         );
 
         if ( is_wp_error( $response ) ) {
-            $this->persist_refresh_failure_state( $response );
+			if ( in_array( $response->get_error_code(), array( 'oras_qbo_dry_run_read_only', 'oras_qbo_disabled' ), true ) ) {
+				return $response;
+			}
+			$persisted = $this->persist_refresh_failure_state( $response, $settings_guard );
+			if ( is_wp_error( $persisted ) ) {
+				return $persisted;
+			}
             return $response;
         }
 
-        return $this->persist_token_response( $response, (string) $settings['realm_id'] );
+		return $this->persist_token_response( $response, (string) $settings['realm_id'], $settings_guard );
     }
 
-    /**
-     * Return a valid access token, refreshing if needed.
-     */
-    public function get_valid_access_token() {
+	/**
+	 * Return a valid access token, refreshing if needed.
+	 */
+	public function get_valid_access_token(
+		?callable $settings_guard = null,
+		string $request_policy = Api_Client::REQUEST_POLICY_DEFAULT
+	) {
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
         $settings = Settings::get_quickbooks_settings();
         if ( empty( $settings['access_token'] ) ) {
+			if ( $request_policy === Api_Client::REQUEST_POLICY_LOOKUP_ONLY ) {
+				return $this->make_lookup_auth_required_error( 'QuickBooks lookup requires an existing access token.' );
+			}
             return new \WP_Error( 'oras_qbo_auth_error_access', 'Auth Error Access: QuickBooks access token is missing. Reconnect QuickBooks.' );
         }
 
@@ -106,7 +135,10 @@ final class OAuth_Client {
         if ( $expires_at !== '' ) {
             $expires_at_ts = strtotime( $expires_at );
             if ( $expires_at_ts !== false && $expires_at_ts <= ( time() + 60 ) ) {
-                $refresh = $this->refresh_access_token();
+				if ( $request_policy === Api_Client::REQUEST_POLICY_LOOKUP_ONLY ) {
+					return $this->make_lookup_auth_required_error( 'The existing QuickBooks access token is expired.' );
+				}
+				$refresh = $this->refresh_access_token( $settings_guard );
                 if ( is_wp_error( $refresh ) ) {
                     return $refresh;
                 }
@@ -117,23 +149,50 @@ final class OAuth_Client {
         return (string) $settings['access_token'];
     }
 
+	private function make_lookup_auth_required_error( string $reason ): \WP_Error {
+		$error = new \WP_Error(
+			'oras_qbo_lookup_auth_required',
+			$reason . ' Reconnect QuickBooks before retrying this read-only inventory.'
+		);
+		$error->add_data(
+			array(
+				'retriable'              => false,
+				'qbo_request_dispatched' => false,
+				'request_policy'         => Api_Client::REQUEST_POLICY_LOOKUP_ONLY,
+			)
+		);
+		return $error;
+	}
+
     /**
      * @param array<string,string> $body
      */
-    private function request_token( array $body, string $client_id, string $client_secret ) {
+	private function request_token( array $body, string $client_id, string $client_secret, ?callable $settings_guard = null ) {
         $basic_auth = base64_encode( $client_id . ':' . $client_secret );
-        $response   = wp_remote_post(
-            self::TOKEN_URL,
-            array(
-                'timeout' => 25,
-                'headers' => array(
-                    'Authorization' => 'Basic ' . $basic_auth,
-                    'Accept'        => 'application/json',
-                    'Content-Type'  => 'application/x-www-form-urlencoded',
-                ),
-                'body'    => $body,
-            )
-        );
+		$args       = array(
+			'timeout' => 25,
+			'headers' => array(
+				'Authorization' => 'Basic ' . $basic_auth,
+				'Accept'        => 'application/json',
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+			),
+			'body'    => $body,
+		);
+
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$response = wp_remote_post(
+			self::TOKEN_URL,
+			$args
+		);
+
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
 
         if ( is_wp_error( $response ) ) {
             $this->logger->error(
@@ -205,7 +264,7 @@ final class OAuth_Client {
     /**
      * @param array<string,mixed> $token_response
      */
-    private function persist_token_response( array $token_response, string $realm_id ) {
+	private function persist_token_response( array $token_response, string $realm_id, ?callable $settings_guard = null ) {
         $access_token  = isset( $token_response['access_token'] ) ? (string) $token_response['access_token'] : '';
         $refresh_token = isset( $token_response['refresh_token'] ) ? (string) $token_response['refresh_token'] : '';
         $expires_in    = isset( $token_response['expires_in'] ) ? (int) $token_response['expires_in'] : 0;
@@ -213,7 +272,12 @@ final class OAuth_Client {
 
         if ( $access_token === '' || $refresh_token === '' ) {
             return new \WP_Error( 'oras_qbo_invalid_token_response', 'QuickBooks token response is missing required fields.' );
-        }
+		}
+
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
 
         $updates = array(
             'access_token'             => $access_token,
@@ -226,6 +290,11 @@ final class OAuth_Client {
         );
         Settings::update_quickbooks_settings( $updates );
 
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
         $this->logger->info(
             'QuickBooks tokens updated successfully'
         );
@@ -233,7 +302,12 @@ final class OAuth_Client {
         return true;
     }
 
-    private function persist_refresh_failure_state( \WP_Error $error ): void {
+	private function persist_refresh_failure_state( \WP_Error $error, ?callable $settings_guard = null ) {
+		$guard = $this->run_settings_guard( $settings_guard );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
         $code = $error->get_error_code();
         if ( ! in_array( $code, array( 'oras_qbo_auth_error_refresh', 'oras_qbo_auth_error_grant' ), true ) ) {
             Settings::update_quickbooks_settings(
@@ -241,7 +315,7 @@ final class OAuth_Client {
                     'last_error' => $error->get_error_message(),
                 )
             );
-            return;
+			return true;
         }
 
         Settings::update_quickbooks_settings(
@@ -254,5 +328,21 @@ final class OAuth_Client {
                 'last_error'               => $error->get_error_message(),
             )
         );
+		return true;
+	}
+
+	/**
+	 * Invoke an API-supplied settings guard at token HTTP and persistence
+	 * boundaries, including the explicit authorization-code exchange.
+	 *
+	 * @return true|\WP_Error
+	 */
+	private function run_settings_guard( ?callable $settings_guard ) {
+		if ( $settings_guard === null ) {
+			return true;
+		}
+
+		$result = call_user_func( $settings_guard );
+		return is_wp_error( $result ) ? $result : true;
     }
 }

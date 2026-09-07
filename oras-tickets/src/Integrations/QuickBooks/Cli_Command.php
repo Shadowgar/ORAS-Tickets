@@ -29,13 +29,26 @@ final class Cli_Command extends \WP_CLI_Command {
      *     wp oras-tickets qbo test-connection
      */
     public function test_connection( array $args, array $assoc_args ): void {
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			\WP_CLI::success( 'QuickBooks connection test skipped because dry-run mode is enabled.' );
+			return;
+		}
+
         $test = $this->api_client->test_connection();
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			\WP_CLI::success( 'QuickBooks connection test stopped because dry-run mode became enabled.' );
+			return;
+		}
         if ( is_wp_error( $test ) ) {
             \WP_CLI::error( $test->get_error_message() );
             return;
         }
 
         $accounts = $this->api_client->fetch_accounts();
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			\WP_CLI::success( 'QuickBooks account refresh stopped because dry-run mode became enabled.' );
+			return;
+		}
         if ( is_wp_error( $accounts ) ) {
             \WP_CLI::warning( 'Connected, but account refresh failed: ' . $accounts->get_error_message() );
             \WP_CLI::success( 'QuickBooks connection test passed.' );
@@ -43,6 +56,10 @@ final class Cli_Command extends \WP_CLI_Command {
         }
 
         $account_rows = $this->extract_account_cache_rows( $accounts );
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			\WP_CLI::success( 'QuickBooks account refresh stopped because dry-run mode became enabled.' );
+			return;
+		}
         Settings::update_quickbooks_settings(
             array(
                 'account_cache' => $account_rows,
@@ -113,21 +130,48 @@ final class Cli_Command extends \WP_CLI_Command {
             return;
         }
 
-        $reset = $this->orchestrator->reset_order_sync_state( $order_id );
-        if ( is_wp_error( $reset ) ) {
-            \WP_CLI::error( $reset->get_error_message() );
+		$result = $this->orchestrator->resync_order( $order_id );
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::error( $result->get_error_message() );
             return;
         }
 
-        $result = $this->orchestrator->sync_order( $order_id, false );
-        if ( is_wp_error( $result ) ) {
-            \WP_CLI::error( $result->get_error_message() );
-            return;
-        }
+		$status = isset( $result['status'] ) ? (string) $result['status'] : 'unknown';
+		$je_id  = isset( $result['je_id'] ) ? (string) $result['je_id'] : '';
+		\WP_CLI::success( sprintf( 'Resync status: %s%s', $status, $je_id !== '' ? ' (JE ID: ' . $je_id . ')' : '' ) );
+	}
 
-        $status = isset( $result['status'] ) ? (string) $result['status'] : 'unknown';
-        $je_id  = isset( $result['je_id'] ) ? (string) $result['je_id'] : '';
-        \WP_CLI::success( sprintf( 'Resync status: %s%s', $status, $je_id !== '' ? ' (JE ID: ' . $je_id . ')' : '' ) );
+	/**
+	 * Reconcile a pending or unknown JournalEntry outcome by deterministic
+	 * DocNumber. A retry must be explicitly requested and is grace-gated.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <order_id>
+	 * : Woo order ID.
+	 *
+	 * [--retry-if-absent]
+	 * : Retry the exact persisted payload only after a conclusive empty lookup.
+	 *
+	 * @subcommand reconcile-write
+	 */
+	public function reconcile_write( array $args, array $assoc_args ): void {
+		$order_id = isset( $args[0] ) ? absint( $args[0] ) : 0;
+		if ( $order_id <= 0 ) {
+			\WP_CLI::error( 'You must pass a valid Woo order ID.' );
+			return;
+		}
+
+		$retry  = ! empty( $assoc_args['retry-if-absent'] );
+		$result = $this->orchestrator->reconcile_unknown_write( $order_id, $retry );
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::error( $result->get_error_message() );
+			return;
+		}
+
+		$status = isset( $result['status'] ) ? (string) $result['status'] : 'unknown';
+		$je_id = isset( $result['je_id'] ) ? (string) $result['je_id'] : (string) ( $result['reversal_je_id'] ?? '' );
+		\WP_CLI::success( sprintf( 'Write reconciliation status: %s%s', $status, $je_id !== '' ? ' (JE ID: ' . $je_id . ')' : '' ) );
     }
 
     /**

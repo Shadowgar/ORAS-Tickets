@@ -37,7 +37,8 @@ final class Module
             new Split_Calculator($this->logger),
             new Journal_Entry_Creator($this->api_client, $this->logger),
             new Retry_Handler($this->logger),
-            $this->logger
+			$this->logger,
+			$this->api_client
         );
     }
 
@@ -64,13 +65,19 @@ final class Module
         }
     }
 
-    public function handle_oauth_start(): void
+	public function handle_oauth_start()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_oauth_start');
-        $this->capture_posted_client_credentials();
+
+		if ( ! $this->capture_posted_client_credentials() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+		}
 
         if (! $this->oauth_client->has_client_credentials()) {
-            $this->redirect_to_settings(
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('Set QuickBooks Client ID and Client Secret first.'),
                 )
@@ -79,12 +86,14 @@ final class Module
 
         $security_error = $this->get_production_security_error();
         if ($security_error !== '') {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => $security_error,
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode($security_error),
                 )
@@ -92,11 +101,17 @@ final class Module
         }
 
         $state = $this->generate_oauth_state();
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+		}
         set_transient('oras_tickets_qbo_state_' . $state, get_current_user_id(), 15 * MINUTE_IN_SECONDS);
 
         $url = $this->oauth_client->get_authorize_url($state);
         $missing = $this->get_missing_authorize_params($url);
         if (! empty($missing)) {
+			if ( $this->is_dry_run_mode() ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+			}
             $this->logger->error(
                 'QuickBooks OAuth authorize URL missing required parameters',
                 array(
@@ -104,31 +119,41 @@ final class Module
                     'url'     => $url,
                 )
             );
-            $this->redirect_to_settings(
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('QuickBooks OAuth authorization request is invalid. Missing: ' . implode(', ', $missing)),
                 )
             );
-        }
+		}
+
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth connection' );
+		}
 
         // OAuth authorization must redirect to Intuit's external domain.
         wp_redirect($url); // phpcs:ignore WordPressVIPMinimum.Security.ExitAfterRedirect.NoExit
         exit;
     }
 
-    public function handle_oauth_callback(): void
+	public function handle_oauth_callback()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+		}
+
         $state    = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : '';
         $code     = isset($_GET['code']) ? sanitize_text_field(wp_unslash($_GET['code'])) : '';
         $realm_id = isset($_GET['realmId']) ? sanitize_text_field(wp_unslash($_GET['realmId'])) : '';
 
         if ($state === '') {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => 'CSRF Error: missing OAuth state parameter.',
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('CSRF Error: missing OAuth state parameter.'),
                 )
@@ -136,12 +161,14 @@ final class Module
         }
 
         if ($code === '' || $realm_id === '') {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => 'Auth Error Grant: QuickBooks OAuth callback is missing required grant fields.',
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('Auth Error Grant: QuickBooks OAuth callback is missing required grant fields.'),
                 )
@@ -149,15 +176,20 @@ final class Module
         }
 
         $state_owner = get_transient('oras_tickets_qbo_state_' . $state);
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+		}
         delete_transient('oras_tickets_qbo_state_' . $state);
 
         if (! $state_owner) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => 'CSRF Error: QuickBooks OAuth state validation failed.',
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('CSRF Error: QuickBooks OAuth state validation failed.'),
                 )
@@ -166,51 +198,79 @@ final class Module
 
         $current_user_id = get_current_user_id();
         if ($current_user_id > 0 && (int) $state_owner !== (int) $current_user_id) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => 'CSRF Error: QuickBooks OAuth state owner mismatch.',
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('CSRF Error: QuickBooks OAuth state owner mismatch.'),
                 )
             );
         }
 
-        $exchange = $this->oauth_client->exchange_code($code, $realm_id);
+		$exchange = $this->oauth_client->exchange_code(
+			$code,
+			$realm_id,
+			function () {
+				return $this->get_dry_run_guard_error( 'QuickBooks OAuth callback' );
+			}
+		);
         if (is_wp_error($exchange)) {
-            Settings::update_quickbooks_settings(
+			if ( $exchange->get_error_code() === 'oras_qbo_dry_run_read_only' ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => $exchange->get_error_message(),
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode($exchange->get_error_message()),
                 )
             );
         }
 
-        $this->redirect_to_settings(
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks OAuth callback' );
+		}
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode('QuickBooks connected successfully.'),
             )
         );
     }
 
-    public function handle_test_connection(): void
+	public function handle_test_connection()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks connection test' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_test_connection');
 
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks connection test' );
+		}
+
         $test = $this->api_client->test_connection();
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks connection test' );
+		}
         if (is_wp_error($test)) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => $test->get_error_message(),
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks connection test' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode($test->get_error_message()),
                 )
@@ -218,13 +278,18 @@ final class Module
         }
 
         $accounts = $this->api_client->fetch_accounts();
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks account refresh' );
+		}
         if (is_wp_error($accounts)) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => $accounts->get_error_message(),
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks connection test' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('Connected but failed to refresh account list: ' . $accounts->get_error_message()),
                 )
@@ -233,11 +298,17 @@ final class Module
 
         $account_cache = $this->extract_account_cache_rows($accounts);
         $auto_map_result = $this->auto_map_event_accounts($account_cache);
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks account refresh' );
+		}
         $auto_added = 0;
         $auto_kept = 0;
         $auto_unmatched = 0;
 
         if (is_wp_error($auto_map_result)) {
+			if ( $this->is_dry_run_mode() ) {
+				return $this->dry_run_skip_result( 'QuickBooks account refresh' );
+			}
             $this->logger->warning(
                 'QuickBooks test connection succeeded but auto-map failed',
                 array(
@@ -250,110 +321,59 @@ final class Module
             $auto_unmatched = isset($auto_map_result['unmatched']) ? (int) $auto_map_result['unmatched'] : 0;
         }
 
-        Settings::update_quickbooks_settings(
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks account refresh' );
+		}
+		if ( ! $this->update_quickbooks_settings_if_not_dry_run(
             array(
                 'account_cache' => $account_cache,
                 'last_error'    => '',
             )
-        );
+		) ) {
+			return $this->dry_run_skip_result( 'QuickBooks connection test' );
+		}
 
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode(sprintf('QuickBooks test connection succeeded. Cached %1$d account(s). Auto-map added %2$d, kept %3$d, unmatched %4$d.', count($account_cache), $auto_added, $auto_kept, $auto_unmatched)),
             )
         );
     }
 
-    public function handle_test_journal_entry(): void
+	public function handle_test_journal_entry()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks test JournalEntry' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_test_journal_entry');
 
-        $settings          = Settings::get_quickbooks_settings();
-        $clearing_account  = trim((string) ($settings['clearing_account_id'] ?? ''));
-        $default_income    = trim((string) ($settings['tickets_default_account_id'] ?? ''));
+		$settings = Settings::get_quickbooks_settings();
+		if ( ! empty( $settings['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks test JournalEntry' );
+		}
 
-        if ($clearing_account === '' || $default_income === '') {
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode('Set Clearing Account and Default Ticket Income Account before running JE test.'),
-                )
-            );
-        }
-
-        $amount  = 0.01;
-        $payload = array(
-            // QBO DocNumber max length is 21 chars.
-            'DocNumber'   => 'ORASQBO' . gmdate('YmdHis'),
-            'TxnDate'     => gmdate('Y-m-d'),
-            'PrivateNote' => 'ORAS Tickets QuickBooks test JournalEntry',
-            'Line'        => array(
-                array(
-                    'Amount'                 => $amount,
-                    'Description'            => 'ORAS test debit',
-                    'DetailType'             => 'JournalEntryLineDetail',
-                    'JournalEntryLineDetail' => array(
-                        'PostingType' => 'Debit',
-                        'AccountRef'  => array(
-                            'value' => $clearing_account,
-                        ),
-                    ),
-                ),
-                array(
-                    'Amount'                 => $amount,
-                    'Description'            => 'ORAS test credit',
-                    'DetailType'             => 'JournalEntryLineDetail',
-                    'JournalEntryLineDetail' => array(
-                        'PostingType' => 'Credit',
-                        'AccountRef'  => array(
-                            'value' => $default_income,
-                        ),
-                    ),
-                ),
-            ),
-        );
-
-        $response = $this->api_client->create_journal_entry($payload);
-        if (is_wp_error($response)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $response->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($response->get_error_message()),
-                )
-            );
-        }
-
-        $je_id = '';
-        if (isset($response['JournalEntry']['Id'])) {
-            $je_id = (string) $response['JournalEntry']['Id'];
-        }
-
-        Settings::update_quickbooks_settings(
+		return $this->redirect_to_settings(
             array(
-                'last_error' => '',
-            )
-        );
-
-        $this->redirect_to_settings(
-            array(
-                'oras_qbo_notice' => rawurlencode('QuickBooks test JournalEntry created successfully. ID: ' . $je_id),
+				'oras_qbo_error' => rawurlencode( 'Standalone test JournalEntry writes are disabled. Use an order-scoped dry-run preview or controlled synchronization.' ),
             )
         );
     }
 
-    public function handle_process_waiting_queue(): void
-    {
+	public function handle_process_waiting_queue() {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks waiting queue processing' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_process_waiting_queue');
         $target_tab = $this->get_requested_quickbooks_tab('pending');
 
         $limit = isset($_POST['limit']) ? absint(wp_unslash($_POST['limit'])) : 50;
         $limit = max(1, min(250, $limit));
 
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks waiting queue processing' );
+		}
         $processed = $this->orchestrator->process_waiting_orders($limit);
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode(sprintf('Processed %d waiting order(s).', $processed)),
                 'oras_qbo_tab'    => $target_tab,
@@ -361,35 +381,37 @@ final class Module
         );
     }
 
-    public function handle_sync_order_now(): void
+	public function handle_sync_order_now()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order sync' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_sync_order_now');
         $target_tab = $this->get_requested_quickbooks_tab('pending');
 
         $order_id = isset($_POST['order_id']) ? absint(wp_unslash($_POST['order_id'])) : 0;
         if ($order_id <= 0) {
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode('Provide a valid Woo order ID for sync.'),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for sync.' ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
-        $sync = $this->orchestrator->sync_order($order_id, false);
-        if (is_wp_error($sync)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $sync->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($sync->get_error_message()),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order sync' );
+		}
+		$sync = $this->orchestrator->sync_order($order_id, false);
+		if ( is_wp_error( $sync ) ) {
+			$this->record_sync_admin_error( $sync );
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
         $status = isset($sync['status']) ? (string) $sync['status'] : 'unknown';
         $je_id  = isset($sync['je_id']) ? (string) $sync['je_id'] : '';
@@ -398,7 +420,7 @@ final class Module
             $notice .= ' (JE ID: ' . $je_id . ')';
         }
 
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode($notice),
                 'oras_qbo_tab'    => $target_tab,
@@ -406,39 +428,41 @@ final class Module
         );
     }
 
-    public function handle_approve_order(): void
+	public function handle_approve_order()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order approval' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_approve_order');
         $target_tab = $this->get_requested_quickbooks_tab('pending');
 
         $order_id = isset($_POST['order_id']) ? absint(wp_unslash($_POST['order_id'])) : 0;
         $sync_now = ! empty($_POST['sync_now']);
         if ($order_id <= 0) {
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode('Provide a valid Woo order ID for approval.'),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for approval.' ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
-        $result = $this->orchestrator->approve_order_sync($order_id, $sync_now);
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order approval' );
+		}
+		$result = $this->orchestrator->approve_order_sync($order_id, $sync_now);
         if (is_wp_error($result)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $result->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($result->get_error_message()),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			$this->record_sync_admin_error( $result );
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
         $status = isset($result['status']) ? (string) $result['status'] : 'approved';
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode(sprintf('Order #%d approval complete. Status: %s', $order_id, $status)),
                 'oras_qbo_tab'    => $target_tab,
@@ -446,36 +470,39 @@ final class Module
         );
     }
 
-    public function handle_reverse_order(): void
+	public function handle_reverse_order()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order reversal' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_reverse_order');
         $target_tab = $this->get_requested_quickbooks_tab('pending');
 
         $order_id = isset($_POST['order_id']) ? absint(wp_unslash($_POST['order_id'])) : 0;
         if ($order_id <= 0) {
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode('Provide a valid Woo order ID for reversal.'),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for reversal.' ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
-        $force  = ! empty($_POST['force_reversal']);
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by assert_settings_access() above.
+		$force = ! empty( $_POST['force_reversal'] );
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order reversal' );
+		}
         $result = $this->orchestrator->reverse_order($order_id, $force);
         if (is_wp_error($result)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $result->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($result->get_error_message()),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			$this->record_sync_admin_error( $result );
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( $result->get_error_message() ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
         $status      = isset($result['status']) ? (string) $result['status'] : 'reversed';
         $reversal_je = isset($result['reversal_je_id']) ? (string) $result['reversal_je_id'] : '';
@@ -484,7 +511,7 @@ final class Module
             $notice .= ' (JE ID: ' . $reversal_je . ')';
         }
 
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode($notice),
                 'oras_qbo_tab'    => $target_tab,
@@ -492,50 +519,37 @@ final class Module
         );
     }
 
-    public function handle_resync_order(): void
+	public function handle_resync_order()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order resync' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_resync_order');
         $target_tab = $this->get_requested_quickbooks_tab('pending');
 
         $order_id = isset($_POST['order_id']) ? absint(wp_unslash($_POST['order_id'])) : 0;
         if ($order_id <= 0) {
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode('Provide a valid Woo order ID for resync.'),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( 'Provide a valid Woo order ID for resync.' ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
-        $reset = $this->orchestrator->reset_order_sync_state($order_id);
-        if (is_wp_error($reset)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $reset->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($reset->get_error_message()),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
-
-        $sync = $this->orchestrator->sync_order($order_id, false);
-        if (is_wp_error($sync)) {
-            Settings::update_quickbooks_settings(
-                array(
-                    'last_error' => $sync->get_error_message(),
-                )
-            );
-            $this->redirect_to_settings(
-                array(
-                    'oras_qbo_error' => rawurlencode($sync->get_error_message()),
-                    'oras_qbo_tab'   => $target_tab,
-                )
-            );
-        }
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks order resync' );
+		}
+		$sync = $this->orchestrator->resync_order( $order_id );
+		if ( is_wp_error( $sync ) ) {
+			$this->record_sync_admin_error( $sync );
+			return $this->redirect_to_settings(
+				array(
+					'oras_qbo_error' => rawurlencode( $sync->get_error_message() ),
+					'oras_qbo_tab'   => $target_tab,
+				)
+			);
+		}
 
         $status = isset($sync['status']) ? (string) $sync['status'] : 'unknown';
         $je_id  = isset($sync['je_id']) ? (string) $sync['je_id'] : '';
@@ -544,7 +558,7 @@ final class Module
             $notice .= ' (JE ID: ' . $je_id . ')';
         }
 
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode($notice),
                 'oras_qbo_tab'    => $target_tab,
@@ -552,19 +566,30 @@ final class Module
         );
     }
 
-    public function handle_auto_map_event_accounts(): void
+	public function handle_auto_map_event_accounts()
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+		}
         $this->assert_settings_access('oras_tickets_qbo_auto_map_event_accounts');
         $target_tab = $this->get_requested_quickbooks_tab('settings');
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+		}
 
         $accounts = $this->api_client->fetch_accounts();
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+		}
         if (is_wp_error($accounts)) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'last_error' => $accounts->get_error_message(),
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode('Unable to fetch QuickBooks accounts for auto-map: ' . $accounts->get_error_message()),
                     'oras_qbo_tab'   => $target_tab,
@@ -575,14 +600,20 @@ final class Module
         $account_cache = $this->extract_account_cache_rows($accounts);
         $result        = $this->auto_map_event_accounts($account_cache);
 
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+		}
+
         if (is_wp_error($result)) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'account_cache' => $account_cache,
                     'last_error'    => $result->get_error_message(),
                 )
-            );
-            $this->redirect_to_settings(
+			) ) {
+				return $this->dry_run_skip_result( 'QuickBooks automatic account mapping' );
+			}
+			return $this->redirect_to_settings(
                 array(
                     'oras_qbo_error' => rawurlencode($result->get_error_message()),
                     'oras_qbo_tab'   => $target_tab,
@@ -594,7 +625,7 @@ final class Module
         $kept      = isset($result['kept']) ? (int) $result['kept'] : 0;
         $unmatched = isset($result['unmatched']) ? (int) $result['unmatched'] : 0;
 
-        $this->redirect_to_settings(
+		return $this->redirect_to_settings(
             array(
                 'oras_qbo_notice' => rawurlencode(sprintf('Auto-map complete. Added %1$d new mapping(s); kept %2$d existing; unmatched events: %3$d.', $added, $kept, $unmatched)),
                 'oras_qbo_tab'    => $target_tab,
@@ -609,6 +640,10 @@ final class Module
      */
     public function handle_event_saved_auto_map(int $post_id, $post, bool $update): void
     {
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return;
+		}
+
         if (! $update || wp_is_post_revision($post_id)) {
             return;
         }
@@ -636,6 +671,9 @@ final class Module
 
         $result = $this->auto_map_event_accounts($account_cache, array($post_id));
         if (is_wp_error($result)) {
+			if ( $this->is_dry_run_mode() ) {
+				return;
+			}
             $this->logger->warning(
                 'QuickBooks auto-map on event save failed',
                 array(
@@ -673,8 +711,7 @@ final class Module
      * Persist credentials posted by the Connect action when the settings form
      * has not been submitted yet.
      */
-    private function capture_posted_client_credentials(): void
-    {
+	private function capture_posted_client_credentials(): bool {
         $posted_client_id = isset($_POST['oras_qbo_client_id'])
             ? sanitize_text_field((string) wp_unslash($_POST['oras_qbo_client_id']))
             : '';
@@ -683,7 +720,7 @@ final class Module
             : '';
 
         if ($posted_client_id === '' && $posted_secret === '') {
-            return;
+			return true;
         }
 
         $updates = array();
@@ -697,17 +734,87 @@ final class Module
         }
 
         if (empty($updates)) {
-            return;
-        }
+			return true;
+		}
 
-        Settings::update_quickbooks_settings($updates);
-    }
+		return $this->update_quickbooks_settings_if_not_dry_run( $updates );
+	}
+
+	private function record_sync_admin_error( \WP_Error $error ): void {
+		$this->update_quickbooks_settings_if_not_dry_run(
+			array(
+				'last_error' => $error->get_error_message(),
+			)
+		);
+	}
+
+	/**
+	 * Settings can change between admin side-effect boundaries.
+	 *
+	 * @phpstan-impure
+	 */
+	private function is_dry_run_mode(): bool {
+		return ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] );
+	}
+
+	/**
+	 * @return true|\WP_Error
+	 */
+	private function get_dry_run_guard_error( string $action ) {
+		if ( ! $this->is_dry_run_mode() ) {
+			return true;
+		}
+
+		$error = new \WP_Error(
+			'oras_qbo_dry_run_read_only',
+			$action . ' skipped because dry-run mode is enabled.'
+		);
+		$error->add_data(
+			array(
+				'retriable'              => false,
+				'qbo_request_dispatched' => false,
+			)
+		);
+		return $error;
+	}
+
+	/**
+	 * Recheck immediately before the settings option write. A caller that gets
+	 * false must return a local dry-run result without attempting another write.
+	 *
+	 * @param array<string,mixed> $updates
+	 */
+	private function update_quickbooks_settings_if_not_dry_run( array $updates ): bool {
+		if ( $this->is_dry_run_mode() ) {
+			return false;
+		}
+
+		Settings::update_quickbooks_settings( $updates );
+		return true;
+	}
+
+	/**
+	 * Return a local result for admin dry runs. This deliberately does not fire
+	 * redirect hooks or perform any other observable side effect.
+	 *
+	 * @return array{status:string,message:string}
+	 */
+	private function dry_run_skip_result( string $action ): array {
+		return array(
+			'status'  => 'dry_run_skipped',
+			'message' => $action . ' skipped because dry-run mode is enabled.',
+		);
+	}
 
     /**
      * @param array<string,string> $args
      */
-    private function redirect_to_settings(array $args = array()): void
+	private function redirect_to_settings( array $args = array() )
     {
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks admin action' );
+		}
+
         $url = add_query_arg(
             array_merge(
                 array(
@@ -718,6 +825,10 @@ final class Module
             admin_url('admin.php')
         );
 
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks admin action' );
+		}
+
         /**
          * Allow tests/observers to capture QuickBooks settings redirects.
          *
@@ -725,6 +836,10 @@ final class Module
          * @param array<string,string> $args Redirect query args.
          */
         do_action('oras_tickets_qbo_redirecting', $url, $args);
+
+		if ( $this->is_dry_run_mode() ) {
+			return $this->dry_run_skip_result( 'QuickBooks admin action' );
+		}
 
         wp_safe_redirect($url);
 
@@ -740,6 +855,11 @@ final class Module
         if ($should_exit) {
             exit;
         }
+
+		return array(
+			'status' => 'redirected',
+			'url'    => $url,
+		);
     }
 
     /**
@@ -866,6 +986,10 @@ final class Module
      */
     private function auto_map_event_accounts(array $account_cache, ?array $event_ids = null)
     {
+		if ( ! empty( Settings::get_quickbooks_settings()['dry_run_mode'] ) ) {
+			return new \WP_Error( 'oras_qbo_dry_run_read_only', 'QuickBooks auto-map stopped because dry-run mode became enabled.' );
+		}
+
         $income_match_index = $this->build_income_account_match_index($account_cache);
         if (empty($income_match_index)) {
             return new \WP_Error('oras_qbo_auto_map_no_income_accounts', 'No active QuickBooks income accounts were found to auto-map events.');
@@ -886,12 +1010,14 @@ final class Module
 
         $events = get_posts($query_args);
         if (! is_array($events) || empty($events)) {
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'account_cache' => $account_cache,
                     'last_error'    => '',
                 )
-            );
+			) ) {
+				return new \WP_Error( 'oras_qbo_dry_run_read_only', 'QuickBooks auto-map stopped because dry-run mode became enabled.' );
+			}
 
             return array(
                 'added'     => 0,
@@ -958,20 +1084,23 @@ final class Module
                 }
             }
 
-            Settings::update_quickbooks_settings(
+			if ( ! $this->update_quickbooks_settings_if_not_dry_run(
                 array(
                     'event_account_map' => $this->serialize_event_account_map($merged_map),
                     'account_cache'     => $account_cache,
                     'last_error'        => '',
                 )
-            );
-        } else {
-            Settings::update_quickbooks_settings(
-                array(
-                    'account_cache' => $account_cache,
-                    'last_error'    => '',
-                )
-            );
+			) ) {
+				return new \WP_Error( 'oras_qbo_dry_run_read_only', 'QuickBooks auto-map stopped because dry-run mode became enabled.' );
+			}
+		} elseif ( ! $this->update_quickbooks_settings_if_not_dry_run(
+			array(
+				'account_cache' => $account_cache,
+				'last_error'    => '',
+			)
+		) ) {
+
+				return new \WP_Error( 'oras_qbo_dry_run_read_only', 'QuickBooks auto-map stopped because dry-run mode became enabled.' );
         }
 
         return array(

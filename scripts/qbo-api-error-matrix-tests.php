@@ -88,6 +88,7 @@ function oras_qbo_api_assert_url_contains( string $label, string $url, array $in
 function oras_qbo_api_base_settings(): array {
     return array(
         'enabled'                  => true,
+		'dry_run_mode'             => false,
         'sandbox'                  => true,
         'client_id'                => 'client-test',
         'client_secret'            => 'secret-test',
@@ -246,8 +247,11 @@ try {
     $result   = $api_client->create_journal_entry(array('Line' => array()));
     remove_filter( 'pre_http_request', $callback, 10 );
 
-    oras_qbo_api_assert_true( 'journal entry create returns array', is_array( $result ) );
-    oras_qbo_api_assert_url_contains( 'journal entry endpoint', (string) $calls[0]['url'], array( '/journalentry', 'minorversion=75' ) );
+	oras_qbo_api_assert_true(
+		'direct journal entry create is rejected',
+		is_wp_error( $result ) && $result->get_error_code() === 'oras_qbo_orchestrator_required'
+	);
+	oras_qbo_api_assert_true( 'direct journal entry create makes no request', count( $calls ) === 0 );
 
     // Scenario 3: 429 is marked retriable.
     \ORAS\Tickets\Integrations\QuickBooks\Settings::update_quickbooks_settings( oras_qbo_api_base_settings() );

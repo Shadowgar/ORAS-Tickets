@@ -1,7 +1,14 @@
 {
+  "phpVersion": "8.1",
+  "port": 8894,
+  "testsPort": 8895,
   "plugins": [
     "./oras-tickets"
   ],
+  "mappings": {
+    "wp-content/mu-plugins/oras-qbo-http-block.php": "./scripts/fixtures/oras-qbo-http-block.php",
+    "wp-content/oras-qbo-tests": "./scripts"
+  },
   "config": {
     "php": ".wp-env/php/php.ini"
   }

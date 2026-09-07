@@ -37,6 +37,11 @@ final class QuickBooks_Logger {
      * @param array<string,mixed> $context
      */
     private function log( string $level, string $message, array $context = array() ): void {
+		$settings = Settings::get_quickbooks_settings();
+		if ( ! empty( $settings['dry_run_mode'] ) ) {
+			return;
+		}
+
         $safe_context = $this->redact( $context );
         $rendered     = $message;
 
