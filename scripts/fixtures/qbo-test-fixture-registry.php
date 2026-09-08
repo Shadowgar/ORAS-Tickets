@@ -19,7 +19,9 @@ function oras_qbo_fixture_assert_disposable_identity(): void {
 	global $wpdb;
 
 	$expected_home   = 'http://localhost:8895';
-	$expected_marker = 'oras-tickets-qbo-tests-v1-3c882350e7b5f140';
+	$expected_marker = defined( 'ORAS_QBO_DISPOSABLE_MARKER_EXPECTED' )
+		? (string) ORAS_QBO_DISPOSABLE_MARKER_EXPECTED
+		: '';
 	$home            = (string) get_option( 'home' );
 	$site_url        = (string) get_option( 'siteurl' );
 	$marker          = (string) get_option( 'oras_qbo_disposable_fixture_id' );
@@ -33,6 +35,7 @@ function oras_qbo_fixture_assert_disposable_identity(): void {
 		|| $wpdb->prefix !== 'wp_'
 		|| $home !== $expected_home
 		|| $site_url !== $expected_home
+		|| ! preg_match( '/^oras-tickets-qbo-tests-v1-[a-f0-9]{16}$/', $expected_marker )
 		|| $marker !== $expected_marker
 		|| ! defined( 'ORAS_QBO_HTTP_BLOCK_ACTIVE' )
 		|| ORAS_QBO_HTTP_BLOCK_ACTIVE !== true

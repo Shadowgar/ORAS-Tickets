@@ -11,8 +11,9 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 # Reject startup/configuration vectors before invoking any external program.
-# PATH and IFS are normalized because both are ordinarily inherited by every
-# shell; optional loader/runtime variables are rejected outright.
+# Exported IFS and optional loader/runtime variables are rejected outright.
+# PATH is used only to locate Node, whose canonical binary and hash are pinned;
+# every child process otherwise receives an explicit minimal environment.
 if [[ -v BASH_ENV ]]; then
 	early_fail 'BASH_ENV overrides are not permitted.'
 fi
@@ -24,54 +25,95 @@ if [[ -v CDPATH ]]; then
 fi
 while IFS= read -r ambient_name; do
 	case "$ambient_name" in
-		LD_*|PHP_*|COMPOSER_*|WP_CLI_*|DOCKER_*|NODE_*|NPM_CONFIG_*|npm_config_*)
+		IFS)
+			early_fail 'IFS overrides are not permitted.'
+			;;
+		COMPOSER_PROCESS_TIMEOUT)
+			[[ "${COMPOSER_PROCESS_TIMEOUT:-}" == '0' ]] \
+				|| early_fail 'COMPOSER_PROCESS_TIMEOUT must be the exact workflow value 0.'
+			;;
+		COMPOSER_NO_INTERACTION)
+			[[ "${COMPOSER_NO_INTERACTION:-}" == '1' ]] \
+				|| early_fail 'COMPOSER_NO_INTERACTION must be the exact workflow value 1.'
+			;;
+		COMPOSER_NO_AUDIT)
+			[[ "${COMPOSER_NO_AUDIT:-}" == '1' ]] \
+				|| early_fail 'COMPOSER_NO_AUDIT must be the exact workflow value 1.'
+			;;
+		GIT_PAGER)
+			[[ "${GIT_PAGER:-}" == 'cat' ]] \
+				|| early_fail 'GIT_PAGER must be the exact non-interactive value cat.'
+			;;
+		LD_*|PHP_*|COMPOSER_*|WP_CLI_*|DOCKER_*|NODE_*|NPM_CONFIG_*|npm_config_*|GIT_*)
 			early_fail "$ambient_name overrides are not permitted."
 			;;
 	esac
 done < <(compgen -e)
 
 IFS=$' \t\n'
-export PATH='/home/rocco/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin'
 
 readonly REALPATH_BIN='/usr/bin/realpath'
 readonly SHA256_BIN='/usr/bin/sha256sum'
+readonly MD5_BIN='/usr/bin/md5sum'
 readonly AWK_BIN='/usr/bin/awk'
 readonly MKTEMP_BIN='/usr/bin/mktemp'
 readonly CP_BIN='/usr/bin/cp'
 readonly FIND_BIN='/usr/bin/find'
 readonly RMDIR_BIN='/usr/bin/rmdir'
 readonly PHP_BIN='/usr/bin/php'
+readonly GIT_BIN='/usr/bin/git'
+readonly GETENT_BIN='/usr/bin/getent'
+readonly ID_BIN='/usr/bin/id'
+readonly READLINK_BIN='/usr/bin/readlink'
 readonly GREP_BIN='/usr/bin/grep'
 readonly TAIL_BIN='/usr/bin/tail'
 readonly WC_BIN='/usr/bin/wc'
 readonly BASENAME_BIN='/usr/bin/basename'
 readonly ENV_BIN='/usr/bin/env'
 
-EXPECTED_ROOT='/home/rocco/projects/ORAS-Tickets'
+EXPECTED_REPOSITORY_URL='https://github.com/Shadowgar/ORAS-Tickets.git'
+EXPECTED_BASELINE_COMMIT='1440cab86c1b7cb3de311764f0c28886f2da4a4b'
 EXPECTED_CONFIG_SHA256='d3efa1ac7c2d0124c7cd1ba1912c36ff7db9758edeff838327eeb5026dccb393'
 EXPECTED_DOCKER_CONFIG_SHA256='ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356'
 EXPECTED_HTTP_BLOCK_SHA256='ecf2c90829b4ce2bf10bc06aaf97158ce95ede66c213bcd793596ee2ee1b3eb5'
-EXPECTED_PROJECT='3c882350e7b5f1407215adcc14f7ee5a'
-EXPECTED_COMPOSE_SHA256='d2af945c6e3d866100670f6788204ff275eb0eaf0f433e12d6de27f0f3143d18'
+EXPECTED_PACKAGE_JSON_SHA256='0cf60445b6f2c2fd8d72374e0a5cf8021c871b536d9bff77e5b076086acc7725'
+EXPECTED_PACKAGE_LOCK_SHA256='0f4880c3d1e1a39ac2e2698b232d3c8b387ac0c107ff010da7b1d52fb88159e7'
+EXPECTED_WP_ENV_PACKAGE_SHA256='be31d3b4345970933b4a9f51dc6b67e788c7dc30b446492f36b8e4e9ccc59c9a'
+EXPECTED_COMPOSE_NORMALIZED_SHA256='5c3a1c6cc27a279044c892c12ae18873ea23218dddb889836652d4ee79803abe'
 EXPECTED_DATABASE='tests-wordpress'
 EXPECTED_DATABASE_HOST='tests-mysql'
 EXPECTED_HOME='http://localhost:8895'
-EXPECTED_WP_ENV_VERSION='11.3.0'
-EXPECTED_WP_ENV_REALPATH='/home/rocco/.nvm/versions/node/v22.22.0/lib/node_modules/@wordpress/env/bin/wp-env'
+EXPECTED_NODE_VERSION='v22.22.0'
+EXPECTED_NODE_SHA256='1bec56ef7cfa9a76f3e0b7c0a87f220eb73f23102b9c0b4c7529a3f7c3ce7c31'
+EXPECTED_WP_ENV_VERSION='11.6.0'
 EXPECTED_WP_ENV_SHA256='c3ad55a8eb7c006a58b5133cea146e8b5afc9c755dfb09dd2d631e2bc2264ef3'
+EXPECTED_WP_ENV_LINK_TARGET='../@wordpress/env/bin/wp-env'
 DISPOSABLE_MARKER_OPTION='oras_qbo_disposable_fixture_id'
-DISPOSABLE_MARKER_VALUE='oras-tickets-qbo-tests-v1-3c882350e7b5f140'
+DISPOSABLE_MARKER_VALUE=''
 
-RUNNER_PATH="$($REALPATH_BIN "${BASH_SOURCE[0]}")"
+RUNNER_PATH="$($REALPATH_BIN -e "${BASH_SOURCE[0]}")"
 ROOT_DIR="$($REALPATH_BIN "${RUNNER_PATH%/*}/..")"
 CONFIG_FILE="$ROOT_DIR/.wp-env.json"
 DOCKER_CONFIG_SOURCE_DIR="$ROOT_DIR/.wp-env/docker"
 DOCKER_CONFIG_FILE="$DOCKER_CONFIG_SOURCE_DIR/config.json"
 DOCKER_CONFIG_DIR=''
 HTTP_BLOCK_FILE="$ROOT_DIR/scripts/fixtures/oras-qbo-http-block.php"
-WP_ENV_BIN='/home/rocco/.nvm/versions/node/v22.22.0/bin/wp-env'
-WP_ENV_HOME_DIR="/home/rocco/wp-env/$EXPECTED_PROJECT"
-COMPOSE_FILE_PATH="$WP_ENV_HOME_DIR/docker-compose.yml"
+PACKAGE_JSON_FILE="$ROOT_DIR/package.json"
+PACKAGE_LOCK_FILE="$ROOT_DIR/package-lock.json"
+WP_ENV_LINK="$ROOT_DIR/node_modules/.bin/wp-env"
+EXPECTED_WP_ENV_REALPATH="$ROOT_DIR/node_modules/@wordpress/env/bin/wp-env"
+WP_ENV_PACKAGE_FILE="$ROOT_DIR/node_modules/@wordpress/env/package.json"
+WP_ENV_BIN=''
+NODE_BIN=''
+VERIFIED_HOME=''
+VERIFIED_USERNAME=''
+VERIFIED_UID=''
+VERIFIED_GID=''
+EXPECTED_PROJECT=''
+WP_ENV_CACHE_ROOT=''
+WP_ENV_DIRECTORY_NAME=''
+WP_ENV_HOME_DIR=''
+COMPOSE_FILE_PATH=''
 DOCKER_BIN='/usr/bin/docker'
 TEST_SERVICE='tests-cli'
 HPOS_CHECK_FILE="$ROOT_DIR/scripts/qbo-hpos-source-claim-tests.php"
@@ -111,6 +153,250 @@ sha256_of() {
 	"$SHA256_BIN" "$1" | "$AWK_BIN" '{print $1}'
 }
 
+git_cmd() {
+	"$ENV_BIN" -i \
+		HOME="$VERIFIED_HOME" \
+		PATH='/usr/bin:/bin' \
+		GIT_CONFIG_NOSYSTEM=1 \
+		GIT_CONFIG_GLOBAL=/dev/null \
+		"$GIT_BIN" -C "$ROOT_DIR" "$@"
+}
+
+guard_php() {
+	"$ENV_BIN" -i \
+		HOME="$VERIFIED_HOME" \
+		PATH='/usr/local/bin:/usr/bin:/bin' \
+		"$PHP_BIN" -n "$@"
+}
+
+test_php() {
+	"$ENV_BIN" -i \
+		HOME="$VERIFIED_HOME" \
+		PATH='/usr/local/bin:/usr/bin:/bin' \
+		"$PHP_BIN" "$@"
+}
+
+docker_cmd() {
+	[[ -n "$DOCKER_CONFIG_DIR" ]] || fail 'isolated runtime Docker configuration is unavailable.'
+	"$ENV_BIN" -i \
+		HOME="$VERIFIED_HOME" \
+		PATH='/usr/local/bin:/usr/bin:/bin' \
+		DOCKER_CONFIG="$DOCKER_CONFIG_DIR" \
+		COMPOSE_BAKE=false \
+		"$DOCKER_BIN" "$@"
+}
+
+verify_account_identity() {
+	local passwd_record
+	local passwd_marker
+	local passwd_gecos
+	local passwd_shell
+	local current_uid
+
+	current_uid="$($ID_BIN -u)"
+	passwd_record="$($GETENT_BIN passwd "$current_uid")"
+	[[ -n "$passwd_record" && "$passwd_record" != *$'\n'* ]] \
+		|| fail 'operating-system account identity could not be established.'
+
+	local IFS=':'
+	read -r VERIFIED_USERNAME passwd_marker VERIFIED_UID VERIFIED_GID passwd_gecos VERIFIED_HOME passwd_shell <<< "$passwd_record"
+	unset passwd_marker passwd_gecos passwd_shell
+
+	[[ "$VERIFIED_USERNAME" =~ ^[a-z_][a-z0-9_-]*$ \
+		&& "$VERIFIED_UID" =~ ^[0-9]+$ \
+		&& "$VERIFIED_GID" =~ ^[0-9]+$ \
+		&& "$VERIFIED_UID" == "$current_uid" \
+		&& "$VERIFIED_HOME" == /* \
+		&& -d "$VERIFIED_HOME" \
+		&& ! -L "$VERIFIED_HOME" \
+		&& "$($REALPATH_BIN -e "$VERIFIED_HOME")" == "$VERIFIED_HOME" ]] \
+		|| fail 'operating-system account home is not canonical.'
+	[[ "${HOME:-}" == "$VERIFIED_HOME" ]] \
+		|| fail 'HOME does not match the verified operating-system account.'
+	case "$ROOT_DIR/" in
+		"$VERIFIED_HOME/"*) ;;
+		*) fail 'repository checkout must be inside the verified account workspace.' ;;
+	esac
+}
+
+verify_repository_identity() {
+	local git_root
+	local origin_url
+
+	git_root="$(git_cmd rev-parse --show-toplevel 2>/dev/null)" \
+		|| fail 'runner is not inside a Git checkout.'
+	[[ "$git_root" == "$ROOT_DIR" ]] \
+		|| fail 'runner path is not the canonical Git top level.'
+	origin_url="$(git_cmd remote get-url origin 2>/dev/null)" \
+		|| fail 'canonical origin remote is unavailable.'
+	case "$origin_url" in
+		"$EXPECTED_REPOSITORY_URL"|"${EXPECTED_REPOSITORY_URL%.git}") ;;
+		*) fail 'Git origin does not identify the canonical ORAS Tickets repository.' ;;
+	esac
+	git_cmd cat-file -e "$EXPECTED_BASELINE_COMMIT^{commit}" 2>/dev/null \
+		|| fail 'immutable ORAS Tickets history anchor is unavailable.'
+	git_cmd merge-base --is-ancestor "$EXPECTED_BASELINE_COMMIT" HEAD 2>/dev/null \
+		|| fail 'checkout HEAD does not descend from the immutable ORAS Tickets history anchor.'
+}
+
+verify_workflow_overrides() {
+	local physical_pwd
+	physical_pwd="$(pwd -P)"
+
+	if [[ -v ORAS_WP_ENV_DIR ]]; then
+		case "$ORAS_WP_ENV_DIR" in
+			.)
+				[[ "$physical_pwd" == "$ROOT_DIR" ]] \
+					|| fail 'ORAS_WP_ENV_DIR=. requires the canonical checkout as the working directory.'
+				;;
+			"$ROOT_DIR") ;;
+			*) fail 'ORAS_WP_ENV_DIR must identify only the canonical checkout.' ;;
+		esac
+	fi
+	if [[ -v ORAS_WP_ENV_CMD ]]; then
+		case "$ORAS_WP_ENV_CMD" in
+			./node_modules/.bin/wp-env|"$WP_ENV_LINK") ;;
+			*) fail 'ORAS_WP_ENV_CMD must identify only the repository-local wp-env entry point.' ;;
+		esac
+	fi
+
+	if [[ "${GITHUB_ACTIONS:-}" == 'true' ]]; then
+		[[ "${CI:-}" == 'true' && "${GITHUB_WORKSPACE:-}" == "$ROOT_DIR" ]] \
+			|| fail 'GitHub Actions workspace identity does not match the canonical checkout.'
+	elif [[ -v GITHUB_WORKSPACE ]]; then
+		fail 'GITHUB_WORKSPACE is trusted only inside GitHub Actions.'
+	fi
+}
+
+verify_repository_files_and_toolchain() {
+	local directory
+	local wp_env_version
+	local package_identity
+	local node_candidate
+
+	for directory in \
+		"$ROOT_DIR/node_modules" \
+		"$ROOT_DIR/node_modules/.bin" \
+		"$ROOT_DIR/node_modules/@wordpress" \
+		"$ROOT_DIR/node_modules/@wordpress/env" \
+		"$ROOT_DIR/node_modules/@wordpress/env/bin" \
+		"$DOCKER_CONFIG_SOURCE_DIR"; do
+		[[ -d "$directory" && ! -L "$directory" ]] \
+			|| fail "required repository directory is missing or redirected: $directory"
+	done
+
+	[[ -f "$CONFIG_FILE" && ! -L "$CONFIG_FILE" && "$(sha256_of "$CONFIG_FILE")" == "$EXPECTED_CONFIG_SHA256" ]] \
+		|| fail 'repository-controlled .wp-env.json does not match its approved identity.'
+	[[ ! -e "$ROOT_DIR/.wp-env.override.json" && ! -L "$ROOT_DIR/.wp-env.override.json" ]] \
+		|| fail 'repository-local .wp-env overrides are not permitted.'
+	[[ -f "$DOCKER_CONFIG_FILE" && ! -L "$DOCKER_CONFIG_FILE" \
+		&& "$(sha256_of "$DOCKER_CONFIG_FILE")" == "$EXPECTED_DOCKER_CONFIG_SHA256" ]] \
+		|| fail 'repository-controlled Docker configuration does not match its approved identity.'
+	[[ -f "$HTTP_BLOCK_FILE" && ! -L "$HTTP_BLOCK_FILE" \
+		&& "$(sha256_of "$HTTP_BLOCK_FILE")" == "$EXPECTED_HTTP_BLOCK_SHA256" ]] \
+		|| fail 'repository-controlled Intuit HTTP blocker does not match its approved identity.'
+	[[ -f "$PACKAGE_JSON_FILE" && ! -L "$PACKAGE_JSON_FILE" \
+		&& "$(sha256_of "$PACKAGE_JSON_FILE")" == "$EXPECTED_PACKAGE_JSON_SHA256" ]] \
+		|| fail 'repository-controlled package.json does not match its approved identity.'
+	[[ -f "$PACKAGE_LOCK_FILE" && ! -L "$PACKAGE_LOCK_FILE" \
+		&& "$(sha256_of "$PACKAGE_LOCK_FILE")" == "$EXPECTED_PACKAGE_LOCK_SHA256" ]] \
+		|| fail 'repository-controlled package-lock.json does not match its approved identity.'
+
+	[[ -L "$WP_ENV_LINK" && "$($READLINK_BIN "$WP_ENV_LINK")" == "$EXPECTED_WP_ENV_LINK_TARGET" ]] \
+		|| fail 'repository-local wp-env link identity does not match.'
+	WP_ENV_BIN="$($REALPATH_BIN -e "$WP_ENV_LINK")" \
+		|| fail 'repository-local wp-env entry point cannot be resolved.'
+	[[ "$WP_ENV_BIN" == "$EXPECTED_WP_ENV_REALPATH" \
+		&& -f "$WP_ENV_BIN" \
+		&& ! -L "$WP_ENV_BIN" \
+		&& -x "$WP_ENV_BIN" \
+		&& "$(sha256_of "$WP_ENV_BIN")" == "$EXPECTED_WP_ENV_SHA256" ]] \
+		|| fail 'repository-local wp-env executable identity does not match.'
+	[[ -f "$WP_ENV_PACKAGE_FILE" && ! -L "$WP_ENV_PACKAGE_FILE" \
+		&& "$(sha256_of "$WP_ENV_PACKAGE_FILE")" == "$EXPECTED_WP_ENV_PACKAGE_SHA256" ]] \
+		|| fail 'installed wp-env package identity does not match the repository lock.'
+
+	package_identity="$(guard_php -r '
+		$package = json_decode(file_get_contents($argv[1]), true);
+		if (!is_array($package)) { exit(2); }
+		echo ($package["name"] ?? ""), "@", ($package["version"] ?? ""), "\n";
+	' "$WP_ENV_PACKAGE_FILE")" || fail 'installed wp-env package metadata is malformed.'
+	[[ "$package_identity" == "@wordpress/env@$EXPECTED_WP_ENV_VERSION" ]] \
+		|| fail "installed wp-env package is not version $EXPECTED_WP_ENV_VERSION."
+
+	node_candidate="$(command -v node || true)"
+	[[ -n "$node_candidate" ]] || fail 'Node executable is unavailable.'
+	NODE_BIN="$($REALPATH_BIN -e "$node_candidate")" \
+		|| fail 'Node executable cannot be resolved.'
+	[[ -f "$NODE_BIN" && -x "$NODE_BIN" && "$(sha256_of "$NODE_BIN")" == "$EXPECTED_NODE_SHA256" ]] \
+		|| fail 'Node executable content does not match the approved release.'
+	[[ "$("$ENV_BIN" -i HOME="$VERIFIED_HOME" PATH='/usr/bin:/bin' "$NODE_BIN" --version)" == "$EXPECTED_NODE_VERSION" ]] \
+		|| fail "Node executable is not $EXPECTED_NODE_VERSION."
+
+	wp_env_version="$(wp_env_version)" || fail 'repository-local wp-env version check failed.'
+	[[ "$wp_env_version" == "$EXPECTED_WP_ENV_VERSION" ]] \
+		|| fail "wp-env version does not match $EXPECTED_WP_ENV_VERSION."
+}
+
+derive_disposable_identity() {
+	local legacy_project
+	local descriptive_project
+	local project_directory
+
+	legacy_project="$(printf '%s' "$CONFIG_FILE" | "$MD5_BIN" | "$AWK_BIN" '{print $1}')"
+	[[ "$legacy_project" =~ ^[a-f0-9]{32}$ ]] || fail 'could not derive the exact wp-env path identity.'
+	DISPOSABLE_MARKER_VALUE="oras-tickets-qbo-tests-v1-${legacy_project:0:16}"
+
+	if [[ -e /snap ]]; then
+		WP_ENV_CACHE_ROOT="$VERIFIED_HOME/wp-env"
+	else
+		WP_ENV_CACHE_ROOT="$VERIFIED_HOME/.wp-env"
+	fi
+	[[ ! -L "$WP_ENV_CACHE_ROOT" ]] || fail 'wp-env cache root may not be a symlink.'
+	if [[ -e "$WP_ENV_CACHE_ROOT" ]]; then
+		[[ -d "$WP_ENV_CACHE_ROOT" && "$($REALPATH_BIN -e "$WP_ENV_CACHE_ROOT")" == "$WP_ENV_CACHE_ROOT" ]] \
+			|| fail 'wp-env cache root is not canonical.'
+	fi
+
+	project_directory="${ROOT_DIR##*/}"
+	descriptive_project="$(guard_php -r '
+		$name = preg_replace("/[^a-zA-Z0-9._]+/", "-", $argv[1]);
+		$name = trim((string) $name, "-");
+		if ($name === "") { exit(2); }
+		echo "wp-env-", $name, "-", $argv[2], "\n";
+	' "$project_directory" "${legacy_project:0:8}")" \
+		|| fail 'could not derive the descriptive wp-env project identity.'
+
+	if [[ -e "$WP_ENV_CACHE_ROOT/$legacy_project" || -L "$WP_ENV_CACHE_ROOT/$legacy_project" ]]; then
+		[[ -d "$WP_ENV_CACHE_ROOT/$legacy_project" && ! -L "$WP_ENV_CACHE_ROOT/$legacy_project" ]] \
+			|| fail 'legacy wp-env project path is not a canonical directory.'
+		WP_ENV_DIRECTORY_NAME="$legacy_project"
+	else
+		WP_ENV_DIRECTORY_NAME="$descriptive_project"
+	fi
+	EXPECTED_PROJECT="$(guard_php -r '
+		$name = strtolower($argv[1]);
+		$name = preg_replace("/[^a-z0-9_-]+/", "", $name);
+		$name = ltrim((string) $name, "_- ");
+		if ($name === "") { exit(2); }
+		echo $name, "\n";
+	' "$WP_ENV_DIRECTORY_NAME")" \
+		|| fail 'could not derive Docker Compose project identity from the wp-env directory.'
+	[[ "$EXPECTED_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || fail 'derived wp-env project identity is malformed.'
+	WP_ENV_HOME_DIR="$WP_ENV_CACHE_ROOT/$WP_ENV_DIRECTORY_NAME"
+	COMPOSE_FILE_PATH="$WP_ENV_HOME_DIR/docker-compose.yml"
+	[[ ! -L "$WP_ENV_HOME_DIR" && ! -L "$COMPOSE_FILE_PATH" ]] \
+		|| fail 'derived wp-env project or Compose path is redirected by a symlink.'
+}
+
+verify_static_identity() {
+	verify_account_identity
+	verify_repository_identity
+	verify_workflow_overrides
+	verify_repository_files_and_toolchain
+	derive_disposable_identity
+}
+
 prepare_runtime_docker_config() {
 	[[ -z "$DOCKER_CONFIG_DIR" ]] || fail 'runtime Docker configuration was already prepared.'
 	DOCKER_CONFIG_DIR="$("$MKTEMP_BIN" -d /tmp/oras-qbo-docker-config.XXXXXX)" \
@@ -140,25 +426,26 @@ wp_env() {
 	(
 		cd "$ROOT_DIR"
 		"$ENV_BIN" -i \
-			HOME='/home/rocco' \
-			PATH='/home/rocco/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin' \
+			HOME="$VERIFIED_HOME" \
+			PATH='/usr/local/bin:/usr/bin:/bin' \
 			DOCKER_CONFIG="$DOCKER_CONFIG_DIR" \
+			CI=1 \
 			COMPOSE_BAKE=false \
-			"$WP_ENV_BIN" "$@"
+			"$NODE_BIN" "$WP_ENV_BIN" "$@"
 	)
 }
 
 wp_env_version() {
 	"$ENV_BIN" -i \
-		HOME='/home/rocco' \
-		PATH='/home/rocco/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin' \
-		"$WP_ENV_BIN" --version
+		HOME="$VERIFIED_HOME" \
+		PATH='/usr/local/bin:/usr/bin:/bin' \
+		"$NODE_BIN" "$WP_ENV_BIN" --version
 }
 
 container_id_for_service() {
 	local service="$1"
 	local ids
-	ids="$($DOCKER_BIN ps \
+	ids="$(docker_cmd ps \
 		--filter "label=com.docker.compose.project=$EXPECTED_PROJECT" \
 		--filter "label=com.docker.compose.service=$service" \
 		--format '{{.ID}}')"
@@ -175,9 +462,9 @@ verify_container_identity() {
 	local inspect_json
 
 	container_id="$(container_id_for_service "$service")"
-	inspect_json="$($DOCKER_BIN inspect "$container_id")"
+	inspect_json="$(docker_cmd inspect "$container_id")"
 
-	"$PHP_BIN" -r '
+	guard_php -r '
 		$data = json_decode($argv[1], true);
 		if (!is_array($data) || count($data) !== 1) {
 			fwrite(STDERR, "Invalid container inspection response.\n"); exit(1);
@@ -213,40 +500,48 @@ verify_mounts_and_database() {
 	local cli_json
 	local database_json
 
-	cli_json="$($DOCKER_BIN inspect "$cli_container_id")"
-	database_json="$($DOCKER_BIN inspect "$database_container_id")"
+	cli_json="$(docker_cmd inspect "$cli_container_id")"
+	database_json="$(docker_cmd inspect "$database_container_id")"
 
-	"$PHP_BIN" -r '
+	guard_php -r '
 		$container = json_decode($argv[1], true)[0] ?? array();
 		$mounts = $container["Mounts"] ?? array();
 		$required = array(
 			$argv[2] => "/var/www/html/wp-content/plugins/oras-tickets",
 			$argv[3] => "/var/www/html/wp-content/oras-qbo-tests",
 			$argv[4] => "/var/www/html/wp-content/mu-plugins/oras-qbo-http-block.php",
+			$argv[5] => "/var/www/html",
+			$argv[6] => "/wordpress-phpunit",
 		);
 		$found = array();
 		foreach ($mounts as $mount) {
 			$source = $mount["Source"] ?? "";
 			$destination = $mount["Destination"] ?? "";
+			$type = $mount["Type"] ?? "";
 			if (isset($required[$source]) && $required[$source] === $destination) {
+				if ($type !== "bind") {
+					fwrite(STDERR, "Required repository mount is not a bind mount.\n"); exit(1);
+				}
 				$found[$source] = true;
 			}
-			if (str_starts_with($source, "/home/rocco/projects/") && !isset($required[$source])) {
-				fwrite(STDERR, "Unexpected project mount: {$source}\n"); exit(1);
+			if ($type === "bind" && !isset($required[$source])) {
+				fwrite(STDERR, "Unexpected bind mount: {$source}\n"); exit(1);
 			}
 		}
 		if (count($found) !== count($required)) {
 			fwrite(STDERR, "Required repository mounts are missing.\n"); exit(1);
 		}
 		$environment = $container["Config"]["Env"] ?? array();
-		if (!in_array("WORDPRESS_DB_NAME=" . $argv[5], $environment, true)
-			|| !in_array("WORDPRESS_DB_HOST=" . $argv[6], $environment, true)) {
+		if (!in_array("WORDPRESS_DB_NAME=" . $argv[7], $environment, true)
+			|| !in_array("WORDPRESS_DB_HOST=" . $argv[8], $environment, true)) {
 			fwrite(STDERR, "Unexpected WordPress database environment.\n"); exit(1);
 		}
-	' "$cli_json" "$ROOT_DIR/oras-tickets" "$ROOT_DIR/scripts" "$HTTP_BLOCK_FILE" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST" \
+	' "$cli_json" "$ROOT_DIR/oras-tickets" "$ROOT_DIR/scripts" "$HTTP_BLOCK_FILE" \
+		"$WP_ENV_HOME_DIR/tests-WordPress" "$WP_ENV_HOME_DIR/tests-WordPress-PHPUnit/tests/phpunit" \
+		"$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST" \
 		|| fail "mounted project identity or disposable database configuration did not match."
 
-	"$PHP_BIN" -r '
+	guard_php -r '
 		$container = json_decode($argv[1], true)[0] ?? array();
 		$environment = $container["Config"]["Env"] ?? array();
 		if (!in_array("MYSQL_DATABASE=" . $argv[2], $environment, true)) {
@@ -265,6 +560,36 @@ verify_mounts_and_database() {
 		}
 	' "$database_json" "$EXPECTED_DATABASE" "$EXPECTED_PROJECT" \
 		|| fail "disposable database container/volume identity did not match."
+}
+
+normalized_compose_sha256() {
+	guard_php -r '
+		$compose = file_get_contents($argv[1]);
+		if ($compose === false) { exit(2); }
+		$replacements = array(
+			$argv[2] => "@WP_ENV_WORKDIR@",
+			$argv[3] => "@ROOT@",
+			$argv[4] => "@HOME@",
+			"HOST_USERNAME: " . $argv[5] => "HOST_USERNAME: @USER@",
+			"HOST_UID: \x27" . $argv[6] . "\x27" => "HOST_UID: \x27@UID@\x27",
+			"HOST_GID: \x27" . $argv[7] . "\x27" => "HOST_GID: \x27@GID@\x27",
+			"APACHE_RUN_USER: \x27#" . $argv[6] . "\x27" => "APACHE_RUN_USER: \x27#@UID@\x27",
+			"APACHE_RUN_GROUP: \x27#" . $argv[7] . "\x27" => "APACHE_RUN_GROUP: \x27#@GID@\x27",
+			"user: \x27" . $argv[6] . ":" . $argv[7] . "\x27" => "user: \x27@UID@:@GID@\x27",
+		);
+		foreach ($replacements as $from => $to) {
+			$compose = str_replace($from, $to, $compose);
+		}
+		echo hash("sha256", $compose), "\n";
+	' "$COMPOSE_FILE_PATH" "$WP_ENV_HOME_DIR" "$ROOT_DIR" "$VERIFIED_HOME" \
+		"$VERIFIED_USERNAME" "$VERIFIED_UID" "$VERIFIED_GID"
+}
+
+verify_compose_identity() {
+	[[ -f "$COMPOSE_FILE_PATH" && ! -L "$COMPOSE_FILE_PATH" ]] \
+		|| fail 'generated Compose configuration is missing or redirected.'
+	[[ "$(normalized_compose_sha256)" == "$EXPECTED_COMPOSE_NORMALIZED_SHA256" ]] \
+		|| fail 'generated Compose configuration does not match its pinned normalized identity.'
 }
 
 extract_json_line() {
@@ -289,7 +614,7 @@ verify_wordpress_identity() {
 		);
 	' 2>/dev/null | extract_json_line)"
 
-	"$PHP_BIN" -r '
+	guard_php -r '
 		$identity = json_decode($argv[1], true);
 		if (!is_array($identity)) {
 			fwrite(STDERR, "Invalid WordPress identity response.\n"); exit(1);
@@ -327,7 +652,7 @@ ensure_disposable_database_marker() {
 		);
 	' 2>/dev/null | extract_json_line)"
 
-	if "$PHP_BIN" -r '
+	if guard_php -r '
 		$state = json_decode($argv[1], true);
 		if (!is_array($state)) { exit(2); }
 		if (!empty($state["exists"]) && ($state["value"] ?? "") !== $argv[2]) { exit(3); }
@@ -338,11 +663,11 @@ ensure_disposable_database_marker() {
 		local marker_status="$?"
 		case "$marker_status" in
 			1)
-				wp_env run "$TEST_SERVICE" wp eval '
-					if ( ! add_option( "oras_qbo_disposable_fixture_id", "oras-tickets-qbo-tests-v1-3c882350e7b5f140", "", false ) ) {
-						throw new RuntimeException( "Could not initialize disposable database marker." );
+				wp_env run "$TEST_SERVICE" wp eval "
+					if ( ! add_option( \"oras_qbo_disposable_fixture_id\", \"$DISPOSABLE_MARKER_VALUE\", \"\", false ) ) {
+						throw new RuntimeException( \"Could not initialize disposable database marker.\" );
 					}
-				' >/dev/null || fail "could not initialize the repository-controlled disposable database marker."
+				" >/dev/null || fail "could not initialize the repository-controlled disposable database marker."
 				;;
 			*)
 				fail "missing, copied, or forged disposable database marker was detected."
@@ -376,7 +701,7 @@ verify_quickbooks_safety() {
 		);
 	' 2>/dev/null | extract_json_line)"
 
-	"$PHP_BIN" -r '
+	guard_php -r '
 		$qbo = json_decode($argv[1], true);
 		if (!is_array($qbo)
 			|| !empty($qbo["enabled"])
@@ -395,8 +720,13 @@ verify_quickbooks_safety() {
 		$result = wp_remote_request("https://quickbooks.api.intuit.com/v3/company/blocked", array("timeout" => 1));
 		echo is_wp_error($result) ? $result->get_error_code() : "network-fallthrough";
 	' 2>/dev/null | "$GREP_BIN" -E '^(oras_qbo_disposable_http_blocked|network-fallthrough)$' | "$TAIL_BIN" -n 1)"
+	assert_http_block_result "$http_block_result"
+}
+
+assert_http_block_result() {
+	local http_block_result="$1"
 	if [[ "$http_block_result" != 'oras_qbo_disposable_http_blocked' ]]; then
-		fail "HTTP interception fell through instead of blocking unmocked Intuit traffic."
+		fail 'HTTP interception fell through instead of blocking unmocked Intuit traffic.'
 	fi
 }
 
@@ -504,15 +834,11 @@ main() {
 	local cli_container_id
 	local database_container_id
 
-	if [[ "$ROOT_DIR" != "$EXPECTED_ROOT" ]]; then
-		fail "repository realpath must be exactly $EXPECTED_ROOT."
-	fi
 	if [[ -v ORAS_QBO_DISPOSABLE_TEST_SENTINEL ]]; then
 		fail 'legacy disposable sentinel is not trusted.'
 	fi
 
 	for variable_name in \
-		ORAS_WP_ENV_DIR ORAS_WP_ENV_CMD \
 		WP_ENV_HOME WP_ENV_PORT WP_ENV_MYSQL_PORT WP_ENV_TESTS_PORT WP_ENV_TESTS_MYSQL_PORT \
 		WP_ENV_PHPMYADMIN_PORT WP_ENV_TESTS_PHPMYADMIN_PORT WP_ENV_CORE WP_ENV_PHP_VERSION \
 		WP_ENV_LIFECYCLE_SCRIPT_AFTER_START WP_ENV_LIFECYCLE_SCRIPT_AFTER_CLEAN \
@@ -522,26 +848,29 @@ main() {
 		reject_environment_override "$variable_name"
 	done
 
-	[[ -f "$CONFIG_FILE" ]] || fail "repository-controlled .wp-env.json is missing."
-	[[ "$(sha256_of "$CONFIG_FILE")" == "$EXPECTED_CONFIG_SHA256" ]] \
-		|| fail "repository-controlled .wp-env.json does not match its approved hash."
-	[[ -f "$DOCKER_CONFIG_FILE" && "$(sha256_of "$DOCKER_CONFIG_FILE")" == "$EXPECTED_DOCKER_CONFIG_SHA256" ]] \
-		|| fail "repository-controlled Docker configuration does not match its approved hash."
-	[[ -f "$HTTP_BLOCK_FILE" && "$(sha256_of "$HTTP_BLOCK_FILE")" == "$EXPECTED_HTTP_BLOCK_SHA256" ]] \
-		|| fail "repository-controlled Intuit HTTP blocker does not match its approved hash."
-	[[ -x "$WP_ENV_BIN" && "$("$REALPATH_BIN" "$WP_ENV_BIN")" == "$EXPECTED_WP_ENV_REALPATH" ]] \
-		|| fail "wp-env executable identity does not match."
-	[[ "$(sha256_of "$EXPECTED_WP_ENV_REALPATH")" == "$EXPECTED_WP_ENV_SHA256" ]] \
-		|| fail "wp-env executable hash does not match."
-	[[ "$(wp_env_version)" == "$EXPECTED_WP_ENV_VERSION" ]] \
-		|| fail "wp-env version does not match $EXPECTED_WP_ENV_VERSION."
-	[[ -x "$DOCKER_BIN" ]] || fail "fixed Docker executable is unavailable."
-	[[ "$($DOCKER_BIN context show)" == 'default' ]] || fail "Docker context must be default."
-	[[ "$($DOCKER_BIN context inspect default --format '{{.Endpoints.docker.Host}}')" == 'unix:///var/run/docker.sock' ]] \
-		|| fail "Docker context must use the local Unix socket."
+	verify_static_identity
+
+	case "${1:-}" in
+		--verify-static-identity-only)
+			[[ $# -eq 1 ]] || fail 'static identity mode accepts no additional arguments.'
+			exit 0
+			;;
+		--guard-test-http-fallthrough)
+			[[ $# -eq 1 ]] || fail 'HTTP guard test mode accepts no additional arguments.'
+			assert_http_block_result 'network-fallthrough'
+			fail 'HTTP guard fall-through test unexpectedly returned.'
+			;;
+		--verify-environment-only|'') ;;
+		*) fail "unknown runner argument: $1" ;;
+	esac
+	[[ $# -le 1 ]] || fail 'runner accepts at most one argument.'
 
 	trap cleanup_runner EXIT
 	prepare_runtime_docker_config
+	[[ -x "$DOCKER_BIN" ]] || fail 'fixed Docker executable is unavailable.'
+	[[ "$(docker_cmd context show)" == 'default' ]] || fail 'Docker context must be default.'
+	[[ "$(docker_cmd context inspect default --format '{{.Endpoints.docker.Host}}')" == 'unix:///var/run/docker.sock' ]] \
+		|| fail 'Docker context must use the local Unix socket.'
 
 	for check_file in "${CHECK_FILES[@]}"; do
 		[[ -f "$check_file" ]] || fail "QBO check script is missing: $check_file"
@@ -551,11 +880,11 @@ main() {
 	done
 	[[ -f "$HPOS_CHECK_FILE" ]] || fail "QBO HPOS check script is missing: $HPOS_CHECK_FILE"
 
-	if [[ -f "$COMPOSE_FILE_PATH" && "$(sha256_of "$COMPOSE_FILE_PATH")" != "$EXPECTED_COMPOSE_SHA256" ]]; then
-		fail "generated Compose configuration does not match its pinned repository identity."
+	if [[ -e "$COMPOSE_FILE_PATH" || -L "$COMPOSE_FILE_PATH" ]]; then
+		verify_compose_identity
 	fi
 
-	if [[ "$($DOCKER_BIN ps \
+	if [[ "$(docker_cmd ps \
 		--filter "label=com.docker.compose.project=$EXPECTED_PROJECT" \
 		--filter 'label=com.docker.compose.service=tests-cli' \
 		--format '{{.ID}}' | "$WC_BIN" -l)" -ne 1 ]]; then
@@ -563,8 +892,7 @@ main() {
 		wp_env start
 	fi
 
-	[[ -f "$COMPOSE_FILE_PATH" && "$(sha256_of "$COMPOSE_FILE_PATH")" == "$EXPECTED_COMPOSE_SHA256" ]] \
-		|| fail "generated Compose configuration does not match its pinned repository identity."
+	verify_compose_identity
 
 	cli_container_id="$(verify_container_identity 'tests-cli' "$EXPECTED_PROJECT-tests-cli-1")"
 	verify_container_identity 'tests-wordpress' "$EXPECTED_PROJECT-tests-wordpress-1" >/dev/null
@@ -579,14 +907,11 @@ main() {
 	if [[ "${1:-}" == '--verify-environment-only' ]]; then
 		exit 0
 	fi
-	if [[ $# -gt 0 ]]; then
-		fail "unknown runner argument: $1"
-	fi
 
 	RUNNER_TEST_CLEANUP_ACTIVE=1
 	for check_file in "${HOST_CHECK_FILES[@]}"; do
 		echo "Running $("$BASENAME_BIN" "$check_file")"
-		"$PHP_BIN" "$check_file"
+		test_php "$check_file"
 	done
 
 	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("Tribe__Events__Main") ? 0 : 1);' >/dev/null 2>&1; then
@@ -604,12 +929,16 @@ main() {
 
 	for check_file in "${CHECK_FILES[@]}"; do
 		echo "Running $("$BASENAME_BIN" "$check_file")"
-		wp_env run "$TEST_SERVICE" wp eval-file "/var/www/html/wp-content/oras-qbo-tests/$("$BASENAME_BIN" "$check_file")"
+		wp_env run "$TEST_SERVICE" wp \
+			--exec="define( 'ORAS_QBO_DISPOSABLE_MARKER_EXPECTED', '$DISPOSABLE_MARKER_VALUE' );" \
+			eval-file "/var/www/html/wp-content/oras-qbo-tests/$("$BASENAME_BIN" "$check_file")"
 	done
 
 	configure_hpos_for_test
 	echo "Running $("$BASENAME_BIN" "$HPOS_CHECK_FILE")"
-	wp_env run "$TEST_SERVICE" wp eval-file "/var/www/html/wp-content/oras-qbo-tests/$("$BASENAME_BIN" "$HPOS_CHECK_FILE")"
+	wp_env run "$TEST_SERVICE" wp \
+		--exec="define( 'ORAS_QBO_DISPOSABLE_MARKER_EXPECTED', '$DISPOSABLE_MARKER_VALUE' );" \
+		eval-file "/var/www/html/wp-content/oras-qbo-tests/$("$BASENAME_BIN" "$HPOS_CHECK_FILE")"
 	restore_hpos_settings
 
 	reset_disposable_quickbooks_controls

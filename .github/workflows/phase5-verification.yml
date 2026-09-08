@@ -48,35 +48,44 @@ jobs:
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22.22.0'
+
+    - name: Install Node dependencies
+      run: npm ci --ignore-scripts
 
     - name: Start wp-env
-      run: npx --yes @wordpress/env start
+      run: ./node_modules/.bin/wp-env start
 
     - name: Run Phase 5 integration checks
       env:
         ORAS_WP_ENV_DIR: .
-        ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+        ORAS_WP_ENV_CMD: ./node_modules/.bin/wp-env
       run: bash scripts/run-phase5-integration-checks.sh
 
     - name: Run Reports integration checks
       env:
         ORAS_WP_ENV_DIR: .
-        ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+        ORAS_WP_ENV_CMD: ./node_modules/.bin/wp-env
       run: bash scripts/run-reports-integration-checks.sh
 
     - name: Run Board Reports Observer Pass integration checks
       env:
         ORAS_WP_ENV_DIR: .
-        ORAS_WP_ENV_CMD: npx --yes @wordpress/env
+        ORAS_WP_ENV_CMD: ./node_modules/.bin/wp-env
       run: bash scripts/run-board-reports-integration-checks.sh
+
+    - name: QBO runner guard regression checks
+      env:
+        ORAS_WP_ENV_DIR: .
+        ORAS_WP_ENV_CMD: ./node_modules/.bin/wp-env
+      run: bash scripts/qbo-runner-guard-tests.sh
 
     - name: Run QBO integration checks
       env:
         ORAS_WP_ENV_DIR: .
-        ORAS_WP_ENV_CMD: npx --yes @wordpress/env
-      run: bash scripts/run-qbo-integration-checks.sh
+        ORAS_WP_ENV_CMD: ./node_modules/.bin/wp-env
+      run: scripts/run-qbo-integration-checks.sh
 
     - name: Stop wp-env
       if: always()
-      run: npx --yes @wordpress/env stop || true
+      run: ./node_modules/.bin/wp-env stop || true
