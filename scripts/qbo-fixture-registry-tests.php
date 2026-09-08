@@ -4,6 +4,7 @@ define( 'ABSPATH', __DIR__ . '/' );
 define( 'DB_NAME', 'tests-wordpress' );
 define( 'DB_HOST', 'tests-mysql' );
 define( 'ORAS_QBO_HTTP_BLOCK_ACTIVE', true );
+define( 'ORAS_QBO_DISPOSABLE_MARKER_EXPECTED', 'oras-tickets-qbo-tests-v1-3c882350e7b5f140' );
 
 final class WP_Error {
 	public function __construct( public string $code = 'fixture_error', public string $message = 'fixture error' ) {}

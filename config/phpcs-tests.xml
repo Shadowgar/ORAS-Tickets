@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<ruleset name="ORAS Tickets Tests">
+  <description>PHPCS rules for committed ORAS Tickets tests, fixtures, and repository tooling.</description>
+
+  <!--
+    Test and fixture files use the same WordPress security and correctness
+    standard as production. No test-specific sniff exclusions are permitted by
+    this ruleset; its separate identity makes routing explicit in the release
+    checker without weakening the inherited repository policy.
+  -->
+  <rule ref="./phpcs.xml" />
+
+  <arg name="extensions" value="php"/>
+</ruleset>
