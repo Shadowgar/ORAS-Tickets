@@ -563,6 +563,7 @@ verify_mounts_and_database() {
 }
 
 normalized_compose_sha256() {
+	local output_mode="${1:-hash}"
 	guard_php -r '
 		$compose = file_get_contents($argv[1]);
 		if ($compose === false) { exit(2); }
@@ -580,16 +581,28 @@ normalized_compose_sha256() {
 		foreach ($replacements as $from => $to) {
 			$compose = str_replace($from, $to, $compose);
 		}
-		echo hash("sha256", $compose), "\n";
+		if ($argv[8] === "hash") {
+			echo hash("sha256", $compose), "\n";
+		} elseif ($argv[8] === "base64") {
+			echo base64_encode($compose), "\n";
+		} else {
+			exit(2);
+		}
 	' "$COMPOSE_FILE_PATH" "$WP_ENV_HOME_DIR" "$ROOT_DIR" "$VERIFIED_HOME" \
-		"$VERIFIED_USERNAME" "$VERIFIED_UID" "$VERIFIED_GID"
+		"$VERIFIED_USERNAME" "$VERIFIED_UID" "$VERIFIED_GID" "$output_mode"
 }
 
 verify_compose_identity() {
+	local actual_sha256
 	[[ -f "$COMPOSE_FILE_PATH" && ! -L "$COMPOSE_FILE_PATH" ]] \
 		|| fail 'generated Compose configuration is missing or redirected.'
-	[[ "$(normalized_compose_sha256)" == "$EXPECTED_COMPOSE_NORMALIZED_SHA256" ]] \
-		|| fail 'generated Compose configuration does not match its pinned normalized identity.'
+	actual_sha256="$(normalized_compose_sha256)" \
+		|| fail 'generated Compose configuration could not be normalized safely.'
+	if [[ "$actual_sha256" != "$EXPECTED_COMPOSE_NORMALIZED_SHA256" ]]; then
+		printf 'Sanitized normalized Compose mismatch: sha256=%s base64=%s\n' \
+			"$actual_sha256" "$(normalized_compose_sha256 base64)" >&2
+		fail 'generated Compose configuration does not match its pinned normalized identity.'
+	fi
 }
 
 extract_json_line() {
