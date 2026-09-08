@@ -395,6 +395,29 @@ compose_path="$(docker inspect --format '{{index .Config.Labels "com.docker.comp
 compose_backup="$alternate_root/docker-compose.approved.yml"
 cp "$compose_path" "$compose_backup"
 
+# js-yaml chooses folded or quoted scalar formatting based on the absolute
+# host-path length. Flip the first mount to the other equivalent form and make
+# the real guard prove both local and hosted serializations share one identity.
+"$ENV_BIN" -i HOME="$account_home" PATH='/usr/bin:/bin' /usr/bin/php -n -r '
+	$compose = file_get_contents( $argv[1] );
+	$folded  = "      - >-\n        {$argv[2]}/WordPress:/var/www/html";
+	$quoted  = "      - \x27{$argv[2]}/WordPress:/var/www/html\x27";
+	if ( substr_count( $compose, $folded ) === 1 ) {
+		$compose = str_replace( $folded, $quoted, $compose );
+	} elseif ( substr_count( $compose, $quoted ) === 1 ) {
+		$compose = str_replace( $quoted, $folded, $compose );
+	} else {
+		fwrite( STDERR, "Could not identify the generated mount scalar.\n" );
+		exit( 1 );
+	}
+	if ( file_put_contents( $argv[1], $compose ) === false ) {
+		exit( 1 );
+	}
+' "$compose_path" "${compose_path%/*}" \
+	|| { echo 'Could not prepare the alternate js-yaml mount representation.' >&2; exit 1; }
+"$RUNNER" --verify-environment-only >/dev/null
+cp "$compose_backup" "$compose_path"
+
 # Alternate Compose mount and database identities are rejected before Docker is
 # allowed to act on the changed file.
 sed -i "s|$ROOT_DIR/oras-tickets|$alternate_root/alternate-plugin|g" "$compose_path"

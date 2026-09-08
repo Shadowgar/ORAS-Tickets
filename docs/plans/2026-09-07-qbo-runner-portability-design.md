@@ -24,7 +24,11 @@ an existing canonical legacy MD5 directory or, otherwise, the tool's
 descriptive directory derived from the checkout and the MD5 prefix. The Docker
 Compose project name is normalized from that exact directory by Compose's
 naming rule. Generated Compose content is normalized only for those derived
-host-specific values before it is compared to an approved hash.
+host-specific values and `js-yaml`'s path-length-dependent folded-scalar
+formatting before it is compared to an approved hash. The latter
+canonicalization changes only whether a single-line mount scalar is rendered
+folded or quoted; the complete mount value and every other Compose field remain
+covered by the pinned identity.
 
 Container labels, names, mounts, database name/host/volume, loopback URLs,
 checkout-specific database marker, QuickBooks sandbox/dry-run/disabled/empty

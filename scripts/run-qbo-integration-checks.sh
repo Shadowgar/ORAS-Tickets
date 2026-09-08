@@ -79,7 +79,7 @@ EXPECTED_HTTP_BLOCK_SHA256='ecf2c90829b4ce2bf10bc06aaf97158ce95ede66c213bcd79359
 EXPECTED_PACKAGE_JSON_SHA256='0cf60445b6f2c2fd8d72374e0a5cf8021c871b536d9bff77e5b076086acc7725'
 EXPECTED_PACKAGE_LOCK_SHA256='0f4880c3d1e1a39ac2e2698b232d3c8b387ac0c107ff010da7b1d52fb88159e7'
 EXPECTED_WP_ENV_PACKAGE_SHA256='be31d3b4345970933b4a9f51dc6b67e788c7dc30b446492f36b8e4e9ccc59c9a'
-EXPECTED_COMPOSE_NORMALIZED_SHA256='5c3a1c6cc27a279044c892c12ae18873ea23218dddb889836652d4ee79803abe'
+EXPECTED_COMPOSE_NORMALIZED_SHA256='da71271c42d588671130df7c9cbeb735f21dbbaa52875fbf1efcf89bcabea77c'
 EXPECTED_DATABASE='tests-wordpress'
 EXPECTED_DATABASE_HOST='tests-mysql'
 EXPECTED_HOME='http://localhost:8895'
@@ -563,7 +563,6 @@ verify_mounts_and_database() {
 }
 
 normalized_compose_sha256() {
-	local output_mode="${1:-hash}"
 	guard_php -r '
 		$compose = file_get_contents($argv[1]);
 		if ($compose === false) { exit(2); }
@@ -581,15 +580,15 @@ normalized_compose_sha256() {
 		foreach ($replacements as $from => $to) {
 			$compose = str_replace($from, $to, $compose);
 		}
-		if ($argv[8] === "hash") {
-			echo hash("sha256", $compose), "\n";
-		} elseif ($argv[8] === "base64") {
-			echo base64_encode($compose), "\n";
-		} else {
-			exit(2);
-		}
+		$compose = preg_replace(
+			"/^(\\s+-) >-\\n\\s+([^\\n]+)$/m",
+			"$1 " . chr(39) . "$2" . chr(39),
+			$compose
+		);
+		if (!is_string($compose)) { exit(2); }
+		echo hash("sha256", $compose), "\n";
 	' "$COMPOSE_FILE_PATH" "$WP_ENV_HOME_DIR" "$ROOT_DIR" "$VERIFIED_HOME" \
-		"$VERIFIED_USERNAME" "$VERIFIED_UID" "$VERIFIED_GID" "$output_mode"
+		"$VERIFIED_USERNAME" "$VERIFIED_UID" "$VERIFIED_GID"
 }
 
 verify_compose_identity() {
@@ -599,8 +598,8 @@ verify_compose_identity() {
 	actual_sha256="$(normalized_compose_sha256)" \
 		|| fail 'generated Compose configuration could not be normalized safely.'
 	if [[ "$actual_sha256" != "$EXPECTED_COMPOSE_NORMALIZED_SHA256" ]]; then
-		printf 'Sanitized normalized Compose mismatch: sha256=%s base64=%s\n' \
-			"$actual_sha256" "$(normalized_compose_sha256 base64)" >&2
+		printf 'Sanitized normalized Compose mismatch: expected=%s actual=%s\n' \
+			"$EXPECTED_COMPOSE_NORMALIZED_SHA256" "$actual_sha256" >&2
 		fail 'generated Compose configuration does not match its pinned normalized identity.'
 	fi
 }
