@@ -1,0 +1,45 @@
+#!/bin/bash -p
+set -euo pipefail
+
+readonly ROOT_DIR="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
+readonly RUNNER="$ROOT_DIR/scripts/run-registration-desk-integration-checks.sh"
+
+fail() {
+	printf 'FAIL: %s\n' "$1" >&2
+	exit 1
+}
+
+pass() {
+	printf 'PASS: %s\n' "$1"
+}
+
+require_text() {
+	local needle="$1" message="$2"
+	/usr/bin/grep -F "$needle" "$RUNNER" >/dev/null || fail "$message"
+	pass "$message"
+}
+
+reject_text() {
+	local needle="$1" message="$2"
+	if /usr/bin/grep -F "$needle" "$RUNNER" >/dev/null; then
+		fail "$message"
+	fi
+	pass "$message"
+}
+
+[[ -f "$RUNNER" ]] || fail 'Registration Desk runner exists.'
+
+require_text "WP_ENV_PROJECT='/home/rocco/projects/oras-wp-env'" 'Runner pins the designated source project.'
+require_text 'process.chdir(project)' 'wp-env resolves configuration from the designated source project.'
+require_text 'wp_env install-path' 'Runner resolves the designated generated install path through wp-env.'
+require_text 'TEST_COMPOSE_OVERRIDE' 'Runner creates an explicit test-service-only Compose overlay.'
+require_text 'snapshot_development_state' 'Runner snapshots ordinary development services before test mutation.'
+require_text 'verify_development_state' 'Runner verifies ordinary development services remain unchanged.'
+require_text 'restore_test_services' 'Runner restores designated test mounts and service state on exit.'
+require_text 'verify_mounted_code_identity' 'Runner verifies mounted feature code before WordPress mutation.'
+reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary development environment.'
+reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
+reject_text "EXPECTED_URL='http://localhost:" 'Runner does not hard-code an old test-site port.'
+reject_text 'option add oras_registration_desk_disposable_fixture_id' 'Runner never manufactures a disposable marker.'
+
+printf '%s\n' 'Registration Desk runner guard checks passed.'
