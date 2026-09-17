@@ -79,6 +79,9 @@ final class Service {
 		if ( empty( $config['enabled'] ) || (int) $config['revision'] !== (int) $context['config_revision'] ) {
 			return new \WP_Error( 'oras_desk_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 409 ) );
 		}
+		if ( 'active' !== (string) $registration['status'] ) {
+			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration is not active. Request administrator review.', array( 'status' => 409 ) );
+		}
 		$local_date = sanitize_text_field( (string) ( $payload['attendance_local_date'] ?? '' ) );
 		$today      = wp_date( 'Y-m-d', null, wp_timezone() );
 		if ( $local_date !== $today ) {
@@ -95,9 +98,23 @@ final class Service {
 		if ( $evidence instanceof \WP_Error ) {
 			return new \WP_Error( 'oras_desk_source_review', 'Website registration source is unavailable. Retry or request review.', array( 'status' => 409 ) );
 		}
+		$source_unit = (int) ( $registration['source_unit_number'] ?? 0 );
+		if (
+			(int) ( $evidence['order_id'] ?? 0 ) !== (int) $registration['source_order_id']
+			|| (int) ( $evidence['order_item_id'] ?? 0 ) !== (int) $registration['source_order_item_id']
+			|| (int) ( $evidence['source_event_id'] ?? 0 ) !== (int) $registration['event_id']
+		) {
+			return new \WP_Error( 'oras_desk_source_changed', 'Website registration source identity changed. Request administrator review.', array( 'status' => 409 ) );
+		}
+		if ( $source_unit <= 0 || $source_unit > (int) ( $evidence['quantity'] ?? 0 ) ) {
+			return new \WP_Error( 'oras_desk_source_unit_invalid', 'This registration unit is no longer present in the website order.', array( 'status' => 409 ) );
+		}
 		$resolution = Source_Resolver::resolve( $evidence, (int) $context['event_id'], $config );
 		if ( 'supported' !== $resolution['resolution'] || 'individual' !== $resolution['classification'] || 'full_event' !== $resolution['validity_type'] ) {
 			return new \WP_Error( 'oras_desk_source_review', 'Website registration classification requires review.', array( 'status' => 409 ) );
+		}
+		if ( ! hash_equals( (string) $registration['option_uuid'], (string) $resolution['option_uuid'] ) ) {
+			return new \WP_Error( 'oras_desk_source_option_changed', 'Website registration option mapping changed. Request administrator review.', array( 'status' => 409 ) );
 		}
 		$explicit_unpaid = ! empty( $payload['explicit_unpaid'] );
 		if ( 'explicit_unpaid_required' === $resolution['eligibility'] && ! $explicit_unpaid ) {

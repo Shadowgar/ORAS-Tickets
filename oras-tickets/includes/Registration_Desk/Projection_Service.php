@@ -36,7 +36,15 @@ final class Projection_Service {
 		$rows       = array();
 		for ( $unit = 1; $unit <= $quantity; ++$unit ) {
 			$source_key = implode( ':', array( 'woo', (int) $evidence['order_id'], (int) $evidence['order_item_id'], $unit ) );
-			$rows[]     = $this->registrations->upsert_source_projection( $event_id, $source_key, $unit, $evidence, $resolution, (int) $config['revision'] );
+			$row        = $this->registrations->upsert_source_projection( $event_id, $source_key, $unit, $evidence, $resolution, (int) $config['revision'] );
+			if ( $row instanceof \WP_Error ) {
+				return $row;
+			}
+			$rows[] = $row;
+		}
+		$revoked = $this->registrations->revoke_source_units_above( $event_id, (int) $evidence['order_id'], (int) $evidence['order_item_id'], $quantity );
+		if ( $revoked instanceof \WP_Error ) {
+			return $revoked;
 		}
 
 		return array(

@@ -438,6 +438,7 @@ function oras_desk_integration_prepare(): void {
 	$product_day        = oras_desk_integration_product( $run, 'one-day' );
 	$product_ambiguous  = oras_desk_integration_product( $run, 'ambiguous' );
 	$product_unknown    = oras_desk_integration_product( $run, 'unclassified' );
+	$product_remap      = oras_desk_integration_product( $run, 'remap' );
 	update_post_meta( $product_individual, '_oras_ticket_event_id', $event_id );
 	update_post_meta( $product_individual, '_oras_ticket_index', 0 );
 	$options = array(
@@ -448,7 +449,7 @@ function oras_desk_integration_prepare(): void {
 			'existing_access_valid' => true,
 			'classification'        => 'individual',
 			'validity_type'         => 'full_event',
-			'source_product_ids'    => array( $product_individual ),
+			'source_product_ids'    => array( $product_individual, $product_remap ),
 		),
 		array(
 			'option_uuid'           => '22222222-2222-4222-8222-222222222222',
@@ -513,6 +514,8 @@ function oras_desk_integration_prepare(): void {
 		'cross_event'  => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
 		'partial'      => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
 		'past'         => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
+		'quantity'     => oras_desk_integration_order( $product_individual, $event_id, 2, 'processing', $run, 'Quantity' ),
+		'remap'        => oras_desk_integration_order( $product_remap, $event_id, 1, 'processing', $run, 'Remap' ),
 	);
 	$refund = wc_create_refund(
 		array(
@@ -554,6 +557,14 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_same( $projected['unclassified']['resolution']['resolution'], 'review_required', 'unclassified source requires review' );
 	oras_desk_integration_same( $projected['cross_event']['resolution']['resolution'], 'review_required', 'cross-event source is not inferred into the active event' );
 	oras_desk_integration_same( $projected['partial']['resolution']['eligibility'], 'review_required', 'partial-refund unit ambiguity requires review' );
+	$quantity_unit_two = $projected['quantity']['registrations'][1];
+	$quantity_order = wc_get_order( $orders['quantity']['order_id'] );
+	$quantity_item  = $quantity_order->get_item( $orders['quantity']['item_id'] );
+	$quantity_item->set_quantity( 1 );
+	$quantity_item->save();
+	$quantity_order->calculate_totals( false );
+	$quantity_order->save();
+	oras_desk_integration_pass( 'quantity fixture reduced from two source units to one after projection' );
 
 	$registration_store = new Registration_Store();
 	$concurrent_row = $projected['concurrent']['registrations'][0];
@@ -638,10 +649,11 @@ function oras_desk_integration_prepare(): void {
 		'desk_id'        => (int) $desk_id,
 		'member_id'      => (int) $member_id,
 		'user_ids'       => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
-		'product_ids'    => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown ),
+		'product_ids'    => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ),
 		'order_ids'      => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
 		'orders'         => $orders,
 		'projected'      => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
+		'quantity_unit_two' => $quantity_unit_two['registration_uuid'],
 		'options'        => $options,
 		'token_one'      => $token_one,
 		'token_two'      => $token_two,
@@ -658,6 +670,21 @@ function oras_desk_integration_prepare(): void {
 		'attendance_local_date' => $today,
 		'explicit_unpaid'       => false,
 	);
+	$quantity_two_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['quantity_unit_two'], $payload, $quantity_two_context ), 'oras_desk_source_unit_invalid', 'source unit above the current quantity is rejected before refresh' );
+	$quantity_one_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$quantity_one_result = $service->confirm_and_check_in( $context['projected']['quantity'], $payload, $quantity_one_context );
+	oras_desk_integration_true( is_array( $quantity_one_result ) && 'checked_in' === $quantity_one_result['historical_result']['result'], 'remaining source unit stays admissible after quantity reduction' );
+	$quantity_refresh = $projector->reconcile_source( $event_id, $orders['quantity']['order_id'], $orders['quantity']['item_id'], $config );
+	if ( is_wp_error( $quantity_refresh ) ) {
+		oras_desk_integration_fail( 'quantity refresh failed: ' . $quantity_refresh->get_error_code() );
+	}
+	$quantity_two_after = $registration_store->find_by_uuid( $context['quantity_unit_two'] );
+	oras_desk_integration_same( $quantity_two_after['status'], 'revoked', 'refresh revokes excess projected units without deleting or renumbering them' );
+	$quantity_two_retry = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['quantity_unit_two'], array_merge( $payload, array( 'explicit_unpaid' => true ) ), $quantity_two_retry ), 'oras_desk_registration_inactive', 'revoked stored unit blocks explicit-unpaid admission after refresh' );
+	$family_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['family'], array_merge( $payload, array( 'explicit_unpaid' => true ) ), $family_context ), 'oras_desk_registration_inactive', 'stored needs-review state blocks explicit-unpaid admission' );
 	$atomic_request = wp_generate_uuid4();
 	$atomic_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, $atomic_request );
 	$atomic_registration = $registration_store->find_by_uuid( $context['projected']['atomic'] );
@@ -708,9 +735,9 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_true( is_array( $on_hold_result ) && true === $on_hold_result['historical_result']['explicit_unpaid'], 'explicit unpaid admission records intent without marking the source paid' );
 
 	$cancel_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
-	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['cancelled'], $payload, $cancel_context ), 'oras_desk_not_eligible', 'source cancellation after search is revalidated and blocks admission' );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['cancelled'], $payload, $cancel_context ), 'oras_desk_registration_inactive', 'stored revoked state after source cancellation blocks admission' );
 	$partial_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
-	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['partial'], $payload, $partial_context ), 'oras_desk_not_eligible', 'partial-refund ambiguity blocks admission' );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['partial'], $payload, $partial_context ), 'oras_desk_registration_inactive', 'stored needs-review state after partial refund blocks admission' );
 	$date_payload = $payload;
 	$date_payload['attendance_local_date'] = $yesterday;
 	$date_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
@@ -762,6 +789,32 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_same( $after_audit_count, $before_audit_count, 'projection rebuild preserves audit history' );
 
 	wp_set_current_user( (int) $admin_id );
+	$remapped_options = $options;
+	$remapped_options[0]['source_product_ids'] = array( $product_individual );
+	$remapped_options[] = array(
+		'option_uuid'           => '77777777-7777-4777-8777-777777777777',
+		'label'                 => 'Remapped individual',
+		'available_for_new'     => true,
+		'existing_access_valid' => true,
+		'classification'        => 'individual',
+		'validity_type'         => 'full_event',
+		'source_product_ids'    => array( $product_remap ),
+	);
+	$config_remapped = oras_desk_integration_save_config( $event_id, $remapped_options );
+	wp_set_current_user( (int) $desk_id );
+	$remap_token = Station_Session::issue( (int) $desk_id, $event_id, (int) $config_remapped['revision'], 'Remap Check' );
+	$remap_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config_remapped, $remap_token, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['remap'], $payload, $remap_context ), 'oras_desk_source_option_changed', 'fresh option remap rejects the stored option before projection refresh' );
+	$remap_refresh = $projector->reconcile_source( $event_id, $orders['remap']['order_id'], $orders['remap']['item_id'], $config_remapped );
+	if ( is_wp_error( $remap_refresh ) ) {
+		oras_desk_integration_fail( 'remapped source refresh failed: ' . $remap_refresh->get_error_code() );
+	}
+	$remap_after = $registration_store->find_by_uuid( $context['projected']['remap'] );
+	oras_desk_integration_same( $remap_after['status'], 'needs_review', 'projection refresh retains the original registration and marks a remapped option for review' );
+	$remap_context['request_uuid'] = wp_generate_uuid4();
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['remap'], $payload, $remap_context ), 'oras_desk_registration_inactive', 'remapped needs-review registration remains blocked after refresh' );
+	wp_set_current_user( (int) $admin_id );
+	$config = oras_desk_integration_save_config( $event_id, $options );
 	$disabled_options = $options;
 	$disabled_options[0]['available_for_new'] = false;
 	$config_disabled = oras_desk_integration_save_config( $event_id, $disabled_options );

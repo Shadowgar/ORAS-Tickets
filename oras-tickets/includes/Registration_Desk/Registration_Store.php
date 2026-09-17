@@ -102,6 +102,26 @@ final class Registration_Store extends Store {
 		return $this->find_by_uuid( $uuid ) ?? array();
 	}
 
+	/** @return int|\WP_Error */
+	public function revoke_source_units_above( int $event_id, int $order_id, int $order_item_id, int $maximum_unit ) {
+		global $wpdb;
+		$updated = $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$this->table} SET status = 'revoked', record_version = record_version + 1, updated_at_utc = %s WHERE event_id = %d AND source_order_id = %d AND source_order_item_id = %d AND source_unit_number > %d AND status <> 'revoked'",
+				self::utc_now(),
+				$event_id,
+				$order_id,
+				$order_item_id,
+				max( 0, $maximum_unit )
+			)
+		);
+		if ( false === $updated ) {
+			return new \WP_Error( 'oras_desk_projection_failed', 'Excess website registration units could not be revoked.' );
+		}
+
+		return (int) $updated;
+	}
+
 	private static function normalize_search( string $value ): string {
 		$value = strtolower( sanitize_text_field( $value ) );
 
