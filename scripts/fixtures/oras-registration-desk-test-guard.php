@@ -41,6 +41,45 @@ add_action(
 	}
 );
 
+add_action(
+	'user_register',
+	static function ( int $user_id ): void {
+		oras_registration_desk_test_log_transport(
+			'write',
+			array(
+				'kind'      => 'user_create',
+				'object_id' => $user_id,
+			)
+		);
+	}
+);
+
+add_action(
+	'woocommerce_before_order_object_save',
+	static function ( $order ): void {
+		oras_registration_desk_test_log_transport(
+			'write',
+			array(
+				'kind'      => 'order_save',
+				'object_id' => is_object( $order ) && method_exists( $order, 'get_id' ) ? (int) $order->get_id() : 0,
+			)
+		);
+	}
+);
+
+add_action(
+	'woocommerce_before_product_object_save',
+	static function ( $product ): void {
+		oras_registration_desk_test_log_transport(
+			'write',
+			array(
+				'kind'      => 'product_save',
+				'object_id' => is_object( $product ) && method_exists( $product, 'get_id' ) ? (int) $product->get_id() : 0,
+			)
+		);
+	}
+);
+
 /**
  * Append a bounded, secret-free transport observation.
  *

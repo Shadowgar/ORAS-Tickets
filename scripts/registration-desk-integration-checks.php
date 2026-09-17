@@ -253,14 +253,29 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 	}
 	$pmpro_table = $wpdb->prefix . 'pmpro_memberships_users';
 	$membership_counts['pmpro'] = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $pmpro_table ) ) === $pmpro_table ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$pmpro_table}" ) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+	$external_http = array_values(
+		array_filter(
+			(array) get_option( 'oras_registration_desk_test_http_log', array() ),
+			static fn( $row ): bool => is_array( $row ) && ! in_array( (string) ( $row['host'] ?? '' ), array( 'localhost', '127.0.0.1', '::1' ), true )
+		)
+	);
+	$order_query = wc_get_orders( array( 'limit' => 1, 'paginate' => true, 'return' => 'ids' ) );
+	$global_counts = array(
+		'orders'      => is_object( $order_query ) && isset( $order_query->total ) ? (int) $order_query->total : -1,
+		'order_items' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_order_items" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+		'products'    => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ('product','product_variation')" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
+		'users'       => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
+	);
 	return array(
 		'orders'      => oras_desk_integration_hash( $orders ),
 		'products'    => oras_desk_integration_hash( $products ),
 		'users'       => oras_desk_integration_hash( array( $users, $usermeta ) ),
 		'memberships' => oras_desk_integration_hash( $membership_counts ),
 		'qbo_actions' => oras_desk_integration_hash( $scheduled ),
-		'http_log'    => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_http_log', array() ) ),
+		'http_log'    => oras_desk_integration_hash( $external_http ),
 		'mail_log'    => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
+		'write_log'   => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
+		'global_counts' => oras_desk_integration_hash( $global_counts ),
 	);
 }
 
@@ -422,6 +437,9 @@ function oras_desk_integration_prepare(): void {
 	$other_id   = oras_desk_integration_event( $run, 'other', $today, $today );
 	$past_id    = oras_desk_integration_event( $run, 'past', $yesterday, $yesterday );
 	$config_fail_id = oras_desk_integration_event( $run, 'config-failure', $today, $today );
+	$config_race_id = oras_desk_integration_event( $run, 'config-race', $today, $today );
+	$activation_race_a = oras_desk_integration_event( $run, 'activation-race-a', $today, $today );
+	$activation_race_b = oras_desk_integration_event( $run, 'activation-race-b', $today, $today );
 	$admin_id   = wp_create_user( 'desk-admin-' . $run, wp_generate_password(), 'desk-admin-' . $run . '@example.test' );
 	$desk_id    = wp_create_user( 'desk-staff-' . $run, wp_generate_password(), 'desk-staff-' . $run . '@example.test' );
 	$member_id  = wp_create_user( 'desk-member-' . $run, wp_generate_password(), 'desk-member-' . $run . '@example.test' );
@@ -673,6 +691,11 @@ function oras_desk_integration_prepare(): void {
 		'projected'      => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
 		'quantity_unit_two' => $quantity_unit_two['registration_uuid'],
 		'options'        => $options,
+		'config_race'    => array(
+			'event_id'     => $config_race_id,
+			'activation_a' => $activation_race_a,
+			'activation_b' => $activation_race_b,
+		),
 		'token_one'      => $token_one,
 		'token_two'      => $token_two,
 	);

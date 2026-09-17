@@ -29,6 +29,7 @@ final class Admin_Settings {
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		wp_nonce_field( self::ACTION );
 		echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION ) . '">';
+		echo '<input type="hidden" name="expected_active_event_id" value="' . esc_attr( (string) $event_id ) . '">';
 		echo '<p><label>Active event ID <input name="event_id" type="number" min="1" value="' . esc_attr( (string) $event_id ) . '"></label></p>';
 		echo '<input type="hidden" name="expected_revision" value="' . esc_attr( (string) $config['revision'] ) . '">';
 		echo '<p><label>Versioned configuration JSON<br><textarea name="config_json" rows="18" cols="100">' . esc_textarea( (string) wp_json_encode( $config, JSON_PRETTY_PRINT ) ) . '</textarea></label></p>';
@@ -43,12 +44,13 @@ final class Admin_Settings {
 		check_admin_referer( self::ACTION );
 		$event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
 		$revision = isset( $_POST['expected_revision'] ) ? absint( wp_unslash( $_POST['expected_revision'] ) ) : 0;
+		$expected_active_event_id = isset( $_POST['expected_active_event_id'] ) ? absint( wp_unslash( $_POST['expected_active_event_id'] ) ) : 0;
 		$json     = isset( $_POST['config_json'] ) ? (string) wp_unslash( $_POST['config_json'] ) : '';
 		$decoded  = json_decode( $json, true );
 		if ( ! is_array( $decoded ) ) {
 			wp_die( esc_html__( 'Configuration must be valid JSON.', 'oras-tickets' ) );
 		}
-		$saved = Config::save_and_activate( $event_id, $decoded, $revision );
+		$saved = Config::save_and_activate( $event_id, $decoded, $revision, $expected_active_event_id );
 		if ( $saved instanceof \WP_Error ) {
 			wp_die( esc_html( $saved->get_error_message() ) );
 		}

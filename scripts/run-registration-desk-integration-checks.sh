@@ -12,7 +12,7 @@ fail() {
 readonly EXPECTED_ORIGIN='https://github.com/Shadowgar/ORAS-Tickets.git'
 readonly EXPECTED_BASE='b0ba56e33999d91c4183eaf95f363dd57f6ef19a'
 readonly EXPECTED_CONFIG_SHA256='bee274860fdb8def0356c732fb0dfe898dba50ed8f2e3f654ab0e8981e0d2e1b'
-readonly EXPECTED_GUARD_SHA256='6a6e40a8cf5162e2ebf26b25bd286ba9826deccbaeb4b6b470c1a1c3e884deaf'
+readonly EXPECTED_GUARD_SHA256='4faf09f2916e628f324e6bd7848e5787b3b823458fb13006db1fc778ae58fe42'
 readonly EXPECTED_PACKAGE_SHA256='0cf60445b6f2c2fd8d72374e0a5cf8021c871b536d9bff77e5b076086acc7725'
 readonly EXPECTED_LOCK_SHA256='0f4880c3d1e1a39ac2e2698b232d3c8b387ac0c107ff010da7b1d52fb88159e7'
 readonly EXPECTED_NODE_SHA256='1bec56ef7cfa9a76f3e0b7c0a87f220eb73f23102b9c0b4c7529a3f7c3ce7c31'
@@ -59,13 +59,21 @@ EXPECTED_PROJECT=''
 DISPOSABLE_MARKER=''
 INITIALIZE=0
 VERIFY_ONLY=0
+MODE='legacy'
+STORAGE_CAPTURED=0
+ORIGINAL_HPOS=''
+ORIGINAL_SYNC=''
 
-case "${1:-}" in
-	'') ;;
-	--initialize-disposable) INITIALIZE=1 ;;
-	--verify-environment-only) VERIFY_ONLY=1 ;;
-	*) fail 'supported arguments are --initialize-disposable or --verify-environment-only.' ;;
-esac
+while (( $# )); do
+	case "$1" in
+		--initialize-disposable) INITIALIZE=1 ;;
+		--verify-environment-only) VERIFY_ONLY=1 ;;
+		--mode=legacy) MODE='legacy' ;;
+		--mode=hpos) MODE='hpos' ;;
+		*) fail 'supported arguments are --initialize-disposable, --verify-environment-only, --mode=legacy, or --mode=hpos.' ;;
+	esac
+	shift
+done
 
 sha256_of() {
 	"$SHA256_BIN" "$1" | "$AWK_BIN" '{print $1}'
@@ -86,6 +94,11 @@ wp_env() {
 }
 
 cleanup() {
+	if (( STORAGE_CAPTURED )); then
+		wp_env run "$TEST_SERVICE" wp wc hpos sync >/dev/null 2>&1 || true
+		if [[ "$ORIGINAL_HPOS" == '__missing__' ]]; then wp_env run "$TEST_SERVICE" wp option delete woocommerce_custom_orders_table_enabled >/dev/null 2>&1 || true; else wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_enabled "$ORIGINAL_HPOS" >/dev/null 2>&1 || true; fi
+		if [[ "$ORIGINAL_SYNC" == '__missing__' ]]; then wp_env run "$TEST_SERVICE" wp option delete woocommerce_custom_orders_table_data_sync_enabled >/dev/null 2>&1 || true; else wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_data_sync_enabled "$ORIGINAL_SYNC" >/dev/null 2>&1 || true; fi
+	fi
 	if [[ -n "$DOCKER_CONFIG_DIR" && "$DOCKER_CONFIG_DIR" == /tmp/oras-desk-docker.* && -d "$DOCKER_CONFIG_DIR" ]]; then
 		"$FIND_BIN" "$DOCKER_CONFIG_DIR" -depth -mindepth 1 -delete
 		"$RMDIR_BIN" "$DOCKER_CONFIG_DIR"
@@ -201,6 +214,32 @@ ensure_dependencies() {
 	wp_env run "$TEST_SERVICE" wp eval 'if(!class_exists("WooCommerce")||!class_exists("Tribe__Events__Main")||!class_exists("ORAS\\Tickets\\Registration_Desk\\Schema")){exit(1);} echo WC_VERSION," ",Tribe__Events__Main::VERSION;'
 }
 
+read_option_or_missing() {
+	local name="$1" value
+	value="$(wp_env run "$TEST_SERVICE" wp option get "$name" 2>/dev/null || true)"
+	[[ -n "$value" ]] && printf '%s' "$value" || printf '%s' '__missing__'
+}
+
+configure_order_storage() {
+	local expected actual
+	ORIGINAL_HPOS="$(read_option_or_missing woocommerce_custom_orders_table_enabled)"
+	ORIGINAL_SYNC="$(read_option_or_missing woocommerce_custom_orders_table_data_sync_enabled)"
+	STORAGE_CAPTURED=1
+	wp_env run "$TEST_SERVICE" wp wc hpos sync >/dev/null || fail 'WooCommerce could not synchronize disposable fixtures before changing authoritative storage.'
+	if [[ "$MODE" == 'hpos' ]]; then
+		wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_enabled yes >/dev/null
+		wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_data_sync_enabled no >/dev/null
+		expected='1'
+	else
+		wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_enabled no >/dev/null
+		wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_data_sync_enabled no >/dev/null
+		expected='0'
+	fi
+	actual="$(wp_env run "$TEST_SERVICE" wp eval 'echo "ORAS_HPOS=" . (Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ? "1" : "0");' 2>/dev/null | /usr/bin/grep '^ORAS_HPOS=' | /usr/bin/tail -1)"
+	[[ "$actual" == "ORAS_HPOS=$expected" ]] || fail "WooCommerce did not enter requested $MODE authoritative order storage mode."
+	printf 'Verified WooCommerce order storage mode: %s\n' "$MODE"
+}
+
 run_eval_file() {
 	local file="$1" phase="$2"
 	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_TEST_PHASE','$phase');" eval-file "/var/www/html/wp-content/oras-qbo-tests/$file"
@@ -292,6 +331,38 @@ run_concurrency() {
 	[[ "$status_one" -eq 0 && "$status_two" -eq 0 ]] || fail 'an independent concurrency worker failed.'
 }
 
+run_config_race() {
+	local mode="$1" cli_id tmp_dir status_one status_two combined
+	cli_id="$(verify_container tests-cli)"
+	tmp_dir="$($MKTEMP_BIN -d /tmp/oras-desk-config-race.XXXXXX)"
+	set +e
+	docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_WORKER_INDEX',1);define('ORAS_REGISTRATION_DESK_CONFIG_RACE_MODE','$mode');" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-config-concurrency-worker.php >"$tmp_dir/one.out" 2>"$tmp_dir/one.err" &
+	local pid_one=$!
+	docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_WORKER_INDEX',2);define('ORAS_REGISTRATION_DESK_CONFIG_RACE_MODE','$mode');" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-config-concurrency-worker.php >"$tmp_dir/two.out" 2>"$tmp_dir/two.err" &
+	local pid_two=$!
+	wait "$pid_one"; status_one=$?
+	wait "$pid_two"; status_two=$?
+	set -e
+	combined="$(/usr/bin/cat "$tmp_dir/one.out" "$tmp_dir/two.out")"
+	printf 'Configuration race %s worker 1: ' "$mode"; /usr/bin/cat "$tmp_dir/one.out" "$tmp_dir/one.err"
+	printf 'Configuration race %s worker 2: ' "$mode"; /usr/bin/cat "$tmp_dir/two.out" "$tmp_dir/two.err"
+	[[ "$status_one" -eq 0 && "$status_two" -eq 0 ]] || fail "$mode configuration race worker failed."
+	[[ "$(printf '%s' "$combined" | /usr/bin/grep -o '"result":"success"' | /usr/bin/wc -l)" -eq 1 ]] || fail "$mode configuration race did not produce exactly one winner."
+	if [[ "$mode" == 'same_event' ]]; then
+		printf '%s' "$combined" | /usr/bin/grep -F '"result":"oras_desk_stale_config"' >/dev/null || fail 'same-event configuration race did not reject the stale writer.'
+	else
+		printf '%s' "$combined" | /usr/bin/grep -F '"result":"oras_desk_active_event_changed"' >/dev/null || fail 'different-event activation race did not reject the stale active-event writer.'
+		wp_env run "$TEST_SERVICE" wp eval '
+			$context=get_option("oras_registration_desk_integration_context",array());
+			wp_set_current_user((int)$context["admin_id"]);
+			$result=ORAS\Tickets\Registration_Desk\Config::set_active_event_id((int)$context["event_id"]);
+			if(is_wp_error($result)){exit(1);}
+		' >/dev/null || fail 'could not restore active event after activation race.'
+	fi
+	"$FIND_BIN" "$tmp_dir" -depth -mindepth 1 -delete
+	"$RMDIR_BIN" "$tmp_dir"
+}
+
 main() {
 	verify_static_identity
 	prepare_docker_config
@@ -310,7 +381,10 @@ main() {
 	(( VERIFY_ONLY )) && exit 0
 
 	ensure_dependencies
+	configure_order_storage
 	run_eval_file registration-desk-integration-checks.php prepare
+	run_config_race same_event
+	run_config_race activation
 	run_http_access_probes
 	run_eval_file registration-desk-integration-checks.php baseline
 	run_concurrency

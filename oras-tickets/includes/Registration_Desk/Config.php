@@ -64,8 +64,8 @@ final class Config {
 	}
 
 	/** @param array<string,mixed> $raw @return array<string,mixed>|\WP_Error */
-	public static function save_and_activate( int $event_id, array $raw, int $expected_revision ) {
-		return self::persist( $event_id, $raw, $expected_revision, true );
+	public static function save_and_activate( int $event_id, array $raw, int $expected_revision, ?int $expected_active_event_id = null ) {
+		return self::persist( $event_id, $raw, $expected_revision, true, $expected_active_event_id );
 	}
 
 	public static function get_active_event_id(): int {
@@ -109,16 +109,25 @@ final class Config {
 	}
 
 	/** @param array<string,mixed> $raw @return array<string,mixed>|\WP_Error */
-	private static function persist( int $event_id, array $raw, int $expected_revision, bool $activate ) {
+	private static function persist( int $event_id, array $raw, int $expected_revision, bool $activate, ?int $expected_active_event_id = null ) {
 		$valid = self::validate_management( $event_id );
 		if ( $valid instanceof \WP_Error ) {
 			return $valid;
 		}
 		$result = DbLock::withLock(
 			'registration-desk-config',
-			static function () use ( $event_id, $raw, $expected_revision, $activate ) {
+			static function () use ( $event_id, $raw, $expected_revision, $activate, $expected_active_event_id ) {
 				return Store::transaction(
-					static function () use ( $event_id, $raw, $expected_revision, $activate ) {
+					static function () use ( $event_id, $raw, $expected_revision, $activate, $expected_active_event_id ) {
+						if ( $activate && null !== $expected_active_event_id ) {
+							$active_event_id = self::durable_active_event_for_update();
+							if ( $active_event_id instanceof \WP_Error ) {
+								return $active_event_id;
+							}
+							if ( $active_event_id !== $expected_active_event_id ) {
+								return new \WP_Error( 'oras_desk_active_event_changed', 'The active Registration Desk event changed. Reload and try again.', array( 'status' => 409 ) );
+							}
+						}
 						$current = self::durable_event_config_for_update( $event_id );
 						if ( $current instanceof \WP_Error ) {
 							return $current;
@@ -225,6 +234,17 @@ final class Config {
 			);
 
 		return false === $written ? new \WP_Error( 'oras_desk_active_event_write_failed', 'The active Registration Desk event could not be saved.' ) : true;
+	}
+
+	/** @return int|\WP_Error */
+	private static function durable_active_event_for_update() {
+		global $wpdb;
+		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1 FOR UPDATE", self::ACTIVE_EVENT_OPTION ) );
+		if ( null === $value && '' !== $wpdb->last_error ) {
+			return new \WP_Error( 'oras_desk_active_event_read_failed', 'The active Registration Desk event could not be read.' );
+		}
+
+		return absint( $value );
 	}
 
 	private static function clear_caches( int $event_id ): void {

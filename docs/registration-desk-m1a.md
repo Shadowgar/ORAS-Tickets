@@ -17,7 +17,7 @@ Mutating attendance operations use a database transaction that covers attendee/a
 
 ## Configuration and access
 
-The feature is disabled when event metadata is absent. An administrator explicitly selects one active TEC event and saves versioned `_oras_registration_desk_v1` configuration. Each option has a stable UUID, source product mappings, classification, validity type, `available_for_new`, and independent `existing_access_valid` state. The code contains no AstroBlast, Pro-Am, or other production-event rules.
+The feature is disabled when event metadata is absent. An administrator explicitly selects one active TEC event and saves versioned `_oras_registration_desk_v1` configuration. Configuration publication and active-event selection share a global database lock; the combined administrator save performs durable revision comparison, configuration write, and active-option write in one transaction, then invalidates caches after commit or rollback. Each option has a stable UUID, source product mappings, classification, validity type, `available_for_new`, and independent `existing_access_valid` state. The code contains no AstroBlast, Pro-Am, or other production-event rules.
 
 The `oras_registration_desk` role receives only:
 
@@ -25,7 +25,7 @@ The `oras_registration_desk` role receives only:
 - `oras_tickets_use_registration_desk`
 - `oras_tickets_admit_registration_desk`
 
-Administrators also receive `oras_tickets_manage_registration_desk`. The shared role does not receive legacy check-in, event, attendee, report, export, membership, user, commerce, or settings capabilities. Restricted accounts are confined to the protected desk landing route and `/oras-tickets/v1/registration-desk/*`; other REST, wp-admin, and front-end entry points are rejected or redirected server-side.
+Administrators also receive `oras_tickets_manage_registration_desk`. The shared role does not receive legacy check-in, event, attendee, report, export, membership, user, commerce, or settings capabilities. Restricted accounts are confined to the protected desk landing route and `/oras-tickets/v1/registration-desk/*`; other REST, wp-admin, front-end, authenticated admin-AJAX, and WC-AJAX entry points are rejected or redirected server-side before their dispatchers execute.
 
 A station token is signed with the WordPress auth salt and binds a unique station UUID, shared user ID, WordPress login session, active event, configuration revision, operator label, issuance, and expiry. Tokens are device-local inputs; changing one device's label does not mutate another. Logout/session change, event change, configuration change, expiry, or capability revocation prevents protected use.
 
@@ -43,7 +43,9 @@ Resolution requires the item event to equal the target event and exactly one exp
 - Family, one-day, cross-event, conflicting mapping, unclassified, and unknown/custom status: unsupported or review required in M1A.
 - `available_for_new=false` does not revoke an existing registration. `existing_access_valid=false` does.
 
-Projection is bounded by page/limit and active event. Refresh updates only source-owned registration projection fields. It preserves registration UUIDs, attendee identity, attendance, audit, and source-null records.
+Automatic discovery is listener-only: persisted Woo order-status transitions project direct items for the active event without a request-time broad scan. Administrator recovery traverses all relevant Woo orders in ascending ID pages, including pages with no event matches. Its opaque continuation is signed and binds event, configuration revision, page size, source count, and highest order ID. Persistent `not_started`, `in_progress`, `complete`, and `failed` coverage states retain unresolved failure identity; unrelated listener success cannot erase a failure, and a changed source snapshot invalidates the old cursor.
+
+Refresh updates only source-owned registration projection fields. It preserves registration UUIDs, attendee identity, attendance, audit, and source-null records. Admission requires an active stored row plus the exact current event/order/item, exact current option UUID, and a positive source unit still within the current quantity. Quantity reductions revoke excess rows without deleting or renumbering them; remaps become review-required.
 
 ## REST contract
 
@@ -52,14 +54,14 @@ All successful responses use `Cache-Control: no-store, private`. Search/detail e
 | Route | Permission | Inputs | Success output |
 |---|---|---|---|
 | `POST /oras-tickets/v1/registration-desk/station` | `oras_tickets_use_registration_desk` | `operator_label` | station token, event ID/title, configuration revision, label |
-| `POST /oras-tickets/v1/registration-desk/project` | administrator desk-management capability + station | `page`, `limit` | bounded source resolutions and projections |
-| `GET /oras-tickets/v1/registration-desk/registrations` | desk-use capability + station | `q` (minimum two characters) | event-scoped masked matches and `coverage_complete=false` |
+| `POST /oras-tickets/v1/registration-desk/project` | administrator desk-management capability + station | opaque `continuation`, `limit` | scanned orders, matching items, continuation, projections, and coverage state |
+| `GET /oras-tickets/v1/registration-desk/registrations` | desk-use capability + station | `q` (minimum two characters) | event-scoped masked matches and current coverage state |
 | `GET /oras-tickets/v1/registration-desk/registrations/{registration_uuid}` | desk-use capability + station | operational UUID | masked registration, attendee slots, coverage limitations |
 | `POST /oras-tickets/v1/registration-desk/registrations/{registration_uuid}/confirm-and-check-in` | desk-admit capability + station | request UUID header/body, actual first/last name, site-local date, explicit-unpaid boolean | replay flag, historical result, current attendance |
 | `GET /oras-tickets/v1/registration-desk/attendance/recent` | desk-use capability + station | optional bounded `limit` | active-event attendance records |
 | `POST /oras-tickets/v1/registration-desk/registrations/{registration_uuid}/attendees/{attendee_uuid}/reverse` | administrator desk-management capability + station | request UUID, local date, expected record version, reason | replay flag, audited reversal result, current attendance |
 
-Protected routes require `X-ORAS-Desk-Station`. Mutations also require a UUID in `X-ORAS-Desk-Request` (or `request_uuid`). Representative safe errors include inactive desk, invalid/expired/stale station, changed event/config/date, missing registration, unavailable/contradictory source, review-required or ineligible source, explicit-unpaid confirmation required, attendee conflict, request binding conflict, reversed attendance, and stale reversal version.
+Protected routes require `X-ORAS-Desk-Station`. Mutations also require a UUID in `X-ORAS-Desk-Request` (or `request_uuid`). Representative safe errors include inactive desk, invalid/expired/stale station, changed event/config/date, missing or inactive registration, changed option or missing source unit, unavailable/contradictory source, review-required or ineligible source, explicit-unpaid confirmation required, attendee conflict, request binding conflict, audit persistence failure, reversed attendance, and stale reversal version.
 
 Immediately before admission, the service verifies the current active event/configuration revision, submitted site-local date, inclusive event date range, direct source association, fresh Woo status/refund evidence, supported individual/full-event classification, current option validity, and actual attendee name. There is no overnight grace period.
 
@@ -75,7 +77,7 @@ Desk operations do not create or modify Woo orders/items, status, billing, notes
 
 The test-only must-use plugin blocks all external HTTP except explicit WordPress.org package download setup, intercepts all mail, and records bounded secret-free observations. The existing Intuit blocker remains active. Tests use synthetic WP/WooCommerce/TEC data only.
 
-Qualification covers schema repetition/engines/source-null storage, projection and active-event identity, supported/unsupported classification, actual attendee confirmation, two station sessions, capability/endpoint bypasses, on-hold admission, cancellation after projection, partial refund ambiguity, date/config/event changes, projection preservation, disabled versus revoked access, replay/conflict/reversal, and protected-surface fingerprints. Two simultaneous `docker exec` WP-CLI workers use separate PHP processes and database connections against the same attendee/date; the database must contain one attendee, one daily attendance row, and two request audit results.
+Qualification covers schema repetition/engines/source-null storage, listener and signed recovery discovery, projection and active-event identity, supported/unsupported classification, exact option/unit admission, actual attendee confirmation, two station sessions, capability/endpoint bypasses, on-hold admission, cancellation after projection, partial refund ambiguity, date/config/event changes, transactional configuration rollback, projection preservation, disabled versus revoked access, audit fault retry, replay/conflict/reversal, and protected-surface fingerprints. Two simultaneous `docker exec` WP-CLI workers use separate PHP processes and database connections against the same attendee/date; the database must contain one attendee, one daily attendance row, and two request audit results. The guarded runner uses the pinned `/home/rocco/projects/oras-wp-env` toolchain and supports explicit `--mode=legacy` and `--mode=hpos`, verifies the requested authoritative Woo order store, disables compatibility synchronization for the HPOS run, and restores the prior test option state on exit.
 
 ## Deferred scope and limitations
 
