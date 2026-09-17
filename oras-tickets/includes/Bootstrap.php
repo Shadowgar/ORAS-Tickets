@@ -12,6 +12,11 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.p
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Audit_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Config.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Station_Session.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Landing_Page.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Access.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Admin_Settings.php';
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
@@ -103,6 +108,8 @@ final class Bootstrap
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
             \ORAS\Tickets\Capabilities::reconcile_roles();
         }
+        \ORAS\Tickets\Registration_Desk\Landing_Page::register();
+        \ORAS\Tickets\Registration_Desk\Access::register();
 
         // Hard deps: TEC (tribe_events) and WooCommerce.
         $has_tec = post_type_exists('tribe_events') || class_exists('Tribe__Events__Main');
@@ -209,6 +216,7 @@ final class Bootstrap
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php'; // NOSONAR legacy include
             $admin_menu = new \ORAS\Tickets\Admin\Admin_Menu();
             $admin_menu->register();
+            \ORAS\Tickets\Registration_Desk\Admin_Settings::register();
 
             // RSVP Dashboard handlers
             add_action('wp_ajax_oras_rsvp_dashboard_data', array($this, 'handle_rsvp_dashboard_data'));

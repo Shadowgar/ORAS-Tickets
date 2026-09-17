@@ -8,6 +8,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Capabilities {
 	public const EVENT_COORDINATOR_ROLE = 'event_creator';
+	public const REGISTRATION_DESK_ROLE = 'oras_registration_desk';
+	public const REGISTRATION_DESK_CAPS = [
+		'read',
+		'oras_tickets_use_registration_desk',
+		'oras_tickets_admit_registration_desk',
+	];
 
 	/**
 	 * Every ORAS-Tickets capability managed by this plugin.
@@ -29,6 +35,9 @@ final class Capabilities {
 		'oras_tickets_manage_observer_passes',
 		'oras_tickets_manage_memberships',
 		'oras_tickets_manage_speakers',
+		'oras_tickets_use_registration_desk',
+		'oras_tickets_admit_registration_desk',
+		'oras_tickets_manage_registration_desk',
 	];
 
 	/**
@@ -121,6 +130,7 @@ final class Capabilities {
 		}
 
 		self::ensure_event_coordinator_role();
+		self::ensure_registration_desk_role();
 
 		self::reconcile_role( 'administrator', array_merge( self::CAPS, self::TREASURER_ONLY_CAPS ), array_merge( self::CAPS, self::TREASURER_ONLY_CAPS ) );
 
@@ -137,6 +147,11 @@ final class Capabilities {
 			array( 'manage_options' )
 		);
 		self::reconcile_role( self::EVENT_COORDINATOR_ROLE, self::EVENT_COORDINATOR_CAPS, $coordinator_managed_caps );
+		self::reconcile_role(
+			self::REGISTRATION_DESK_ROLE,
+			self::REGISTRATION_DESK_CAPS,
+			array_merge( self::CAPS, self::TREASURER_ONLY_CAPS, self::EVENT_COORDINATOR_CAPS, array( 'manage_options' ) )
+		);
 	}
 
 	/**
@@ -176,7 +191,7 @@ final class Capabilities {
 			)
 		);
 
-		foreach ( array( 'administrator', 'board', 'board_member', 'treasurer', self::EVENT_COORDINATOR_ROLE ) as $role_slug ) {
+		foreach ( array( 'administrator', 'board', 'board_member', 'treasurer', self::EVENT_COORDINATOR_ROLE, self::REGISTRATION_DESK_ROLE ) as $role_slug ) {
 			$role = get_role( $role_slug );
 			if ( ! $role ) {
 				continue;
@@ -218,6 +233,15 @@ final class Capabilities {
 
 	public static function ensure_event_creator_role(): void {
 		self::ensure_event_coordinator_role();
+	}
+
+	public static function ensure_registration_desk_role(): void {
+		if ( ! function_exists( 'get_role' ) || ! function_exists( 'add_role' ) ) {
+			return;
+		}
+		if ( ! get_role( self::REGISTRATION_DESK_ROLE ) ) {
+			add_role( self::REGISTRATION_DESK_ROLE, 'Registration Desk', array( 'read' => true ) );
+		}
 	}
 
 	/**
