@@ -5,10 +5,11 @@ declare(strict_types=1);
 define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 if ( ! class_exists( 'WP_Error' ) ) {
-	class WP_Error {
+	class ORAS_Registration_Desk_Source_WP_Error {
 		public function __construct( public string $code = '', public string $message = '', public mixed $data = null ) {}
 		public function get_error_code(): string { return $this->code; }
 	}
+	class_alias( ORAS_Registration_Desk_Source_WP_Error::class, 'WP_Error' );
 }
 
 function sanitize_email( mixed $value ): string { return strtolower( trim( (string) $value ) ); }

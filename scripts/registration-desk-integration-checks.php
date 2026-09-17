@@ -259,7 +259,13 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 			static fn( $row ): bool => is_array( $row ) && ! in_array( (string) ( $row['host'] ?? '' ), array( 'localhost', '127.0.0.1', '::1' ), true )
 		)
 	);
-	$order_query = wc_get_orders( array( 'limit' => 1, 'paginate' => true, 'return' => 'ids' ) );
+	$order_query = wc_get_orders(
+		array(
+			'limit'    => 1,
+			'paginate' => true,
+			'return'   => 'ids',
+		)
+	);
 	$global_counts = array(
 		'orders'      => is_object( $order_query ) && isset( $order_query->total ) ? (int) $order_query->total : -1,
 		'order_items' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_order_items" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
@@ -267,14 +273,14 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		'users'       => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
 	);
 	return array(
-		'orders'      => oras_desk_integration_hash( $orders ),
-		'products'    => oras_desk_integration_hash( $products ),
-		'users'       => oras_desk_integration_hash( array( $users, $usermeta ) ),
-		'memberships' => oras_desk_integration_hash( $membership_counts ),
-		'qbo_actions' => oras_desk_integration_hash( $scheduled ),
-		'http_log'    => oras_desk_integration_hash( $external_http ),
-		'mail_log'    => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
-		'write_log'   => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
+		'orders'        => oras_desk_integration_hash( $orders ),
+		'products'      => oras_desk_integration_hash( $products ),
+		'users'         => oras_desk_integration_hash( array( $users, $usermeta ) ),
+		'memberships'   => oras_desk_integration_hash( $membership_counts ),
+		'qbo_actions'   => oras_desk_integration_hash( $scheduled ),
+		'http_log'      => oras_desk_integration_hash( $external_http ),
+		'mail_log'      => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
+		'write_log'     => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
 		'global_counts' => oras_desk_integration_hash( $global_counts ),
 	);
 }
@@ -519,19 +525,40 @@ function oras_desk_integration_prepare(): void {
 	$config = oras_desk_integration_save_config( $event_id, $options );
 	oras_desk_integration_save_config( $past_id, array( $options[0] ) );
 	oras_desk_integration_true( true === Config::set_active_event_id( $event_id ), 'administrator selects the active event' );
-	$first_combined = Config::save_and_activate( $other_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	$first_combined = Config::save_and_activate(
+		$other_id,
+		array(
+			'enabled' => true,
+			'options' => array( $options[0] ),
+		),
+		0
+	);
 	oras_desk_integration_true( is_array( $first_combined ) && 1 === $first_combined['revision'] && $other_id === Config::get_active_event_id(), 'first configuration and activation commit atomically' );
 	Config::set_active_event_id( $event_id );
 	$meta_failure = static fn() => new WP_Error( 'oras_desk_test_meta_write_failed', 'Synthetic meta write failure.' );
 	add_filter( 'oras_registration_desk_config_meta_write_error', $meta_failure );
-	$failed_meta = Config::save_and_activate( $config_fail_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	$failed_meta = Config::save_and_activate(
+		$config_fail_id,
+		array(
+			'enabled' => true,
+			'options' => array( $options[0] ),
+		),
+		0
+	);
 	remove_filter( 'oras_registration_desk_config_meta_write_error', $meta_failure );
 	oras_desk_integration_error( $failed_meta, 'oras_desk_test_meta_write_failed', 'forced configuration write failure is reported' );
 	oras_desk_integration_same( Config::get_event_config( $config_fail_id )['revision'], 0, 'failed configuration write leaves durable revision unchanged' );
 	oras_desk_integration_same( Config::get_active_event_id(), $event_id, 'failed configuration write leaves active event unchanged' );
 	$active_failure = static fn() => new WP_Error( 'oras_desk_test_active_write_failed', 'Synthetic active option failure.' );
 	add_filter( 'oras_registration_desk_config_active_write_error', $active_failure );
-	$failed_active = Config::save_and_activate( $config_fail_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	$failed_active = Config::save_and_activate(
+		$config_fail_id,
+		array(
+			'enabled' => true,
+			'options' => array( $options[0] ),
+		),
+		0
+	);
 	remove_filter( 'oras_registration_desk_config_active_write_error', $active_failure );
 	oras_desk_integration_error( $failed_active, 'oras_desk_test_active_write_failed', 'forced active-event write failure is reported' );
 	oras_desk_integration_same( Config::get_event_config( $config_fail_id )['revision'], 0, 'active-event failure rolls back the configuration write and refreshes cache' );
@@ -676,28 +703,28 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_true( 401 === $reverse_denied->get_status() || 403 === $reverse_denied->get_status(), 'desk role cannot invoke the administrator reversal endpoint' );
 
 	$context = array(
-		'run'            => $run,
-		'today'          => $today,
-		'event_id'       => $event_id,
-		'other_event_id' => $other_id,
-		'past_event_id'  => $past_id,
-		'admin_id'       => (int) $admin_id,
-		'desk_id'        => (int) $desk_id,
-		'member_id'      => (int) $member_id,
-		'user_ids'       => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
-		'product_ids'    => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ),
-		'order_ids'      => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
-		'orders'         => $orders,
-		'projected'      => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
+		'run'               => $run,
+		'today'             => $today,
+		'event_id'          => $event_id,
+		'other_event_id'    => $other_id,
+		'past_event_id'     => $past_id,
+		'admin_id'          => (int) $admin_id,
+		'desk_id'           => (int) $desk_id,
+		'member_id'         => (int) $member_id,
+		'user_ids'          => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
+		'product_ids'       => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ),
+		'order_ids'         => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
+		'orders'            => $orders,
+		'projected'         => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
 		'quantity_unit_two' => $quantity_unit_two['registration_uuid'],
-		'options'        => $options,
-		'config_race'    => array(
+		'options'           => $options,
+		'config_race'       => array(
 			'event_id'     => $config_race_id,
 			'activation_a' => $activation_race_a,
 			'activation_b' => $activation_race_b,
 		),
-		'token_one'      => $token_one,
-		'token_two'      => $token_two,
+		'token_one'         => $token_one,
+		'token_two'         => $token_two,
 	);
 	$context['baseline'] = oras_desk_integration_protected_snapshot( $context );
 	update_option( 'oras_registration_desk_integration_context', $context, false );

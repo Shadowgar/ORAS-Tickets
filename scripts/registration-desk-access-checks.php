@@ -104,7 +104,7 @@ $expired_payload = array(
 	'expires_at'      => time() - 1,
 	'wp_session'      => hash_hmac( 'sha256', 'wordpress-session-a', wp_salt( 'auth' ) ),
 );
-$expired_body = rtrim( strtr( base64_encode( (string) wp_json_encode( $expired_payload ) ), '+/', '-_' ), '=' );
+$expired_body = rtrim( strtr( base64_encode( (string) wp_json_encode( $expired_payload ) ), '+/', '-_' ), '=' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Benign URL-safe encoding for a synthetic signed-token test.
 $expired_token = $expired_body . '.' . hash_hmac( 'sha256', $expired_body, wp_salt( 'auth' ) );
 $expired_result = $station_class::validate( $expired_token, 99, 123, 7 );
 oras_access_assert( $expired_result instanceof WP_Error && 'oras_desk_station_expired' === $expired_result->get_error_code(), 'Correctly signed expired station token is rejected without sleeping' );
