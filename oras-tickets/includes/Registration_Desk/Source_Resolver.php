@@ -38,21 +38,21 @@ final class Source_Resolver {
 		return array(
 			'resolution'        => $resolution,
 			'classification'    => $classification,
-			'validity_type'      => $validity,
-			'eligibility'        => $eligibility['state'],
-			'payment_label'      => $eligibility['label'],
-			'available_for_new'  => ! empty( $option['available_for_new'] ),
-			'option_uuid'        => (string) $option['option_uuid'],
-			'option'             => $option,
-			'reason'             => '',
+			'validity_type'     => $validity,
+			'eligibility'       => $eligibility['state'],
+			'payment_label'     => $eligibility['label'],
+			'available_for_new' => ! empty( $option['available_for_new'] ),
+			'option_uuid'       => (string) $option['option_uuid'],
+			'option'            => $option,
+			'reason'            => '',
 		);
 	}
 
 	/** @return array<string,mixed> */
 	private static function review( string $reason ): array {
 		return array(
-			'resolution'       => 'review_required',
-			'classification'   => 'unclassified',
+			'resolution'        => 'review_required',
+			'classification'    => 'unclassified',
 			'validity_type'     => 'unclassified',
 			'eligibility'       => 'review_required',
 			'payment_label'     => 'Website registration requires review',

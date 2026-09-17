@@ -21,6 +21,8 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Eligibility.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Resolver.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Adapter.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Projection_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Rest_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
@@ -188,6 +190,9 @@ final class Bootstrap
 
         $checkin_api = new \ORAS\Tickets\Api\Checkin();
         $checkin_api->register();
+
+        $registration_desk_api = new \ORAS\Tickets\Registration_Desk\Rest_Controller();
+        $registration_desk_api->register();
 
         require_once ORAS_TICKETS_DIR . 'includes/Api/Rsvp.php'; // NOSONAR legacy include
         $rsvp_api = new \ORAS\Tickets\Api\Rsvp();

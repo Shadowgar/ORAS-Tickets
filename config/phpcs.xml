@@ -17,6 +17,9 @@
     <properties>
       <property name="custom_capabilities" type="array">
         <element value="manage_woocommerce"/>
+        <element value="oras_tickets_use_registration_desk"/>
+        <element value="oras_tickets_admit_registration_desk"/>
+        <element value="oras_tickets_manage_registration_desk"/>
       </property>
     </properties>
   </rule>

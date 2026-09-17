@@ -9,11 +9,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Capabilities {
 	public const EVENT_COORDINATOR_ROLE = 'event_creator';
 	public const REGISTRATION_DESK_ROLE = 'oras_registration_desk';
-	public const REGISTRATION_DESK_CAPS = [
+	public const REGISTRATION_DESK_CAPS = array(
 		'read',
 		'oras_tickets_use_registration_desk',
 		'oras_tickets_admit_registration_desk',
-	];
+	);
 
 	/**
 	 * Every ORAS-Tickets capability managed by this plugin.

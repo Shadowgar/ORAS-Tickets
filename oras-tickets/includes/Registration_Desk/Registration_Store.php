@@ -6,6 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is fixed by Schema and WordPress 6.0 lacks identifier placeholders.
+
 final class Registration_Store extends Store {
 	public function __construct() {
 		parent::__construct( 'registrations' );
@@ -14,6 +16,7 @@ final class Registration_Store extends Store {
 	/** @return array<string,mixed>|null */
 	public function find_by_uuid( string $uuid ): ?array {
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE registration_uuid = %s", $uuid ), ARRAY_A );
 
 		return is_array( $row ) ? $row : null;
@@ -22,6 +25,7 @@ final class Registration_Store extends Store {
 	/** @return array<string,mixed>|null */
 	public function find_by_source_key( int $event_id, string $source_key ): ?array {
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE event_id = %d AND source_key = %s", $event_id, $source_key ), ARRAY_A );
 
 		return is_array( $row ) ? $row : null;
@@ -53,7 +57,14 @@ final class Registration_Store extends Store {
 				$data['status'] = $status;
 			}
 			$data['record_version'] = (int) $existing['record_version'] + 1;
-			$updated = $wpdb->update( $this->table, $data, array( 'id' => (int) $existing['id'], 'record_version' => (int) $existing['record_version'] ) );
+			$updated = $wpdb->update(
+				$this->table,
+				$data,
+				array(
+					'id'             => (int) $existing['id'],
+					'record_version' => (int) $existing['record_version'],
+				)
+			);
 			if ( false === $updated ) {
 				return new \WP_Error( 'oras_desk_projection_failed', 'Website registration projection could not be refreshed.' );
 			}
@@ -65,23 +76,23 @@ final class Registration_Store extends Store {
 		$insert = array_merge(
 			$data,
 			array(
-				'registration_uuid'      => $uuid,
-				'event_id'               => $event_id,
-				'option_uuid'             => '' !== (string) $resolution['option_uuid'] ? (string) $resolution['option_uuid'] : '00000000-0000-4000-8000-000000000000',
-				'source_type'             => 'online',
-				'source_key'              => $source_key,
-				'source_order_id'         => (int) $evidence['order_id'],
-				'source_order_item_id'    => (int) $evidence['order_item_id'],
-				'source_unit_number'      => $unit,
-				'classification'          => (string) $resolution['classification'],
-				'status'                  => $status,
-				'coverage_type'           => (string) $resolution['classification'],
-				'validity_type'           => (string) $resolution['validity_type'],
-				'valid_local_date'        => null,
-				'payment_assertion'       => null,
-				'config_revision'         => $config_revision,
-				'record_version'          => 1,
-				'created_at_utc'          => $now,
+				'registration_uuid'    => $uuid,
+				'event_id'             => $event_id,
+				'option_uuid'          => '' !== (string) $resolution['option_uuid'] ? (string) $resolution['option_uuid'] : '00000000-0000-4000-8000-000000000000',
+				'source_type'          => 'online',
+				'source_key'           => $source_key,
+				'source_order_id'      => (int) $evidence['order_id'],
+				'source_order_item_id' => (int) $evidence['order_item_id'],
+				'source_unit_number'   => $unit,
+				'classification'       => (string) $resolution['classification'],
+				'status'               => $status,
+				'coverage_type'        => (string) $resolution['classification'],
+				'validity_type'        => (string) $resolution['validity_type'],
+				'valid_local_date'     => null,
+				'payment_assertion'    => null,
+				'config_revision'      => $config_revision,
+				'record_version'       => 1,
+				'created_at_utc'       => $now,
 			)
 		);
 		if ( false === $wpdb->insert( $this->table, $insert ) ) {
@@ -95,5 +106,31 @@ final class Registration_Store extends Store {
 		$value = strtolower( sanitize_text_field( $value ) );
 
 		return trim( preg_replace( '/\s+/', ' ', $value ) ?? '' );
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function search( int $event_id, string $query, int $limit = 25 ): array {
+		global $wpdb;
+		$query = self::normalize_search( $query );
+		if ( '' === $query ) {
+			return array();
+		}
+		$like = '%' . $wpdb->esc_like( $query ) . '%';
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+			$wpdb->prepare(
+				"SELECT * FROM {$this->table} WHERE event_id = %d AND (registration_uuid = %s OR search_name LIKE %s OR search_email LIKE %s OR search_phone LIKE %s OR source_key = %s) ORDER BY updated_at_utc DESC,id DESC LIMIT %d",
+				$event_id,
+				$query,
+				$like,
+				$like,
+				$like,
+				$query,
+				max( 1, min( 50, $limit ) )
+			),
+			ARRAY_A
+		);
+
+		return is_array( $rows ) ? $rows : array();
 	}
 }

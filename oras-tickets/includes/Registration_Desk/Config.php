@@ -43,8 +43,8 @@ final class Config {
 				'available_for_new'     => ! empty( $candidate['available_for_new'] ),
 				'existing_access_valid' => ! array_key_exists( 'existing_access_valid', $candidate ) || ! empty( $candidate['existing_access_valid'] ),
 				'classification'        => $classification,
-				'validity_type'          => $validity,
-				'source_product_ids'     => $product_ids,
+				'validity_type'         => $validity,
+				'source_product_ids'    => $product_ids,
 			);
 		}
 

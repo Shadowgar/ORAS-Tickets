@@ -26,7 +26,11 @@ abstract class Store {
 		return gmdate( 'Y-m-d H:i:s' );
 	}
 
-	/** @template T @param callable():T $callback @return T|\WP_Error */
+	/**
+	 * @template T
+	 * @param callable():T $callback
+	 * @return T|\WP_Error
+	 */
 	public static function transaction( callable $callback ) {
 		global $wpdb;
 		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {

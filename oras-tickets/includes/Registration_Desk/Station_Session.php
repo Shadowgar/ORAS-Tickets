@@ -12,15 +12,15 @@ final class Station_Session {
 	public static function issue( int $user_id, int $event_id, int $config_revision, string $operator_label, int $ttl = 43200 ): string {
 		$now     = time();
 		$payload = array(
-			'v'              => self::VERSION,
-			'station_uuid'   => wp_generate_uuid4(),
-			'user_id'        => $user_id,
-			'event_id'       => $event_id,
-			'config_revision'=> $config_revision,
-			'operator_label' => substr( sanitize_text_field( $operator_label ), 0, 100 ),
-			'issued_at'      => $now,
-			'expires_at'     => $now + max( 300, min( 86400, $ttl ) ),
-			'wp_session'     => self::wordpress_session_digest(),
+			'v'               => self::VERSION,
+			'station_uuid'    => wp_generate_uuid4(),
+			'user_id'         => $user_id,
+			'event_id'        => $event_id,
+			'config_revision' => $config_revision,
+			'operator_label'  => substr( sanitize_text_field( $operator_label ), 0, 100 ),
+			'issued_at'       => $now,
+			'expires_at'      => $now + max( 300, min( 86400, $ttl ) ),
+			'wp_session'      => self::wordpress_session_digest(),
 		);
 		$encoded = self::base64url_encode( (string) wp_json_encode( $payload ) );
 
@@ -63,6 +63,7 @@ final class Station_Session {
 	}
 
 	private static function base64url_encode( string $value ): string {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encodes a signed JSON token, not executable code.
 		return rtrim( strtr( base64_encode( $value ), '+/', '-_' ), '=' );
 	}
 
@@ -72,6 +73,7 @@ final class Station_Session {
 			$value .= str_repeat( '=', 4 - $padding );
 		}
 
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Decodes a signed JSON token, not executable code.
 		return base64_decode( strtr( $value, '-_', '+/' ), true );
 	}
 

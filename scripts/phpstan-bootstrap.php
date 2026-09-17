@@ -36,6 +36,10 @@ if (! defined('MINUTE_IN_SECONDS')) {
   define('MINUTE_IN_SECONDS', 60);
 }
 
+if (! defined('ARRAY_A')) {
+  define('ARRAY_A', 'ARRAY_A');
+}
+
 if (! class_exists('WP_CLI_Command')) {
   abstract class WP_CLI_Command
   {

@@ -6,6 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is fixed by Schema and WordPress 6.0 lacks identifier placeholders.
+
 final class Audit_Store extends Store {
 	public function __construct() {
 		parent::__construct( 'audit' );
@@ -14,8 +16,20 @@ final class Audit_Store extends Store {
 	/** @return array<string,mixed>|null */
 	public function find_request( string $request_uuid ): ?array {
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE request_uuid = %s", $request_uuid ), ARRAY_A );
 
 		return is_array( $row ) ? $row : null;
+	}
+
+	/** @param array<string,mixed> $record @return array<string,mixed>|\WP_Error */
+	public function append( array $record ) {
+		global $wpdb;
+		$record['created_at_utc'] = self::utc_now();
+		if ( false === $wpdb->insert( $this->table, $record ) ) {
+			return new \WP_Error( 'oras_desk_request_exists', 'This request identifier already has a result.', array( 'status' => 409 ) );
+		}
+
+		return $this->find_request( (string) $record['request_uuid'] ) ?? array();
 	}
 }

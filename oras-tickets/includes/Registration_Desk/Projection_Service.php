@@ -35,7 +35,10 @@ final class Projection_Service {
 			$rows[]     = $this->registrations->upsert_source_projection( $event_id, $source_key, $unit, $evidence, $resolution, (int) $config['revision'] );
 		}
 
-		return array( 'resolution' => $resolution, 'registrations' => $rows );
+		return array(
+			'resolution'    => $resolution,
+			'registrations' => $rows,
+		);
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
@@ -49,6 +52,10 @@ final class Projection_Service {
 			$results[] = $this->reconcile_evidence( $event_id, $evidence, $config );
 		}
 
-		return array( 'page' => max( 1, $page ), 'count' => count( $items ), 'results' => $results );
+		return array(
+			'page'    => max( 1, $page ),
+			'count'   => count( $items ),
+			'results' => $results,
+		);
 	}
 }
