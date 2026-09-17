@@ -17,6 +17,10 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Station_Session.php'
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Landing_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Access.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Admin_Settings.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Eligibility.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Resolver.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Adapter.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Projection_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
