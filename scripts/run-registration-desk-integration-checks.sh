@@ -62,6 +62,7 @@ TEST_COMPOSE_OVERRIDE=''
 DEVELOPMENT_SNAPSHOT=''
 TEST_STATE_SNAPSHOT=''
 SETTINGS_SNAPSHOT=''
+PLUGIN_STATE_SNAPSHOT=''
 EXPECTED_PROJECT=''
 EXPECTED_URL=''
 DISPOSABLE_MARKER=''
@@ -70,6 +71,7 @@ INITIALIZE_MARKER=0
 MODE='legacy'
 STORAGE_CAPTURED=0
 SETTINGS_CAPTURED=0
+PLUGIN_STATE_CAPTURED=0
 TEST_STATE_CAPTURED=0
 TEST_SERVICES_STARTED=0
 ORIGINAL_HPOS=''
@@ -336,6 +338,7 @@ verify_disposable_marker() {
 
 capture_settings() {
 	SETTINGS_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-settings.XXXXXX.json)"
+	PLUGIN_STATE_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-plugins.XXXXXX.json)"
 	if wp_env run "$TEST_SERVICE" wp option get oras_tickets_settings_v1 --format=json >"$SETTINGS_SNAPSHOT" 2>/dev/null; then
 		SETTINGS_EXISTED=1
 	else
@@ -343,10 +346,13 @@ capture_settings() {
 		: >"$SETTINGS_SNAPSHOT"
 	fi
 	SETTINGS_CAPTURED=1
+	wp_env run "$TEST_SERVICE" wp option get active_plugins --format=json >"$PLUGIN_STATE_SNAPSHOT" 2>/dev/null \
+		|| fail 'could not capture original test plugin activation state.'
+	PLUGIN_STATE_CAPTURED=1
 }
 
 restore_test_options() {
-	local status=0 settings_json
+	local status=0 settings_json plugins_json
 	if (( STORAGE_CAPTURED )); then
 		wp_env run "$TEST_SERVICE" wp wc hpos sync >/dev/null 2>&1 || status=1
 		if [[ "$ORIGINAL_HPOS" == '__missing__' ]]; then
@@ -367,6 +373,10 @@ restore_test_options() {
 		else
 			wp_env run "$TEST_SERVICE" wp option delete oras_tickets_settings_v1 >/dev/null 2>&1 || true
 		fi
+	fi
+	if (( PLUGIN_STATE_CAPTURED )); then
+		plugins_json="$(/usr/bin/cat "$PLUGIN_STATE_SNAPSHOT")"
+		wp_env run "$TEST_SERVICE" wp option update active_plugins "$plugins_json" --format=json >/dev/null 2>&1 || status=1
 	fi
 	return "$status"
 }
@@ -447,6 +457,7 @@ cleanup() {
 	remove_temp_file "$DEVELOPMENT_SNAPSHOT" '/tmp/oras-desk-development.'
 	remove_temp_file "$TEST_STATE_SNAPSHOT" '/tmp/oras-desk-test-state.'
 	remove_temp_file "$SETTINGS_SNAPSHOT" '/tmp/oras-desk-settings.'
+	remove_temp_file "$PLUGIN_STATE_SNAPSHOT" '/tmp/oras-desk-plugins.'
 	if [[ -n "$DOCKER_CONFIG_DIR" && "$DOCKER_CONFIG_DIR" == /tmp/oras-desk-docker.* && -d "$DOCKER_CONFIG_DIR" ]]; then
 		"$FIND_BIN" "$DOCKER_CONFIG_DIR" -depth -mindepth 1 -delete
 		"$RMDIR_BIN" "$DOCKER_CONFIG_DIR"
@@ -470,17 +481,29 @@ configure_safe_integrations() {
 }
 
 ensure_dependencies() {
-	if ! wp_env run "$TEST_SERVICE" wp plugin is-installed the-events-calendar >/dev/null 2>&1; then
-		wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS',true);" plugin install the-events-calendar --activate
-	else
-		wp_env run "$TEST_SERVICE" wp plugin activate the-events-calendar >/dev/null || true
+	local plugin_file plugin_slug tec_file
+	while IFS= read -r plugin_file; do
+		if [[ "$plugin_file" == */oras-tickets.php && "$plugin_file" != 'oras-tickets/oras-tickets.php' ]]; then
+			plugin_slug="${plugin_file%%/*}"
+			wp_env run "$TEST_SERVICE" wp plugin deactivate "$plugin_slug" >/dev/null \
+				|| fail "could not deactivate conflicting test plugin copy: $plugin_slug"
+		fi
+	done < <(wp_env run "$TEST_SERVICE" wp plugin list --status=active --field=file 2>/dev/null | /usr/bin/grep '/oras-tickets.php$' || true)
+
+	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("Tribe__Events__Main") ? 0 : 1);' >/dev/null 2>&1; then
+		tec_file="$(wp_env run "$TEST_SERVICE" wp plugin list --field=file 2>/dev/null | /usr/bin/grep '/the-events-calendar.php$' | /usr/bin/head -1 || true)"
+		if [[ -n "$tec_file" ]]; then
+			wp_env run "$TEST_SERVICE" wp plugin activate "${tec_file%%/*}" >/dev/null
+		else
+			wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS',true);" plugin install the-events-calendar --activate
+		fi
 	fi
-	if ! wp_env run "$TEST_SERVICE" wp plugin is-installed woocommerce >/dev/null 2>&1; then
+	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("WooCommerce") ? 0 : 1);' >/dev/null 2>&1; then
 		wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS',true);" plugin install woocommerce --activate
-	else
-		wp_env run "$TEST_SERVICE" wp plugin activate woocommerce >/dev/null || true
 	fi
-	wp_env run "$TEST_SERVICE" wp plugin activate oras-tickets >/dev/null || true
+	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("ORAS\\Tickets\\Registration_Desk\\Schema") ? 0 : 1);' >/dev/null 2>&1; then
+		wp_env run "$TEST_SERVICE" wp plugin activate oras-tickets >/dev/null
+	fi
 	wp_env run "$TEST_SERVICE" wp eval 'if(!class_exists("WooCommerce")||!class_exists("Tribe__Events__Main")||!class_exists("ORAS\\Tickets\\Registration_Desk\\Schema")){exit(1);} echo WC_VERSION," ",Tribe__Events__Main::VERSION;'
 }
 

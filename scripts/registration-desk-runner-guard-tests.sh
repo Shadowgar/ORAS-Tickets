@@ -39,6 +39,7 @@ require_text 'restore_test_services' 'Runner restores designated test mounts and
 require_text 'verify_mounted_code_identity' 'Runner verifies mounted feature code before WordPress mutation.'
 require_text '--initialize-disposable-marker' 'Marker creation requires an explicit one-time mode.'
 require_text 'test_volume' 'Runner verifies disposable database storage isolation before marker handling.'
+require_text 'active_plugins' 'Runner captures and restores test plugin activation state.'
 reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary development environment.'
 reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
 reject_text "EXPECTED_URL='http://localhost:" 'Runner does not hard-code an old test-site port.'
