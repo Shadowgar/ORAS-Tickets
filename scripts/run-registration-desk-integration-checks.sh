@@ -535,7 +535,7 @@ configure_order_storage() {
 
 run_eval_file() {
 	local file="$1" phase="$2"
-	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_TEST_PHASE','$phase');" eval-file "/var/www/html/wp-content/oras-qbo-tests/$file"
+	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_TEST_URL_EXPECTED','$EXPECTED_URL');define('ORAS_REGISTRATION_DESK_TEST_PHASE','$phase');" eval-file "/var/www/html/wp-content/oras-qbo-tests/$file"
 }
 
 auth_cookie_for_user() {

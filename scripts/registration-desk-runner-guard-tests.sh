@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly ROOT_DIR="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 readonly RUNNER="$ROOT_DIR/scripts/run-registration-desk-integration-checks.sh"
+readonly HARNESS="$ROOT_DIR/scripts/registration-desk-integration-checks.php"
 
 fail() {
 	printf 'FAIL: %s\n' "$1" >&2
@@ -44,5 +45,10 @@ reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary dev
 reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
 reject_text "EXPECTED_URL='http://localhost:" 'Runner does not hard-code an old test-site port.'
 reject_text 'wp option add oras_registration_desk_disposable_fixture_id' 'Runner never bypasses identity checks with an unconditional marker command.'
+if /usr/bin/grep -F -- 'http://localhost:8895' "$HARNESS" >/dev/null; then
+	fail 'Integration harness does not hard-code the old test-site URL.'
+fi
+pass 'Integration harness does not hard-code the old test-site URL.'
+require_text 'ORAS_REGISTRATION_DESK_TEST_URL_EXPECTED' 'Runner passes its verified dynamic URL into the integration harness.'
 
 printf '%s\n' 'Registration Desk runner guard checks passed.'

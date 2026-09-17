@@ -56,14 +56,17 @@ function oras_desk_integration_error( $value, string $code, string $message ): v
 
 /** Require the runner-established database and transport boundary. */
 function oras_desk_integration_guard(): void {
-	$expected = defined( 'ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED' ) ? ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED : '';
-	$actual   = get_option( 'oras_registration_desk_disposable_fixture_id', '' );
+	$expected     = defined( 'ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED' ) ? ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED : '';
+	$expected_url = defined( 'ORAS_REGISTRATION_DESK_TEST_URL_EXPECTED' ) ? ORAS_REGISTRATION_DESK_TEST_URL_EXPECTED : '';
+	$actual       = get_option( 'oras_registration_desk_disposable_fixture_id', '' );
 	if (
 		'' === $expected
+		|| '' === $expected_url
 		|| ! hash_equals( (string) $expected, (string) $actual )
 		|| 'tests-wordpress' !== DB_NAME
 		|| 'tests-mysql' !== DB_HOST
-		|| 'http://localhost:8895' !== get_option( 'home' )
+		|| $expected_url !== get_option( 'home' )
+		|| $expected_url !== get_option( 'siteurl' )
 		|| ! defined( 'ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE' )
 		|| ! ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE
 	) {
