@@ -15,13 +15,13 @@ pass() {
 
 require_text() {
 	local needle="$1" message="$2"
-	/usr/bin/grep -F "$needle" "$RUNNER" >/dev/null || fail "$message"
+	/usr/bin/grep -F -- "$needle" "$RUNNER" >/dev/null || fail "$message"
 	pass "$message"
 }
 
 reject_text() {
 	local needle="$1" message="$2"
-	if /usr/bin/grep -F "$needle" "$RUNNER" >/dev/null; then
+	if /usr/bin/grep -F -- "$needle" "$RUNNER" >/dev/null; then
 		fail "$message"
 	fi
 	pass "$message"
@@ -37,9 +37,11 @@ require_text 'snapshot_development_state' 'Runner snapshots ordinary development
 require_text 'verify_development_state' 'Runner verifies ordinary development services remain unchanged.'
 require_text 'restore_test_services' 'Runner restores designated test mounts and service state on exit.'
 require_text 'verify_mounted_code_identity' 'Runner verifies mounted feature code before WordPress mutation.'
+require_text '--initialize-disposable-marker' 'Marker creation requires an explicit one-time mode.'
+require_text 'test_volume' 'Runner verifies disposable database storage isolation before marker handling.'
 reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary development environment.'
 reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
 reject_text "EXPECTED_URL='http://localhost:" 'Runner does not hard-code an old test-site port.'
-reject_text 'option add oras_registration_desk_disposable_fixture_id' 'Runner never manufactures a disposable marker.'
+reject_text 'wp option add oras_registration_desk_disposable_fixture_id' 'Runner never bypasses identity checks with an unconditional marker command.'
 
 printf '%s\n' 'Registration Desk runner guard checks passed.'

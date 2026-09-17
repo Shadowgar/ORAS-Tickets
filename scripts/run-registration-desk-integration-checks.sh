@@ -66,6 +66,7 @@ EXPECTED_PROJECT=''
 EXPECTED_URL=''
 DISPOSABLE_MARKER=''
 VERIFY_ONLY=0
+INITIALIZE_MARKER=0
 MODE='legacy'
 STORAGE_CAPTURED=0
 SETTINGS_CAPTURED=0
@@ -77,10 +78,11 @@ SETTINGS_EXISTED=0
 
 while (( $# )); do
 	case "$1" in
+		--initialize-disposable-marker) INITIALIZE_MARKER=1 ;;
 		--verify-environment-only) VERIFY_ONLY=1 ;;
 		--mode=legacy) MODE='legacy' ;;
 		--mode=hpos) MODE='hpos' ;;
-		*) fail 'supported arguments are --verify-environment-only, --mode=legacy, or --mode=hpos.' ;;
+		*) fail 'supported arguments are --initialize-disposable-marker, --verify-environment-only, --mode=legacy, or --mode=hpos.' ;;
 	esac
 	shift
 done
@@ -168,7 +170,11 @@ capture_development_state_to() {
 		if [[ -z "$id" ]]; then
 			printf '%s|absent\n' "$service" >>"$destination"
 		else
-			docker_cmd inspect "$id" --format "$service|{{.Id}}|{{.State.Running}}|{{json .Mounts}}|{{json .Config.Env}}|{{index .Config.Labels \"com.docker.compose.project.config_files\"}}" >>"$destination"
+			docker_cmd inspect "$id" --format "$service|identity|{{.Id}}|{{.State.Running}}|{{index .Config.Labels \"com.docker.compose.project.config_files\"}}" >>"$destination"
+			docker_cmd inspect "$id" --format '{{range .Mounts}}{{println .Destination "|" .Type "|" .Source "|" .Name "|" .RW}}{{end}}' \
+				| /usr/bin/sort | /usr/bin/sed "s/^/$service|mount|/" >>"$destination"
+			docker_cmd inspect "$id" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+				| /usr/bin/sort | /usr/bin/sed "s/^/$service|env|/" >>"$destination"
 		fi
 	done
 }
@@ -222,8 +228,11 @@ create_test_compose_override() {
 }
 
 start_test_services() {
+	local db_id
 	TEST_SERVICES_STARTED=1
-	compose_test up -d --no-deps tests-mysql
+	db_id="$(container_id_any tests-mysql)"
+	[[ -n "$db_id" ]] || fail 'designated disposable database container disappeared before startup.'
+	docker_cmd start "$db_id" >/dev/null
 	compose_test up -d --no-deps --force-recreate tests-wordpress
 	compose_test up -d --no-deps --force-recreate tests-cli
 }
@@ -277,11 +286,18 @@ verify_mounted_code_identity() {
 }
 
 verify_runtime_identity() {
-	local cli_id wordpress_id db_id identity published_port url_port
+	local cli_id wordpress_id db_id dev_db_id test_volume dev_volume identity published_port url_port
 	cli_id="$(verify_container tests-cli)"
 	wordpress_id="$(verify_container tests-wordpress)"
 	db_id="$(verify_container tests-mysql)"
 	[[ "$(docker_cmd inspect "$db_id" --format '{{range .Config.Env}}{{println .}}{{end}}' | /usr/bin/grep '^MYSQL_DATABASE=' | /usr/bin/cut -d= -f2-)" == "$EXPECTED_DATABASE" ]] || fail 'test database container has the wrong database.'
+	test_volume="$(docker_cmd inspect "$db_id" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{println .Name}}{{end}}{{end}}')"
+	[[ "$test_volume" == "${EXPECTED_PROJECT}_tests-mysql" ]] || fail 'test database does not use the designated disposable volume.'
+	dev_db_id="$(container_id_any mysql)"
+	if [[ -n "$dev_db_id" ]]; then
+		dev_volume="$(docker_cmd inspect "$dev_db_id" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{println .Name}}{{end}}{{end}}')"
+		[[ -n "$dev_volume" && "$test_volume" != "$dev_volume" ]] || fail 'test and ordinary development databases are not storage-isolated.'
+	fi
 
 	identity="$(wp_env run "$TEST_SERVICE" wp eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
 	EXPECTED_URL="$("$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)||($v["db"]??"")!==$argv[2]||($v["host"]??"")!==$argv[3]||empty($v["registration_guard"])||empty($v["qbo_guard"])||($v["home"]??"")!==($v["siteurl"]??"")){exit(1);}echo $v["home"];' "$identity" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST")" || fail 'WordPress database or transport guard identity is unsafe.'
@@ -292,9 +308,30 @@ verify_runtime_identity() {
 }
 
 verify_disposable_marker() {
-	local marker
-	marker="$(wp_env run "$TEST_SERVICE" wp option get oras_registration_desk_disposable_fixture_id 2>/dev/null || true)"
-	[[ "$marker" == "$DISPOSABLE_MARKER" ]] || fail 'designated test database is missing the pre-existing disposable marker.'
+	local marker_state marker_status
+	marker_state="$(wp_env run "$TEST_SERVICE" wp eval '
+		$missing = new stdClass();
+		$value = get_option("oras_registration_desk_disposable_fixture_id", $missing);
+		echo wp_json_encode(array("exists" => $value !== $missing, "value" => $value !== $missing ? $value : ""));
+	' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
+	set +e
+	"$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)){exit(2);}if(!empty($v["exists"])&&($v["value"]??"")!==$argv[2]){exit(3);}exit(!empty($v["exists"])?0:1);' "$marker_state" "$DISPOSABLE_MARKER"
+	marker_status=$?
+	set -e
+	case "$marker_status" in
+		0) ;;
+		1)
+			(( INITIALIZE_MARKER )) || fail 'designated test database is missing its disposable marker; use the explicit initialization mode only after reviewing the verified identity.'
+			wp_env run "$TEST_SERVICE" wp eval "
+				if (!add_option('oras_registration_desk_disposable_fixture_id', '$DISPOSABLE_MARKER', '', false)) {
+					throw new RuntimeException('Could not initialize disposable marker.');
+				}
+			" >/dev/null || fail 'could not initialize the marker in the verified disposable database.'
+			printf '%s\n' 'Initialized marker only after verifying designated disposable database isolation.'
+			;;
+		*) fail 'designated test database contains a copied or mismatched disposable marker.' ;;
+	esac
+	[[ "$(wp_env run "$TEST_SERVICE" wp option get oras_registration_desk_disposable_fixture_id 2>/dev/null)" == "$DISPOSABLE_MARKER" ]] || fail 'disposable marker verification failed.'
 }
 
 capture_settings() {
@@ -342,7 +379,8 @@ initial_test_state() {
 restore_test_services() {
 	local service expected actual id mounts status=0
 	(( TEST_STATE_CAPTURED && TEST_SERVICES_STARTED )) || return 0
-	compose_base up -d --no-deps tests-mysql >/dev/null || status=1
+	id="$(container_id_any tests-mysql)"
+	[[ -n "$id" ]] && docker_cmd start "$id" >/dev/null || status=1
 	compose_base up -d --no-deps --force-recreate tests-wordpress >/dev/null || status=1
 	compose_base up -d --no-deps --force-recreate tests-cli >/dev/null || status=1
 	for service in tests-cli tests-wordpress tests-mysql; do
@@ -607,10 +645,10 @@ main() {
 	verify_mounted_code_identity
 	verify_runtime_identity
 	verify_disposable_marker
-	capture_settings
-	configure_safe_integrations
 	printf 'Verified disposable runtime: %s, %s@%s, %s, marker=%s\n' "$EXPECTED_PROJECT" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST" "$EXPECTED_URL" "$DISPOSABLE_MARKER"
 	(( VERIFY_ONLY )) && exit 0
+	capture_settings
+	configure_safe_integrations
 
 	ensure_dependencies
 	configure_order_storage
