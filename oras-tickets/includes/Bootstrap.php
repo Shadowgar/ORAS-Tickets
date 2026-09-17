@@ -6,6 +6,12 @@ use ORAS\Tickets\Security\CsvSafety;
 use ORAS\Tickets\Support\Logger;
 
 require_once ORAS_TICKETS_DIR . 'includes/Support/DbLock.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Schema.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Audit_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
@@ -91,6 +97,7 @@ final class Bootstrap
         \ORAS\Tickets\Data_Retention::register();
         \ORAS\Tickets\Privacy_Manager::register();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
+        \ORAS\Tickets\Registration_Desk\Schema::maybe_upgrade();
         \ORAS\Tickets\Storage\Manual_Observer_Pass_Store::register();
         \ORAS\Tickets\Storage\Legacy_Membership_Store::register();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
