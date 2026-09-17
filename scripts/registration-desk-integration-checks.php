@@ -9,6 +9,7 @@ use ORAS\Tickets\Capabilities;
 use ORAS\Tickets\Registration_Desk\Attendance_Store;
 use ORAS\Tickets\Registration_Desk\Audit_Store;
 use ORAS\Tickets\Registration_Desk\Config;
+use ORAS\Tickets\Registration_Desk\Coverage_Store;
 use ORAS\Tickets\Registration_Desk\Projection_Service;
 use ORAS\Tickets\Registration_Desk\Registration_Store;
 use ORAS\Tickets\Registration_Desk\Schema;
@@ -296,6 +297,113 @@ function oras_desk_integration_context( int $user_id, int $event_id, array $conf
 	);
 }
 
+/** Exercise listener-only discovery and deterministic administrator recovery. */
+function oras_desk_integration_discovery( string $run, int $event_id, int $other_id, int $product_id, array $config ): void {
+	$store      = new Registration_Store();
+	$projection = new Projection_Service();
+	$coverage   = new Coverage_Store();
+	$failure_filter = static function ( $error, int $candidate_event, array $evidence ) use ( $event_id ) {
+		if ( $candidate_event === $event_id && str_contains( (string) ( $evidence['contact_name'] ?? '' ), 'ListenerFailure' ) ) {
+			return new WP_Error( 'oras_desk_test_projection_failure', 'Synthetic listener failure.' );
+		}
+		return $error;
+	};
+	add_filter( 'oras_registration_desk_projection_failure', $failure_filter, 10, 3 );
+	$listener_source = oras_desk_integration_order( $product_id, $event_id, 1, 'pending', $run, 'ListenerFailure' );
+	$listener_order  = wc_get_order( $listener_source['order_id'] );
+	$listener_order->update_status( 'on-hold' );
+	remove_filter( 'oras_registration_desk_projection_failure', $failure_filter, 10 );
+	$failed_coverage = $coverage->get( $event_id, (int) $config['revision'] );
+	oras_desk_integration_same( $failed_coverage['status'], 'failed', 'listener projection failure is contained and recorded as incomplete coverage' );
+	$failure_identity = (string) $failed_coverage['unresolved_failure']['identity'];
+
+	$unrelated = oras_desk_integration_order( $product_id, $other_id, 1, 'pending', $run, 'UnrelatedDiscovery' );
+	$unrelated_order = wc_get_order( $unrelated['order_id'] );
+	$unrelated_order->update_status( 'processing' );
+	oras_desk_integration_same( $coverage->get( $event_id, (int) $config['revision'] )['unresolved_failure']['identity'], $failure_identity, 'unrelated listener success does not clear an unresolved failure' );
+
+	$listener_order->update_status( 'processing' );
+	$source_key = implode( ':', array( 'woo', $listener_source['order_id'], $listener_source['item_id'], 1 ) );
+	$listener_row = $store->find_by_source_key( $event_id, $source_key );
+	oras_desk_integration_true( is_array( $listener_row ) && 'active' === $listener_row['status'], 'pending source becomes searchable and active through the registered status listener' );
+	$listener_uuid = (string) $listener_row['registration_uuid'];
+	$listener_order->update_status( 'completed' );
+	$listener_repeat = $store->find_by_source_key( $event_id, $source_key );
+	oras_desk_integration_same( $listener_repeat['registration_uuid'], $listener_uuid, 'repeated processing and completed transitions preserve one registration identity' );
+	oras_desk_integration_true( count( ( new Service() )->search( $event_id, 'ListenerFailure' ) ) >= 1, 'newly eligible listener source is available to desk search without a broad scan' );
+
+	$first = $projection->reconcile_page( $event_id, $config, '', 1 );
+	if ( is_wp_error( $first ) ) {
+		oras_desk_integration_fail( 'first recovery page failed: ' . $first->get_error_code() );
+	}
+	oras_desk_integration_same( $first['scanned_orders'], 1, 'recovery reports source orders scanned independently of event matches' );
+	oras_desk_integration_true( true === $first['has_more'] && '' !== $first['continuation'], 'nonfinal recovery returns an opaque continuation' );
+	$tampered = substr( $first['continuation'], 0, -1 ) . ( str_ends_with( $first['continuation'], 'A' ) ? 'B' : 'A' );
+	oras_desk_integration_error( $projection->reconcile_page( $event_id, $config, $tampered, 1 ), 'oras_desk_recovery_cursor_invalid', 'tampered recovery continuation fails closed' );
+
+	oras_desk_integration_order( $product_id, $other_id, 1, 'completed', $run, 'SnapshotChange' );
+	oras_desk_integration_error( $projection->reconcile_page( $event_id, $config, $first['continuation'], 1 ), 'oras_desk_recovery_snapshot_changed', 'source snapshot change rejects an old continuation instead of claiming completion' );
+	oras_desk_integration_same( $coverage->get( $event_id, (int) $config['revision'] )['status'], 'failed', 'snapshot interruption leaves failed coverage state' );
+	$recovery_failure_source = oras_desk_integration_order( $product_id, $event_id, 1, 'completed', $run, 'RecoveryFailure' );
+	$recovery_filter = static function ( $error, int $candidate_event, array $evidence ) use ( $event_id, $recovery_failure_source ) {
+		if ( $candidate_event === $event_id && (int) ( $evidence['order_id'] ?? 0 ) === $recovery_failure_source['order_id'] ) {
+			return new WP_Error( 'oras_desk_test_recovery_failure', 'Synthetic recovery failure.' );
+		}
+		return $error;
+	};
+	add_filter( 'oras_registration_desk_projection_failure', $recovery_filter, 10, 3 );
+	$retry_continuation = '';
+	$recovery_error = null;
+	for ( $attempt = 0; $attempt < 100; ++$attempt ) {
+		$attempt_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 5 );
+		if ( is_wp_error( $attempt_result ) ) {
+			$recovery_error = $attempt_result;
+			break;
+		}
+		$retry_continuation = (string) $attempt_result['continuation'];
+		if ( ! $attempt_result['has_more'] ) {
+			break;
+		}
+	}
+	oras_desk_integration_error( $recovery_error, 'oras_desk_test_recovery_failure', 'recovery page failure is contained without advancing its cursor' );
+	$failed_recovery_state = $coverage->get( $event_id, (int) $config['revision'] );
+	oras_desk_integration_same( $failed_recovery_state['continuation'], $retry_continuation, 'failed recovery persists the exact retry continuation' );
+	remove_filter( 'oras_registration_desk_projection_failure', $recovery_filter, 10 );
+	$retry_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 5 );
+	if ( is_wp_error( $retry_result ) ) {
+		oras_desk_integration_fail( 'same-cursor recovery retry failed: ' . $retry_result->get_error_code() );
+	}
+	oras_desk_integration_true( empty( $retry_result['coverage']['unresolved_failure'] ), 'successful same-cursor retry clears only its matching recovery failure' );
+
+	$continuation = '';
+	$saw_empty_nonfinal = false;
+	$pages = 0;
+	do {
+		$page = $projection->reconcile_page( $event_id, $config, $continuation, 1 );
+		if ( is_wp_error( $page ) ) {
+			oras_desk_integration_fail( 'recovery retry failed: ' . $page->get_error_code() );
+		}
+		$saw_empty_nonfinal = $saw_empty_nonfinal || ( 0 === $page['matching_items'] && true === $page['has_more'] );
+		$continuation = (string) $page['continuation'];
+		++$pages;
+		if ( $pages > 500 ) {
+			oras_desk_integration_fail( 'recovery exceeded its bounded fixture page count.' );
+		}
+	} while ( $page['has_more'] );
+	oras_desk_integration_true( $saw_empty_nonfinal, 'recovery continues through a nonfinal source page with zero event matches' );
+	oras_desk_integration_same( $page['coverage']['status'], 'complete', 'final successful recovery page publishes complete coverage' );
+	oras_desk_integration_same( $page['coverage']['snapshot_count'], $page['source_orders'], 'complete coverage retains its source snapshot count' );
+	$post_recovery = oras_desk_integration_order( $product_id, $event_id, 1, 'pending', $run, 'AfterRecovery' );
+	$post_recovery_order = wc_get_order( $post_recovery['order_id'] );
+	$post_recovery_order->update_status( 'completed' );
+	$post_recovery_key = implode( ':', array( 'woo', $post_recovery['order_id'], $post_recovery['item_id'], 1 ) );
+	$post_recovery_row = $store->find_by_source_key( $event_id, $post_recovery_key );
+	oras_desk_integration_true( is_array( $post_recovery_row ) && 'active' === $post_recovery_row['status'], 'qualifying order completed after recovery is discovered by the listener' );
+	$post_recovery_coverage = $coverage->get( $event_id, (int) $config['revision'] );
+	oras_desk_integration_same( $post_recovery_coverage['status'], 'complete', 'successful post-recovery listener discovery preserves complete coverage' );
+	oras_desk_integration_same( $post_recovery_coverage['snapshot_highest_id'], $post_recovery['order_id'], 'listener advances the completed source snapshot to the new order' );
+}
+
 /** Prepare fixtures and run all single-connection checks. */
 function oras_desk_integration_prepare(): void {
 	global $wpdb;
@@ -425,6 +533,8 @@ function oras_desk_integration_prepare(): void {
 	if ( is_wp_error( $refund ) ) {
 		oras_desk_integration_fail( 'partial refund fixture failed: ' . $refund->get_error_message() );
 	}
+
+	oras_desk_integration_discovery( $run, $event_id, $other_id, $product_individual, $config );
 
 	$projector = new Projection_Service();
 	$projected = array();

@@ -23,7 +23,7 @@ function oras_source_assert( bool $condition, string $message ): void {
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
-foreach ( array( 'Source_Adapter.php', 'Source_Resolver.php', 'Eligibility.php', 'Projection_Service.php' ) as $file ) {
+foreach ( array( 'Coverage_Store.php', 'Recovery_Cursor.php', 'Source_Change_Listener.php', 'Source_Adapter.php', 'Source_Resolver.php', 'Eligibility.php', 'Projection_Service.php' ) as $file ) {
 	oras_source_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }

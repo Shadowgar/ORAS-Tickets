@@ -27,6 +27,10 @@ final class Projection_Service {
 
 	/** @param array<string,mixed> $evidence @param array<string,mixed> $config @return array<string,mixed>|\WP_Error */
 	public function reconcile_evidence( int $event_id, array $evidence, array $config ) {
+		$forced_failure = apply_filters( 'oras_registration_desk_projection_failure', null, $event_id, $evidence );
+		if ( $forced_failure instanceof \WP_Error ) {
+			return $forced_failure;
+		}
 		$resolution = Source_Resolver::resolve( $evidence, $event_id, $config );
 		$quantity   = max( 1, (int) ( $evidence['quantity'] ?? 1 ) );
 		$rows       = array();
@@ -42,20 +46,58 @@ final class Projection_Service {
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
-	public function reconcile_page( int $event_id, array $config, int $page = 1, int $limit = 50 ) {
-		$items = $this->adapter->page_for_event( $event_id, $page, $limit );
-		if ( $items instanceof \WP_Error ) {
-			return $items;
+	public function reconcile_page( int $event_id, array $config, string $continuation = '', int $limit = 50 ) {
+		$limit    = max( 1, min( 100, $limit ) );
+		$revision = (int) ( $config['revision'] ?? 0 );
+		$coverage = new Coverage_Store();
+		$snapshot = $this->adapter->snapshot();
+		if ( $snapshot instanceof \WP_Error ) {
+			return $snapshot;
+		}
+		if ( '' === $continuation ) {
+			$page = 1;
+			$coverage->begin( $event_id, $revision, $snapshot );
+		} else {
+			$cursor = Recovery_Cursor::validate( $continuation, $event_id, $revision, $limit, $snapshot );
+			if ( $cursor instanceof \WP_Error ) {
+				if ( 'oras_desk_recovery_snapshot_changed' === $cursor->get_error_code() ) {
+					$coverage->fail( $event_id, $revision, 'recovery_snapshot', $cursor->get_error_code(), $continuation );
+				}
+				return $cursor;
+			}
+			$page = (int) $cursor['page'];
+		}
+		$source_page = $this->adapter->page_for_event( $event_id, $page, $limit );
+		if ( $source_page instanceof \WP_Error ) {
+			$coverage->fail( $event_id, $revision, 'recovery_page:' . $page, $source_page->get_error_code(), $continuation );
+			return $source_page;
 		}
 		$results = array();
-		foreach ( $items as $evidence ) {
-			$results[] = $this->reconcile_evidence( $event_id, $evidence, $config );
+		foreach ( $source_page['items'] as $evidence ) {
+			$identity = Source_Change_Listener::identity( (int) $evidence['order_id'], (int) $evidence['order_item_id'] );
+			$result   = $this->reconcile_evidence( $event_id, $evidence, $config );
+			if ( $result instanceof \WP_Error ) {
+				$coverage->fail( $event_id, $revision, $identity, $result->get_error_code(), $continuation );
+				return $result;
+			}
+			$coverage->clear_failure( $event_id, $revision, $identity );
+			$results[] = $result;
 		}
+		$next = ! empty( $source_page['has_more'] ) ? Recovery_Cursor::issue( $event_id, $revision, $page + 1, $limit, $snapshot ) : '';
+		$state = ! empty( $source_page['has_more'] )
+			? $coverage->advance( $event_id, $revision, $snapshot, $page + 1, $next )
+			: $coverage->complete( $event_id, $revision, $snapshot );
 
 		return array(
-			'page'    => max( 1, $page ),
-			'count'   => count( $items ),
-			'results' => $results,
+			'page'           => $page,
+			'scanned_orders' => (int) $source_page['scanned_orders'],
+			'matching_items' => (int) $source_page['matching_items'],
+			'source_orders'  => (int) $source_page['source_orders'],
+			'total_pages'    => (int) $source_page['total_pages'],
+			'has_more'       => (bool) $source_page['has_more'],
+			'continuation'   => $next,
+			'coverage'       => $state,
+			'results'        => $results,
 		);
 	}
 }

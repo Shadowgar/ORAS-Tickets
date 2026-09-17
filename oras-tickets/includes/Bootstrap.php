@@ -20,7 +20,10 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Admin_Settings.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Eligibility.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Resolver.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Adapter.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Coverage_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Recovery_Cursor.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Projection_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Change_Listener.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Rest_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
@@ -193,6 +196,7 @@ final class Bootstrap
 
         $registration_desk_api = new \ORAS\Tickets\Registration_Desk\Rest_Controller();
         $registration_desk_api->register();
+        (new \ORAS\Tickets\Registration_Desk\Source_Change_Listener())->register();
 
         require_once ORAS_TICKETS_DIR . 'includes/Api/Rsvp.php'; // NOSONAR legacy include
         $rsvp_api = new \ORAS\Tickets\Api\Rsvp();

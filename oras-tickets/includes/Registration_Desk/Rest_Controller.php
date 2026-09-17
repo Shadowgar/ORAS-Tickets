@@ -128,7 +128,7 @@ final class Rest_Controller {
 			return $context;
 		}
 		$config = Config::get_event_config( $context['event_id'] );
-		$result = $this->projection->reconcile_page( $context['event_id'], $config, max( 1, (int) $request->get_param( 'page' ) ), min( 100, max( 1, (int) $request->get_param( 'limit' ) ) ) );
+		$result = $this->projection->reconcile_page( $context['event_id'], $config, trim( (string) $request->get_param( 'continuation' ) ), min( 100, max( 1, (int) $request->get_param( 'limit' ) ) ) );
 
 		return $result instanceof \WP_Error ? $result : $this->response( $result );
 	}
@@ -145,11 +145,13 @@ final class Rest_Controller {
 		}
 		$items = array_map( array( $this, 'public_registration' ), $this->service->search( $context['event_id'], $query ) );
 
+		$coverage = ( new Coverage_Store() )->get( $context['event_id'], (int) $context['config_revision'] );
 		return $this->response(
 			array(
 				'items'             => $items,
-				'coverage_complete' => false,
-				'limitations'       => array( 'M1A search includes projected direct individual registrations only.' ),
+				'coverage'          => $coverage,
+				'coverage_complete' => 'complete' === $coverage['status'],
+				'limitations'       => array( 'M1A search includes listener-discovered and recovered direct individual registrations only.' ),
 			)
 		);
 	}

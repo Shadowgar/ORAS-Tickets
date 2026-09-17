@@ -25,21 +25,54 @@ final class Source_Adapter {
 		return new \WP_Error( 'oras_desk_source_item_missing', 'Website registration item could not be found.', array( 'status' => 404 ) );
 	}
 
-	/** @return array<int,array<string,mixed>>|\WP_Error */
+	/** @return array{count:int,highest_id:int}|\WP_Error */
+	public function snapshot() {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return new \WP_Error( 'oras_desk_source_unavailable', 'WooCommerce order access is unavailable.', array( 'status' => 503 ) );
+		}
+		$result = wc_get_orders(
+			array(
+				'status'   => $this->statuses(),
+				'limit'    => 1,
+				'page'     => 1,
+				'paginate' => true,
+				'orderby'  => 'ID',
+				'order'    => 'DESC',
+				'return'   => 'ids',
+			)
+		);
+		if ( ! is_object( $result ) || ! isset( $result->orders, $result->total ) ) {
+			return new \WP_Error( 'oras_desk_source_query_failed', 'Website order coverage could not be read.', array( 'status' => 503 ) );
+		}
+		$ids = is_array( $result->orders ) ? $result->orders : array();
+
+		return array(
+			'count'      => (int) $result->total,
+			'highest_id' => empty( $ids ) ? 0 : (int) reset( $ids ),
+		);
+	}
+
+	/** @return array<string,mixed>|\WP_Error */
 	public function page_for_event( int $event_id, int $page = 1, int $limit = 50 ) {
 		if ( ! function_exists( 'wc_get_orders' ) ) {
 			return new \WP_Error( 'oras_desk_source_unavailable', 'WooCommerce order access is unavailable.', array( 'status' => 503 ) );
 		}
-		$orders   = wc_get_orders(
+		$result = wc_get_orders(
 			array(
-				'status'  => array( 'processing', 'completed', 'on-hold', 'pending', 'failed', 'cancelled', 'refunded' ),
-				'limit'   => max( 1, min( 100, $limit ) ),
-				'page'    => max( 1, $page ),
-				'orderby' => 'date',
-				'order'   => 'DESC',
+				'status'   => $this->statuses(),
+				'limit'    => max( 1, min( 100, $limit ) ),
+				'page'     => max( 1, $page ),
+				'paginate' => true,
+				'orderby'  => 'ID',
+				'order'    => 'ASC',
+				'return'   => 'objects',
 			)
 		);
+		if ( ! is_object( $result ) || ! isset( $result->orders, $result->total, $result->max_num_pages ) ) {
+			return new \WP_Error( 'oras_desk_source_query_failed', 'Website orders could not be read.', array( 'status' => 503 ) );
+		}
 		$evidence = array();
+		$orders   = is_array( $result->orders ) ? $result->orders : array();
 		foreach ( $orders as $order ) {
 			if ( ! $order instanceof \WC_Order ) {
 				continue;
@@ -51,7 +84,22 @@ final class Source_Adapter {
 			}
 		}
 
-		return $evidence;
+		return array(
+			'page'           => max( 1, $page ),
+			'scanned_orders' => count( $orders ),
+			'matching_items' => count( $evidence ),
+			'source_orders'  => (int) $result->total,
+			'total_pages'    => (int) $result->max_num_pages,
+			'has_more'       => max( 1, $page ) < (int) $result->max_num_pages,
+			'items'          => $evidence,
+		);
+	}
+
+	/** @return array<int,string> */
+	private function statuses(): array {
+		$statuses = function_exists( 'wc_get_order_statuses' ) ? array_keys( wc_get_order_statuses() ) : array();
+
+		return ! empty( $statuses ) ? $statuses : array( 'wc-pending', 'wc-processing', 'wc-on-hold', 'wc-completed', 'wc-cancelled', 'wc-refunded', 'wc-failed' );
 	}
 
 	/** @return array<string,mixed> */
