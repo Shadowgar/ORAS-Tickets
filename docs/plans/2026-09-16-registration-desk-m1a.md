@@ -103,4 +103,3 @@
 8. Run the full guarded integration command, all focused host checks, PHP syntax, PHPStan, targeted PHPCS, `git diff --check`, and existing core/capability/bootstrap regressions.
 9. Document routes, permissions, request/response/error contracts, schema, permitted writes, deferred scope, and qualification limitations.
 10. Commit as `Registration Desk: qualify nonfinancial isolation`.
-

@@ -128,7 +128,11 @@ final class Service {
 					if ( $attendance instanceof \WP_Error ) {
 						return $attendance;
 					}
-					$code = 'checked_in' === $attendance['state'] && 1 === (int) $attendance['record_version'] ? 'checked_in' : 'already_checked_in';
+					if ( 'reversed' === $attendance['state'] ) {
+						return new \WP_Error( 'oras_desk_attendance_reversed', 'Today’s attendance was reversed by an administrator and cannot be restored by retry.', array( 'status' => 409 ) );
+					}
+					$code = ! empty( $attendance['_was_created'] ) ? 'checked_in' : 'already_checked_in';
+					unset( $attendance['_was_created'] );
 				} else {
 					$code = 'already_checked_in';
 				}

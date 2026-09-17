@@ -1,0 +1,781 @@
+<?php
+/**
+ * Disposable WordPress/WooCommerce/TEC integration checks for Registration Desk M1A.
+ *
+ * @package ORAS\Tickets
+ */
+
+use ORAS\Tickets\Capabilities;
+use ORAS\Tickets\Registration_Desk\Attendance_Store;
+use ORAS\Tickets\Registration_Desk\Audit_Store;
+use ORAS\Tickets\Registration_Desk\Config;
+use ORAS\Tickets\Registration_Desk\Projection_Service;
+use ORAS\Tickets\Registration_Desk\Registration_Store;
+use ORAS\Tickets\Registration_Desk\Schema;
+use ORAS\Tickets\Registration_Desk\Service;
+use ORAS\Tickets\Registration_Desk\Station_Session;
+
+if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) || ! WP_CLI ) {
+	exit( 1 );
+}
+
+/** Fail without leaking fixture secrets. */
+function oras_desk_integration_fail( string $message ): void {
+	WP_CLI::error( 'Registration Desk integration failure: ' . $message );
+}
+
+/** Report one qualified assertion. */
+function oras_desk_integration_pass( string $message ): void {
+	WP_CLI::log( 'PASS: ' . $message );
+}
+
+/** @param mixed $actual @param mixed $expected */
+function oras_desk_integration_same( $actual, $expected, string $message ): void {
+	if ( $actual !== $expected ) {
+		oras_desk_integration_fail( $message . ' (expected ' . wp_json_encode( $expected ) . ', received ' . wp_json_encode( $actual ) . ')' );
+	}
+	oras_desk_integration_pass( $message );
+}
+
+/** @param mixed $value */
+function oras_desk_integration_true( $value, string $message ): void {
+	if ( true !== $value ) {
+		oras_desk_integration_fail( $message );
+	}
+	oras_desk_integration_pass( $message );
+}
+
+/** @param mixed $value */
+function oras_desk_integration_error( $value, string $code, string $message ): void {
+	if ( ! is_wp_error( $value ) || $code !== $value->get_error_code() ) {
+		oras_desk_integration_fail( $message . ' (expected ' . $code . ')' );
+	}
+	oras_desk_integration_pass( $message );
+}
+
+/** Require the runner-established database and transport boundary. */
+function oras_desk_integration_guard(): void {
+	$expected = defined( 'ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED' ) ? ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED : '';
+	$actual   = get_option( 'oras_registration_desk_disposable_fixture_id', '' );
+	if (
+		'' === $expected
+		|| ! hash_equals( (string) $expected, (string) $actual )
+		|| 'tests-wordpress' !== DB_NAME
+		|| 'tests-mysql' !== DB_HOST
+		|| 'http://localhost:8895' !== get_option( 'home' )
+		|| ! defined( 'ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE' )
+		|| ! ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE
+	) {
+		oras_desk_integration_fail( 'disposable database or transport guard identity is not established.' );
+	}
+}
+
+/** @param mixed $value @return mixed */
+function oras_desk_integration_canonicalize( $value ) {
+	if ( ! is_array( $value ) ) {
+		return $value;
+	}
+	if ( array_keys( $value ) !== range( 0, count( $value ) - 1 ) ) {
+		ksort( $value, SORT_STRING );
+	}
+	foreach ( $value as $key => $item ) {
+		$value[ $key ] = oras_desk_integration_canonicalize( $item );
+	}
+	return $value;
+}
+
+/** @param mixed $value */
+function oras_desk_integration_hash( $value ): string {
+	return hash( 'sha256', (string) wp_json_encode( oras_desk_integration_canonicalize( $value ) ) );
+}
+
+/** Create one synthetic TEC event without using production-specific names. */
+function oras_desk_integration_event( string $run, string $suffix, string $start_date, string $end_date ): int {
+	$timezone  = new DateTimeZone( 'America/New_York' );
+	$start_utc = ( new DateTimeImmutable( $start_date . ' 00:00:00', $timezone ) )->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
+	$end_utc   = ( new DateTimeImmutable( $end_date . ' 23:59:59', $timezone ) )->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
+	$event_id = wp_insert_post(
+		array(
+			'post_type'   => 'tribe_events',
+			'post_status' => 'publish',
+			'post_title'  => 'Desk fixture ' . $run . ' ' . $suffix,
+			'meta_input'  => array(
+				'_EventStartDate'    => $start_date . ' 00:00:00',
+				'_EventEndDate'      => $end_date . ' 23:59:59',
+				'_EventStartDateUTC' => $start_utc,
+				'_EventEndDateUTC'   => $end_utc,
+				'_EventTimezone'     => 'America/New_York',
+			),
+		)
+	);
+	if ( is_wp_error( $event_id ) || (int) $event_id <= 0 ) {
+		oras_desk_integration_fail( 'synthetic event creation failed.' );
+	}
+	return (int) $event_id;
+}
+
+/** Create one synthetic product. */
+function oras_desk_integration_product( string $run, string $suffix ): int {
+	$product = new WC_Product_Simple();
+	$product->set_name( 'Desk fixture ' . $run . ' ' . $suffix );
+	$product->set_status( 'publish' );
+	$product->set_virtual( true );
+	$product->set_regular_price( '20.00' );
+	$product->set_manage_stock( true );
+	$product->set_stock_quantity( 100 );
+	$product_id = (int) $product->save();
+	if ( $product_id <= 0 ) {
+		oras_desk_integration_fail( 'synthetic product creation failed.' );
+	}
+	return $product_id;
+}
+
+/** @return array{order_id:int,item_id:int} */
+function oras_desk_integration_order( int $product_id, int $source_event_id, int $quantity, string $status, string $run, string $suffix ): array {
+	$order = wc_create_order();
+	if ( is_wp_error( $order ) || ! $order instanceof WC_Order ) {
+		oras_desk_integration_fail( 'synthetic order creation failed.' );
+	}
+	$order->set_billing_first_name( 'Purchaser' );
+	$order->set_billing_last_name( $suffix );
+	$order->set_billing_email( strtolower( $suffix ) . '-' . $run . '@example.test' );
+	$order->set_billing_phone( '814-555-01' . str_pad( (string) ( strlen( $suffix ) % 100 ), 2, '0', STR_PAD_LEFT ) );
+	$item = new WC_Order_Item_Product();
+	$item->set_product_id( $product_id );
+	$item->set_quantity( $quantity );
+	$item->set_subtotal( 20 * $quantity );
+	$item->set_total( 20 * $quantity );
+	$item->add_meta_data( '_oras_ticket_event_id', (string) $source_event_id, true );
+	$item->add_meta_data( '_oras_ticket_index', '99', true );
+	$item->add_meta_data( '_oras_ticket_name', 'Historical label ignored by desk', true );
+	$order->add_item( $item );
+	$order->calculate_totals( false );
+	$order->save();
+	$order->set_status( $status );
+	$order->save();
+	$item_ids = array_keys( $order->get_items( 'line_item' ) );
+	return array(
+		'order_id' => (int) $order->get_id(),
+		'item_id'  => (int) reset( $item_ids ),
+	);
+}
+
+/** @param array<int,array<string,mixed>> $options @return array<string,mixed> */
+function oras_desk_integration_save_config( int $event_id, array $options, bool $enabled = true ): array {
+	$current = Config::get_event_config( $event_id );
+	$result  = Config::save_event_config(
+		$event_id,
+		array(
+			'enabled' => $enabled,
+			'options' => $options,
+		),
+		(int) $current['revision']
+	);
+	if ( is_wp_error( $result ) ) {
+		oras_desk_integration_fail( 'versioned event configuration could not be saved: ' . $result->get_error_code() );
+	}
+	return $result;
+}
+
+/** Snapshot one Woo order including notes, items, and metadata. */
+function oras_desk_integration_order_snapshot( int $order_id ): array {
+	$order = wc_get_order( $order_id );
+	if ( ! $order instanceof WC_Order ) {
+		return array();
+	}
+	$items = array();
+	foreach ( $order->get_items( array( 'line_item', 'refund', 'fee', 'shipping', 'coupon' ) ) as $item_id => $item ) {
+		$items[ $item_id ] = array(
+			'data' => $item->get_data(),
+			'meta' => array_map(
+				static fn( $meta ) => array(
+					'key'   => $meta->key,
+					'value' => $meta->value,
+				),
+				$item->get_meta_data()
+			),
+		);
+	}
+	$notes = array_map(
+		static fn( $note ) => array(
+			'content' => $note->content,
+			'type'    => $note->customer_note,
+		),
+		wc_get_order_notes(
+			array(
+				'order_id' => $order_id,
+				'limit'    => -1,
+			)
+		)
+	);
+	return array(
+		'data'  => $order->get_data(),
+		'meta'  => array_map(
+			static fn( $meta ) => array(
+				'key'   => $meta->key,
+				'value' => $meta->value,
+			),
+			$order->get_meta_data()
+		),
+		'items' => $items,
+		'notes' => $notes,
+	);
+}
+
+/** Capture every protected non-desk surface after fixture setup. */
+function oras_desk_integration_protected_snapshot( array $context ): array {
+	global $wpdb;
+	$orders = array();
+	foreach ( $context['order_ids'] as $order_id ) {
+		$orders[ $order_id ] = oras_desk_integration_order_snapshot( (int) $order_id );
+	}
+	$products = array();
+	foreach ( $context['product_ids'] as $product_id ) {
+		$product = wc_get_product( (int) $product_id );
+		$products[ $product_id ] = array(
+			'data' => $product ? $product->get_data() : array(),
+			'meta' => get_post_meta( (int) $product_id ),
+		);
+	}
+	$user_ids = array_map( 'intval', $context['user_ids'] );
+	$ids_sql  = implode( ',', $user_ids );
+	$users    = $wpdb->get_results( "SELECT * FROM {$wpdb->users} WHERE ID IN ({$ids_sql}) ORDER BY ID", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are fixture integers.
+	$usermeta = $wpdb->get_results( "SELECT * FROM {$wpdb->usermeta} WHERE user_id IN ({$ids_sql}) ORDER BY umeta_id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are fixture integers.
+	$scheduled = array();
+	$actions_table = $wpdb->prefix . 'actionscheduler_actions';
+	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $actions_table ) ) === $actions_table ) {
+		$scheduled = $wpdb->get_results( "SELECT hook,status,args,group_id FROM {$actions_table} WHERE hook LIKE 'oras_tickets_qbo_%' ORDER BY action_id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+	}
+	$membership_counts = array();
+	foreach ( array( 'wc_user_membership', 'shop_subscription' ) as $post_type ) {
+		$membership_counts[ $post_type ] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s", $post_type ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
+	}
+	$pmpro_table = $wpdb->prefix . 'pmpro_memberships_users';
+	$membership_counts['pmpro'] = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $pmpro_table ) ) === $pmpro_table ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$pmpro_table}" ) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+	return array(
+		'orders'      => oras_desk_integration_hash( $orders ),
+		'products'    => oras_desk_integration_hash( $products ),
+		'users'       => oras_desk_integration_hash( array( $users, $usermeta ) ),
+		'memberships' => oras_desk_integration_hash( $membership_counts ),
+		'qbo_actions' => oras_desk_integration_hash( $scheduled ),
+		'http_log'    => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_http_log', array() ) ),
+		'mail_log'    => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
+	);
+}
+
+/** Locate an expected callback class on a hook. */
+function oras_desk_integration_hook_has_class( string $hook, string $class_name ): bool {
+	global $wp_filter;
+	if ( empty( $wp_filter[ $hook ] ) || ! $wp_filter[ $hook ] instanceof WP_Hook ) {
+		return false;
+	}
+	foreach ( $wp_filter[ $hook ]->callbacks as $callbacks ) {
+		foreach ( $callbacks as $callback ) {
+			$function = $callback['function'] ?? null;
+			if ( is_array( $function ) && is_object( $function[0] ) && $function[0] instanceof $class_name ) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/** Build a Service context from a verified station payload. */
+function oras_desk_integration_context( int $user_id, int $event_id, array $config, string $token, string $request_uuid ): array {
+	$station = Station_Session::validate( $token, $user_id, $event_id, (int) $config['revision'] );
+	if ( is_wp_error( $station ) ) {
+		oras_desk_integration_fail( 'station context validation failed.' );
+	}
+	return array(
+		'event_id'        => $event_id,
+		'config_revision' => (int) $config['revision'],
+		'actor_user_id'   => $user_id,
+		'station_uuid'    => (string) $station['station_uuid'],
+		'operator_label'  => (string) $station['operator_label'],
+		'request_uuid'    => $request_uuid,
+	);
+}
+
+/** Prepare fixtures and run all single-connection checks. */
+function oras_desk_integration_prepare(): void {
+	global $wpdb;
+	update_option( 'timezone_string', 'America/New_York', false );
+	Schema::install();
+	$tables_first = Schema::table_names();
+	Schema::install();
+	oras_desk_integration_true( Schema::tables_exist(), 'repeat-safe schema setup leaves all four tables present' );
+	oras_desk_integration_true( Schema::verify_transactional_tables(), 'all four desk tables use InnoDB' );
+	oras_desk_integration_same( count( $tables_first ), 4, 'schema owns exactly four desk tables' );
+
+	$run        = strtolower( wp_generate_password( 8, false, false ) );
+	$today      = wp_date( 'Y-m-d', null, wp_timezone() );
+	$yesterday  = wp_date( 'Y-m-d', time() - DAY_IN_SECONDS, wp_timezone() );
+	$event_id   = oras_desk_integration_event( $run, 'active', $today, $today );
+	$other_id   = oras_desk_integration_event( $run, 'other', $today, $today );
+	$past_id    = oras_desk_integration_event( $run, 'past', $yesterday, $yesterday );
+	$admin_id   = wp_create_user( 'desk-admin-' . $run, wp_generate_password(), 'desk-admin-' . $run . '@example.test' );
+	$desk_id    = wp_create_user( 'desk-staff-' . $run, wp_generate_password(), 'desk-staff-' . $run . '@example.test' );
+	$member_id  = wp_create_user( 'desk-member-' . $run, wp_generate_password(), 'desk-member-' . $run . '@example.test' );
+	if ( is_wp_error( $admin_id ) || is_wp_error( $desk_id ) || is_wp_error( $member_id ) ) {
+		oras_desk_integration_fail( 'synthetic users could not be created.' );
+	}
+	( new WP_User( $admin_id ) )->set_role( 'administrator' );
+	Capabilities::reconcile_roles();
+	( new WP_User( $desk_id ) )->set_role( Capabilities::REGISTRATION_DESK_ROLE );
+	( new WP_User( $member_id ) )->set_role( 'subscriber' );
+	wp_set_current_user( (int) $admin_id );
+
+	$product_individual = oras_desk_integration_product( $run, 'individual' );
+	$product_family     = oras_desk_integration_product( $run, 'family' );
+	$product_day        = oras_desk_integration_product( $run, 'one-day' );
+	$product_ambiguous  = oras_desk_integration_product( $run, 'ambiguous' );
+	$product_unknown    = oras_desk_integration_product( $run, 'unclassified' );
+	update_post_meta( $product_individual, '_oras_ticket_event_id', $event_id );
+	update_post_meta( $product_individual, '_oras_ticket_index', 0 );
+	$options = array(
+		array(
+			'option_uuid'           => '11111111-1111-4111-8111-111111111111',
+			'label'                 => 'Individual',
+			'available_for_new'     => true,
+			'existing_access_valid' => true,
+			'classification'        => 'individual',
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( $product_individual ),
+		),
+		array(
+			'option_uuid'           => '22222222-2222-4222-8222-222222222222',
+			'label'                 => 'Family',
+			'available_for_new'     => true,
+			'existing_access_valid' => true,
+			'classification'        => 'family',
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( $product_family ),
+		),
+		array(
+			'option_uuid'           => '33333333-3333-4333-8333-333333333333',
+			'label'                 => 'One day',
+			'available_for_new'     => true,
+			'existing_access_valid' => true,
+			'classification'        => 'individual',
+			'validity_type'         => 'one_day',
+			'source_product_ids'    => array( $product_day ),
+		),
+		array(
+			'option_uuid'           => '44444444-4444-4444-8444-444444444444',
+			'label'                 => 'Ambiguous A',
+			'available_for_new'     => true,
+			'existing_access_valid' => true,
+			'classification'        => 'individual',
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( $product_ambiguous ),
+		),
+		array(
+			'option_uuid'           => '55555555-5555-4555-8555-555555555555',
+			'label'                 => 'Ambiguous B',
+			'available_for_new'     => true,
+			'existing_access_valid' => true,
+			'classification'        => 'individual',
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( $product_ambiguous ),
+		),
+		array(
+			'option_uuid'           => '66666666-6666-4666-8666-666666666666',
+			'label'                 => 'Unclassified',
+			'available_for_new'     => false,
+			'existing_access_valid' => true,
+			'classification'        => 'unclassified',
+			'validity_type'         => 'unclassified',
+			'source_product_ids'    => array( $product_unknown ),
+		),
+	);
+	$config = oras_desk_integration_save_config( $event_id, $options );
+	oras_desk_integration_save_config( $past_id, array( $options[0] ) );
+	oras_desk_integration_true( true === Config::set_active_event_id( $event_id ), 'administrator selects the active event' );
+
+	$orders = array(
+		'concurrent'   => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
+		'atomic'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Atomic' ),
+		'completed'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
+		'on_hold'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
+		'cancelled'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
+		'family'       => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
+		'one_day'      => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
+		'ambiguous'    => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
+		'unclassified' => oras_desk_integration_order( $product_unknown, $event_id, 1, 'completed', $run, 'Unknown' ),
+		'cross_event'  => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
+		'partial'      => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
+		'past'         => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
+	);
+	$refund = wc_create_refund(
+		array(
+			'order_id'       => $orders['partial']['order_id'],
+			'amount'         => 20,
+			'reason'         => 'Synthetic partial-refund fixture',
+			'refund_payment' => false,
+			'restock_items'  => false,
+			'line_items'     => array(
+				$orders['partial']['item_id'] => array(
+					'qty'          => 1,
+					'refund_total' => 20,
+					'refund_tax'   => array(),
+				),
+			),
+		)
+	);
+	if ( is_wp_error( $refund ) ) {
+		oras_desk_integration_fail( 'partial refund fixture failed: ' . $refund->get_error_message() );
+	}
+
+	$projector = new Projection_Service();
+	$projected = array();
+	foreach ( $orders as $key => $source ) {
+		$target_config = 'past' === $key ? Config::get_event_config( $past_id ) : $config;
+		$target_event  = 'past' === $key ? $past_id : $event_id;
+		$result = $projector->reconcile_source( $target_event, $source['order_id'], $source['item_id'], $target_config );
+		if ( is_wp_error( $result ) ) {
+			oras_desk_integration_fail( 'projection failed for ' . $key . ': ' . $result->get_error_code() );
+		}
+		$projected[ $key ] = $result;
+	}
+	oras_desk_integration_same( $projected['concurrent']['resolution']['resolution'], 'supported', 'direct individual source resolves through immutable event and product evidence' );
+	oras_desk_integration_same( $projected['family']['resolution']['resolution'], 'unsupported_family', 'family source remains explicitly unsupported' );
+	oras_desk_integration_same( $projected['one_day']['resolution']['resolution'], 'unsupported_one_day', 'one-day source remains explicitly unsupported' );
+	oras_desk_integration_same( $projected['ambiguous']['resolution']['resolution'], 'review_required', 'conflicting mappings require review' );
+	oras_desk_integration_same( $projected['unclassified']['resolution']['resolution'], 'review_required', 'unclassified source requires review' );
+	oras_desk_integration_same( $projected['cross_event']['resolution']['resolution'], 'review_required', 'cross-event source is not inferred into the active event' );
+	oras_desk_integration_same( $projected['partial']['resolution']['eligibility'], 'review_required', 'partial-refund unit ambiguity requires review' );
+
+	$registration_store = new Registration_Store();
+	$concurrent_row = $projected['concurrent']['registrations'][0];
+	$repeat = $projector->reconcile_source( $event_id, $orders['concurrent']['order_id'], $orders['concurrent']['item_id'], $config );
+	oras_desk_integration_same( $repeat['registrations'][0]['registration_uuid'], $concurrent_row['registration_uuid'], 'source projection is repeat-safe and preserves registration identity' );
+	$service = new Service();
+	oras_desk_integration_true( count( $service->search( $event_id, 'Concurrent' ) ) >= 1, 'event-scoped operational search finds the supported registration' );
+	oras_desk_integration_error( $service->detail( $other_id, $concurrent_row['registration_uuid'] ), 'oras_desk_registration_missing', 'object access cannot cross the active event boundary' );
+
+	$cancel_order = wc_get_order( $orders['cancelled']['order_id'] );
+	$cancel_order->set_status( 'cancelled' );
+	$cancel_order->save();
+	oras_desk_integration_pass( 'cancellation fixture changed after projection/search and before desk admission' );
+
+	$now = gmdate( 'Y-m-d H:i:s' );
+	$source_null_uuid = wp_generate_uuid4();
+	$inserted = $wpdb->insert(
+		$tables_first['registrations'],
+		array(
+			'registration_uuid'     => $source_null_uuid,
+			'event_id'              => $event_id,
+			'option_uuid'           => '11111111-1111-4111-8111-111111111111',
+			'source_type'           => 'complimentary',
+			'source_key'            => null,
+			'source_order_id'       => null,
+			'source_order_item_id'  => null,
+			'source_unit_number'    => null,
+			'classification'        => 'individual',
+			'status'                => 'active',
+			'source_status'         => '',
+			'source_contact_name'   => '',
+			'source_email'          => '',
+			'source_phone'          => '',
+			'search_name'           => 'future fixture',
+			'search_email'          => '',
+			'search_phone'          => '',
+			'coverage_type'         => 'individual',
+			'validity_type'         => 'full_event',
+			'valid_local_date'      => null,
+			'payment_assertion'     => null,
+			'source_evidence'       => '{}',
+			'source_checked_at_utc' => null,
+			'config_revision'       => (int) $config['revision'],
+			'record_version'        => 1,
+			'created_at_utc'        => $now,
+			'updated_at_utc'        => $now,
+		)
+	);
+	oras_desk_integration_same( $inserted, 1, 'source-null registration is accepted without a fake order' );
+
+	wp_set_current_user( (int) $desk_id );
+	$token_one = Station_Session::issue( (int) $desk_id, $event_id, (int) $config['revision'], 'Operator One' );
+	$token_two = Station_Session::issue( (int) $desk_id, $event_id, (int) $config['revision'], 'Operator Two' );
+	$station_one = Station_Session::validate( $token_one, (int) $desk_id, $event_id, (int) $config['revision'] );
+	$station_two = Station_Session::validate( $token_two, (int) $desk_id, $event_id, (int) $config['revision'] );
+	oras_desk_integration_true( ! is_wp_error( $station_one ) && ! is_wp_error( $station_two ) && $station_one['station_uuid'] !== $station_two['station_uuid'], 'two devices retain independent station identities under one shared login' );
+	oras_desk_integration_same( $station_one['operator_label'], 'Operator One', 'first device retains its operator label' );
+	oras_desk_integration_same( $station_two['operator_label'], 'Operator Two', 'second device retains its operator label' );
+
+	rest_get_server();
+	$station_request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/station' );
+	$station_request->set_param( 'operator_label', 'REST Operator' );
+	$station_response = rest_do_request( $station_request );
+	oras_desk_integration_same( $station_response->get_status(), 200, 'restricted desk account can bootstrap a station without an existing station token' );
+	$bypass_response = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/users' ) );
+	oras_desk_integration_same( $bypass_response->get_data()['code'] ?? '', 'oras_desk_route_forbidden', 'restricted account cannot bypass into a non-desk REST endpoint' );
+	wp_set_current_user( (int) $member_id );
+	$denied_response = rest_do_request( $station_request );
+	oras_desk_integration_true( 401 === $denied_response->get_status() || 403 === $denied_response->get_status(), 'ordinary subscriber cannot use the desk endpoint directly' );
+	wp_set_current_user( (int) $desk_id );
+	$reverse_request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/registrations/' . wp_generate_uuid4() . '/attendees/' . wp_generate_uuid4() . '/reverse' );
+	$reverse_denied = rest_do_request( $reverse_request );
+	oras_desk_integration_true( 401 === $reverse_denied->get_status() || 403 === $reverse_denied->get_status(), 'desk role cannot invoke the administrator reversal endpoint' );
+
+	$context = array(
+		'run'            => $run,
+		'today'          => $today,
+		'event_id'       => $event_id,
+		'other_event_id' => $other_id,
+		'past_event_id'  => $past_id,
+		'admin_id'       => (int) $admin_id,
+		'desk_id'        => (int) $desk_id,
+		'member_id'      => (int) $member_id,
+		'user_ids'       => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
+		'product_ids'    => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown ),
+		'order_ids'      => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
+		'orders'         => $orders,
+		'projected'      => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
+		'options'        => $options,
+		'token_one'      => $token_one,
+		'token_two'      => $token_two,
+	);
+	$context['baseline'] = oras_desk_integration_protected_snapshot( $context );
+	update_option( 'oras_registration_desk_integration_context', $context, false );
+	oras_desk_integration_pass( 'protected commerce, account, integration, and transport baseline captured after fixture-only mutations' );
+
+	$config = Config::get_event_config( $event_id );
+	$desk_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$payload = array(
+		'first_name'            => 'Actual',
+		'last_name'             => 'Attendee',
+		'attendance_local_date' => $today,
+		'explicit_unpaid'       => false,
+	);
+	$atomic_request = wp_generate_uuid4();
+	$atomic_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, $atomic_request );
+	$atomic_registration = $registration_store->find_by_uuid( $context['projected']['atomic'] );
+	$trigger_name = $wpdb->prefix . 'oras_desk_test_audit_fail';
+	$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Verified disposable fixture trigger.
+	$trigger_sql = "CREATE TRIGGER {$trigger_name} BEFORE INSERT ON {$tables_first['audit']} FOR EACH ROW BEGIN IF NEW.request_uuid = '" . esc_sql( $atomic_request ) . "' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'synthetic audit failure'; END IF; END";
+	if ( false === $wpdb->query( $trigger_sql ) ) { // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Verified disposable fixture SQL.
+		oras_desk_integration_fail( 'could not install the synthetic audit-failure trigger.' );
+	}
+	$prior_suppression = $wpdb->suppress_errors( true );
+	$atomic_result = $service->confirm_and_check_in(
+		$context['projected']['atomic'],
+		array(
+			'first_name'            => 'Atomic',
+			'last_name'             => 'Rollback',
+			'attendance_local_date' => $today,
+			'explicit_unpaid'       => false,
+		),
+		$atomic_context
+	);
+	$wpdb->suppress_errors( $prior_suppression );
+	$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Verified disposable fixture trigger.
+	oras_desk_integration_true( is_wp_error( $atomic_result ), 'synthetic audit failure prevents operation success' );
+	$atomic_attendees = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['attendees']} WHERE registration_id = %d", $atomic_registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	$atomic_attendance = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['attendance']} WHERE attendee_id IN (SELECT id FROM {$tables_first['attendees']} WHERE registration_id = %d)", $atomic_registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk tables.
+	$atomic_audits = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['audit']} WHERE request_uuid = %s", $atomic_request ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( array( $atomic_attendees, $atomic_attendance ), array( 0, 0 ), 'attendee and attendance mutation roll back when audit persistence fails' );
+	oras_desk_integration_same( $atomic_audits, 0, 'failed atomic operation leaves no partial audit result' );
+	$completed = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
+	oras_desk_integration_true( is_array( $completed ) && 'checked_in' === $completed['historical_result']['result'], 'actual arriving individual is confirmed and checked in' );
+	$replay = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
+	oras_desk_integration_true( is_array( $replay ) && true === $replay['replayed'], 'same request and binding returns its recorded result' );
+	$changed_payload = $payload;
+	$changed_payload['last_name'] = 'Different';
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['completed'], $changed_payload, $desk_context ), 'oras_desk_request_conflict', 'conflicting reuse of a request identifier fails safely' );
+
+	$on_hold_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$on_hold_payload = array(
+		'first_name'            => 'Unpaid',
+		'last_name'             => 'Arrival',
+		'attendance_local_date' => $today,
+		'explicit_unpaid'       => false,
+	);
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['on_hold'], $on_hold_payload, $on_hold_context ), 'oras_desk_unpaid_confirmation_required', 'on-hold source requires explicit unpaid admission' );
+	$on_hold_payload['explicit_unpaid'] = true;
+	$on_hold_context['request_uuid'] = wp_generate_uuid4();
+	$on_hold_result = $service->confirm_and_check_in( $context['projected']['on_hold'], $on_hold_payload, $on_hold_context );
+	oras_desk_integration_true( is_array( $on_hold_result ) && true === $on_hold_result['historical_result']['explicit_unpaid'], 'explicit unpaid admission records intent without marking the source paid' );
+
+	$cancel_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['cancelled'], $payload, $cancel_context ), 'oras_desk_not_eligible', 'source cancellation after search is revalidated and blocks admission' );
+	$partial_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['partial'], $payload, $partial_context ), 'oras_desk_not_eligible', 'partial-refund ambiguity blocks admission' );
+	$date_payload = $payload;
+	$date_payload['attendance_local_date'] = $yesterday;
+	$date_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['concurrent'], $date_payload, $date_context ), 'oras_desk_date_changed', 'request spanning a site-local date boundary fails instead of substituting a date' );
+
+	$attendance = $completed['current_attendance'];
+	$attendee_uuid = $completed['historical_result']['attendee_uuid'];
+	wp_set_current_user( (int) $admin_id );
+	$admin_token = Station_Session::issue( (int) $admin_id, $event_id, (int) $config['revision'], 'Administrator' );
+	$admin_context = oras_desk_integration_context( (int) $admin_id, $event_id, $config, $admin_token, wp_generate_uuid4() );
+	$reverse = $service->reverse(
+		$context['projected']['completed'],
+		$attendee_uuid,
+		array(
+			'attendance_local_date'   => $today,
+			'expected_record_version' => (int) $attendance['record_version'],
+			'reason'                  => 'Synthetic correction',
+		),
+		$admin_context
+	);
+	oras_desk_integration_true( is_array( $reverse ) && 'reversed' === $reverse['current_attendance']['state'], 'administrator reversal records reason and guarded version' );
+	$stale_context = $admin_context;
+	$stale_context['request_uuid'] = wp_generate_uuid4();
+	oras_desk_integration_error(
+		$service->reverse(
+			$context['projected']['completed'],
+			$attendee_uuid,
+			array(
+				'attendance_local_date'   => $today,
+				'expected_record_version' => 1,
+				'reason'                  => 'Stale retry',
+			),
+			$stale_context
+		),
+		'oras_desk_attendance_stale',
+		'stale reversal version fails safely'
+	);
+	wp_set_current_user( (int) $desk_id );
+	$post_reversal_replay = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
+	oras_desk_integration_true( true === $post_reversal_replay['replayed'] && 'reversed' === $post_reversal_replay['current_attendance']['state'], 'replay returns historical success with current reversed state' );
+
+	$before_detail = $service->detail( $event_id, $context['projected']['completed'] );
+	$before_attendee_uuid = $before_detail['attendees'][0]['attendee_uuid'];
+	$before_audit_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['audit']} WHERE registration_uuid = %s", $context['projected']['completed'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	$projector->reconcile_source( $event_id, $orders['completed']['order_id'], $orders['completed']['item_id'], $config );
+	$after_detail = $service->detail( $event_id, $context['projected']['completed'] );
+	$after_audit_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['audit']} WHERE registration_uuid = %s", $context['projected']['completed'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( $after_detail['attendees'][0]['attendee_uuid'], $before_attendee_uuid, 'projection rebuild preserves confirmed attendee identity' );
+	oras_desk_integration_same( $after_audit_count, $before_audit_count, 'projection rebuild preserves audit history' );
+
+	wp_set_current_user( (int) $admin_id );
+	$disabled_options = $options;
+	$disabled_options[0]['available_for_new'] = false;
+	$config_disabled = oras_desk_integration_save_config( $event_id, $disabled_options );
+	$disabled_projection = $projector->reconcile_source( $event_id, $orders['concurrent']['order_id'], $orders['concurrent']['item_id'], $config_disabled );
+	oras_desk_integration_same( $disabled_projection['resolution']['eligibility'], 'eligible', 'disabling new registration does not revoke existing access' );
+	$revoked_options = $disabled_options;
+	$revoked_options[0]['existing_access_valid'] = false;
+	$config_revoked = oras_desk_integration_save_config( $event_id, $revoked_options );
+	$revoked_projection = $projector->reconcile_source( $event_id, $orders['concurrent']['order_id'], $orders['concurrent']['item_id'], $config_revoked );
+	oras_desk_integration_same( $revoked_projection['resolution']['eligibility'], 'revoked', 'explicit existing-access revocation changes current eligibility' );
+	$old_station_result = Station_Session::validate( $token_one, (int) $desk_id, $event_id, (int) $config_revoked['revision'] );
+	oras_desk_integration_error( $old_station_result, 'oras_desk_station_config_changed', 'configuration revision invalidates an open station request' );
+	$config_final = oras_desk_integration_save_config( $event_id, $options );
+	$projector->reconcile_source( $event_id, $orders['concurrent']['order_id'], $orders['concurrent']['item_id'], $config_final );
+	wp_set_current_user( (int) $desk_id );
+	$event_token = Station_Session::issue( (int) $desk_id, $event_id, (int) $config_final['revision'], 'Event Switch' );
+	wp_set_current_user( (int) $admin_id );
+	Config::set_active_event_id( $other_id );
+	wp_set_current_user( (int) $desk_id );
+	oras_desk_integration_error( Station_Session::validate( $event_token, (int) $desk_id, $other_id, 0 ), 'oras_desk_station_event_changed', 'active-event change invalidates an open station request' );
+	wp_set_current_user( (int) $admin_id );
+	Config::set_active_event_id( $past_id );
+	$past_config = Config::get_event_config( $past_id );
+	wp_set_current_user( (int) $desk_id );
+	$past_token = Station_Session::issue( (int) $desk_id, $past_id, (int) $past_config['revision'], 'Past Event' );
+	$past_context = oras_desk_integration_context( (int) $desk_id, $past_id, $past_config, $past_token, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['past'], $payload, $past_context ), 'oras_desk_wrong_date', 'today outside the event date range is rejected with no grace period' );
+	wp_set_current_user( (int) $admin_id );
+	Config::set_active_event_id( $event_id );
+	wp_set_current_user( (int) $desk_id );
+
+	$concurrency_token_one = Station_Session::issue( (int) $desk_id, $event_id, (int) $config_final['revision'], 'Concurrent One' );
+	$concurrency_token_two = Station_Session::issue( (int) $desk_id, $event_id, (int) $config_final['revision'], 'Concurrent Two' );
+	$context['concurrency'] = array(
+		'config_revision'   => (int) $config_final['revision'],
+		'registration_uuid' => $context['projected']['concurrent'],
+		'token_one'         => $concurrency_token_one,
+		'token_two'         => $concurrency_token_two,
+		'request_one'       => wp_generate_uuid4(),
+		'request_two'       => wp_generate_uuid4(),
+	);
+	update_option( 'oras_registration_desk_integration_context', $context, false );
+	oras_desk_integration_pass( 'single-connection qualification complete; independent workers are prepared' );
+}
+
+/** Verify concurrent results, side-effect isolation, and the normal checkout control. */
+function oras_desk_integration_finish(): void {
+	global $wpdb;
+	$context = get_option( 'oras_registration_desk_integration_context', array() );
+	if ( ! is_array( $context ) || empty( $context['concurrency'] ) ) {
+		oras_desk_integration_fail( 'prepared concurrency context is missing.' );
+	}
+	$tables = Schema::table_names();
+	$registration = ( new Registration_Store() )->find_by_uuid( $context['concurrency']['registration_uuid'] );
+	$attendee_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['attendees']} WHERE registration_id = %d", $registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	$attendance_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['attendance']} WHERE event_id = %d AND attendance_local_date = %s AND attendee_id IN (SELECT id FROM {$tables['attendees']} WHERE registration_id = %d)", $context['event_id'], $context['today'], $registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk tables.
+	$audit_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['audit']} WHERE request_uuid IN (%s,%s)", $context['concurrency']['request_one'], $context['concurrency']['request_two'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( $attendee_count, 1, 'independent concurrent confirmations produce one stable attendee slot' );
+	oras_desk_integration_same( $attendance_count, 1, 'database uniqueness permits one daily attendance row under concurrency' );
+	oras_desk_integration_same( $audit_count, 2, 'both concurrent request identifiers have deterministic audit results' );
+
+	wp_set_current_user( (int) $context['desk_id'] );
+	$request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/registrations/' . $context['concurrency']['registration_uuid'] . '/confirm-and-check-in' );
+	$request->set_header( 'X-ORAS-Desk-Station', $context['concurrency']['token_one'] );
+	$request->set_header( 'X-ORAS-Desk-Request', $context['concurrency']['request_one'] );
+	$request->set_body_params(
+		array(
+			'first_name'            => 'Concurrent',
+			'last_name'             => 'Arrival',
+			'attendance_local_date' => $context['today'],
+			'explicit_unpaid'       => false,
+		)
+	);
+	$replay = rest_do_request( $request );
+	oras_desk_integration_true( 200 === $replay->get_status() && true === ( $replay->get_data()['replayed'] ?? false ), 'lost-response retry replays one concurrent request through the authenticated REST contract' );
+	wp_set_current_user( (int) $context['member_id'] );
+	$unauthorized_replay = rest_do_request( $request );
+	oras_desk_integration_true( 401 === $unauthorized_replay->get_status() || 403 === $unauthorized_replay->get_status(), 'knowing a request UUID does not authorize replay' );
+
+	$after = oras_desk_integration_protected_snapshot( $context );
+	foreach ( $context['baseline'] as $surface => $hash ) {
+		oras_desk_integration_same( $after[ $surface ], $hash, 'desk operations leave ' . $surface . ' unchanged' );
+	}
+
+	oras_desk_integration_true( oras_desk_integration_hook_has_class( 'woocommerce_checkout_create_order_line_item', 'ORAS\\Tickets\\Commerce\\Woo\\Product_Sync' ), 'normal checkout item-snapshot integration remains registered' );
+	oras_desk_integration_true( oras_desk_integration_hook_has_class( 'woocommerce_order_status_completed', 'ORAS\\Tickets\\Commerce\\Woo\\Capacity_Consumption' ), 'normal paid-order capacity integration remains registered' );
+	oras_desk_integration_true( oras_desk_integration_hook_has_class( 'woocommerce_order_status_completed', 'ORAS\\Tickets\\Integrations\\QuickBooks\\Sync_Orchestrator' ), 'normal completed-order QuickBooks integration remains registered' );
+
+	$control_product = wc_get_product( (int) $context['product_ids'][0] );
+	$control_item = new WC_Order_Item_Product();
+	$control_item->set_product( $control_product );
+	$control_item->set_quantity( 1 );
+	$control_item->set_subtotal( 20 );
+	$control_item->set_total( 20 );
+	$control_order = wc_create_order();
+	do_action( 'woocommerce_checkout_create_order_line_item', $control_item, 'desk-control', array(), $control_order );
+	oras_desk_integration_same( (int) $control_item->get_meta( '_oras_ticket_event_id', true ), (int) $context['event_id'], 'normal checkout control executes the existing ORAS item-snapshot hook' );
+	$control_order->add_item( $control_item );
+	$control_order->calculate_totals( false );
+	$control_order->save();
+	do_action( 'woocommerce_order_status_completed', (int) $control_order->get_id() );
+	$control_order = wc_get_order( $control_order->get_id() );
+	oras_desk_integration_same( (string) $control_order->get_meta( '_oras_capacity_consumed', true ), '1', 'normal paid-order control executes existing internal capacity behavior' );
+	$qbo_actions = function_exists( 'as_get_scheduled_actions' ) ? as_get_scheduled_actions(
+		array(
+			'hook'     => 'oras_tickets_qbo_sync_order',
+			'args'     => array( (int) $control_order->get_id() ),
+			'per_page' => 20,
+		)
+	) : array();
+	oras_desk_integration_same( count( $qbo_actions ), 0, 'QuickBooks dry-run control executes without queueing remote work' );
+	oras_desk_integration_true( defined( 'ORAS_QBO_HTTP_BLOCK_ACTIVE' ) && ORAS_QBO_HTTP_BLOCK_ACTIVE, 'Intuit-specific HTTP blocker remains active during the checkout control' );
+
+	unset( $context['token_one'], $context['token_two'], $context['concurrency']['token_one'], $context['concurrency']['token_two'] );
+	update_option( 'oras_registration_desk_integration_context', $context, false );
+	WP_CLI::success( 'Registration Desk WordPress/WooCommerce/TEC integration qualification passed.' );
+}
+
+oras_desk_integration_guard();
+$phase = defined( 'ORAS_REGISTRATION_DESK_TEST_PHASE' ) ? ORAS_REGISTRATION_DESK_TEST_PHASE : '';
+if ( 'prepare' === $phase ) {
+	oras_desk_integration_prepare();
+} elseif ( 'finish' === $phase ) {
+	oras_desk_integration_finish();
+} else {
+	oras_desk_integration_fail( 'unknown integration phase.' );
+}

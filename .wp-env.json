@@ -7,6 +7,7 @@
   ],
   "mappings": {
     "wp-content/mu-plugins/oras-qbo-http-block.php": "./scripts/fixtures/oras-qbo-http-block.php",
+    "wp-content/mu-plugins/oras-registration-desk-test-guard.php": "./scripts/fixtures/oras-registration-desk-test-guard.php",
     "wp-content/oras-qbo-tests": "./scripts"
   },
   "config": {

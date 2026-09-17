@@ -51,6 +51,10 @@ foreach ( array( 'station', 'search', 'detail', 'confirm_and_check_in', 'recent'
 
 $service_code = (string) file_get_contents( $base . 'Service.php' );
 oras_operation_assert( false !== strpos( $service_code, 'Store::transaction' ), 'Business mutation and audit use a database transaction' );
+$attendee_store_code = (string) file_get_contents( $base . 'Attendee_Store.php' );
+$attendance_store_code = (string) file_get_contents( $base . 'Attendance_Store.php' );
+oras_operation_assert( false !== strpos( $attendee_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Attendee confirmation converges concurrent inserts atomically' );
+oras_operation_assert( false !== strpos( $attendance_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Daily attendance converges concurrent inserts atomically' );
 oras_operation_assert( false !== strpos( $service_code, 'source_adapter->load' ), 'Check-in revalidates the Woo source immediately' );
 oras_operation_assert( false !== strpos( $service_code, 'explicit_unpaid_required' ), 'On-hold admission requires explicit unpaid intent' );
 oras_operation_assert( false !== strpos( $service_code, 'expected_record_version' ), 'Reversal binds the expected attendance version' );

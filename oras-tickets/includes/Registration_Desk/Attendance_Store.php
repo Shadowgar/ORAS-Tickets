@@ -39,36 +39,48 @@ final class Attendance_Store extends Store {
 		return is_array( $row ) ? $row : null;
 	}
 
+	/** @return array<string,mixed>|null */
+	private function find_current_by_id( int $id ): ?array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE id = %d FOR UPDATE", $id ), ARRAY_A );
+
+		return is_array( $row ) ? $row : null;
+	}
+
 	/** @return array<string,mixed>|\WP_Error */
 	public function check_in( int $event_id, int $attendee_id, string $local_date, int $actor_user_id, string $station_uuid, string $operator_label ) {
 		global $wpdb;
 		$now = self::utc_now();
-		$ok  = $wpdb->insert(
-			$this->table,
-			array(
-				'event_id'                  => $event_id,
-				'attendee_id'               => $attendee_id,
-				'attendance_local_date'     => $local_date,
-				'state'                     => 'checked_in',
-				'record_version'            => 1,
-				'checked_in_at_utc'         => $now,
-				'checked_in_by'             => $actor_user_id,
-				'checked_in_station_uuid'   => $station_uuid,
-				'checked_in_operator_label' => $operator_label,
-				'created_at_utc'            => $now,
-				'updated_at_utc'            => $now,
-			)
+		// Atomically converge simultaneous first check-ins on the unique daily
+		// row. The duplicate branch leaves original attribution untouched.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+		$sql = $wpdb->prepare(
+			"INSERT INTO {$this->table} (event_id,attendee_id,attendance_local_date,state,record_version,checked_in_at_utc,checked_in_by,checked_in_station_uuid,checked_in_operator_label,created_at_utc,updated_at_utc) VALUES (%d,%d,%s,%s,%d,%s,%d,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
+			$event_id,
+			$attendee_id,
+			$local_date,
+			'checked_in',
+			1,
+			$now,
+			$actor_user_id,
+			$station_uuid,
+			$operator_label,
+			$now,
+			$now
 		);
-		if ( false === $ok ) {
-			$existing = $this->find_daily( $event_id, $attendee_id, $local_date );
-			if ( $existing ) {
-				return $existing;
-			}
-
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query was prepared immediately above.
+		$affected = $wpdb->query( $sql );
+		if ( false === $affected ) {
 			return new \WP_Error( 'oras_desk_attendance_create_failed', 'Attendance could not be recorded.', array( 'status' => 500 ) );
 		}
+		$attendance = $this->find_current_by_id( (int) $wpdb->insert_id );
+		if ( ! $attendance ) {
+			return new \WP_Error( 'oras_desk_attendance_create_failed', 'Attendance could not be recorded.', array( 'status' => 500 ) );
+		}
+		$attendance['_was_created'] = 1 === (int) $affected;
 
-		return $this->find_by_id( (int) $wpdb->insert_id ) ?? array();
+		return $attendance;
 	}
 
 	/** @return array<string,mixed>|\WP_Error */

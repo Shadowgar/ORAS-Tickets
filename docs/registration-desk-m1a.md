@@ -1,0 +1,82 @@
+# Registration Desk M1A Backend Contract
+
+M1A is an inactive-by-default, backend-only foundation for admitting an existing direct individual online registration. It contains no event-specific configuration, no production event names, no final volunteer UI, and no walk-in creation.
+
+## Storage and migration
+
+`Registration_Desk\Schema::maybe_upgrade()` installs additive schema version 1 through WordPress `dbDelta()`. Activation also calls the repeat-safe installer. Existing tables are never dropped or recreated, and successful installation records `oras_registration_desk_schema_version` only after all four prefixed tables exist and report the InnoDB engine.
+
+The four desk-owned tables are:
+
+- `{$wpdb->prefix}oras_event_registrations`: stable registration UUID and desk option UUID; event, classification, current eligibility/provenance projection, configuration revision, guarded record version, and nullable source key/order/item/unit fields. A unique `(event_id, source_key)` identity makes online projection repeat-safe while allowing source-null future complimentary or walk-in records.
+- `{$wpdb->prefix}oras_event_attendees`: stable attendee UUID and `(registration_id, slot_key)` identity. M1A uses `individual-1`; confirmed attendee identity remains separate from purchaser contact data.
+- `{$wpdb->prefix}oras_event_attendance`: site-local attendance date and UTC action timestamps, original actor/station/operator attribution, reversal fields, and guarded record version. A unique `(event_id, attendee_id, attendance_local_date)` key prevents simultaneous duplicate attendance.
+- `{$wpdb->prefix}oras_event_audit`: one append-only row per request UUID, binding operation, event, actor, station, normalized payload hash, configuration revision, result references/JSON, meaningful changes, and UTC timestamp.
+
+Mutating attendance operations use a database transaction that covers attendee/attendance mutation and its audit result. A callback error or failed commit rolls back the unit. Replays compare the complete request binding and return both the historical result and current attendance state.
+
+## Configuration and access
+
+The feature is disabled when event metadata is absent. An administrator explicitly selects one active TEC event and saves versioned `_oras_registration_desk_v1` configuration. Each option has a stable UUID, source product mappings, classification, validity type, `available_for_new`, and independent `existing_access_valid` state. The code contains no AstroBlast, Pro-Am, or other production-event rules.
+
+The `oras_registration_desk` role receives only:
+
+- `read`
+- `oras_tickets_use_registration_desk`
+- `oras_tickets_admit_registration_desk`
+
+Administrators also receive `oras_tickets_manage_registration_desk`. The shared role does not receive legacy check-in, event, attendee, report, export, membership, user, commerce, or settings capabilities. Restricted accounts are confined to the protected desk landing route and `/oras-tickets/v1/registration-desk/*`; other REST, wp-admin, and front-end entry points are rejected or redirected server-side.
+
+A station token is signed with the WordPress auth salt and binds a unique station UUID, shared user ID, WordPress login session, active event, configuration revision, operator label, issuance, and expiry. Tokens are device-local inputs; changing one device's label does not mutate another. Logout/session change, event change, configuration change, expiry, or capability revocation prevents protected use.
+
+## Source and eligibility contract
+
+`Source_Adapter` uses WooCommerce getters only. It loads a direct order/item association and derives immutable item event ID, product ID, quantity/refunded quantity, order status, and contact/search evidence. It never saves an order, item, product, payment, or refund.
+
+Resolution requires the item event to equal the target event and exactly one explicit current configuration mapping for the immutable product ID. Historical ticket index and label are retained only as evidence and never classify a purchase.
+
+- Individual + full-event + processing/completed: supported and normally eligible.
+- On-hold: supported only through explicit unpaid admission; this does not mark the order paid.
+- Pending/failed: inactive.
+- Cancelled/fully refunded: revoked.
+- Partial refund with ambiguous covered unit: review required.
+- Family, one-day, cross-event, conflicting mapping, unclassified, and unknown/custom status: unsupported or review required in M1A.
+- `available_for_new=false` does not revoke an existing registration. `existing_access_valid=false` does.
+
+Projection is bounded by page/limit and active event. Refresh updates only source-owned registration projection fields. It preserves registration UUIDs, attendee identity, attendance, audit, and source-null records.
+
+## REST contract
+
+All successful responses use `Cache-Control: no-store, private`. Search/detail expose operational registration UUIDs, masked contact data, and explicit coverage limitations; order IDs are not route identities.
+
+| Route | Permission | Inputs | Success output |
+|---|---|---|---|
+| `POST /oras-tickets/v1/registration-desk/station` | `oras_tickets_use_registration_desk` | `operator_label` | station token, event ID/title, configuration revision, label |
+| `POST /oras-tickets/v1/registration-desk/project` | administrator desk-management capability + station | `page`, `limit` | bounded source resolutions and projections |
+| `GET /oras-tickets/v1/registration-desk/registrations` | desk-use capability + station | `q` (minimum two characters) | event-scoped masked matches and `coverage_complete=false` |
+| `GET /oras-tickets/v1/registration-desk/registrations/{registration_uuid}` | desk-use capability + station | operational UUID | masked registration, attendee slots, coverage limitations |
+| `POST /oras-tickets/v1/registration-desk/registrations/{registration_uuid}/confirm-and-check-in` | desk-admit capability + station | request UUID header/body, actual first/last name, site-local date, explicit-unpaid boolean | replay flag, historical result, current attendance |
+| `GET /oras-tickets/v1/registration-desk/attendance/recent` | desk-use capability + station | optional bounded `limit` | active-event attendance records |
+| `POST /oras-tickets/v1/registration-desk/registrations/{registration_uuid}/attendees/{attendee_uuid}/reverse` | administrator desk-management capability + station | request UUID, local date, expected record version, reason | replay flag, audited reversal result, current attendance |
+
+Protected routes require `X-ORAS-Desk-Station`. Mutations also require a UUID in `X-ORAS-Desk-Request` (or `request_uuid`). Representative safe errors include inactive desk, invalid/expired/stale station, changed event/config/date, missing registration, unavailable/contradictory source, review-required or ineligible source, explicit-unpaid confirmation required, attendee conflict, request binding conflict, reversed attendance, and stale reversal version.
+
+Immediately before admission, the service verifies the current active event/configuration revision, submitted site-local date, inclusive event date range, direct source association, fresh Woo status/refund evidence, supported individual/full-event classification, current option validity, and actual attendee name. There is no overnight grace period.
+
+## Exact write boundary
+
+Desk operations may write only the four desk tables, the active-event/configuration settings, role/capability reconciliation, and stateless station response data. Configuration and synthetic staff users are administrator/test setup, not attendee creation.
+
+Desk operations do not create or modify Woo orders/items, status, billing, notes, metadata, payments, refunds, products, prices, stock, capacity, Stripe state, QuickBooks payloads/queues/retries/ledger calls, WordPress attendee/customer users, memberships, subscriptions, RSVP records, or purchase/account mail. Existing checkout hooks remain registered; the qualification harness exercises normal item snapshot and paid-order capacity behavior with QuickBooks disabled/dry-run and all delivery/remote transports intercepted.
+
+## Qualification harness
+
+`scripts/run-registration-desk-integration-checks.sh` derives a unique Compose identity from the isolated worktree and refuses unknown repository/toolchain identities, active port collisions, wrong database/container/mount/URL identities, and missing or mismatched disposable markers. The one-time `--initialize-disposable` mode only accepts a never-created project identity. The marker is established before WooCommerce/TEC activation, desk migration, or fixtures.
+
+The test-only must-use plugin blocks all external HTTP except explicit WordPress.org package download setup, intercepts all mail, and records bounded secret-free observations. The existing Intuit blocker remains active. Tests use synthetic WP/WooCommerce/TEC data only.
+
+Qualification covers schema repetition/engines/source-null storage, projection and active-event identity, supported/unsupported classification, actual attendee confirmation, two station sessions, capability/endpoint bypasses, on-hold admission, cancellation after projection, partial refund ambiguity, date/config/event changes, projection preservation, disabled versus revoked access, replay/conflict/reversal, and protected-surface fingerprints. Two simultaneous `docker exec` WP-CLI workers use separate PHP processes and database connections against the same attendee/date; the database must contain one attendee, one daily attendance row, and two request audit results.
+
+## Deferred scope and limitations
+
+M1A deliberately does not implement walk-ins, complimentary creation, family members, one-day admission, cross-event access, joint capacity, payment collection/labels for new registrations, final volunteer screens, manager PINs, legacy imports, offline synchronization, exports, printing, or production event configuration. Search coverage is explicitly incomplete until the deferred source types are implemented. Operator labels are informational attribution, not separately authenticated people. Production access and production-data validation remain deferred.
