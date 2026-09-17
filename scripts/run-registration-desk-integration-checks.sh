@@ -61,6 +61,7 @@ BASE_COMPOSE_FILE=''
 TEST_COMPOSE_OVERRIDE=''
 DEVELOPMENT_SNAPSHOT=''
 TEST_STATE_SNAPSHOT=''
+TEST_CONFIG_SNAPSHOT=''
 SETTINGS_SNAPSHOT=''
 PLUGIN_STATE_SNAPSHOT=''
 EXPECTED_PROJECT=''
@@ -105,6 +106,10 @@ wp_env() {
 	"$ENV_BIN" -i HOME="$HOME" PATH='/usr/local/bin:/usr/bin:/bin' DOCKER_CONFIG="$DOCKER_CONFIG_DIR" CI=1 COMPOSE_BAKE=false \
 		"$NODE_BIN" -e 'const project=process.argv[1];const cli=process.argv[2];const args=process.argv.slice(3);process.chdir(project);require(cli)().parse(args);' \
 		"$WP_ENV_PROJECT" "$WP_ENV_CLI" "$@"
+}
+
+wp_safe() {
+	wp_env run "$TEST_SERVICE" wp --skip-plugins --skip-themes "$@"
 }
 
 verify_static_identity() {
@@ -201,16 +206,50 @@ verify_development_state() {
 }
 
 snapshot_test_state() {
-	local service id running
+	local service id running config_file mounts
 	TEST_STATE_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-test-state.XXXXXX)"
+	TEST_CONFIG_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-test-config.XXXXXX)"
 	: >"$TEST_STATE_SNAPSHOT"
 	for service in tests-mysql tests-wordpress tests-cli; do
 		id="$(container_id_any "$service")"
 		[[ -n "$id" ]] || fail "designated disposable $service container does not already exist."
+		config_file="$(docker_cmd inspect "$id" --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')"
+		[[ "$config_file" == "$BASE_COMPOSE_FILE" ]] || fail "$service has a pre-existing Compose override that this runner cannot safely restore."
+		if [[ "$service" == tests-wordpress || "$service" == tests-cli ]]; then
+			mounts="$(mounts_for "$id")"
+			printf '%s\n' "$mounts" | /usr/bin/grep -F "$PRIMARY_CHECKOUT/oras-tickets => /var/www/html/wp-content/plugins/oras-tickets" >/dev/null \
+				|| fail "$service has a pre-existing plugin mount that this runner cannot safely restore."
+		fi
 		running="$(docker_cmd inspect "$id" --format '{{.State.Running}}')"
 		printf '%s|%s\n' "$service" "$running" >>"$TEST_STATE_SNAPSHOT"
 	done
+	capture_test_configuration_to "$TEST_CONFIG_SNAPSHOT"
 	TEST_STATE_CAPTURED=1
+}
+
+capture_test_configuration_to() {
+	local destination="$1" service id
+	: >"$destination"
+	for service in tests-mysql tests-wordpress tests-cli; do
+		id="$(container_id_any "$service")"
+		[[ -n "$id" ]] || return 1
+		docker_cmd inspect "$id" --format "$service|identity|{{index .Config.Labels \"com.docker.compose.project.working_dir\"}}|{{index .Config.Labels \"com.docker.compose.project.config_files\"}}|{{json .HostConfig.PortBindings}}" >>"$destination"
+		docker_cmd inspect "$id" --format '{{range .Mounts}}{{println .Destination "|" .Type "|" .Source "|" .Name "|" .RW}}{{end}}' \
+			| /usr/bin/sort | /usr/bin/sed "s/^/$service|mount|/" >>"$destination"
+		docker_cmd inspect "$id" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+			| /usr/bin/sort | /usr/bin/sed "s/^/$service|env|/" >>"$destination"
+	done
+}
+
+verify_test_configuration() {
+	local current
+	current="$($MKTEMP_BIN /tmp/oras-desk-test-config-current.XXXXXX)"
+	if ! capture_test_configuration_to "$current" || ! "$CMP_BIN" -s "$TEST_CONFIG_SNAPSHOT" "$current"; then
+		/usr/bin/diff -u "$TEST_CONFIG_SNAPSHOT" "$current" >&2 || true
+		"$FIND_BIN" "$current" -delete
+		return 1
+	fi
+	"$FIND_BIN" "$current" -delete
 }
 
 create_test_compose_override() {
@@ -258,7 +297,7 @@ verify_container() {
 wait_for_test_runtime() {
 	local attempt
 	for attempt in {1..60}; do
-		if wp_env run "$TEST_SERVICE" wp core is-installed >/dev/null 2>&1; then
+		if wp_safe core is-installed >/dev/null 2>&1; then
 			return 0
 		fi
 		"$SLEEP_BIN" 1
@@ -301,7 +340,7 @@ verify_runtime_identity() {
 		[[ -n "$dev_volume" && "$test_volume" != "$dev_volume" ]] || fail 'test and ordinary development databases are not storage-isolated.'
 	fi
 
-	identity="$(wp_env run "$TEST_SERVICE" wp eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
+	identity="$(wp_safe eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
 	EXPECTED_URL="$("$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)||($v["db"]??"")!==$argv[2]||($v["host"]??"")!==$argv[3]||empty($v["registration_guard"])||empty($v["qbo_guard"])||($v["home"]??"")!==($v["siteurl"]??"")){exit(1);}echo $v["home"];' "$identity" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST")" || fail 'WordPress database or transport guard identity is unsafe.'
 	[[ "$EXPECTED_URL" =~ ^http://localhost:([1-9][0-9]*)$ ]] || fail 'designated test URL is not a local HTTP endpoint.'
 	url_port="${BASH_REMATCH[1]}"
@@ -311,7 +350,7 @@ verify_runtime_identity() {
 
 verify_disposable_marker() {
 	local marker_state marker_status
-	marker_state="$(wp_env run "$TEST_SERVICE" wp eval '
+	marker_state="$(wp_safe eval '
 		$missing = new stdClass();
 		$value = get_option("oras_registration_desk_disposable_fixture_id", $missing);
 		echo wp_json_encode(array("exists" => $value !== $missing, "value" => $value !== $missing ? $value : ""));
@@ -324,7 +363,7 @@ verify_disposable_marker() {
 		0) ;;
 		1)
 			(( INITIALIZE_MARKER )) || fail 'designated test database is missing its disposable marker; use the explicit initialization mode only after reviewing the verified identity.'
-			wp_env run "$TEST_SERVICE" wp eval "
+			wp_safe eval "
 				if (!add_option('oras_registration_desk_disposable_fixture_id', '$DISPOSABLE_MARKER', '', false)) {
 					throw new RuntimeException('Could not initialize disposable marker.');
 				}
@@ -333,20 +372,20 @@ verify_disposable_marker() {
 			;;
 		*) fail 'designated test database contains a copied or mismatched disposable marker.' ;;
 	esac
-	[[ "$(wp_env run "$TEST_SERVICE" wp option get oras_registration_desk_disposable_fixture_id 2>/dev/null)" == "$DISPOSABLE_MARKER" ]] || fail 'disposable marker verification failed.'
+	[[ "$(wp_safe option get oras_registration_desk_disposable_fixture_id 2>/dev/null)" == "$DISPOSABLE_MARKER" ]] || fail 'disposable marker verification failed.'
 }
 
 capture_settings() {
 	SETTINGS_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-settings.XXXXXX.json)"
 	PLUGIN_STATE_SNAPSHOT="$($MKTEMP_BIN /tmp/oras-desk-plugins.XXXXXX.json)"
-	if wp_env run "$TEST_SERVICE" wp option get oras_tickets_settings_v1 --format=json >"$SETTINGS_SNAPSHOT" 2>/dev/null; then
+	if wp_safe option get oras_tickets_settings_v1 --format=json >"$SETTINGS_SNAPSHOT" 2>/dev/null; then
 		SETTINGS_EXISTED=1
 	else
 		SETTINGS_EXISTED=0
 		: >"$SETTINGS_SNAPSHOT"
 	fi
 	SETTINGS_CAPTURED=1
-	wp_env run "$TEST_SERVICE" wp option get active_plugins --format=json >"$PLUGIN_STATE_SNAPSHOT" 2>/dev/null \
+	wp_safe option get active_plugins --format=json >"$PLUGIN_STATE_SNAPSHOT" 2>/dev/null \
 		|| fail 'could not capture original test plugin activation state.'
 	PLUGIN_STATE_CAPTURED=1
 }
@@ -356,29 +395,55 @@ restore_test_options() {
 	if (( STORAGE_CAPTURED )); then
 		wp_env run "$TEST_SERVICE" wp wc hpos sync >/dev/null 2>&1 || status=1
 		if [[ "$ORIGINAL_HPOS" == '__missing__' ]]; then
-			wp_env run "$TEST_SERVICE" wp option delete woocommerce_custom_orders_table_enabled >/dev/null 2>&1 || true
+			wp_safe option delete woocommerce_custom_orders_table_enabled >/dev/null 2>&1 || true
 		else
-			wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_enabled "$ORIGINAL_HPOS" >/dev/null 2>&1 || status=1
+			wp_safe option update woocommerce_custom_orders_table_enabled "$ORIGINAL_HPOS" >/dev/null 2>&1 || status=1
 		fi
 		if [[ "$ORIGINAL_SYNC" == '__missing__' ]]; then
-			wp_env run "$TEST_SERVICE" wp option delete woocommerce_custom_orders_table_data_sync_enabled >/dev/null 2>&1 || true
+			wp_safe option delete woocommerce_custom_orders_table_data_sync_enabled >/dev/null 2>&1 || true
 		else
-			wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_data_sync_enabled "$ORIGINAL_SYNC" >/dev/null 2>&1 || status=1
+			wp_safe option update woocommerce_custom_orders_table_data_sync_enabled "$ORIGINAL_SYNC" >/dev/null 2>&1 || status=1
 		fi
 	fi
 	if (( SETTINGS_CAPTURED )); then
 		if (( SETTINGS_EXISTED )); then
 			settings_json="$(/usr/bin/cat "$SETTINGS_SNAPSHOT")"
-			wp_env run "$TEST_SERVICE" wp option update oras_tickets_settings_v1 "$settings_json" --format=json >/dev/null 2>&1 || status=1
+			wp_safe option update oras_tickets_settings_v1 "$settings_json" --format=json >/dev/null 2>&1 || status=1
 		else
-			wp_env run "$TEST_SERVICE" wp option delete oras_tickets_settings_v1 >/dev/null 2>&1 || true
+			wp_safe option delete oras_tickets_settings_v1 >/dev/null 2>&1 || true
 		fi
 	fi
 	if (( PLUGIN_STATE_CAPTURED )); then
 		plugins_json="$(/usr/bin/cat "$PLUGIN_STATE_SNAPSHOT")"
-		wp_env run "$TEST_SERVICE" wp option update active_plugins "$plugins_json" --format=json >/dev/null 2>&1 || status=1
+		wp_safe option update active_plugins "$plugins_json" --format=json >/dev/null 2>&1 || status=1
 	fi
+	verify_restored_options || status=1
 	return "$status"
+}
+
+verify_restored_options() {
+	local current
+	if (( STORAGE_CAPTURED )); then
+		[[ "$(read_option_or_missing woocommerce_custom_orders_table_enabled)" == "$ORIGINAL_HPOS" ]] || return 1
+		[[ "$(read_option_or_missing woocommerce_custom_orders_table_data_sync_enabled)" == "$ORIGINAL_SYNC" ]] || return 1
+	fi
+	if (( SETTINGS_CAPTURED )); then
+		if (( SETTINGS_EXISTED )); then
+			current="$($MKTEMP_BIN /tmp/oras-desk-settings-current.XXXXXX.json)"
+			wp_safe option get oras_tickets_settings_v1 --format=json >"$current" 2>/dev/null || { "$FIND_BIN" "$current" -delete; return 1; }
+			"$CMP_BIN" -s "$SETTINGS_SNAPSHOT" "$current" || { "$FIND_BIN" "$current" -delete; return 1; }
+			"$FIND_BIN" "$current" -delete
+		else
+			[[ "$(read_option_or_missing oras_tickets_settings_v1)" == '__missing__' ]] || return 1
+		fi
+	fi
+	if (( PLUGIN_STATE_CAPTURED )); then
+		current="$($MKTEMP_BIN /tmp/oras-desk-plugins-current.XXXXXX.json)"
+		wp_safe option get active_plugins --format=json >"$current" 2>/dev/null || { "$FIND_BIN" "$current" -delete; return 1; }
+		"$CMP_BIN" -s "$PLUGIN_STATE_SNAPSHOT" "$current" || { "$FIND_BIN" "$current" -delete; return 1; }
+		"$FIND_BIN" "$current" -delete
+	fi
+	printf '%s\n' 'Verified restored WooCommerce, ORAS settings, and plugin activation options.'
 }
 
 initial_test_state() {
@@ -413,8 +478,9 @@ restore_test_services() {
 			fi
 		fi
 	done
+	verify_test_configuration || status=1
 	if (( status == 0 )); then
-		printf '%s\n' 'Restored designated test mounts and original service states.'
+		printf '%s\n' 'Restored designated test configuration, mounts, and original service states.'
 	fi
 	return "$status"
 }
@@ -456,6 +522,7 @@ cleanup() {
 	remove_temp_file "$TEST_COMPOSE_OVERRIDE" '/tmp/oras-desk-compose.'
 	remove_temp_file "$DEVELOPMENT_SNAPSHOT" '/tmp/oras-desk-development.'
 	remove_temp_file "$TEST_STATE_SNAPSHOT" '/tmp/oras-desk-test-state.'
+	remove_temp_file "$TEST_CONFIG_SNAPSHOT" '/tmp/oras-desk-test-config.'
 	remove_temp_file "$SETTINGS_SNAPSHOT" '/tmp/oras-desk-settings.'
 	remove_temp_file "$PLUGIN_STATE_SNAPSHOT" '/tmp/oras-desk-plugins.'
 	if [[ -n "$DOCKER_CONFIG_DIR" && "$DOCKER_CONFIG_DIR" == /tmp/oras-desk-docker.* && -d "$DOCKER_CONFIG_DIR" ]]; then
@@ -481,7 +548,7 @@ configure_safe_integrations() {
 }
 
 ensure_dependencies() {
-	local plugin_file plugin_slug tec_file
+	local plugin_file plugin_slug tec_file woo_file
 	while IFS= read -r plugin_file; do
 		if [[ "$plugin_file" == */oras-tickets.php && "$plugin_file" != 'oras-tickets/oras-tickets.php' ]]; then
 			plugin_slug="${plugin_file%%/*}"
@@ -495,11 +562,13 @@ ensure_dependencies() {
 		if [[ -n "$tec_file" ]]; then
 			wp_env run "$TEST_SERVICE" wp plugin activate "${tec_file%%/*}" >/dev/null
 		else
-			wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS',true);" plugin install the-events-calendar --activate
+			fail 'The Events Calendar is not installed in the designated test instance.'
 		fi
 	fi
 	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("WooCommerce") ? 0 : 1);' >/dev/null 2>&1; then
-		wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS',true);" plugin install woocommerce --activate
+		woo_file="$(wp_env run "$TEST_SERVICE" wp plugin list --field=file 2>/dev/null | /usr/bin/grep '/woocommerce.php$' | /usr/bin/head -1 || true)"
+		[[ -n "$woo_file" ]] || fail 'WooCommerce is not installed in the designated test instance.'
+		wp_env run "$TEST_SERVICE" wp plugin activate "${woo_file%%/*}" >/dev/null
 	fi
 	if ! wp_env run "$TEST_SERVICE" wp eval 'exit(class_exists("ORAS\\Tickets\\Registration_Desk\\Schema") ? 0 : 1);' >/dev/null 2>&1; then
 		wp_env run "$TEST_SERVICE" wp plugin activate oras-tickets >/dev/null
@@ -509,8 +578,11 @@ ensure_dependencies() {
 
 read_option_or_missing() {
 	local name="$1" value
-	value="$(wp_env run "$TEST_SERVICE" wp option get "$name" 2>/dev/null || true)"
-	[[ -n "$value" ]] && printf '%s' "$value" || printf '%s' '__missing__'
+	if value="$(wp_safe option get "$name" 2>/dev/null)"; then
+		printf '%s' "$value"
+	else
+		printf '%s' '__missing__'
+	fi
 }
 
 configure_order_storage() {
@@ -528,9 +600,10 @@ configure_order_storage() {
 		wp_env run "$TEST_SERVICE" wp option update woocommerce_custom_orders_table_data_sync_enabled no >/dev/null
 		expected='0'
 	fi
-	actual="$(wp_env run "$TEST_SERVICE" wp eval 'echo "ORAS_HPOS=" . (Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ? "1" : "0");' 2>/dev/null | /usr/bin/grep '^ORAS_HPOS=' | /usr/bin/tail -1)"
-	[[ "$actual" == "ORAS_HPOS=$expected" ]] || fail "WooCommerce did not enter requested $MODE authoritative order storage mode."
+	actual="$(wp_env run "$TEST_SERVICE" wp eval 'echo "ORAS_HPOS=" . (Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ? "1" : "0") . ";ORAS_SYNC=" . ("yes" === get_option("woocommerce_custom_orders_table_data_sync_enabled") ? "1" : "0");' 2>/dev/null | /usr/bin/grep '^ORAS_HPOS=' | /usr/bin/tail -1)"
+	[[ "$actual" == "ORAS_HPOS=$expected;ORAS_SYNC=0" ]] || fail "WooCommerce did not enter requested $MODE order storage mode with compatibility synchronization disabled."
 	printf 'Verified WooCommerce order storage mode: %s\n' "$MODE"
+	printf '%s\n' 'Verified WooCommerce compatibility synchronization: disabled.'
 }
 
 run_eval_file() {
