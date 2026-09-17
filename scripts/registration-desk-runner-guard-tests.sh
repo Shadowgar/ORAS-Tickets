@@ -42,6 +42,7 @@ require_text '--initialize-disposable-marker' 'Marker creation requires an expli
 require_text 'test_volume' 'Runner verifies disposable database storage isolation before marker handling.'
 require_text 'active_plugins' 'Runner captures and restores test plugin activation state.'
 require_text '--skip-plugins --skip-themes' 'Pre-marker WordPress checks skip ordinary plugins and themes.'
+require_text 'oras_plugin_loaded' 'Pre-marker identity proves the ORAS plugin did not bootstrap.'
 require_text 'verify_test_configuration' 'Runner verifies original test configuration is restored.'
 require_text 'ORAS_SYNC=0' 'Runner verifies WooCommerce compatibility synchronization is disabled.'
 require_text 'verify_restored_options' 'Runner reads back restored test options.'

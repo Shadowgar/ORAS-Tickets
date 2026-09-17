@@ -340,8 +340,8 @@ verify_runtime_identity() {
 		[[ -n "$dev_volume" && "$test_volume" != "$dev_volume" ]] || fail 'test and ordinary development databases are not storage-isolated.'
 	fi
 
-	identity="$(wp_safe eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
-	EXPECTED_URL="$("$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)||($v["db"]??"")!==$argv[2]||($v["host"]??"")!==$argv[3]||empty($v["registration_guard"])||empty($v["qbo_guard"])||($v["home"]??"")!==($v["siteurl"]??"")){exit(1);}echo $v["home"];' "$identity" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST")" || fail 'WordPress database or transport guard identity is unsafe.'
+	identity="$(wp_safe eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE,"oras_plugin_loaded"=>defined("ORAS_TICKETS_FILE")||class_exists("ORAS\\Tickets\\Bootstrap",false)));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
+	EXPECTED_URL="$("$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)||($v["db"]??"")!==$argv[2]||($v["host"]??"")!==$argv[3]||empty($v["registration_guard"])||empty($v["qbo_guard"])||!empty($v["oras_plugin_loaded"])||($v["home"]??"")!==($v["siteurl"]??"")){exit(1);}echo $v["home"];' "$identity" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST")" || fail 'WordPress database, pre-marker plugin barrier, or transport guard identity is unsafe.'
 	[[ "$EXPECTED_URL" =~ ^http://localhost:([1-9][0-9]*)$ ]] || fail 'designated test URL is not a local HTTP endpoint.'
 	url_port="${BASH_REMATCH[1]}"
 	published_port="$(docker_cmd port "$wordpress_id" 80/tcp | /usr/bin/tail -1)"
@@ -443,7 +443,9 @@ verify_restored_options() {
 		"$CMP_BIN" -s "$PLUGIN_STATE_SNAPSHOT" "$current" || { "$FIND_BIN" "$current" -delete; return 1; }
 		"$FIND_BIN" "$current" -delete
 	fi
-	printf '%s\n' 'Verified restored WooCommerce, ORAS settings, and plugin activation options.'
+	if (( STORAGE_CAPTURED || SETTINGS_CAPTURED || PLUGIN_STATE_CAPTURED )); then
+		printf '%s\n' 'Verified restored WooCommerce, ORAS settings, and plugin activation options.'
+	fi
 }
 
 initial_test_state() {
