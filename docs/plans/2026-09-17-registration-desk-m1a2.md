@@ -30,7 +30,7 @@
 2. Generate a temporary Compose overlay containing only `tests-wordpress` and `tests-cli` feature/test mounts.
 3. Snapshot ordinary development services and start only designated test services using the base Compose file plus the overlay.
 4. Resolve containers by exact Compose file/project labels rather than fixed hashes or ports.
-5. Verify the test database, disposable marker, guards, exact mounts, and a mounted-code digest/commit identity before any mutable setup.
+5. Verify the test database volume, guards, exact mounts, and a mounted-code digest/commit identity before marker handling or mutable setup; permit marker creation only through an explicit one-time mode after those checks pass.
 6. Run the host guard and environment-only verification until both pass.
 7. Commit the runner correction and guard.
 
@@ -40,7 +40,7 @@
 - Modify: `scripts/run-registration-desk-integration-checks.sh`
 - Test: `scripts/registration-desk-runner-guard-tests.sh`
 
-1. Extend cleanup to restore captured Woo storage options when captured.
+1. Extend cleanup to restore captured Woo storage, ORAS settings, and plugin activation options when captured.
 2. Recreate only test application/CLI services from the designated base Compose configuration, then return all three test services to their original running/stopped states.
 3. Verify ordinary development container identity, state, mounts, and database volume are unchanged.
 4. Remove only runner-created temporary files.

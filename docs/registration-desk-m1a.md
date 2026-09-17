@@ -73,11 +73,34 @@ Desk operations do not create or modify Woo orders/items, status, billing, notes
 
 ## Qualification harness
 
-`scripts/run-registration-desk-integration-checks.sh` derives a unique Compose identity from the isolated worktree and refuses unknown repository/toolchain identities, active port collisions, wrong database/container/mount/URL identities, and missing or mismatched disposable markers. The one-time `--initialize-disposable` mode only accepts a never-created project identity. The marker is established before WooCommerce/TEC activation, desk migration, or fixtures.
+`scripts/run-registration-desk-integration-checks.sh` resolves wp-env configuration and Compose ownership from `/home/rocco/projects/oras-wp-env`, then applies a temporary Compose overlay only to `tests-wordpress` and `tests-cli`. It refuses unknown repository/toolchain identities, wrong project/database/volume/mount/URL identities, mismatched disposable markers, dirty feature code, or missing transport guards. The one-time `--initialize-disposable-marker` mode may establish a missing marker only after the designated project, isolated test database volume, loopback URL, exact feature mounts, guards, and mounted-code digest have all been verified.
+
+Before mutation, the runner snapshots ordinary development container identity, state, mounts, environment, and database volume. It also captures test-service state, active plugins, ORAS settings, and WooCommerce storage options. Cleanup restores the exact plugin/settings state, recreates only the test application and CLI containers from the designated base Compose file, returns all three test services to their original state, and verifies the ordinary development snapshot is unchanged.
 
 The test-only must-use plugin blocks all external HTTP except explicit WordPress.org package download setup, intercepts all mail, and records bounded secret-free observations. The existing Intuit blocker remains active. Tests use synthetic WP/WooCommerce/TEC data only.
 
 Qualification covers schema repetition/engines/source-null storage, listener and signed recovery discovery, projection and active-event identity, supported/unsupported classification, exact option/unit admission, actual attendee confirmation, two station sessions, capability/endpoint bypasses, on-hold admission, cancellation after projection, partial refund ambiguity, date/config/event changes, transactional configuration rollback, projection preservation, disabled versus revoked access, audit fault retry, replay/conflict/reversal, and protected-surface fingerprints. Two simultaneous `docker exec` WP-CLI workers use separate PHP processes and database connections against the same attendee/date; the database must contain one attendee, one daily attendance row, and two request audit results. The guarded runner uses the pinned `/home/rocco/projects/oras-wp-env` toolchain and supports explicit `--mode=legacy` and `--mode=hpos`, verifies the requested authoritative Woo order store, disables compatibility synchronization for the HPOS run, and restores the prior test option state on exit.
+
+## M1A.2 qualification evidence
+
+Qualification on 2026-09-17 used wp-env 10.39.0 from `/home/rocco/projects/oras-wp-env`, configuration `/home/rocco/projects/oras-wp-env/.wp-env.json`, generated install `/home/rocco/wp-env/a3544f17121d4efebaa9174fe1458a62`, Compose project `a3544f17121d4efebaa9174fe1458a62`, URL `http://localhost:8889`, database `tests-wordpress@tests-mysql`, and volume `a3544f17121d4efebaa9174fe1458a62_mysql-test`. The feature mount was the isolated worktree's `oras-tickets/` at tested commit `283e3e4e424a4fa00a3a1066b3211e4aaf70ecce`, with mounted tree digest `c19c7e10e6ca8829c971e0c2a5cfe4f84879efed5d32326e097fba3ff82ed5a9`.
+
+The designated database initially lacked the Registration Desk marker. `--initialize-disposable-marker --verify-environment-only` created `oras-registration-desk-m1a-a3544f17121d4efe` only after the runner verified the distinct development/test volumes, loopback URL, exact project/container labels, both outbound guards, feature mounts, and code digest. Subsequent runs only verified that marker.
+
+Both acceptance commands passed:
+
+```text
+scripts/run-registration-desk-integration-checks.sh --mode=legacy
+scripts/run-registration-desk-integration-checks.sh --mode=hpos
+```
+
+The legacy run explicitly reported legacy storage active. The HPOS run explicitly reported authoritative HPOS active after setting compatibility synchronization off. Both passed the complete WordPress/WooCommerce/TEC suite, authenticated admin-AJAX and WC-AJAX probes, configuration and attendance races, nonfinancial/no-account side-effect snapshots, checkout controls, core regressions, and bootstrap regressions.
+
+Two fail-closed attempts preceded the passing commands and were recorded rather than concealed: the designated test database contained an active older ORAS Tickets copy that loaded before the feature mount, and the integration harness retained the old worktree URL. The runner now captures/restores `active_plugins` while temporarily disabling conflicting ORAS Tickets copies, and the harness receives the runner-verified dynamic URL.
+
+Differential PHPCS against `a6062bc703394193ef73fbce60742bffd9843679` reported 0 introduced diagnostics after correcting the 34 reviewed diagnostics. The same run reported 2,481 legacy differential diagnostics and whole-plugin inherited debt of 41,922 errors plus 762 warnings across 91 files; repository-wide style cleanliness is not claimed.
+
+After each acceptance run, the runner restored the test plugin list, ORAS settings snapshot, `woocommerce_custom_orders_table_enabled=no`, missing `woocommerce_custom_orders_table_data_sync_enabled`, base plugin mounts, and the original stopped state of `tests-mysql`, `tests-wordpress`, and `tests-cli`. The ordinary `mysql`, `wordpress`, and `cli` containers remained stopped with identical identities, mounts, environment, and development database volume. The separate worktree-derived project `e3ae9621ee9cf4297eb317ed90aded38` retained all six of its containers running and was not used, stopped, recreated, or deleted.
 
 ## Deferred scope and limitations
 

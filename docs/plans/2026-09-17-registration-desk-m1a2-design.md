@@ -30,16 +30,16 @@ Before any WordPress mutation, the runner will verify:
 - wp-env version and resolved install/Compose paths;
 - unique Compose project and test service identities;
 - `tests-wordpress` database name and host;
-- the pre-existing disposable marker;
+- the disposable marker, with an explicit one-time initialization permitted only after every other isolation check passes;
 - exact feature plugin, scripts, and guard mounts;
 - mounted plugin Git identity matching the committed feature worktree;
 - external HTTP, Intuit, and mail guards.
 
-No marker will be created by M1A.2. A missing marker or unsafe database stops the run.
+A mismatched marker or unsafe database stops the run. If the verified designated test database has no marker, an explicit one-time initialization mode may add the project-bound marker only after project, database volume, URL, guards, mounts, and code identity have passed. Ordinary verification and qualification never create a marker implicitly.
 
 ## Execution and cleanup
 
-The existing legacy and authoritative HPOS phases remain unchanged after the environment boundary. Original test HPOS and compatibility-sync option values will be restored on every exit. Test-only fault injection and sessions retain their existing cleanup behavior.
+The existing legacy and authoritative HPOS phases remain unchanged after the environment boundary. Original test HPOS, compatibility-sync, ORAS settings, and plugin activation values will be restored on every exit. Conflicting pre-existing ORAS Tickets copies may be temporarily deactivated after their original activation state is captured. Test-only fault injection and sessions retain their existing cleanup behavior.
 
 On exit, the runner will restore the designated test services to the base Compose mounts and their original running or stopped state. It will remove only its temporary Compose overlay and Docker client directory. It will not delete containers, volumes, databases, or the separate worktree-derived runtime left by M1A.1.
 
