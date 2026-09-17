@@ -4,14 +4,9 @@ declare(strict_types=1);
 
 define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
-$GLOBALS['oras_test_session_token'] = 'wordpress-session-a';
+require_once __DIR__ . '/fixtures/class-wp-error.php';
 
-if ( ! class_exists( 'WP_Error' ) ) {
-	class WP_Error {
-		public function __construct( public string $code = '', public string $message = '', public mixed $data = null ) {}
-		public function get_error_code(): string { return $this->code; }
-	}
-}
+$GLOBALS['oras_test_session_token'] = 'wordpress-session-a';
 
 function wp_json_encode( mixed $value ): string|false { return json_encode( $value ); }
 function wp_salt( string $scheme = 'auth' ): string { return 'test-salt-' . $scheme; }
