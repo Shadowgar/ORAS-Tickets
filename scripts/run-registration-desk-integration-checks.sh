@@ -292,7 +292,7 @@ verify_runtime_identity() {
 	db_id="$(verify_container tests-mysql)"
 	[[ "$(docker_cmd inspect "$db_id" --format '{{range .Config.Env}}{{println .}}{{end}}' | /usr/bin/grep '^MYSQL_DATABASE=' | /usr/bin/cut -d= -f2-)" == "$EXPECTED_DATABASE" ]] || fail 'test database container has the wrong database.'
 	test_volume="$(docker_cmd inspect "$db_id" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{println .Name}}{{end}}{{end}}')"
-	[[ "$test_volume" == "${EXPECTED_PROJECT}_tests-mysql" ]] || fail 'test database does not use the designated disposable volume.'
+	[[ "$test_volume" == "${EXPECTED_PROJECT}_mysql-test" ]] || fail 'test database does not use the designated disposable volume.'
 	dev_db_id="$(container_id_any mysql)"
 	if [[ -n "$dev_db_id" ]]; then
 		dev_volume="$(docker_cmd inspect "$dev_db_id" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{println .Name}}{{end}}{{end}}')"
