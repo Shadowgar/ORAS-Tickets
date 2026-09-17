@@ -27,7 +27,12 @@ final class Audit_Store extends Store {
 		global $wpdb;
 		$record['created_at_utc'] = self::utc_now();
 		if ( false === $wpdb->insert( $this->table, $record ) ) {
-			return new \WP_Error( 'oras_desk_request_exists', 'This request identifier already has a result.', array( 'status' => 409 ) );
+			$existing = $this->find_request( (string) ( $record['request_uuid'] ?? '' ) );
+			if ( $existing ) {
+				return new \WP_Error( 'oras_desk_request_exists', 'This request identifier already has a result.', array( 'status' => 409 ) );
+			}
+
+			return new \WP_Error( 'oras_desk_audit_persist_failed', 'Registration Desk could not persist the operation audit.', array( 'status' => 500 ) );
 		}
 
 		return $this->find_request( (string) $record['request_uuid'] ) ?? array();

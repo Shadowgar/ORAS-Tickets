@@ -92,6 +92,22 @@ oras_access_assert( $station_class::validate( $token_a, 99, 124, 7 ) instanceof 
 oras_access_assert( $station_class::validate( $token_a, 99, 123, 8 ) instanceof WP_Error, 'Station token is bound to configuration revision' );
 $GLOBALS['oras_test_session_token'] = 'wordpress-session-b';
 oras_access_assert( $station_class::validate( $token_a, 99, 123, 7 ) instanceof WP_Error, 'WordPress session change invalidates station token' );
+$GLOBALS['oras_test_session_token'] = 'wordpress-session-a';
+$expired_payload = array(
+	'v'               => 1,
+	'station_uuid'    => '11111111-1111-4111-8111-111111111111',
+	'user_id'         => 99,
+	'event_id'        => 123,
+	'config_revision' => 7,
+	'operator_label'  => 'Expired',
+	'issued_at'       => time() - 600,
+	'expires_at'      => time() - 1,
+	'wp_session'      => hash_hmac( 'sha256', 'wordpress-session-a', wp_salt( 'auth' ) ),
+);
+$expired_body = rtrim( strtr( base64_encode( (string) wp_json_encode( $expired_payload ) ), '+/', '-_' ), '=' );
+$expired_token = $expired_body . '.' . hash_hmac( 'sha256', $expired_body, wp_salt( 'auth' ) );
+$expired_result = $station_class::validate( $expired_token, 99, 123, 7 );
+oras_access_assert( $expired_result instanceof WP_Error && 'oras_desk_station_expired' === $expired_result->get_error_code(), 'Correctly signed expired station token is rejected without sleeping' );
 
 oras_access_assert( defined( $caps_class . '::REGISTRATION_DESK_ROLE' ), 'Dedicated desk role is defined' );
 oras_access_assert( in_array( 'oras_tickets_use_registration_desk', $caps_class::REGISTRATION_DESK_CAPS, true ), 'Desk role can use the desk' );

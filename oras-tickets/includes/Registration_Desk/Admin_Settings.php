@@ -48,8 +48,7 @@ final class Admin_Settings {
 		if ( ! is_array( $decoded ) ) {
 			wp_die( esc_html__( 'Configuration must be valid JSON.', 'oras-tickets' ) );
 		}
-		$active = Config::set_active_event_id( $event_id );
-		$saved  = $active instanceof \WP_Error ? $active : Config::save_event_config( $event_id, $decoded, $revision );
+		$saved = Config::save_and_activate( $event_id, $decoded, $revision );
 		if ( $saved instanceof \WP_Error ) {
 			wp_die( esc_html( $saved->get_error_message() ) );
 		}

@@ -421,6 +421,7 @@ function oras_desk_integration_prepare(): void {
 	$event_id   = oras_desk_integration_event( $run, 'active', $today, $today );
 	$other_id   = oras_desk_integration_event( $run, 'other', $today, $today );
 	$past_id    = oras_desk_integration_event( $run, 'past', $yesterday, $yesterday );
+	$config_fail_id = oras_desk_integration_event( $run, 'config-failure', $today, $today );
 	$admin_id   = wp_create_user( 'desk-admin-' . $run, wp_generate_password(), 'desk-admin-' . $run . '@example.test' );
 	$desk_id    = wp_create_user( 'desk-staff-' . $run, wp_generate_password(), 'desk-staff-' . $run . '@example.test' );
 	$member_id  = wp_create_user( 'desk-member-' . $run, wp_generate_password(), 'desk-member-' . $run . '@example.test' );
@@ -500,6 +501,23 @@ function oras_desk_integration_prepare(): void {
 	$config = oras_desk_integration_save_config( $event_id, $options );
 	oras_desk_integration_save_config( $past_id, array( $options[0] ) );
 	oras_desk_integration_true( true === Config::set_active_event_id( $event_id ), 'administrator selects the active event' );
+	$first_combined = Config::save_and_activate( $other_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	oras_desk_integration_true( is_array( $first_combined ) && 1 === $first_combined['revision'] && $other_id === Config::get_active_event_id(), 'first configuration and activation commit atomically' );
+	Config::set_active_event_id( $event_id );
+	$meta_failure = static fn() => new WP_Error( 'oras_desk_test_meta_write_failed', 'Synthetic meta write failure.' );
+	add_filter( 'oras_registration_desk_config_meta_write_error', $meta_failure );
+	$failed_meta = Config::save_and_activate( $config_fail_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	remove_filter( 'oras_registration_desk_config_meta_write_error', $meta_failure );
+	oras_desk_integration_error( $failed_meta, 'oras_desk_test_meta_write_failed', 'forced configuration write failure is reported' );
+	oras_desk_integration_same( Config::get_event_config( $config_fail_id )['revision'], 0, 'failed configuration write leaves durable revision unchanged' );
+	oras_desk_integration_same( Config::get_active_event_id(), $event_id, 'failed configuration write leaves active event unchanged' );
+	$active_failure = static fn() => new WP_Error( 'oras_desk_test_active_write_failed', 'Synthetic active option failure.' );
+	add_filter( 'oras_registration_desk_config_active_write_error', $active_failure );
+	$failed_active = Config::save_and_activate( $config_fail_id, array( 'enabled' => true, 'options' => array( $options[0] ) ), 0 );
+	remove_filter( 'oras_registration_desk_config_active_write_error', $active_failure );
+	oras_desk_integration_error( $failed_active, 'oras_desk_test_active_write_failed', 'forced active-event write failure is reported' );
+	oras_desk_integration_same( Config::get_event_config( $config_fail_id )['revision'], 0, 'active-event failure rolls back the configuration write and refreshes cache' );
+	oras_desk_integration_same( Config::get_active_event_id(), $event_id, 'active-event failure leaves the prior active event visible after rollback' );
 
 	$orders = array(
 		'concurrent'   => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
@@ -707,12 +725,23 @@ function oras_desk_integration_prepare(): void {
 	);
 	$wpdb->suppress_errors( $prior_suppression );
 	$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Verified disposable fixture trigger.
-	oras_desk_integration_true( is_wp_error( $atomic_result ), 'synthetic audit failure prevents operation success' );
+	oras_desk_integration_error( $atomic_result, 'oras_desk_audit_persist_failed', 'nonduplicate audit failure returns a persistence error rather than a duplicate conflict' );
 	$atomic_attendees = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['attendees']} WHERE registration_id = %d", $atomic_registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
 	$atomic_attendance = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['attendance']} WHERE attendee_id IN (SELECT id FROM {$tables_first['attendees']} WHERE registration_id = %d)", $atomic_registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk tables.
 	$atomic_audits = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables_first['audit']} WHERE request_uuid = %s", $atomic_request ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
 	oras_desk_integration_same( array( $atomic_attendees, $atomic_attendance ), array( 0, 0 ), 'attendee and attendance mutation roll back when audit persistence fails' );
 	oras_desk_integration_same( $atomic_audits, 0, 'failed atomic operation leaves no partial audit result' );
+	$atomic_retry = $service->confirm_and_check_in(
+		$context['projected']['atomic'],
+		array(
+			'first_name'            => 'Atomic',
+			'last_name'             => 'Rollback',
+			'attendance_local_date' => $today,
+			'explicit_unpaid'       => false,
+		),
+		$atomic_context
+	);
+	oras_desk_integration_true( is_array( $atomic_retry ) && 'checked_in' === $atomic_retry['historical_result']['result'], 'identical request UUID succeeds after the nonduplicate audit fault is removed' );
 	$completed = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
 	oras_desk_integration_true( is_array( $completed ) && 'checked_in' === $completed['historical_result']['result'], 'actual arriving individual is confirmed and checked in' );
 	$replay = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
