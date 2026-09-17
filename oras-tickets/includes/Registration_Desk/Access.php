@@ -12,7 +12,7 @@ final class Access {
 	public static function register(): void {
 		add_filter( 'rest_pre_dispatch', array( self::class, 'rest_pre_dispatch' ), 1, 3 );
 		add_action( 'admin_init', array( self::class, 'guard_admin' ), 1 );
-		add_action( 'template_redirect', array( self::class, 'guard_frontend' ), 1 );
+		add_action( 'template_redirect', array( self::class, 'guard_frontend' ), -100 );
 	}
 
 	public static function is_restricted_account( ?\WP_User $user = null ): bool {
@@ -36,18 +36,31 @@ final class Access {
 	}
 
 	public static function guard_admin(): void {
-		if ( ! self::is_restricted_account() || wp_doing_ajax() ) {
+		if ( ! self::is_restricted_account() ) {
 			return;
+		}
+		if ( wp_doing_ajax() ) {
+			self::deny_ajax();
 		}
 		wp_safe_redirect( Landing_Page::url() );
 		exit;
 	}
 
 	public static function guard_frontend(): void {
-		if ( ! self::is_restricted_account() || Landing_Page::is_request() ) {
+		if ( ! self::is_restricted_account() ) {
+			return;
+		}
+		if ( wp_doing_ajax() || isset( $_GET['wc-ajax'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Rejects the request before dispatcher execution.
+			self::deny_ajax();
+		}
+		if ( Landing_Page::is_request() ) {
 			return;
 		}
 		wp_safe_redirect( Landing_Page::url() );
 		exit;
+	}
+
+	private static function deny_ajax(): void {
+		wp_die( 'oras_desk_ajax_forbidden', 'Registration Desk', array( 'response' => 403 ) );
 	}
 }

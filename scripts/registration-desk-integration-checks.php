@@ -240,7 +240,7 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 	$user_ids = array_map( 'intval', $context['user_ids'] );
 	$ids_sql  = implode( ',', $user_ids );
 	$users    = $wpdb->get_results( "SELECT * FROM {$wpdb->users} WHERE ID IN ({$ids_sql}) ORDER BY ID", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are fixture integers.
-	$usermeta = $wpdb->get_results( "SELECT * FROM {$wpdb->usermeta} WHERE user_id IN ({$ids_sql}) ORDER BY umeta_id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are fixture integers.
+	$usermeta = $wpdb->get_results( "SELECT * FROM {$wpdb->usermeta} WHERE user_id IN ({$ids_sql}) AND meta_key <> 'session_tokens' ORDER BY umeta_id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are fixture integers; login-session state is separately permitted.
 	$scheduled = array();
 	$actions_table = $wpdb->prefix . 'actionscheduler_actions';
 	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $actions_table ) ) === $actions_table ) {
@@ -693,8 +693,23 @@ function oras_desk_integration_prepare(): void {
 		'request_one'       => wp_generate_uuid4(),
 		'request_two'       => wp_generate_uuid4(),
 	);
+	$after_prepare = oras_desk_integration_protected_snapshot( $context );
+	foreach ( $context['baseline'] as $surface => $hash ) {
+		oras_desk_integration_same( $after_prepare[ $surface ], $hash, 'prepare-phase desk operations leave ' . $surface . ' unchanged' );
+	}
 	update_option( 'oras_registration_desk_integration_context', $context, false );
 	oras_desk_integration_pass( 'single-connection qualification complete; independent workers are prepared' );
+}
+
+/** Establish a new isolation baseline after authenticated HTTP control requests. */
+function oras_desk_integration_reset_baseline(): void {
+	$context = get_option( 'oras_registration_desk_integration_context', array() );
+	if ( ! is_array( $context ) || empty( $context['event_id'] ) ) {
+		oras_desk_integration_fail( 'prepared context is missing before baseline reset.' );
+	}
+	$context['baseline'] = oras_desk_integration_protected_snapshot( $context );
+	update_option( 'oras_registration_desk_integration_context', $context, false );
+	oras_desk_integration_pass( 'protected baseline reset after authenticated dispatcher controls' );
 }
 
 /** Verify concurrent results, side-effect isolation, and the normal checkout control. */
@@ -774,6 +789,8 @@ oras_desk_integration_guard();
 $phase = defined( 'ORAS_REGISTRATION_DESK_TEST_PHASE' ) ? ORAS_REGISTRATION_DESK_TEST_PHASE : '';
 if ( 'prepare' === $phase ) {
 	oras_desk_integration_prepare();
+} elseif ( 'baseline' === $phase ) {
+	oras_desk_integration_reset_baseline();
 } elseif ( 'finish' === $phase ) {
 	oras_desk_integration_finish();
 } else {

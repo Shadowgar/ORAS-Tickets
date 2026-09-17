@@ -12,11 +12,14 @@ fail() {
 readonly EXPECTED_ORIGIN='https://github.com/Shadowgar/ORAS-Tickets.git'
 readonly EXPECTED_BASE='b0ba56e33999d91c4183eaf95f363dd57f6ef19a'
 readonly EXPECTED_CONFIG_SHA256='bee274860fdb8def0356c732fb0dfe898dba50ed8f2e3f654ab0e8981e0d2e1b'
-readonly EXPECTED_GUARD_SHA256='b32225ee60509a2fc0efb4a7075dd8f01eee9277bac0eedc20c0a65844d995c0'
+readonly EXPECTED_GUARD_SHA256='6a6e40a8cf5162e2ebf26b25bd286ba9826deccbaeb4b6b470c1a1c3e884deaf'
 readonly EXPECTED_PACKAGE_SHA256='0cf60445b6f2c2fd8d72374e0a5cf8021c871b536d9bff77e5b076086acc7725'
 readonly EXPECTED_LOCK_SHA256='0f4880c3d1e1a39ac2e2698b232d3c8b387ac0c107ff010da7b1d52fb88159e7'
 readonly EXPECTED_NODE_SHA256='1bec56ef7cfa9a76f3e0b7c0a87f220eb73f23102b9c0b4c7529a3f7c3ce7c31'
-readonly EXPECTED_WP_ENV_SHA256='c3ad55a8eb7c006a58b5133cea146e8b5afc9c755dfb09dd2d631e2bc2264ef3'
+readonly EXPECTED_WP_ENV_PROJECT_PACKAGE_SHA256='89a46f20aaa6305e13175f894f6e0c8cdf6fb8eda1ef75b7442f1e8280631aba'
+readonly EXPECTED_WP_ENV_PROJECT_LOCK_SHA256='ef015df748cb0c4d84a8b710ce90f0e7cbfeaaabdbee819c9fdfaee62314586f'
+readonly EXPECTED_WP_ENV_PACKAGE_SHA256='7d2a733a1e5cea3960d39fd191f25bbb251f505a9ebf7a9084157338ef3d38ca'
+readonly EXPECTED_WP_ENV_CLI_SHA256='b66a7b3b1d12afe2f94045103e1d5d01e1c1e81ef43794f80c5dba5e8fda0208'
 readonly EXPECTED_DATABASE='tests-wordpress'
 readonly EXPECTED_DATABASE_HOST='tests-mysql'
 readonly EXPECTED_URL='http://localhost:8895'
@@ -34,6 +37,7 @@ readonly MKTEMP_BIN='/usr/bin/mktemp'
 readonly CP_BIN='/usr/bin/cp'
 readonly FIND_BIN='/usr/bin/find'
 readonly RMDIR_BIN='/usr/bin/rmdir'
+readonly CURL_BIN='/usr/bin/curl'
 
 RUNNER_PATH="$($REALPATH_BIN -e "${BASH_SOURCE[0]}")"
 ROOT_DIR="$($REALPATH_BIN "${RUNNER_PATH%/*}/..")"
@@ -47,7 +51,8 @@ else
 fi
 PRIMARY_CHECKOUT="$($REALPATH_BIN "${COMMON_GIT_DIR%/.git}")"
 NODE_BIN="$HOME/.nvm/versions/node/v22.22.0/bin/node"
-WP_ENV_BIN="$PRIMARY_CHECKOUT/node_modules/@wordpress/env/bin/wp-env"
+WP_ENV_PROJECT='/home/rocco/projects/oras-wp-env'
+WP_ENV_CLI="$WP_ENV_PROJECT/node_modules/@wordpress/env/lib/cli.js"
 DOCKER_CONFIG_DIR=''
 WP_ENV_HOME_DIR=''
 EXPECTED_PROJECT=''
@@ -75,10 +80,9 @@ docker_cmd() {
 }
 
 wp_env() {
-	(
-		cd "$ROOT_DIR"
-		"$ENV_BIN" -i HOME="$HOME" PATH='/usr/local/bin:/usr/bin:/bin' DOCKER_CONFIG="$DOCKER_CONFIG_DIR" CI=1 COMPOSE_BAKE=false "$NODE_BIN" "$WP_ENV_BIN" "$@"
-	)
+	"$ENV_BIN" -i HOME="$HOME" PATH='/usr/local/bin:/usr/bin:/bin' DOCKER_CONFIG="$DOCKER_CONFIG_DIR" CI=1 COMPOSE_BAKE=false \
+		"$NODE_BIN" -e 'const root=process.argv[1];const cli=process.argv[2];const args=process.argv.slice(3);process.chdir(root);require(cli)().parse(args);' \
+		"$ROOT_DIR" "$WP_ENV_CLI" "$@"
 }
 
 cleanup() {
@@ -104,14 +108,16 @@ verify_static_identity() {
 	[[ "$(sha256_of "$ROOT_DIR/package.json")" == "$EXPECTED_PACKAGE_SHA256" ]] || fail 'package.json identity changed.'
 	[[ "$(sha256_of "$ROOT_DIR/package-lock.json")" == "$EXPECTED_LOCK_SHA256" ]] || fail 'package-lock.json identity changed.'
 	[[ -f "$NODE_BIN" && "$(sha256_of "$NODE_BIN")" == "$EXPECTED_NODE_SHA256" ]] || fail 'pinned Node executable is unavailable.'
-	[[ -f "$WP_ENV_BIN" && "$(sha256_of "$WP_ENV_BIN")" == "$EXPECTED_WP_ENV_SHA256" ]] || fail 'locked wp-env executable is unavailable.'
-	[[ "$($NODE_BIN "$WP_ENV_BIN" --version)" == '11.6.0' ]] || fail 'wp-env version is not 11.6.0.'
+	[[ "$($REALPATH_BIN -e "$WP_ENV_PROJECT")" == '/home/rocco/projects/oras-wp-env' ]] || fail 'oras-wp-env project path is unavailable.'
+	[[ "$(sha256_of "$WP_ENV_PROJECT/package.json")" == "$EXPECTED_WP_ENV_PROJECT_PACKAGE_SHA256" ]] || fail 'oras-wp-env project package identity changed.'
+	[[ "$(sha256_of "$WP_ENV_PROJECT/package-lock.json")" == "$EXPECTED_WP_ENV_PROJECT_LOCK_SHA256" ]] || fail 'oras-wp-env project lock identity changed.'
+	[[ "$(sha256_of "$WP_ENV_PROJECT/node_modules/@wordpress/env/package.json")" == "$EXPECTED_WP_ENV_PACKAGE_SHA256" ]] || fail 'oras-wp-env installed package identity changed.'
+	[[ "$(sha256_of "$WP_ENV_CLI")" == "$EXPECTED_WP_ENV_CLI_SHA256" ]] || fail 'oras-wp-env installed CLI identity changed.'
+	[[ "$(wp_env --version)" == '10.39.0' ]] || fail 'oras-wp-env version is not 10.39.0.'
 
 	legacy_hash="$(printf '%s' "$CONFIG_FILE" | "$MD5_BIN" | "$AWK_BIN" '{print $1}')"
-	project_dir="wp-env-${ROOT_DIR##*/}-${legacy_hash:0:8}"
-	project_dir="$(printf '%s' "$project_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
-	EXPECTED_PROJECT="$project_dir"
-	WP_ENV_HOME_DIR="$HOME/wp-env/$project_dir"
+	EXPECTED_PROJECT="$legacy_hash"
+	WP_ENV_HOME_DIR="$HOME/wp-env/$legacy_hash"
 	DISPOSABLE_MARKER="oras-registration-desk-m1a-${legacy_hash:0:16}"
 }
 
@@ -200,6 +206,73 @@ run_eval_file() {
 	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_TEST_PHASE','$phase');" eval-file "/var/www/html/wp-content/oras-qbo-tests/$file"
 }
 
+auth_cookie_for_user() {
+	local user_id="$1" raw
+	[[ "$user_id" =~ ^[1-9][0-9]*$ ]] || fail 'authenticated test-cookie user ID is invalid.'
+	raw="$(wp_env run "$TEST_SERVICE" wp eval "
+		\$user_id = $user_id;
+		\$expiration = time() + HOUR_IN_SECONDS;
+		\$token = WP_Session_Tokens::get_instance(\$user_id)->create(\$expiration);
+		echo 'ORAS_AUTH_COOKIE=' . LOGGED_IN_COOKIE . '=' . wp_generate_auth_cookie(\$user_id, \$expiration, 'logged_in', \$token);
+	" 2>/dev/null | /usr/bin/grep '^ORAS_AUTH_COOKIE=' | /usr/bin/tail -1)"
+	[[ "$raw" == ORAS_AUTH_COOKIE=* ]] || fail "could not create an authenticated test cookie for user $user_id."
+	printf '%s' "${raw#ORAS_AUTH_COOKIE=}"
+}
+
+dispatch_probe_count() {
+	local raw
+	raw="$(wp_env run "$TEST_SERVICE" wp eval 'echo "ORAS_PROBE_COUNT=" . count((array) get_option("oras_registration_desk_test_dispatch_probes", array()));' 2>/dev/null | /usr/bin/grep '^ORAS_PROBE_COUNT=' | /usr/bin/tail -1)"
+	[[ "$raw" == ORAS_PROBE_COUNT=* ]] || fail 'could not read the authenticated dispatcher probe count.'
+	printf '%s' "${raw#ORAS_PROBE_COUNT=}"
+}
+
+run_dispatch_probe() {
+	local role="$1" user_id="$2" transport="$3" expected_status="$4"
+	local cookie url status body_file count
+	wp_env run "$TEST_SERVICE" wp option delete oras_registration_desk_test_dispatch_probes >/dev/null 2>&1 || true
+	cookie="$(auth_cookie_for_user "$user_id")"
+	body_file="$($MKTEMP_BIN /tmp/oras-desk-dispatch.XXXXXX)"
+	if [[ "$transport" == 'admin_ajax' ]]; then
+		url="$EXPECTED_URL/wp-admin/admin-ajax.php"
+		status="$($CURL_BIN --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data 'action=oras_registration_desk_probe' "$url")"
+	else
+		url="$EXPECTED_URL/?wc-ajax=oras_registration_desk_probe"
+		status="$($CURL_BIN --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data '' "$url")"
+	fi
+	count="$(dispatch_probe_count)"
+	if [[ "$role" == 'restricted' ]]; then
+		[[ "$status" == "$expected_status" && "$count" == '0' ]] || fail "$transport restricted-role request reached its protected handler (HTTP $status, probe count $count)."
+		/usr/bin/grep -F 'oras_desk_ajax_forbidden' "$body_file" >/dev/null || fail "$transport restricted-role denial did not come from the Registration Desk guard."
+	else
+		[[ "$status" == "$expected_status" && "$count" == '1' ]] || fail "$transport $role request did not retain normal dispatch behavior (HTTP $status, probe count $count)."
+	fi
+	"$FIND_BIN" "$body_file" -delete
+}
+
+run_http_access_probes() {
+	local ids admin_id desk_id member_id
+	ids="$(wp_env run "$TEST_SERVICE" wp eval '
+		$context = get_option("oras_registration_desk_integration_context", array());
+		echo "ORAS_PROBE_IDS=" . (int) ($context["admin_id"] ?? 0) . ":" . (int) ($context["desk_id"] ?? 0) . ":" . (int) ($context["member_id"] ?? 0);
+	' 2>/dev/null | /usr/bin/grep '^ORAS_PROBE_IDS=' | /usr/bin/tail -1)"
+	[[ "$ids" == ORAS_PROBE_IDS=* ]] || fail 'could not read authenticated dispatcher probe users.'
+	IFS=: read -r admin_id desk_id member_id <<<"${ids#ORAS_PROBE_IDS=}"
+	[[ "$admin_id" -gt 0 && "$desk_id" -gt 0 && "$member_id" -gt 0 ]] || fail 'authenticated dispatcher probe users are invalid.'
+
+	run_dispatch_probe restricted "$desk_id" admin_ajax 403
+	run_dispatch_probe restricted "$desk_id" wc_ajax 403
+	run_dispatch_probe administrator "$admin_id" admin_ajax 200
+	run_dispatch_probe administrator "$admin_id" wc_ajax 200
+	run_dispatch_probe subscriber "$member_id" admin_ajax 200
+	run_dispatch_probe subscriber "$member_id" wc_ajax 200
+	wp_env run "$TEST_SERVICE" wp eval "
+		foreach (array($admin_id, $desk_id, $member_id) as \$user_id) {
+			WP_Session_Tokens::get_instance(\$user_id)->destroy_all();
+		}
+	" >/dev/null
+	printf '%s\n' 'Authenticated admin-AJAX and WC-AJAX dispatcher probes passed.'
+}
+
 run_concurrency() {
 	local cli_id tmp_dir status_one status_two
 	cli_id="$(verify_container tests-cli)"
@@ -238,6 +311,8 @@ main() {
 
 	ensure_dependencies
 	run_eval_file registration-desk-integration-checks.php prepare
+	run_http_access_probes
+	run_eval_file registration-desk-integration-checks.php baseline
 	run_concurrency
 	run_eval_file registration-desk-integration-checks.php finish
 	run_eval_file core-regression-checks.php regression

@@ -12,6 +12,36 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE', true );
 
 /**
+ * Record that an authenticated dispatcher reached a protected test handler.
+ *
+ * @param string $transport Dispatcher under test.
+ */
+function oras_registration_desk_test_dispatch_probe( string $transport ): void {
+	$rows   = get_option( 'oras_registration_desk_test_dispatch_probes', array() );
+	$rows   = is_array( $rows ) ? $rows : array();
+	$rows[] = array(
+		'transport' => sanitize_key( $transport ),
+		'user_id'   => get_current_user_id(),
+	);
+	update_option( 'oras_registration_desk_test_dispatch_probes', array_slice( $rows, -20 ), false );
+	wp_send_json_success( array( 'probe' => sanitize_key( $transport ) ) );
+}
+
+add_action(
+	'wp_ajax_oras_registration_desk_probe',
+	static function (): void {
+		oras_registration_desk_test_dispatch_probe( 'admin_ajax' );
+	}
+);
+
+add_action(
+	'wc_ajax_oras_registration_desk_probe',
+	static function (): void {
+		oras_registration_desk_test_dispatch_probe( 'wc_ajax' );
+	}
+);
+
+/**
  * Append a bounded, secret-free transport observation.
  *
  * @param string              $kind Transport kind.
