@@ -20,7 +20,7 @@ The designated project maps the primary ORAS Tickets checkout into both developm
 
 The runner will combine the designated project's generated base Compose file with that temporary overlay and start only `tests-mysql`, `tests-wordpress`, and `tests-cli`. It will not call `wp-env start`, because that command manages both ordinary development and test services.
 
-Before starting test services, the runner will snapshot ordinary development container identity, running state, mounts, and database volume identity. After qualification it will verify those values are unchanged.
+Before starting test services, the runner will snapshot ordinary development container identity, running state, mounts, and database volume identity. It will also snapshot the full test-service configuration and refuse pre-existing overrides it cannot reproduce. After qualification it will verify both snapshots are restored.
 
 ## Fail-closed verification
 
@@ -35,7 +35,7 @@ Before any WordPress mutation, the runner will verify:
 - mounted plugin Git identity matching the committed feature worktree;
 - external HTTP, Intuit, and mail guards.
 
-A mismatched marker or unsafe database stops the run. If the verified designated test database has no marker, an explicit one-time initialization mode may add the project-bound marker only after project, database volume, URL, guards, mounts, and code identity have passed. Ordinary verification and qualification never create a marker implicitly.
+A mismatched marker or unsafe database stops the run. Every WordPress command before marker verification skips ordinary plugins and themes and proves ORAS Tickets did not bootstrap. If the verified designated test database has no marker, an explicit one-time initialization mode may add the project-bound marker only after project, database volume, URL, guards, mounts, and code identity have passed. Ordinary verification and qualification never create a marker implicitly.
 
 ## Execution and cleanup
 
