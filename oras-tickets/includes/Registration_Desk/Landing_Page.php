@@ -52,8 +52,13 @@ final class Landing_Page {
 		}
 		nocache_headers();
 		status_header( 200 );
-		wp_enqueue_style( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.css', array(), ORAS_TICKETS_VERSION );
-		wp_enqueue_script( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.js', array(), ORAS_TICKETS_VERSION, true );
+		show_admin_bar( false );
+		$css_path = ORAS_TICKETS_DIR . 'assets/registration-desk/desk.css';
+		$js_path  = ORAS_TICKETS_DIR . 'assets/registration-desk/desk.js';
+		$css_version = is_file( $css_path ) ? (string) filemtime( $css_path ) : ORAS_TICKETS_VERSION;
+		$js_version  = is_file( $js_path ) ? (string) filemtime( $js_path ) : ORAS_TICKETS_VERSION;
+		wp_enqueue_style( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.css', array(), $css_version );
+		wp_enqueue_script( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.js', array(), $js_version, true );
 		wp_localize_script(
 			'oras-registration-desk',
 			'ORASRegistrationDesk',

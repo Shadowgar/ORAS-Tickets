@@ -39,20 +39,21 @@ function oras_access_assert( bool $condition, string $message ): void {
 }
 
 $plugin_dir = dirname( __DIR__ ) . '/oras-tickets/';
-$files  = array(
+$php_files  = array(
 	'includes/Capabilities.php',
 	'includes/Registration_Desk/Config.php',
 	'includes/Registration_Desk/Access.php',
 	'includes/Registration_Desk/Station_Session.php',
 	'includes/Registration_Desk/Admin_Settings.php',
 	'includes/Registration_Desk/Landing_Page.php',
-	'assets/registration-desk/desk.css',
-	'assets/registration-desk/desk.js',
 );
 
-foreach ( $files as $file ) {
+foreach ( $php_files as $file ) {
 	oras_access_assert( file_exists( $plugin_dir . $file ), "{$file} exists" );
 	require_once $plugin_dir . $file;
+}
+foreach ( array( 'assets/registration-desk/desk.css', 'assets/registration-desk/desk.js' ) as $file ) {
+	oras_access_assert( file_exists( $plugin_dir . $file ), "{$file} exists" );
 }
 
 $config_class  = '\\ORAS\\Tickets\\Registration_Desk\\Config';
@@ -136,9 +137,14 @@ oras_access_assert( false !== strpos( $landing_code, 'wp_create_nonce' ), 'Landi
 oras_access_assert( false === strpos( $landing_code, 'Backend foundation placeholder' ), 'Foundation placeholder is removed' );
 oras_access_assert( false !== strpos( $landing_code, 'flush_rewrite_rules' ), 'Existing plugin installs receive the desk rewrite migration' );
 oras_access_assert( false !== strpos( $landing_code, 'permalink_structure' ), 'Desk URL supports test and production permalink modes' );
+oras_access_assert( false !== strpos( $landing_code, 'filemtime' ), 'Desk assets are cache-busted when their files change' );
+oras_access_assert( false !== strpos( $landing_code, 'show_admin_bar( false )' ), 'Desk stays distraction-free for administrator stations' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
 oras_access_assert( false !== strpos( $settings_code, 'options[' ), 'Administrator settings expose structured option fields' );
 oras_access_assert( false === strpos( $settings_code, 'config_json' ), 'Administrator setup does not require raw JSON editing' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$desk_css = (string) file_get_contents( $plugin_dir . 'assets/registration-desk/desk.css' );
+oras_access_assert( false !== strpos( $desk_css, '[hidden]' ), 'Conditional desk fields honor the HTML hidden state' );
 
 echo "Registration Desk access checks passed.\n";

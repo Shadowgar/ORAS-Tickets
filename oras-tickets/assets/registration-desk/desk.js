@@ -32,6 +32,13 @@
 		}
 	}
 
+	function apiUrl(path) {
+		const [endpoint, query = ''] = String(path).split('?', 2);
+		const url = new URL(`${config.restUrl}${endpoint}`, window.location.href);
+		new URLSearchParams(query).forEach((value, key) => url.searchParams.set(key, value));
+		return url.toString();
+	}
+
 	async function api(path, options = {}, requestId = '') {
 		const headers = {
 			'Content-Type': 'application/json',
@@ -46,7 +53,7 @@
 		}
 		let response;
 		try {
-			response = await fetch(`${config.restUrl}${path}`, {
+			response = await fetch(apiUrl(path), {
 				credentials: 'same-origin',
 				...options,
 				headers,

@@ -16,6 +16,10 @@
 	box-sizing: border-box;
 }
 
+[hidden] {
+	display: none !important;
+}
+
 body.oras-registration-desk-page {
 	margin: 0;
 	background: var(--desk-canvas);
