@@ -72,6 +72,8 @@ jobs:
       run: |
         ./node_modules/.bin/wp-env run cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/the-events-calendar.zip --activate
         ./node_modules/.bin/wp-env run cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/woocommerce.zip --activate
+        ./node_modules/.bin/wp-env run tests-cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/the-events-calendar.zip --activate
+        ./node_modules/.bin/wp-env run tests-cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/woocommerce.zip --activate
 
     - name: Run Phase 5 integration checks
       env:
