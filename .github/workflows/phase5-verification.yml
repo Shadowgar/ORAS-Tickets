@@ -53,8 +53,25 @@ jobs:
     - name: Install Node dependencies
       run: npm ci --ignore-scripts
 
+    - name: Stage pinned WordPress integration plugins
+      run: |
+        mkdir -p oras-tickets/.ci-integration-deps
+        curl --fail --silent --show-error --location --max-time 120 \
+          --output oras-tickets/.ci-integration-deps/the-events-calendar.zip \
+          https://downloads.wordpress.org/plugin/the-events-calendar.6.17.3.1.zip
+        curl --fail --silent --show-error --location --max-time 120 \
+          --output oras-tickets/.ci-integration-deps/woocommerce.zip \
+          https://downloads.wordpress.org/plugin/woocommerce.11.0.1.zip
+        echo 'f7c4bb35c06a127ae50f78555bb001a2eaed2ec93a79e069b94ed58982eca64f  oras-tickets/.ci-integration-deps/the-events-calendar.zip' | sha256sum --check --strict
+        echo 'da189b6616c610d15a2106f93151dab81b78f83e075bcefce221ac0d00b4fa21  oras-tickets/.ci-integration-deps/woocommerce.zip' | sha256sum --check --strict
+
     - name: Start wp-env
       run: ./node_modules/.bin/wp-env start
+
+    - name: Install pinned WordPress integration plugins
+      run: |
+        ./node_modules/.bin/wp-env run cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/the-events-calendar.zip --activate
+        ./node_modules/.bin/wp-env run cli wp plugin install /var/www/html/wp-content/plugins/oras-tickets/.ci-integration-deps/woocommerce.zip --activate
 
     - name: Run Phase 5 integration checks
       env:
@@ -89,3 +106,9 @@ jobs:
     - name: Stop wp-env
       if: always()
       run: ./node_modules/.bin/wp-env stop || true
+
+    - name: Remove staged WordPress integration plugins
+      if: always()
+      run: |
+        rm -f -- oras-tickets/.ci-integration-deps/the-events-calendar.zip oras-tickets/.ci-integration-deps/woocommerce.zip
+        rmdir oras-tickets/.ci-integration-deps 2>/dev/null || true
