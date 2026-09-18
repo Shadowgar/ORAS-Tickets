@@ -6,11 +6,13 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 function oras_desk_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 		fwrite( STDERR, "FAIL: {$message}\n" );
 		exit( 1 );
 	}
 
-	echo "PASS: {$message}\n";
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
+	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';

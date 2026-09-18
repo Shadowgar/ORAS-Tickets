@@ -8,27 +8,37 @@ require_once __DIR__ . '/fixtures/class-wp-error.php';
 
 $GLOBALS['oras_test_session_token'] = 'wordpress-session-a';
 
-function wp_json_encode( mixed $value ): string|false { return json_encode( $value ); }
-function wp_salt( string $scheme = 'auth' ): string { return 'test-salt-' . $scheme; }
-function wp_get_session_token(): string { return (string) $GLOBALS['oras_test_session_token']; }
+function wp_json_encode( mixed $value ): string|false {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone WordPress-function test double.
+	return json_encode( $value ); }
+function wp_salt( string $scheme = 'auth' ): string {
+	return 'test-salt-' . $scheme; }
+function wp_get_session_token(): string {
+	return (string) $GLOBALS['oras_test_session_token']; }
 function wp_generate_uuid4(): string {
 	static $counter = 0;
 	++$counter;
 	return sprintf( '00000000-0000-4000-8000-%012d', $counter );
 }
-function sanitize_text_field( mixed $value ): string { return trim( strip_tags( (string) $value ) ); }
-function sanitize_key( mixed $value ): string { return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
-function absint( mixed $value ): int { return abs( (int) $value ); }
+function sanitize_text_field( mixed $value ): string {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
+	return trim( strip_tags( (string) $value ) ); }
+function sanitize_key( mixed $value ): string {
+	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
+function absint( mixed $value ): int {
+	return abs( (int) $value ); }
 
 function oras_access_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 		fwrite( STDERR, "FAIL: {$message}\n" );
 		exit( 1 );
 	}
-	echo "PASS: {$message}\n";
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
+	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
-$plugin = dirname( __DIR__ ) . '/oras-tickets/';
+$plugin_dir = dirname( __DIR__ ) . '/oras-tickets/';
 $files  = array(
 	'includes/Capabilities.php',
 	'includes/Registration_Desk/Config.php',
@@ -39,8 +49,8 @@ $files  = array(
 );
 
 foreach ( $files as $file ) {
-	oras_access_assert( file_exists( $plugin . $file ), "{$file} exists" );
-	require_once $plugin . $file;
+	oras_access_assert( file_exists( $plugin_dir . $file ), "{$file} exists" );
+	require_once $plugin_dir . $file;
 }
 
 $config_class  = '\\ORAS\\Tickets\\Registration_Desk\\Config';
@@ -59,13 +69,13 @@ $configured = $config_class::normalize_event_config(
 		'revision' => 7,
 		'options'  => array(
 			array(
-				'option_uuid'              => '11111111-1111-4111-8111-111111111111',
-				'label'                    => 'Synthetic Individual',
-				'available_for_new'        => false,
-				'existing_access_valid'    => true,
-				'classification'           => 'individual',
-				'validity_type'             => 'full_event',
-				'source_product_ids'        => array( 42 ),
+				'option_uuid'           => '11111111-1111-4111-8111-111111111111',
+				'label'                 => 'Synthetic Individual',
+				'available_for_new'     => false,
+				'existing_access_valid' => true,
+				'classification'        => 'individual',
+				'validity_type'         => 'full_event',
+				'source_product_ids'    => array( 42 ),
 			),
 		),
 	)

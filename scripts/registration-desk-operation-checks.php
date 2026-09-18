@@ -4,23 +4,25 @@ declare(strict_types=1);
 
 define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
-if ( ! class_exists( 'WP_Error' ) ) {
-	class WP_Error {
-		public function __construct( public string $code = '', public string $message = '', public mixed $data = null ) {}
-		public function get_error_code(): string { return $this->code; }
-	}
-}
+require_once __DIR__ . '/fixtures/class-wp-error.php';
 
-function sanitize_text_field( mixed $value ): string { return trim( strip_tags( (string) $value ) ); }
-function sanitize_key( mixed $value ): string { return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
-function wp_json_encode( mixed $value, int $flags = 0 ): string|false { return json_encode( $value, $flags ); }
+function sanitize_text_field( mixed $value ): string {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
+	return trim( strip_tags( (string) $value ) ); }
+function sanitize_key( mixed $value ): string {
+	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
+function wp_json_encode( mixed $value, int $flags = 0 ): string|false {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone WordPress-function test double.
+	return json_encode( $value, $flags ); }
 
 function oras_operation_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 		fwrite( STDERR, "FAIL: {$message}\n" );
 		exit( 1 );
 	}
-	echo "PASS: {$message}\n";
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
+	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
@@ -34,9 +36,27 @@ $rest    = '\\ORAS\\Tickets\\Registration_Desk\\Rest_Controller';
 oras_operation_assert( class_exists( $service ), 'Attendance service loads' );
 oras_operation_assert( class_exists( $rest ), 'REST controller loads' );
 
-$hash_a = $service::payload_hash( array( 'last_name' => 'Person', 'first_name' => 'Actual', 'unpaid' => false ) );
-$hash_b = $service::payload_hash( array( 'unpaid' => false, 'first_name' => 'Actual', 'last_name' => 'Person' ) );
-$hash_c = $service::payload_hash( array( 'unpaid' => true, 'first_name' => 'Actual', 'last_name' => 'Person' ) );
+$hash_a = $service::payload_hash(
+	array(
+		'last_name'  => 'Person',
+		'first_name' => 'Actual',
+		'unpaid'     => false,
+	)
+);
+$hash_b = $service::payload_hash(
+	array(
+		'unpaid'     => false,
+		'first_name' => 'Actual',
+		'last_name'  => 'Person',
+	)
+);
+$hash_c = $service::payload_hash(
+	array(
+		'unpaid'     => true,
+		'first_name' => 'Actual',
+		'last_name'  => 'Person',
+	)
+);
 oras_operation_assert( $hash_a === $hash_b, 'Payload hashing is stable across associative-key order' );
 oras_operation_assert( $hash_a !== $hash_c, 'Payload hashing binds meaningful request changes' );
 oras_operation_assert( 64 === strlen( $hash_a ), 'Payload hash is SHA-256' );
@@ -49,9 +69,12 @@ foreach ( array( 'station', 'search', 'detail', 'confirm_and_check_in', 'recent'
 	oras_operation_assert( method_exists( $rest, $method ), "REST controller exposes {$method} contract" );
 }
 
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $service_code = (string) file_get_contents( $base . 'Service.php' );
 oras_operation_assert( false !== strpos( $service_code, 'Store::transaction' ), 'Business mutation and audit use a database transaction' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $attendee_store_code = (string) file_get_contents( $base . 'Attendee_Store.php' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $attendance_store_code = (string) file_get_contents( $base . 'Attendance_Store.php' );
 oras_operation_assert( false !== strpos( $attendee_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Attendee confirmation converges concurrent inserts atomically' );
 oras_operation_assert( false !== strpos( $attendance_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Daily attendance converges concurrent inserts atomically' );
@@ -60,6 +83,7 @@ oras_operation_assert( false !== strpos( $service_code, 'explicit_unpaid_require
 oras_operation_assert( false !== strpos( $service_code, 'expected_record_version' ), 'Reversal binds the expected attendance version' );
 oras_operation_assert( false !== strpos( $service_code, 'current_attendance' ), 'Replay response includes current attendance state' );
 
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );

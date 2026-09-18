@@ -111,14 +111,14 @@ final class Bootstrap
         \ORAS\Tickets\Data_Retention::register();
         \ORAS\Tickets\Privacy_Manager::register();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
-        \ORAS\Tickets\Registration_Desk\Schema::maybe_upgrade();
+		\ORAS\Tickets\Registration_Desk\Schema::maybe_upgrade();
         \ORAS\Tickets\Storage\Manual_Observer_Pass_Store::register();
         \ORAS\Tickets\Storage\Legacy_Membership_Store::register();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {
             \ORAS\Tickets\Capabilities::reconcile_roles();
         }
-        \ORAS\Tickets\Registration_Desk\Landing_Page::register();
-        \ORAS\Tickets\Registration_Desk\Access::register();
+		\ORAS\Tickets\Registration_Desk\Landing_Page::register();
+		\ORAS\Tickets\Registration_Desk\Access::register();
 
         // Hard deps: TEC (tribe_events) and WooCommerce.
         $has_tec = post_type_exists('tribe_events') || class_exists('Tribe__Events__Main');
@@ -194,8 +194,8 @@ final class Bootstrap
         $checkin_api = new \ORAS\Tickets\Api\Checkin();
         $checkin_api->register();
 
-        $registration_desk_api = new \ORAS\Tickets\Registration_Desk\Rest_Controller();
-        $registration_desk_api->register();
+		$registration_desk_api = new \ORAS\Tickets\Registration_Desk\Rest_Controller();
+		$registration_desk_api->register();
 		( new \ORAS\Tickets\Registration_Desk\Source_Change_Listener() )->register();
 
         require_once ORAS_TICKETS_DIR . 'includes/Api/Rsvp.php'; // NOSONAR legacy include
@@ -229,7 +229,7 @@ final class Bootstrap
             require_once ORAS_TICKETS_DIR . 'includes/Admin/Admin_Menu.php'; // NOSONAR legacy include
             $admin_menu = new \ORAS\Tickets\Admin\Admin_Menu();
             $admin_menu->register();
-            \ORAS\Tickets\Registration_Desk\Admin_Settings::register();
+			\ORAS\Tickets\Registration_Desk\Admin_Settings::register();
 
             // RSVP Dashboard handlers
             add_action('wp_ajax_oras_rsvp_dashboard_data', array($this, 'handle_rsvp_dashboard_data'));

@@ -6,9 +6,7 @@ define( 'DB_HOST', 'tests-mysql' );
 define( 'ORAS_QBO_HTTP_BLOCK_ACTIVE', true );
 define( 'ORAS_QBO_DISPOSABLE_MARKER_EXPECTED', 'oras-tickets-qbo-tests-v1-3c882350e7b5f140' );
 
-final class WP_Error {
-	public function __construct( public string $code = 'fixture_error', public string $message = 'fixture error' ) {}
-}
+require_once __DIR__ . '/fixtures/class-wp-error.php';
 
 class WC_Order {
 	public function __construct( private int $id, private bool $deletable = true ) {}

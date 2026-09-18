@@ -6,15 +6,21 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 require_once __DIR__ . '/fixtures/class-wp-error.php';
 
-function sanitize_email( mixed $value ): string { return strtolower( trim( (string) $value ) ); }
-function sanitize_text_field( mixed $value ): string { return trim( strip_tags( (string) $value ) ); }
-function sanitize_key( mixed $value ): string { return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
+function sanitize_email( mixed $value ): string {
+	return strtolower( trim( (string) $value ) ); }
+function sanitize_text_field( mixed $value ): string {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
+	return trim( strip_tags( (string) $value ) ); }
+function sanitize_key( mixed $value ): string {
+	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
 function oras_source_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 		fwrite( STDERR, "FAIL: {$message}\n" );
 		exit( 1 );
 	}
-	echo "PASS: {$message}\n";
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
+	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
@@ -36,8 +42,8 @@ $config = array(
 			'available_for_new'     => false,
 			'existing_access_valid' => true,
 			'classification'        => 'individual',
-			'validity_type'          => 'full_event',
-			'source_product_ids'     => array( 42 ),
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( 42 ),
 		),
 		array(
 			'option_uuid'           => '22222222-2222-4222-8222-222222222222',
@@ -45,8 +51,8 @@ $config = array(
 			'available_for_new'     => true,
 			'existing_access_valid' => true,
 			'classification'        => 'family',
-			'validity_type'          => 'full_event',
-			'source_product_ids'     => array( 43 ),
+			'validity_type'         => 'full_event',
+			'source_product_ids'    => array( 43 ),
 		),
 		array(
 			'option_uuid'           => '33333333-3333-4333-8333-333333333333',
@@ -54,25 +60,25 @@ $config = array(
 			'available_for_new'     => true,
 			'existing_access_valid' => true,
 			'classification'        => 'individual',
-			'validity_type'          => 'one_day',
-			'source_product_ids'     => array( 44 ),
+			'validity_type'         => 'one_day',
+			'source_product_ids'    => array( 44 ),
 		),
 	),
 );
 
 $base_evidence = array(
-	'order_id'           => 9001,
-	'order_item_id'      => 7001,
-	'product_id'         => 42,
-	'source_event_id'    => 123,
-	'quantity'           => 1,
-	'refunded_quantity'  => 0,
-	'order_status'       => 'processing',
-	'contact_name'       => 'Purchaser Name',
-	'email'              => 'person@example.org',
-	'phone'              => '555-0100',
-	'ticket_index'       => 99,
-	'item_label'         => 'A misleading label',
+	'order_id'          => 9001,
+	'order_item_id'     => 7001,
+	'product_id'        => 42,
+	'source_event_id'   => 123,
+	'quantity'          => 1,
+	'refunded_quantity' => 0,
+	'order_status'      => 'processing',
+	'contact_name'      => 'Purchaser Name',
+	'email'             => 'person@example.org',
+	'phone'             => '555-0100',
+	'ticket_index'      => 99,
+	'item_label'        => 'A misleading label',
 );
 
 $resolved = $resolver::resolve( $base_evidence, 123, $config );
@@ -85,15 +91,24 @@ $completed = $policy::evaluate( array_merge( $base_evidence, array( 'order_statu
 oras_source_assert( 'eligible' === $completed['state'], 'Completed source is eligible' );
 $on_hold = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => 'on-hold' ) ), $resolved['option'] );
 oras_source_assert( 'explicit_unpaid_required' === $on_hold['state'], 'On-hold source requires explicit unpaid admission' );
-foreach ( array( 'pending', 'failed' ) as $status ) {
-	$result = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => $status ) ), $resolved['option'] );
-	oras_source_assert( 'not_active' === $result['state'], "{$status} is not normal active admission" );
+foreach ( array( 'pending', 'failed' ) as $order_status ) {
+	$result = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => $order_status ) ), $resolved['option'] );
+	oras_source_assert( 'not_active' === $result['state'], "{$order_status} is not normal active admission" );
 }
-foreach ( array( 'cancelled', 'refunded' ) as $status ) {
-	$result = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => $status ) ), $resolved['option'] );
-	oras_source_assert( 'revoked' === $result['state'], "{$status} is revoked" );
+foreach ( array( 'cancelled', 'refunded' ) as $order_status ) {
+	$result = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => $order_status ) ), $resolved['option'] );
+	oras_source_assert( 'revoked' === $result['state'], "{$order_status} is revoked" );
 }
-$partial = $policy::evaluate( array_merge( $base_evidence, array( 'quantity' => 2, 'refunded_quantity' => 1 ) ), $resolved['option'] );
+$partial = $policy::evaluate(
+	array_merge(
+		$base_evidence,
+		array(
+			'quantity'          => 2,
+			'refunded_quantity' => 1,
+		)
+	),
+	$resolved['option']
+);
 oras_source_assert( 'review_required' === $partial['state'], 'Ambiguous partial refund requires review' );
 $unknown = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => 'custom-status' ) ), $resolved['option'] );
 oras_source_assert( 'review_required' === $unknown['state'], 'Unknown status requires review' );
@@ -104,11 +119,23 @@ $one_day = $resolver::resolve( array_merge( $base_evidence, array( 'product_id' 
 oras_source_assert( 'unsupported_one_day' === $one_day['resolution'], 'One-day source is explicitly unsupported in M1A' );
 $cross_event = $resolver::resolve( array_merge( $base_evidence, array( 'source_event_id' => 456 ) ), 123, $config );
 oras_source_assert( 'review_required' === $cross_event['resolution'], 'Cross-event source is not inferred' );
-$ambiguous = $resolver::resolve( array_merge( $base_evidence, array( 'product_id' => 999, 'ticket_index' => 0, 'item_label' => 'Synthetic Individual' ) ), 123, $config );
+$ambiguous = $resolver::resolve(
+	array_merge(
+		$base_evidence,
+		array(
+			'product_id'   => 999,
+			'ticket_index' => 0,
+			'item_label'   => 'Synthetic Individual',
+		)
+	),
+	123,
+	$config
+);
 oras_source_assert( 'review_required' === $ambiguous['resolution'], 'Numeric index and label do not classify an unmapped source' );
 
 $new_code = '';
 foreach ( glob( $base . '*.php' ) as $file ) {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads local source fixtures.
 	$new_code .= (string) file_get_contents( $file );
 }
 foreach ( array( 'payment_complete(', 'wc_create_order(', 'wp_insert_user(', 'update_status(', 'update_meta_data(', '->save(' ) as $forbidden_call ) {
