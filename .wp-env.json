@@ -3,7 +3,9 @@
   "port": 8894,
   "testsPort": 8895,
   "plugins": [
-    "./oras-tickets"
+    "./oras-tickets",
+    "https://downloads.wordpress.org/plugin/the-events-calendar.6.17.3.1.zip",
+    "https://downloads.wordpress.org/plugin/woocommerce.11.0.1.zip"
   ],
   "mappings": {
     "wp-content/mu-plugins/oras-qbo-http-block.php": "./scripts/fixtures/oras-qbo-http-block.php",
