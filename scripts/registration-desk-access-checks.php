@@ -134,6 +134,8 @@ $landing_code = (string) file_get_contents( $plugin_dir . 'includes/Registration
 oras_access_assert( false !== strpos( $landing_code, 'oras-registration-desk-root' ), 'Landing page renders the real application root' );
 oras_access_assert( false !== strpos( $landing_code, 'wp_create_nonce' ), 'Landing page supplies WordPress REST authentication' );
 oras_access_assert( false === strpos( $landing_code, 'Backend foundation placeholder' ), 'Foundation placeholder is removed' );
+oras_access_assert( false !== strpos( $landing_code, 'flush_rewrite_rules' ), 'Existing plugin installs receive the desk rewrite migration' );
+oras_access_assert( false !== strpos( $landing_code, 'permalink_structure' ), 'Desk URL supports test and production permalink modes' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
 oras_access_assert( false !== strpos( $settings_code, 'options[' ), 'Administrator settings expose structured option fields' );

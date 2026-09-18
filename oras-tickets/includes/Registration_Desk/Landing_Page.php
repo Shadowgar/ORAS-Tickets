@@ -8,6 +8,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Landing_Page {
 	private const QUERY_VAR = 'oras_registration_desk';
+	private const REWRITE_VERSION_OPTION = 'oras_registration_desk_rewrite_version';
+	private const REWRITE_VERSION = 1;
 
 	public static function register(): void {
 		add_action( 'init', array( self::class, 'rewrite' ) );
@@ -17,6 +19,10 @@ final class Landing_Page {
 
 	public static function rewrite(): void {
 		add_rewrite_rule( '^registration-desk/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top' );
+		if ( self::REWRITE_VERSION !== (int) get_option( self::REWRITE_VERSION_OPTION, 0 ) ) {
+			flush_rewrite_rules( false );
+			update_option( self::REWRITE_VERSION_OPTION, self::REWRITE_VERSION, false );
+		}
 	}
 
 	/** @param string[] $vars @return string[] */
@@ -31,7 +37,9 @@ final class Landing_Page {
 	}
 
 	public static function url(): string {
-		return home_url( '/registration-desk/' );
+		return '' !== (string) get_option( 'permalink_structure', '' )
+			? home_url( '/registration-desk/' )
+			: add_query_arg( self::QUERY_VAR, '1', home_url( '/' ) );
 	}
 
 	public static function render(): void {
