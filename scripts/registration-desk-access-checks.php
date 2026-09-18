@@ -46,6 +46,8 @@ $files  = array(
 	'includes/Registration_Desk/Station_Session.php',
 	'includes/Registration_Desk/Admin_Settings.php',
 	'includes/Registration_Desk/Landing_Page.php',
+	'assets/registration-desk/desk.css',
+	'assets/registration-desk/desk.js',
 );
 
 foreach ( $files as $file ) {
@@ -76,12 +78,16 @@ $configured = $config_class::normalize_event_config(
 				'classification'        => 'individual',
 				'validity_type'         => 'full_event',
 				'source_product_ids'    => array( 42 ),
+				'source_event_ids'      => array( 123, 456 ),
+				'max_attendees'         => 4,
 			),
 		),
 	)
 );
 oras_access_assert( false === $configured['options'][0]['available_for_new'], 'New-registration availability is independent' );
 oras_access_assert( true === $configured['options'][0]['existing_access_valid'], 'Existing access validity is independent' );
+oras_access_assert( array( 123, 456 ) === $configured['options'][0]['source_event_ids'], 'Explicit source-event access mappings are normalized' );
+oras_access_assert( 4 === $configured['options'][0]['max_attendees'], 'Configured family-size ceiling is normalized' );
 oras_access_assert( 7 === $configured['revision'], 'Configuration revision is preserved' );
 
 $token_a = $station_class::issue( 99, 123, 7, 'Alice', 600 );
@@ -123,5 +129,14 @@ foreach ( array( 'oras_tickets_view_reports', 'oras_tickets_export_reports', 'or
 }
 oras_access_assert( method_exists( $access_class, 'register' ), 'Restricted-account guard can be registered' );
 oras_access_assert( method_exists( $access_class, 'rest_pre_dispatch' ), 'Restricted-account guard covers REST bypasses' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$landing_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Landing_Page.php' );
+oras_access_assert( false !== strpos( $landing_code, 'oras-registration-desk-root' ), 'Landing page renders the real application root' );
+oras_access_assert( false !== strpos( $landing_code, 'wp_create_nonce' ), 'Landing page supplies WordPress REST authentication' );
+oras_access_assert( false === strpos( $landing_code, 'Backend foundation placeholder' ), 'Foundation placeholder is removed' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
+oras_access_assert( false !== strpos( $settings_code, 'options[' ), 'Administrator settings expose structured option fields' );
+oras_access_assert( false === strpos( $settings_code, 'config_json' ), 'Administrator setup does not require raw JSON editing' );
 
 echo "Registration Desk access checks passed.\n";

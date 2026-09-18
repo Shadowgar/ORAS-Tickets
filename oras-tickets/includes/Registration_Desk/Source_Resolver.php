@@ -7,31 +7,42 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Source_Resolver {
+	/** @param array<string,mixed> $evidence @param array<string,mixed> $config */
+	public static function matches_configured_source( array $evidence, int $target_event_id, array $config ): bool {
+		$resolution = self::resolve( $evidence, $target_event_id, $config );
+
+		return 'Source product or event is not explicitly mapped.' !== (string) $resolution['reason'];
+	}
+
 	/** @param array<string,mixed> $evidence @param array<string,mixed> $config @return array<string,mixed> */
 	public static function resolve( array $evidence, int $target_event_id, array $config ): array {
-		if ( $target_event_id <= 0 || (int) ( $evidence['source_event_id'] ?? 0 ) !== $target_event_id ) {
-			return self::review( 'Source does not directly identify the active event.' );
+		if ( $target_event_id <= 0 ) {
+			return self::review( 'The target event is invalid.' );
 		}
-		$product_id = (int) ( $evidence['product_id'] ?? 0 );
-		$matches    = array();
+		$product_id     = (int) ( $evidence['product_id'] ?? 0 );
+		$source_event_id = (int) ( $evidence['source_event_id'] ?? 0 );
+		$matches        = array();
 		foreach ( is_array( $config['options'] ?? null ) ? $config['options'] : array() as $option ) {
-			if ( is_array( $option ) && in_array( $product_id, array_map( 'intval', (array) ( $option['source_product_ids'] ?? array() ) ), true ) ) {
+			if ( ! is_array( $option ) || ! in_array( $product_id, array_map( 'intval', (array) ( $option['source_product_ids'] ?? array() ) ), true ) ) {
+				continue;
+			}
+			$source_event_ids = array_values( array_filter( array_map( 'intval', (array) ( $option['source_event_ids'] ?? array() ) ) ) );
+			if ( ( empty( $source_event_ids ) && $source_event_id === $target_event_id ) || in_array( $source_event_id, $source_event_ids, true ) ) {
 				$matches[] = $option;
 			}
 		}
 		if ( 1 !== count( $matches ) ) {
-			return self::review( 0 === count( $matches ) ? 'Source product is not explicitly mapped.' : 'Source product has conflicting mappings.' );
+			return self::review( 0 === count( $matches ) ? 'Source product or event is not explicitly mapped.' : 'Source product has conflicting mappings.' );
 		}
 		$option         = $matches[0];
 		$classification = (string) ( $option['classification'] ?? 'unclassified' );
 		$validity       = (string) ( $option['validity_type'] ?? 'unclassified' );
 		$eligibility    = Eligibility::evaluate( $evidence, $option );
-		$resolution     = 'supported';
-		if ( 'family' === $classification ) {
-			$resolution = 'unsupported_family';
-		} elseif ( 'one_day' === $validity ) {
-			$resolution = 'unsupported_one_day';
-		} elseif ( 'individual' !== $classification || 'full_event' !== $validity ) {
+		$valid_local_date = sanitize_text_field( (string) ( $option['valid_local_date'] ?? '' ) );
+		$resolution       = 'supported';
+		if ( ! in_array( $classification, array( 'individual', 'family' ), true ) || ! in_array( $validity, array( 'full_event', 'one_day' ), true ) ) {
+			$resolution = 'review_required';
+		} elseif ( 'one_day' === $validity && 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $valid_local_date ) ) {
 			$resolution = 'review_required';
 		}
 
@@ -43,6 +54,8 @@ final class Source_Resolver {
 			'payment_label'     => $eligibility['label'],
 			'available_for_new' => ! empty( $option['available_for_new'] ),
 			'option_uuid'       => (string) $option['option_uuid'],
+			'valid_local_date'  => $valid_local_date,
+			'max_attendees'     => max( 1, min( 20, (int) ( $option['max_attendees'] ?? 1 ) ) ),
 			'option'            => $option,
 			'reason'            => '',
 		);
@@ -58,6 +71,8 @@ final class Source_Resolver {
 			'payment_label'     => 'Website registration requires review',
 			'available_for_new' => false,
 			'option_uuid'       => '',
+			'valid_local_date'  => '',
+			'max_attendees'     => 1,
 			'option'            => array(),
 			'reason'            => $reason,
 		);

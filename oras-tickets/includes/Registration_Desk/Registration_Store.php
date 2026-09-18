@@ -31,6 +31,122 @@ final class Registration_Store extends Store {
 		return is_array( $row ) ? $row : null;
 	}
 
+	/** @param array<string,mixed> $record @return array<string,mixed>|\WP_Error */
+	public function create_manual( array $record ) {
+		global $wpdb;
+		$uuid       = self::uuid();
+		$now        = self::utc_now();
+		$first_name = sanitize_text_field( (string) ( $record['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( (string) ( $record['last_name'] ?? '' ) );
+		$name       = trim( $first_name . ' ' . $last_name );
+		$email      = strtolower( sanitize_email( (string) ( $record['email'] ?? '' ) ) );
+		$phone      = sanitize_text_field( (string) ( $record['phone'] ?? '' ) );
+		$evidence   = wp_json_encode( is_array( $record['evidence'] ?? null ) ? $record['evidence'] : array() );
+		$insert     = array(
+			'registration_uuid'     => $uuid,
+			'event_id'              => absint( $record['event_id'] ?? 0 ),
+			'option_uuid'           => sanitize_text_field( (string) ( $record['option_uuid'] ?? '' ) ),
+			'source_type'           => sanitize_key( (string) ( $record['source_type'] ?? 'walk_in' ) ),
+			'source_key'            => null,
+			'source_order_id'       => null,
+			'source_order_item_id'  => null,
+			'source_unit_number'    => null,
+			'classification'        => sanitize_key( (string) ( $record['classification'] ?? 'unclassified' ) ),
+			'status'                => 'active',
+			'source_status'         => '',
+			'source_contact_name'   => $name,
+			'source_email'          => $email,
+			'source_phone'          => $phone,
+			'search_name'           => self::normalize_search( $name ),
+			'search_email'          => $email,
+			'search_phone'          => self::normalize_phone( $phone ),
+			'coverage_type'         => sanitize_key( (string) ( $record['classification'] ?? 'unclassified' ) ),
+			'validity_type'         => sanitize_key( (string) ( $record['validity_type'] ?? 'unclassified' ) ),
+			'valid_local_date'      => '' !== (string) ( $record['valid_local_date'] ?? '' ) ? (string) $record['valid_local_date'] : null,
+			'payment_assertion'     => sanitize_key( (string) ( $record['payment_assertion'] ?? '' ) ),
+			'source_evidence'       => is_string( $evidence ) ? $evidence : '{}',
+			'source_checked_at_utc' => null,
+			'config_revision'       => absint( $record['config_revision'] ?? 0 ),
+			'record_version'        => 1,
+			'created_at_utc'        => $now,
+			'updated_at_utc'        => $now,
+		);
+		if ( false === $wpdb->insert( $this->table, $insert ) ) {
+			return new \WP_Error( 'oras_desk_registration_create_failed', 'Registration could not be saved.', array( 'status' => 500 ) );
+		}
+
+		return $this->find_by_uuid( $uuid ) ?? array();
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function duplicate_candidates( int $event_id, string $email, string $phone, string $exclude_uuid = '' ): array {
+		global $wpdb;
+		$email = strtolower( sanitize_email( $email ) );
+		$phone = self::normalize_phone( $phone );
+		if ( '' === $email && '' === $phone ) {
+			return array();
+		}
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+			$wpdb->prepare(
+				"SELECT * FROM {$this->table} WHERE event_id = %d AND registration_uuid <> %s AND ((%s <> '' AND search_email = %s) OR (%s <> '' AND search_phone = %s)) ORDER BY updated_at_utc DESC,id DESC LIMIT 10",
+				$event_id,
+				$exclude_uuid,
+				$email,
+				$email,
+				$phone,
+				$phone
+			),
+			ARRAY_A
+		);
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/** @param array<string,mixed> $changes @return array<string,mixed>|\WP_Error */
+	public function correct_manual( string $uuid, int $expected_version, array $changes ) {
+		global $wpdb;
+		$current = $this->find_by_uuid( $uuid );
+		if ( ! $current || 'online' === (string) $current['source_type'] ) {
+			return new \WP_Error( 'oras_desk_correction_forbidden', 'Only desk-created registration details can be corrected here.', array( 'status' => 409 ) );
+		}
+		$first_name = sanitize_text_field( (string) ( $changes['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( (string) ( $changes['last_name'] ?? '' ) );
+		$name       = trim( $first_name . ' ' . $last_name );
+		$email      = strtolower( sanitize_email( (string) ( $changes['email'] ?? '' ) ) );
+		$phone      = sanitize_text_field( (string) ( $changes['phone'] ?? '' ) );
+		$evidence   = wp_json_encode( is_array( $changes['evidence'] ?? null ) ? $changes['evidence'] : array() );
+		$updated    = $wpdb->update(
+			$this->table,
+			array(
+				'option_uuid'         => sanitize_text_field( (string) ( $changes['option_uuid'] ?? $current['option_uuid'] ) ),
+				'classification'      => sanitize_key( (string) ( $changes['classification'] ?? $current['classification'] ) ),
+				'coverage_type'       => sanitize_key( (string) ( $changes['classification'] ?? $current['classification'] ) ),
+				'validity_type'       => sanitize_key( (string) ( $changes['validity_type'] ?? $current['validity_type'] ) ),
+				'valid_local_date'    => '' !== (string) ( $changes['valid_local_date'] ?? '' ) ? (string) $changes['valid_local_date'] : null,
+				'payment_assertion'   => sanitize_key( (string) ( $changes['payment_assertion'] ?? $current['payment_assertion'] ) ),
+				'source_contact_name' => $name,
+				'source_email'        => $email,
+				'source_phone'        => $phone,
+				'search_name'         => self::normalize_search( $name ),
+				'search_email'        => $email,
+				'search_phone'        => self::normalize_phone( $phone ),
+				'source_evidence'     => is_string( $evidence ) ? $evidence : '{}',
+				'record_version'      => $expected_version + 1,
+				'updated_at_utc'      => self::utc_now(),
+			),
+			array(
+				'id'             => (int) $current['id'],
+				'record_version' => $expected_version,
+			)
+		);
+		if ( 1 !== (int) $updated ) {
+			return new \WP_Error( 'oras_desk_registration_stale', 'Registration changed before the correction could be saved.', array( 'status' => 409 ) );
+		}
+
+		return $this->find_by_uuid( $uuid ) ?? array();
+	}
+
 	/** @param array<string,mixed> $evidence @param array<string,mixed> $resolution @return array<string,mixed>|\WP_Error */
 	public function upsert_source_projection( int $event_id, string $source_key, int $unit, array $evidence, array $resolution, int $config_revision ) {
 		global $wpdb;
@@ -88,7 +204,7 @@ final class Registration_Store extends Store {
 				'status'               => $status,
 				'coverage_type'        => (string) $resolution['classification'],
 				'validity_type'        => (string) $resolution['validity_type'],
-				'valid_local_date'     => null,
+				'valid_local_date'     => '' !== (string) ( $resolution['valid_local_date'] ?? '' ) ? (string) $resolution['valid_local_date'] : null,
 				'payment_assertion'    => null,
 				'config_revision'      => $config_revision,
 				'record_version'       => 1,
@@ -128,6 +244,10 @@ final class Registration_Store extends Store {
 		return trim( preg_replace( '/\s+/', ' ', $value ) ?? '' );
 	}
 
+	private static function normalize_phone( string $value ): string {
+		return preg_replace( '/\D+/', '', $value ) ?? '';
+	}
+
 	/** @return array<int,array<string,mixed>> */
 	public function search( int $event_id, string $query, int $limit = 25 ): array {
 		global $wpdb;
@@ -135,7 +255,8 @@ final class Registration_Store extends Store {
 		if ( '' === $query ) {
 			return array();
 		}
-		$like = '%' . $wpdb->esc_like( $query ) . '%';
+		$like       = '%' . $wpdb->esc_like( $query ) . '%';
+		$phone_like = '%' . $wpdb->esc_like( self::normalize_phone( $query ) ) . '%';
 		$rows = $wpdb->get_results(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 			$wpdb->prepare(
@@ -144,7 +265,7 @@ final class Registration_Store extends Store {
 				$query,
 				$like,
 				$like,
-				$like,
+				$phone_like,
 				$query,
 				max( 1, min( 50, $limit ) )
 			),

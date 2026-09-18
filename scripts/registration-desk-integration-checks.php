@@ -487,6 +487,7 @@ function oras_desk_integration_prepare(): void {
 			'classification'        => 'family',
 			'validity_type'         => 'full_event',
 			'source_product_ids'    => array( $product_family ),
+			'max_attendees'         => 4,
 		),
 		array(
 			'option_uuid'           => '33333333-3333-4333-8333-333333333333',
@@ -495,6 +496,7 @@ function oras_desk_integration_prepare(): void {
 			'existing_access_valid' => true,
 			'classification'        => 'individual',
 			'validity_type'         => 'one_day',
+			'valid_local_date'      => $today,
 			'source_product_ids'    => array( $product_day ),
 		),
 		array(
@@ -617,8 +619,10 @@ function oras_desk_integration_prepare(): void {
 		$projected[ $key ] = $result;
 	}
 	oras_desk_integration_same( $projected['concurrent']['resolution']['resolution'], 'supported', 'direct individual source resolves through immutable event and product evidence' );
-	oras_desk_integration_same( $projected['family']['resolution']['resolution'], 'unsupported_family', 'family source remains explicitly unsupported' );
-	oras_desk_integration_same( $projected['one_day']['resolution']['resolution'], 'unsupported_one_day', 'one-day source remains explicitly unsupported' );
+	oras_desk_integration_same( $projected['family']['resolution']['resolution'], 'supported', 'explicitly configured family source is supported' );
+	oras_desk_integration_same( $projected['family']['resolution']['max_attendees'], 4, 'family source retains its explicit attendee ceiling' );
+	oras_desk_integration_same( $projected['one_day']['resolution']['resolution'], 'supported', 'explicitly configured one-day source is supported' );
+	oras_desk_integration_same( $projected['one_day']['resolution']['valid_local_date'], $today, 'one-day source retains its explicit local date' );
 	oras_desk_integration_same( $projected['ambiguous']['resolution']['resolution'], 'review_required', 'conflicting mappings require review' );
 	oras_desk_integration_same( $projected['unclassified']['resolution']['resolution'], 'review_required', 'unclassified source requires review' );
 	oras_desk_integration_same( $projected['cross_event']['resolution']['resolution'], 'review_required', 'cross-event source is not inferred into the active event' );
@@ -755,7 +759,44 @@ function oras_desk_integration_prepare(): void {
 	$quantity_two_retry = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
 	oras_desk_integration_error( $service->confirm_and_check_in( $context['quantity_unit_two'], array_merge( $payload, array( 'explicit_unpaid' => true ) ), $quantity_two_retry ), 'oras_desk_registration_inactive', 'revoked stored unit blocks explicit-unpaid admission after refresh' );
 	$family_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
-	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['family'], array_merge( $payload, array( 'explicit_unpaid' => true ) ), $family_context ), 'oras_desk_registration_inactive', 'stored needs-review state blocks explicit-unpaid admission' );
+	$family_result = $service->check_in(
+		$context['projected']['family'],
+		array(
+			'attendance_local_date' => $today,
+			'explicit_unpaid'       => false,
+			'arrivals'              => array(
+				array(
+					'slot_key'   => 'family-1',
+					'first_name' => 'Family',
+					'last_name'  => 'Primary',
+				),
+				array(
+					'slot_key'   => 'family-2',
+					'first_name' => '',
+					'last_name'  => '',
+				),
+			),
+		),
+		$family_context
+	);
+	oras_desk_integration_true( is_array( $family_result ) && 2 === count( $family_result['historical_result']['attendance'] ), 'family check-in records only the two actual arrivals with stable slots' );
+	$one_day_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$one_day_result = $service->check_in(
+		$context['projected']['one_day'],
+		array(
+			'attendance_local_date' => $today,
+			'explicit_unpaid'       => false,
+			'arrivals'              => array(
+				array(
+					'slot_key'   => 'individual-1',
+					'first_name' => 'One',
+					'last_name'  => 'Day',
+				),
+			),
+		),
+		$one_day_context
+	);
+	oras_desk_integration_true( is_array( $one_day_result ) && 'checked_in' === $one_day_result['historical_result']['result'], 'one-day registration admits an actual arrival on its configured date' );
 	$atomic_request = wp_generate_uuid4();
 	$atomic_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, $atomic_request );
 	$atomic_registration = $registration_store->find_by_uuid( $context['projected']['atomic'] );
@@ -802,6 +843,37 @@ function oras_desk_integration_prepare(): void {
 	$changed_payload = $payload;
 	$changed_payload['last_name'] = 'Different';
 	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['completed'], $changed_payload, $desk_context ), 'oras_desk_request_conflict', 'conflicting reuse of a request identifier fails safely' );
+	$walk_in_payload = array(
+		'first_name'           => 'Walkin',
+		'last_name'            => 'Visitor',
+		'email'                => 'walkin-' . $context['run'] . '@example.test',
+		'phone'                => '814-555-0201',
+		'option_uuid'          => '11111111-1111-4111-8111-111111111111',
+		'valid_local_date'     => '',
+		'payment_assertion'    => 'paid_card',
+		'additional_attendees' => array(),
+	);
+	$walk_in_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$walk_in = $service->create_walk_in( $walk_in_payload, $walk_in_context );
+	oras_desk_integration_true( is_array( $walk_in ) && 'paid_card' === $walk_in['historical_result']['registration']['payment_assertion'], 'walk-in records a volunteer payment statement without creating an order' );
+	$walk_in_replay = $service->create_walk_in( $walk_in_payload, $walk_in_context );
+	oras_desk_integration_true( is_array( $walk_in_replay ) && true === $walk_in_replay['replayed'], 'walk-in lost-response retry returns the recorded result without duplicate attendance' );
+	$walk_in_registration_uuid = (string) $walk_in['historical_result']['registration']['registration_uuid'];
+	$duplicate_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error(
+		$service->create_walk_in(
+			array_merge(
+				$walk_in_payload,
+				array(
+					'first_name' => 'Possible',
+					'last_name'  => 'Duplicate',
+				)
+			),
+			$duplicate_context
+		),
+		'oras_desk_possible_duplicate',
+		'exact email or phone match warns without automatically merging people'
+	);
 
 	$on_hold_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
 	$on_hold_payload = array(
@@ -830,6 +902,17 @@ function oras_desk_integration_prepare(): void {
 	wp_set_current_user( (int) $admin_id );
 	$admin_token = Station_Session::issue( (int) $admin_id, $event_id, (int) $config['revision'], 'Administrator' );
 	$admin_context = oras_desk_integration_context( (int) $admin_id, $event_id, $config, $admin_token, wp_generate_uuid4() );
+	$walk_in_row = $registration_store->find_by_uuid( $walk_in_registration_uuid );
+	$correction_payload = array_merge(
+		$walk_in_payload,
+		array(
+			'phone'                   => '814-555-0299',
+			'expected_record_version' => (int) $walk_in_row['record_version'],
+		)
+	);
+	$corrected = $service->correct_registration( $walk_in_registration_uuid, $correction_payload, $admin_context );
+	oras_desk_integration_true( is_array( $corrected ) && '814-555-0299' === $corrected['historical_result']['registration']['source_phone'], 'administrator correction updates only the desk registration and records an audit' );
+	$admin_context['request_uuid'] = wp_generate_uuid4();
 	$reverse = $service->reverse(
 		$context['projected']['completed'],
 		$attendee_uuid,

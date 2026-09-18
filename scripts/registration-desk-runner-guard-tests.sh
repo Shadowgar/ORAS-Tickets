@@ -31,6 +31,8 @@ reject_text() {
 [[ -f "$RUNNER" ]] || fail 'Registration Desk runner exists.'
 
 require_text "WP_ENV_PROJECT='/home/rocco/projects/oras-wp-env'" 'Runner pins the designated source project.'
+require_text "'/home/rocco/projects/ORAS-Tickets'" 'Runner pins the owner-approved main checkout.'
+require_text "owner-preserved .gitignore modification" 'Runner permits only the preserved .gitignore modification outside committed code.'
 require_text 'process.chdir(project)' 'wp-env resolves configuration from the designated source project.'
 require_text 'wp_env install-path' 'Runner resolves the designated generated install path through wp-env.'
 require_text 'TEST_COMPOSE_OVERRIDE' 'Runner creates an explicit test-service-only Compose overlay.'
@@ -48,6 +50,7 @@ require_text 'ORAS_SYNC=0' 'Runner verifies WooCommerce compatibility synchroniz
 require_text 'verify_restored_options' 'Runner reads back restored test options.'
 reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary development environment.'
 reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
+reject_text '.config/superpowers/worktrees/ORAS-Tickets' 'Runner does not require an obsolete detached worktree.'
 reject_text "EXPECTED_URL='http://localhost:" 'Runner does not hard-code an old test-site port.'
 reject_text 'wp option add oras_registration_desk_disposable_fixture_id' 'Runner never bypasses identity checks with an unconditional marker command.'
 if /usr/bin/grep -F -- 'http://localhost:8895' "$HARNESS" >/dev/null; then

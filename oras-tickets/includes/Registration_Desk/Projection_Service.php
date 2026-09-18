@@ -75,7 +75,7 @@ final class Projection_Service {
 			}
 			$page = (int) $cursor['page'];
 		}
-		$source_page = $this->adapter->page_for_event( $event_id, $page, $limit );
+		$source_page = $this->adapter->page_for_event( $event_id, $page, $limit, $config );
 		if ( $source_page instanceof \WP_Error ) {
 			$coverage->fail( $event_id, $revision, 'recovery_page:' . $page, $source_page->get_error_code(), $continuation );
 			return $source_page;

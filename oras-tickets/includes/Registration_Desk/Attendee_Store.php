@@ -52,27 +52,31 @@ final class Attendee_Store extends Store {
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
-	public function confirm_individual( int $registration_id, string $first_name, string $last_name ) {
+	public function confirm_slot( int $registration_id, string $slot_key, string $first_name = '', string $last_name = '' ) {
 		global $wpdb;
-		$display = trim( $first_name . ' ' . $last_name );
-		$uuid    = self::uuid();
-		$now     = self::utc_now();
-		// The no-op duplicate branch is an atomic rendezvous for simultaneous
-		// first confirmations. LAST_INSERT_ID exposes the winning row to this
-		// connection without mutating its identity or version.
+		$slot_key  = sanitize_key( $slot_key );
+		$first_name = sanitize_text_field( $first_name );
+		$last_name  = sanitize_text_field( $last_name );
+		$display    = trim( $first_name . ' ' . $last_name );
+		if ( '' === $slot_key || 1 !== preg_match( '/^(individual|family)-[1-9][0-9]*$/', $slot_key ) ) {
+			return new \WP_Error( 'oras_desk_attendee_slot_invalid', 'Attendee slot identity is invalid.', array( 'status' => 400 ) );
+		}
+		$uuid  = self::uuid();
+		$now   = self::utc_now();
+		$state = '' === $display ? 'unnamed' : 'confirmed';
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 		$sql = $wpdb->prepare(
-			"INSERT INTO {$this->table} (attendee_uuid,registration_id,slot_key,first_name,last_name,display_name,identity_state,status,record_version,confirmed_at_utc,created_at_utc,updated_at_utc) VALUES (%s,%d,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
+			"INSERT INTO {$this->table} (attendee_uuid,registration_id,slot_key,first_name,last_name,display_name,identity_state,status,record_version,confirmed_at_utc,created_at_utc,updated_at_utc) VALUES (%s,%d,%s,%s,%s,%s,%s,%s,%d,NULLIF(%s,''),%s,%s) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
 			$uuid,
 			$registration_id,
-			'individual-1',
+			$slot_key,
 			$first_name,
 			$last_name,
 			$display,
-			'confirmed',
+			$state,
 			'active',
 			1,
-			$now,
+			'' === $display ? '' : $now,
 			$now,
 			$now
 		);
@@ -84,10 +88,36 @@ final class Attendee_Store extends Store {
 		if ( ! $attendee ) {
 			return new \WP_Error( 'oras_desk_attendee_create_failed', 'Arriving attendee could not be confirmed.', array( 'status' => 409 ) );
 		}
-		if ( 'confirmed' === $attendee['identity_state'] && $display !== $attendee['display_name'] ) {
-			return new \WP_Error( 'oras_desk_attendee_conflict', 'This attendee was already confirmed with a different name.', array( 'status' => 409 ) );
+		if ( '' !== $display && 'unnamed' === (string) $attendee['identity_state'] ) {
+			$updated = $wpdb->update(
+				$this->table,
+				array(
+					'first_name'       => $first_name,
+					'last_name'        => $last_name,
+					'display_name'     => $display,
+					'identity_state'   => 'confirmed',
+					'confirmed_at_utc' => $now,
+					'record_version'   => (int) $attendee['record_version'] + 1,
+					'updated_at_utc'   => $now,
+				),
+				array(
+					'id'             => (int) $attendee['id'],
+					'record_version' => (int) $attendee['record_version'],
+				)
+			);
+			if ( 1 === (int) $updated ) {
+				$attendee = $this->find_current_by_id( (int) $attendee['id'] ) ?? $attendee;
+			}
+		}
+		if ( '' !== $display && 'confirmed' === (string) $attendee['identity_state'] && $display !== (string) $attendee['display_name'] ) {
+			return new \WP_Error( 'oras_desk_attendee_conflict', 'This attendee slot already has a different confirmed name.', array( 'status' => 409 ) );
 		}
 
 		return $attendee;
+	}
+
+	/** @return array<string,mixed>|\WP_Error */
+	public function confirm_individual( int $registration_id, string $first_name, string $last_name ) {
+		return $this->confirm_slot( $registration_id, 'individual-1', $first_name, $last_name );
 	}
 }

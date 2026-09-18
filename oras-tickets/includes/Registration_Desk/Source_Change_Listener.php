@@ -33,7 +33,8 @@ final class Source_Change_Listener {
 			return;
 		}
 		foreach ( $order->get_items( 'line_item' ) as $item ) {
-			if ( (int) $item->get_meta( '_oras_ticket_event_id', true ) !== $event_id ) {
+			$evidence = $this->adapter->load( $order_id, (int) $item->get_id() );
+			if ( $evidence instanceof \WP_Error || ! Source_Resolver::matches_configured_source( $evidence, $event_id, $config ) ) {
 				continue;
 			}
 			$item_id  = (int) $item->get_id();

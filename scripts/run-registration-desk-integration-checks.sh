@@ -113,16 +113,17 @@ wp_safe() {
 }
 
 verify_static_identity() {
-	local origin install_path
-	[[ "$ROOT_DIR" == /home/*/.config/superpowers/worktrees/ORAS-Tickets/* ]] || fail 'runner is not in an isolated ORAS Tickets worktree.'
-	[[ "$(git_cmd rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || fail 'runner is not at the canonical worktree root.'
+	local origin install_path dirty
+	[[ "$ROOT_DIR" == '/home/rocco/projects/ORAS-Tickets' ]] || fail 'runner is not in the owner-approved main checkout.'
+	[[ "$(git_cmd rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || fail 'runner is not at the canonical main checkout root.'
 	origin="$(git_cmd remote get-url origin)"
 	case "$origin" in
 		"$EXPECTED_ORIGIN"|"${EXPECTED_ORIGIN%.git}") ;;
 		*) fail 'origin does not identify the canonical ORAS Tickets repository.' ;;
 	esac
 	git_cmd merge-base --is-ancestor "$EXPECTED_BASE" HEAD || fail 'HEAD does not descend from the approved implementation base.'
-	[[ -z "$(git_cmd status --porcelain=v1)" ]] || fail 'feature worktree must be clean so mounted code has a committed identity.'
+	dirty="$(git_cmd status --porcelain=v1 --untracked-files=all)"
+	[[ "$dirty" == ' M .gitignore' ]] || fail 'main must contain only the owner-preserved .gitignore modification so mounted code has a committed identity.'
 	[[ "$(sha256_of "$WP_ENV_CONFIG")" == "$EXPECTED_WP_ENV_CONFIG_SHA256" ]] || fail 'designated oras-wp-env configuration identity changed.'
 	[[ "$(sha256_of "$QBO_GUARD_FILE")" == "$EXPECTED_QBO_GUARD_SHA256" ]] || fail 'Intuit HTTP guard identity changed.'
 	[[ "$(sha256_of "$GUARD_FILE")" == "$EXPECTED_GUARD_SHA256" ]] || fail 'transport guard identity changed.'
@@ -315,8 +316,8 @@ verify_mounted_code_identity() {
 	for service in tests-wordpress tests-cli; do
 		id="$(verify_container "$service")"
 		mounts="$(mounts_for "$id")"
-		printf '%s\n' "$mounts" | /usr/bin/grep -F "$ROOT_DIR/oras-tickets => /var/www/html/wp-content/plugins/oras-tickets" >/dev/null || fail "$service plugin mount does not point at this feature worktree."
-		printf '%s\n' "$mounts" | /usr/bin/grep -F "$ROOT_DIR/scripts => /var/www/html/wp-content/oras-qbo-tests" >/dev/null || fail "$service test-script mount does not point at this feature worktree."
+		printf '%s\n' "$mounts" | /usr/bin/grep -F "$ROOT_DIR/oras-tickets => /var/www/html/wp-content/plugins/oras-tickets" >/dev/null || fail "$service plugin mount does not point at the main checkout."
+		printf '%s\n' "$mounts" | /usr/bin/grep -F "$ROOT_DIR/scripts => /var/www/html/wp-content/oras-qbo-tests" >/dev/null || fail "$service test-script mount does not point at the main checkout."
 		printf '%s\n' "$mounts" | /usr/bin/grep -F "$QBO_GUARD_FILE => /var/www/html/wp-content/mu-plugins/oras-qbo-http-block.php" >/dev/null || fail "$service Intuit guard mount is missing."
 		printf '%s\n' "$mounts" | /usr/bin/grep -F "$GUARD_FILE => /var/www/html/wp-content/mu-plugins/oras-registration-desk-test-guard.php" >/dev/null || fail "$service transport guard mount is missing."
 	done

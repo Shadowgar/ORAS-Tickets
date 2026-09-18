@@ -39,7 +39,12 @@ final class Config {
 				$validity = 'unclassified';
 			}
 			$product_ids = array_values( array_unique( array_filter( array_map( 'absint', is_array( $candidate['source_product_ids'] ?? null ) ? $candidate['source_product_ids'] : array() ) ) ) );
-			$options[]   = array(
+			$source_event_ids = array_values( array_unique( array_filter( array_map( 'absint', is_array( $candidate['source_event_ids'] ?? null ) ? $candidate['source_event_ids'] : array() ) ) ) );
+			$valid_local_date = sanitize_text_field( (string) ( $candidate['valid_local_date'] ?? '' ) );
+			if ( 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $valid_local_date ) ) {
+				$valid_local_date = '';
+			}
+			$options[] = array(
 				'option_uuid'           => $uuid,
 				'label'                 => sanitize_text_field( (string) ( $candidate['label'] ?? '' ) ),
 				'available_for_new'     => ! empty( $candidate['available_for_new'] ),
@@ -47,6 +52,9 @@ final class Config {
 				'classification'        => $classification,
 				'validity_type'         => $validity,
 				'source_product_ids'    => $product_ids,
+				'source_event_ids'      => $source_event_ids,
+				'valid_local_date'      => $valid_local_date,
+				'max_attendees'         => max( 1, min( 20, absint( $candidate['max_attendees'] ?? 1 ) ) ),
 			);
 		}
 

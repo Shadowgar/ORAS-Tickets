@@ -26,13 +26,16 @@ function oras_operation_assert( bool $condition, string $message ): void {
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
-foreach ( array( 'Service.php', 'Rest_Controller.php' ) as $file ) {
+foreach ( array( 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Service.php', 'Rest_Controller.php' ) as $file ) {
 	oras_operation_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
 
 $service = '\\ORAS\\Tickets\\Registration_Desk\\Service';
 $rest    = '\\ORAS\\Tickets\\Registration_Desk\\Rest_Controller';
+$registration_store = '\\ORAS\\Tickets\\Registration_Desk\\Registration_Store';
+$attendee_store     = '\\ORAS\\Tickets\\Registration_Desk\\Attendee_Store';
+$attendance_store   = '\\ORAS\\Tickets\\Registration_Desk\\Attendance_Store';
 oras_operation_assert( class_exists( $service ), 'Attendance service loads' );
 oras_operation_assert( class_exists( $rest ), 'REST controller loads' );
 
@@ -68,6 +71,21 @@ oras_operation_assert( false === $service::date_is_within_event( '2026-10-12', '
 foreach ( array( 'station', 'search', 'detail', 'confirm_and_check_in', 'recent', 'reverse' ) as $method ) {
 	oras_operation_assert( method_exists( $rest, $method ), "REST controller exposes {$method} contract" );
 }
+foreach ( array( 'dashboard', 'create_walk_in', 'check_in', 'create_complimentary', 'correct_registration' ) as $method ) {
+	oras_operation_assert( method_exists( $service, $method ), "V1 service exposes {$method} workflow" );
+	oras_operation_assert( method_exists( $rest, $method ), "V1 REST controller exposes {$method} contract" );
+}
+foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $statement ) {
+	oras_operation_assert( true === $service::payment_assertion_is_valid( $statement ), "{$statement} is an allowed operational payment statement" );
+}
+oras_operation_assert( false === $service::payment_assertion_is_valid( 'refunded' ), 'Financial lifecycle states are not payment assertions' );
+oras_operation_assert( method_exists( $registration_store, 'create_manual' ), 'Registration store creates nonfinancial desk records' );
+oras_operation_assert( method_exists( $registration_store, 'duplicate_candidates' ), 'Registration store exposes conservative duplicate warnings' );
+oras_operation_assert( method_exists( $registration_store, 'correct_manual' ), 'Registration store supports guarded manual corrections' );
+oras_operation_assert( method_exists( $attendee_store, 'confirm_slot' ), 'Attendee store supports stable named or unnamed family slots' );
+oras_operation_assert( method_exists( $attendance_store, 'dashboard' ), 'Attendance store reports honestly defined dashboard counts' );
+oras_operation_assert( method_exists( $attendance_store, 'recent_detailed' ), 'Recent arrivals include attendee and registration context' );
+oras_operation_assert( method_exists( $attendance_store, 'for_attendees_on_date' ), 'Registration detail can expose current daily attendance for manager actions' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $service_code = (string) file_get_contents( $base . 'Service.php' );
@@ -88,5 +106,11 @@ $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
 oras_operation_assert( false === strpos( $rest_code, '/orders/(?P<' ), 'No desk route uses an order ID as registration identity' );
+
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$desk_js = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.js' );
+oras_operation_assert( false !== strpos( $desk_js, 'performCheckIn(form, registration, true)' ), 'Volunteer UI offers the explicit unpaid admission path when required' );
+oras_operation_assert( false !== strpos( $desk_js, 'reverseAttendance' ), 'Manager UI exposes audited attendance reversal' );
+oras_operation_assert( false !== strpos( $desk_js, 'saveCorrection' ), 'Manager UI exposes guarded manual-registration correction' );
 
 echo "Registration Desk operation checks passed.\n";

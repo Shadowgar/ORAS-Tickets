@@ -53,7 +53,7 @@ final class Source_Adapter {
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
-	public function page_for_event( int $event_id, int $page = 1, int $limit = 50 ) {
+	public function page_for_event( int $event_id, int $page = 1, int $limit = 50, array $config = array() ) {
 		if ( ! function_exists( 'wc_get_orders' ) ) {
 			return new \WP_Error( 'oras_desk_source_unavailable', 'WooCommerce order access is unavailable.', array( 'status' => 503 ) );
 		}
@@ -78,8 +78,9 @@ final class Source_Adapter {
 				continue;
 			}
 			foreach ( $order->get_items( 'line_item' ) as $item ) {
-				if ( (int) $item->get_meta( '_oras_ticket_event_id', true ) === $event_id ) {
-					$evidence[] = $this->evidence( $order, $item );
+				$item_evidence = $this->evidence( $order, $item );
+				if ( Source_Resolver::matches_configured_source( $item_evidence, $event_id, $config ) ) {
+					$evidence[] = $item_evidence;
 				}
 			}
 		}

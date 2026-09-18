@@ -44,9 +44,29 @@ final class Landing_Page {
 		}
 		nocache_headers();
 		status_header( 200 );
+		wp_enqueue_style( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.css', array(), ORAS_TICKETS_VERSION );
+		wp_enqueue_script( 'oras-registration-desk', ORAS_TICKETS_URL . 'assets/registration-desk/desk.js', array(), ORAS_TICKETS_VERSION, true );
+		wp_localize_script(
+			'oras-registration-desk',
+			'ORASRegistrationDesk',
+			array(
+				'restUrl' => untrailingslashit( rest_url( 'oras-tickets/v1/registration-desk' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+				'appUrl'  => self::url(),
+			)
+		);
 		header( 'Content-Type: text/html; charset=' . get_option( 'blog_charset', 'UTF-8' ) );
-		echo '<!doctype html><html><head><meta name="robots" content="noindex,nofollow"><title>' . esc_html__( 'Registration Desk', 'oras-tickets' ) . '</title></head><body>';
-		echo '<main><h1>' . esc_html__( 'Registration Desk', 'oras-tickets' ) . '</h1><p>' . esc_html__( 'Backend foundation placeholder. Final volunteer screens are not yet approved.', 'oras-tickets' ) . '</p></main>';
+		echo '<!doctype html><html ';
+		language_attributes();
+		echo '><head>';
+		echo '<meta charset="' . esc_attr( get_option( 'blog_charset', 'UTF-8' ) ) . '"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">';
+		echo '<title>' . esc_html__( 'Registration Desk', 'oras-tickets' ) . '</title>';
+		wp_head();
+		echo '</head><body class="oras-registration-desk-page">';
+		echo '<div id="oras-registration-desk-root" class="desk-shell" aria-live="polite">';
+		echo '<main class="desk-loading"><p>' . esc_html__( 'Loading Registration Desk…', 'oras-tickets' ) . '</p></main>';
+		echo '</div><noscript><p>' . esc_html__( 'Registration Desk requires JavaScript.', 'oras-tickets' ) . '</p></noscript>';
+		wp_footer();
 		echo '</body></html>';
 		exit;
 	}

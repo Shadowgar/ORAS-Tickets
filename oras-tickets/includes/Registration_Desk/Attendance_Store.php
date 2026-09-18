@@ -113,4 +113,67 @@ final class Attendance_Store extends Store {
 
 		return is_array( $rows ) ? $rows : array();
 	}
+
+	/** @return array<string,mixed> */
+	public function dashboard( int $event_id, string $local_date ): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+		$checked_in = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->table} WHERE event_id = %d AND attendance_local_date = %s AND state = 'checked_in'", $event_id, $local_date ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
+		$reversed = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->table} WHERE event_id = %d AND attendance_local_date = %s AND state = 'reversed'", $event_id, $local_date ) );
+		$registration_table = Schema::table_names()['registrations'];
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table names are fixed by Schema.
+		$active_registrations = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$registration_table} WHERE event_id = %d AND status = 'active'", $event_id ) );
+
+		return array(
+			'local_date'           => $local_date,
+			'checked_in_today'     => $checked_in,
+			'reversed_today'       => $reversed,
+			'active_registrations' => $active_registrations,
+			'definitions'          => array(
+				'checked_in_today'     => 'Active attendee attendance records for the site-local date.',
+				'reversed_today'       => 'Attendance records reversed by an administrator for the site-local date.',
+				'active_registrations' => 'Active desk registrations for this event; this is not a remaining-capacity count.',
+			),
+		);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function recent_detailed( int $event_id, int $limit = 25 ): array {
+		global $wpdb;
+		$tables = Schema::table_names();
+		$rows   = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table names are fixed by Schema.
+			$wpdb->prepare(
+				"SELECT a.*,t.attendee_uuid,t.slot_key,t.display_name,t.identity_state,r.registration_uuid,r.source_type,r.source_contact_name FROM {$tables['attendance']} a INNER JOIN {$tables['attendees']} t ON t.id = a.attendee_id INNER JOIN {$tables['registrations']} r ON r.id = t.registration_id WHERE a.event_id = %d AND a.state = 'checked_in' ORDER BY a.checked_in_at_utc DESC,a.id DESC LIMIT %d",
+				$event_id,
+				max( 1, min( 100, $limit ) )
+			),
+			ARRAY_A
+		);
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/** @param array<int,int> $attendee_ids @return array<int,array<string,mixed>> */
+	public function for_attendees_on_date( int $event_id, array $attendee_ids, string $local_date ): array {
+		global $wpdb;
+		$attendee_ids = array_values( array_unique( array_filter( array_map( 'absint', $attendee_ids ) ) ) );
+		if ( empty( $attendee_ids ) ) {
+			return array();
+		}
+		$placeholders = implode( ',', array_fill( 0, count( $attendee_ids ), '%d' ) );
+		$arguments    = array_merge( array( $event_id, $local_date ), $attendee_ids );
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Fixed table name; runtime-generated placeholders exactly match the attendee ID arguments.
+			$wpdb->prepare( "SELECT * FROM {$this->table} WHERE event_id = %d AND attendance_local_date = %s AND attendee_id IN ({$placeholders})", ...$arguments ),
+			ARRAY_A
+		);
+		$indexed = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$indexed[ (int) $row['attendee_id'] ] = $row;
+		}
+
+		return $indexed;
+	}
 }

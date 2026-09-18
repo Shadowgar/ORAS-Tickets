@@ -44,6 +44,8 @@ $config = array(
 			'classification'        => 'individual',
 			'validity_type'         => 'full_event',
 			'source_product_ids'    => array( 42 ),
+			'source_event_ids'      => array( 123, 456 ),
+			'max_attendees'         => 1,
 		),
 		array(
 			'option_uuid'           => '22222222-2222-4222-8222-222222222222',
@@ -53,6 +55,8 @@ $config = array(
 			'classification'        => 'family',
 			'validity_type'         => 'full_event',
 			'source_product_ids'    => array( 43 ),
+			'source_event_ids'      => array( 123 ),
+			'max_attendees'         => 5,
 		),
 		array(
 			'option_uuid'           => '33333333-3333-4333-8333-333333333333',
@@ -62,6 +66,9 @@ $config = array(
 			'classification'        => 'individual',
 			'validity_type'         => 'one_day',
 			'source_product_ids'    => array( 44 ),
+			'source_event_ids'      => array( 123 ),
+			'valid_local_date'      => '2026-10-08',
+			'max_attendees'         => 1,
 		),
 	),
 );
@@ -114,11 +121,15 @@ $unknown = $policy::evaluate( array_merge( $base_evidence, array( 'order_status'
 oras_source_assert( 'review_required' === $unknown['state'], 'Unknown status requires review' );
 
 $family = $resolver::resolve( array_merge( $base_evidence, array( 'product_id' => 43 ) ), 123, $config );
-oras_source_assert( 'unsupported_family' === $family['resolution'], 'Family source is explicitly unsupported in M1A' );
+oras_source_assert( 'supported' === $family['resolution'], 'Explicitly configured family source is supported in V1' );
+oras_source_assert( 5 === $family['max_attendees'], 'Family source preserves its configured attendee limit' );
 $one_day = $resolver::resolve( array_merge( $base_evidence, array( 'product_id' => 44 ) ), 123, $config );
-oras_source_assert( 'unsupported_one_day' === $one_day['resolution'], 'One-day source is explicitly unsupported in M1A' );
+oras_source_assert( 'supported' === $one_day['resolution'], 'Explicitly configured one-day source is supported in V1' );
+oras_source_assert( '2026-10-08' === $one_day['valid_local_date'], 'One-day source retains its configured date' );
 $cross_event = $resolver::resolve( array_merge( $base_evidence, array( 'source_event_id' => 456 ) ), 123, $config );
-oras_source_assert( 'review_required' === $cross_event['resolution'], 'Cross-event source is not inferred' );
+oras_source_assert( 'supported' === $cross_event['resolution'], 'Explicit cross-event mapping grants target-event access' );
+$unmapped_cross_event = $resolver::resolve( array_merge( $base_evidence, array( 'source_event_id' => 789 ) ), 123, $config );
+oras_source_assert( 'review_required' === $unmapped_cross_event['resolution'], 'Unconfigured cross-event access is never inferred' );
 $ambiguous = $resolver::resolve(
 	array_merge(
 		$base_evidence,
