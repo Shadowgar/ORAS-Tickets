@@ -98,6 +98,9 @@ add_filter(
 	'pre_http_request',
 	static function ( $preempt, array $args, string $url ) {
 		$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+		if ( 'intuit.com' === $host || str_ends_with( $host, '.intuit.com' ) ) {
+			return $preempt;
+		}
 		if (
 			defined( 'ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS' )
 			&& ORAS_REGISTRATION_DESK_ALLOW_PLUGIN_DOWNLOADS
