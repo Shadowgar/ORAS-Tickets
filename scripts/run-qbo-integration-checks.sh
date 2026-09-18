@@ -510,8 +510,9 @@ verify_mounts_and_database() {
 			$argv[2] => "/var/www/html/wp-content/plugins/oras-tickets",
 			$argv[3] => "/var/www/html/wp-content/oras-qbo-tests",
 			$argv[4] => "/var/www/html/wp-content/mu-plugins/oras-qbo-http-block.php",
-			$argv[5] => "/var/www/html",
-			$argv[6] => "/wordpress-phpunit",
+			$argv[5] => "/var/www/html/wp-content/mu-plugins/oras-registration-desk-test-guard.php",
+			$argv[6] => "/var/www/html",
+			$argv[7] => "/wordpress-phpunit",
 		);
 		$found = array();
 		foreach ($mounts as $mount) {
@@ -532,11 +533,12 @@ verify_mounts_and_database() {
 			fwrite(STDERR, "Required repository mounts are missing.\n"); exit(1);
 		}
 		$environment = $container["Config"]["Env"] ?? array();
-		if (!in_array("WORDPRESS_DB_NAME=" . $argv[7], $environment, true)
-			|| !in_array("WORDPRESS_DB_HOST=" . $argv[8], $environment, true)) {
+		if (!in_array("WORDPRESS_DB_NAME=" . $argv[8], $environment, true)
+			|| !in_array("WORDPRESS_DB_HOST=" . $argv[9], $environment, true)) {
 			fwrite(STDERR, "Unexpected WordPress database environment.\n"); exit(1);
 		}
 	' "$cli_json" "$ROOT_DIR/oras-tickets" "$ROOT_DIR/scripts" "$HTTP_BLOCK_FILE" \
+		"$ROOT_DIR/scripts/fixtures/oras-registration-desk-test-guard.php" \
 		"$WP_ENV_HOME_DIR/tests-WordPress" "$WP_ENV_HOME_DIR/tests-WordPress-PHPUnit/tests/phpunit" \
 		"$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST" \
 		|| fail "mounted project identity or disposable database configuration did not match."
