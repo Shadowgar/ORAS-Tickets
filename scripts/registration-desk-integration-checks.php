@@ -380,7 +380,7 @@ function oras_desk_integration_discovery( string $run, int $event_id, int $other
 	$retry_continuation = '';
 	$recovery_error = null;
 	for ( $attempt = 0; $attempt < 100; ++$attempt ) {
-		$attempt_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 5 );
+		$attempt_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 100 );
 		if ( is_wp_error( $attempt_result ) ) {
 			$recovery_error = $attempt_result;
 			break;
@@ -394,7 +394,7 @@ function oras_desk_integration_discovery( string $run, int $event_id, int $other
 	$failed_recovery_state = $coverage->get( $event_id, (int) $config['revision'] );
 	oras_desk_integration_same( $failed_recovery_state['continuation'], $retry_continuation, 'failed recovery persists the exact retry continuation' );
 	remove_filter( 'oras_registration_desk_projection_failure', $recovery_filter, 10 );
-	$retry_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 5 );
+	$retry_result = $projection->reconcile_page( $event_id, $config, $retry_continuation, 100 );
 	if ( is_wp_error( $retry_result ) ) {
 		oras_desk_integration_fail( 'same-cursor recovery retry failed: ' . $retry_result->get_error_code() );
 	}
