@@ -286,6 +286,7 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		'memberships'   => oras_desk_integration_hash( $membership_counts ),
 		'qbo_actions'   => oras_desk_integration_hash( $scheduled ),
 		'http_log'      => oras_desk_integration_hash( $external_http ),
+		'http_evidence' => $external_http,
 		'mail_log'      => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
 		'write_log'     => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
 		'global_counts' => oras_desk_integration_hash( $global_counts ),
