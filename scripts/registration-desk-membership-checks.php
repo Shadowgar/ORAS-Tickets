@@ -6,17 +6,25 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 require_once __DIR__ . '/fixtures/class-wp-error.php';
 
-function sanitize_text_field( mixed $value ): string { return trim( strip_tags( (string) $value ) ); }
-function sanitize_key( mixed $value ): string { return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
-function sanitize_email( mixed $value ): string { return strtolower( trim( (string) $value ) ); }
-function esc_url_raw( mixed $value ): string { return filter_var( (string) $value, FILTER_VALIDATE_URL ) ? (string) $value : ''; }
-function absint( mixed $value ): int { return abs( (int) $value ); }
+function sanitize_text_field( mixed $value ): string {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
+	return trim( strip_tags( (string) $value ) ); }
+function sanitize_key( mixed $value ): string {
+	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
+function sanitize_email( mixed $value ): string {
+	return strtolower( trim( (string) $value ) ); }
+function esc_url_raw( mixed $value ): string {
+	return filter_var( (string) $value, FILTER_VALIDATE_URL ) ? (string) $value : ''; }
+function absint( mixed $value ): int {
+	return abs( (int) $value ); }
 
 function oras_membership_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 		fwrite( STDERR, "FAIL: {$message}\n" );
 		exit( 1 );
 	}
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
 	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
@@ -46,7 +54,10 @@ $mappings = $config::normalize_membership_mappings(
 			'price'        => '35.00',
 			'checkout_url' => 'https://oras.org/membership-account/membership-checkout/?level=7',
 		),
-		array( 'level_id' => 0, 'display_name' => 'Invalid' ),
+		array(
+			'level_id'     => 0,
+			'display_name' => 'Invalid',
+		),
 	)
 );
 oras_membership_assert( 1 === count( $mappings ), 'Only complete membership mappings are retained' );
@@ -72,15 +83,20 @@ oras_membership_assert( 1 === $discounted['cycle_number'] && 'Year' === $discoun
 
 $message = $credit::email_message(
 	array(
-		'first_name' => 'John', 'level_name' => 'Individual Membership', 'reference_price' => '35.00',
-		'payment_method' => 'cash', 'event_title' => 'Test Event', 'checkout_url' => 'https://example.org/level-7',
-		'credit_code' => 'ORAS-TEST-CODE',
+		'first_name'      => 'John',
+		'level_name'      => 'Individual Membership',
+		'reference_price' => '35.00',
+		'payment_method'  => 'cash',
+		'event_title'     => 'Test Event',
+		'checkout_url'    => 'https://example.org/level-7',
+		'credit_code'     => 'ORAS-TEST-CODE',
 	)
 );
 foreach ( array( 'John', 'Oil Region Astronomical Society', 'Individual Membership', 'Cash', 'Test Event', 'https://example.org/level-7', 'ORAS-TEST-CODE', 'SHOULD NOT BE CHARGED AGAIN', 'same email address' ) as $required ) {
 	oras_membership_assert( false !== stripos( $message, $required ), "Activation email contains {$required}" );
 }
 
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $source = (string) file_get_contents( $base . 'Membership_Credit_Service.php' );
 foreach ( array( 'wp_insert_user(', 'pmpro_changeMembershipLevel(', 'wc_create_order(', 'payment_complete(' ) as $forbidden ) {
 	oras_membership_assert( false === strpos( $source, $forbidden ), "Kiosk credit service never calls {$forbidden}" );
@@ -88,6 +104,7 @@ foreach ( array( 'wp_insert_user(', 'pmpro_changeMembershipLevel(', 'wc_create_o
 oras_membership_assert( false !== strpos( $source, "'pmpro_check_discount_code'" ), 'Credit is bound to the purchaser email during checkout validation' );
 oras_membership_assert( false !== strpos( $source, "'pmpro_after_checkout'" ), 'Successful PMPro checkout marks the activation redeemed' );
 
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $lookup_source = (string) file_get_contents( $base . 'Member_Lookup_Service.php' );
 oras_membership_assert(
 	false !== strpos( $lookup_source, 'if ( isset( $seen_emails[ $email ] ) )' ),

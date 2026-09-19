@@ -33,8 +33,8 @@ function wp_hash_password( string $password ): string {
 	return password_hash( $password, PASSWORD_DEFAULT ); }
 function wp_check_password( string $password, string $hash ): bool {
 	return password_verify( $password, $hash ); }
-function get_option( string $key, mixed $default = false ): mixed {
-	return $GLOBALS['oras_test_options'][ $key ] ?? $default; }
+function get_option( string $key, mixed $fallback = false ): mixed {
+	return $GLOBALS['oras_test_options'][ $key ] ?? $fallback; }
 function update_option( string $key, mixed $value, bool $autoload = true ): bool {
 	$GLOBALS['oras_test_options'][ $key ] = $value;
 	return true; }
@@ -148,9 +148,24 @@ oras_access_assert( $catalog_class::overlaps_year( '2025-12-30', '2026-01-02', 2
 oras_access_assert( ! $catalog_class::overlaps_year( '2025-01-01', '2025-12-31', 2026 ), 'Prior-year event does not overlap the current year' );
 $ordered = $catalog_class::sort_rows(
 	array(
-		array( 'event_id' => 1, 'start_date' => '2026-09-01', 'end_date' => '2026-09-01', 'title' => 'Earlier' ),
-		array( 'event_id' => 2, 'start_date' => '2026-10-01', 'end_date' => '2026-10-02', 'title' => 'Upcoming' ),
-		array( 'event_id' => 3, 'start_date' => '2026-09-19', 'end_date' => '2026-09-20', 'title' => 'Current' ),
+		array(
+			'event_id'   => 1,
+			'start_date' => '2026-09-01',
+			'end_date'   => '2026-09-01',
+			'title'      => 'Earlier',
+		),
+		array(
+			'event_id'   => 2,
+			'start_date' => '2026-10-01',
+			'end_date'   => '2026-10-02',
+			'title'      => 'Upcoming',
+		),
+		array(
+			'event_id'   => 3,
+			'start_date' => '2026-09-19',
+			'end_date'   => '2026-09-20',
+			'title'      => 'Current',
+		),
 	),
 	'2026-09-19'
 );

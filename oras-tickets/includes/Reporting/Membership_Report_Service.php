@@ -117,51 +117,118 @@ final class Membership_Report_Service {
 
 	/** @param array<int,array<string,mixed>> $rows @return array{people:array<int,array<string,mixed>>,orphans:array<int,array<string,mixed>>} */
 	private function aggregate_people( array $rows ): array {
-		$people = array(); $email_keys = array(); $orphans = array();
+		$people     = array();
+		$email_keys = array();
+		$orphans    = array();
 		foreach ( $rows as $row ) {
-			$source = (string) ( $row['source'] ?? '' ); $user_id = absint( $row['user_id'] ?? 0 );
-			$linked_id = absint( $row['linked_user_id'] ?? 0 ); $email = $this->normalize_email( (string) ( $row['email'] ?? '' ) );
+			$source    = (string) ( $row['source'] ?? '' );
+			$user_id   = absint( $row['user_id'] ?? 0 );
+			$linked_id = absint( $row['linked_user_id'] ?? 0 );
+			$email     = $this->normalize_email( (string) ( $row['email'] ?? '' ) );
 			$key = '';
-			if ( $user_id > 0 ) { $key = 'wp:' . $user_id; }
-			elseif ( $linked_id > 0 ) { $key = 'wp:' . $linked_id; }
-			elseif ( '' !== $email && isset( $email_keys[ $email ] ) ) { $key = $email_keys[ $email ]; }
-			elseif ( '' !== $email ) { $key = 'email:' . $email; }
-			elseif ( self::SOURCE_WEBSITE === $source ) { $orphans[] = $row; continue; }
-			elseif ( '' !== trim( (string) ( $row['member_name'] ?? '' ) ) ) { $key = 'legacy:' . absint( $row['source_record_id'] ?? 0 ); }
-			else { continue; }
-			if ( ! isset( $people[ $key ] ) ) { $people[ $key ] = array( 'person_key' => $key, 'website_records' => array(), 'legacy_paypal_records' => array(), 'offline_activation_records' => array(), 'matching_user_ids' => array(), 'review_indicators' => array() ); }
-			if ( self::SOURCE_WEBSITE === $source ) { $people[ $key ]['website_records'][] = $row; if ( '' !== $email ) { $email_keys[ $email ] = $key; } }
-			elseif ( self::SOURCE_OFFLINE === $source ) { $people[ $key ]['offline_activation_records'][] = $row; }
-			else { $people[ $key ]['legacy_paypal_records'][] = $row; }
-			if ( self::LINK_POSSIBLE_NAME === ( $row['match_type'] ?? '' ) ) { $people[ $key ]['review_indicators'][] = self::LINK_POSSIBLE_NAME; }
+			if ( $user_id > 0 ) {
+				$key = 'wp:' . $user_id;
+			} elseif ( $linked_id > 0 ) {
+				$key = 'wp:' . $linked_id;
+			} elseif ( '' !== $email && isset( $email_keys[ $email ] ) ) {
+				$key = $email_keys[ $email ];
+			} elseif ( '' !== $email ) {
+				$key = 'email:' . $email;
+			} elseif ( self::SOURCE_WEBSITE === $source ) {
+				$orphans[] = $row;
+				continue;
+			} elseif ( '' !== trim( (string) ( $row['member_name'] ?? '' ) ) ) {
+				$key = 'legacy:' . absint( $row['source_record_id'] ?? 0 );
+			} else {
+				continue;
+			}
+
+			if ( ! isset( $people[ $key ] ) ) {
+				$people[ $key ] = array(
+					'person_key'                 => $key,
+					'website_records'            => array(),
+					'legacy_paypal_records'      => array(),
+					'offline_activation_records' => array(),
+					'matching_user_ids'          => array(),
+					'review_indicators'          => array(),
+				);
+			}
+			if ( self::SOURCE_WEBSITE === $source ) {
+				$people[ $key ]['website_records'][] = $row;
+				if ( '' !== $email ) {
+					$email_keys[ $email ] = $key;
+				}
+			} elseif ( self::SOURCE_OFFLINE === $source ) {
+				$people[ $key ]['offline_activation_records'][] = $row;
+			} else {
+				$people[ $key ]['legacy_paypal_records'][] = $row;
+			}
+			if ( self::LINK_POSSIBLE_NAME === ( $row['match_type'] ?? '' ) ) {
+				$people[ $key ]['review_indicators'][] = self::LINK_POSSIBLE_NAME;
+			}
 		}
 		$result = array();
-		foreach ( $people as $person ) { $result[] = $this->finalize_person( $person ); }
-		return array( 'people' => $result, 'orphans' => $orphans );
+		foreach ( $people as $person ) {
+			$result[] = $this->finalize_person( $person );
+		}
+
+		return array(
+			'people'  => $result,
+			'orphans' => $orphans,
+		);
 	}
 
 	/** @param array<string,mixed> $person @return array<string,mixed> */
 	private function finalize_person( array $person ): array {
-		$website = $person['website_records']; $legacy = $person['legacy_paypal_records']; $offline = $person['offline_activation_records'];
+		$website         = $person['website_records'];
+		$legacy          = $person['legacy_paypal_records'];
+		$offline         = $person['offline_activation_records'];
 		$current_website = array_values( array_filter( $website, fn( array $r ): bool => $this->is_current( $r ) ) );
-		$current_legacy = array_values( array_filter( $legacy, fn( array $r ): bool => $this->is_current( $r ) ) );
-		$primary = ! empty( $current_website ) ? $current_website[0] : ( ! empty( $website ) ? $website[0] : ( ! empty( $legacy ) ? $legacy[0] : $offline[0] ) );
-		$status = $this->person_status( array_merge( $website, $legacy, $offline ) );
+		$current_legacy  = array_values( array_filter( $legacy, fn( array $r ): bool => $this->is_current( $r ) ) );
+		$primary         = ! empty( $current_website ) ? $current_website[0] : ( ! empty( $website ) ? $website[0] : ( ! empty( $legacy ) ? $legacy[0] : $offline[0] ) );
+		$status          = $this->person_status( array_merge( $website, $legacy, $offline ) );
 		$source_labels = array();
-		if ( ! empty( $website ) ) { $source_labels[] = __( 'Website / PMPro', 'oras-tickets' ); }
-		if ( ! empty( $legacy ) ) { $source_labels[] = __( 'Legacy PayPal', 'oras-tickets' ); }
-		if ( ! empty( $offline ) ) { $source_labels[] = __( 'Offline Event Activation', 'oras-tickets' ); }
-		$primary['source'] = ! empty( $website ) ? self::SOURCE_WEBSITE : ( ! empty( $legacy ) ? self::SOURCE_LEGACY : self::SOURCE_OFFLINE );
-		$primary['source_label'] = implode( ' + ', $source_labels );
-		$primary['operational_status'] = $status; $primary['website_membership'] = ! empty( $current_website ) ? $current_website[0] : array();
-		$primary['membership_history'] = array_values( array_filter( $website, fn( array $r ): bool => empty( $current_website ) || (int) $r['source_record_id'] !== (int) $current_website[0]['source_record_id'] ) );
-		$primary['legacy_paypal_records'] = $legacy; $primary['offline_activation_records'] = $offline; $primary['person_key'] = $person['person_key'];
-		if ( empty( $current_website ) && ! empty( $current_legacy ) ) { $primary['level_name'] = __( 'Legacy PayPal Membership', 'oras-tickets' ); }
+		if ( ! empty( $website ) ) {
+			$source_labels[] = __( 'Website / PMPro', 'oras-tickets' );
+		}
+		if ( ! empty( $legacy ) ) {
+			$source_labels[] = __( 'Legacy PayPal', 'oras-tickets' );
+		}
+		if ( ! empty( $offline ) ) {
+			$source_labels[] = __( 'Offline Event Activation', 'oras-tickets' );
+		}
+		$primary['source']                     = ! empty( $website ) ? self::SOURCE_WEBSITE : ( ! empty( $legacy ) ? self::SOURCE_LEGACY : self::SOURCE_OFFLINE );
+		$primary['source_label']               = implode( ' + ', $source_labels );
+		$primary['operational_status']         = $status;
+		$primary['website_membership']         = ! empty( $current_website ) ? $current_website[0] : array();
+		$primary['membership_history']         = array_values( array_filter( $website, fn( array $r ): bool => empty( $current_website ) || (int) $r['source_record_id'] !== (int) $current_website[0]['source_record_id'] ) );
+		$primary['legacy_paypal_records']      = $legacy;
+		$primary['offline_activation_records'] = $offline;
+		$primary['person_key']                 = $person['person_key'];
+		if ( empty( $current_website ) && ! empty( $current_legacy ) ) {
+			$primary['level_name'] = __( 'Legacy PayPal Membership', 'oras-tickets' );
+		}
+
 		return $primary;
 	}
 
-	/** @param array<string,mixed> $row */ private function is_current( array $row ): bool { return in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true ); }
-	/** @param array<int,array<string,mixed>> $rows */ private function person_status( array $rows ): string { foreach ( array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_PENDING_ACTIVATION, self::STATUS_REDEEMED_OFFLINE, self::STATUS_INACTIVE, self::STATUS_EXPIRED, self::STATUS_CREDIT_EXPIRED, self::STATUS_CANCELLED, self::STATUS_CREDIT_CANCELLED ) as $status ) { foreach ( $rows as $row ) { if ( $status === ( $row['operational_status'] ?? '' ) ) return $status; } } return self::STATUS_INACTIVE; }
+	/** @param array<string,mixed> $row */
+	private function is_current( array $row ): bool {
+		return in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
+	}
+
+	/** @param array<int,array<string,mixed>> $rows */
+	private function person_status( array $rows ): string {
+		foreach ( array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_PENDING_ACTIVATION, self::STATUS_REDEEMED_OFFLINE, self::STATUS_INACTIVE, self::STATUS_EXPIRED, self::STATUS_CREDIT_EXPIRED, self::STATUS_CANCELLED, self::STATUS_CREDIT_CANCELLED ) as $status ) {
+			foreach ( $rows as $row ) {
+				if ( $status === ( $row['operational_status'] ?? '' ) ) {
+					return $status;
+				}
+			}
+		}
+
+		return self::STATUS_INACTIVE;
+	}
 
 	/** @return array<int,array<string,mixed>> */
 	private function get_website_rows(): array {
@@ -566,18 +633,46 @@ final class Membership_Report_Service {
 			)[ $status ] ?? self::STATUS_INACTIVE;
 			$linked_user_id = absint( $raw['linked_user_id'] ?? 0 );
 			$rows[] = array(
-				'source' => self::SOURCE_OFFLINE, 'source_label' => __( 'Offline Event Activation', 'oras-tickets' ),
-				'source_record_id' => absint( $raw['id'] ?? 0 ), 'user_id' => 0, 'linked_user_id' => $linked_user_id,
-				'username' => '', 'member_name' => trim( (string) ( $raw['first_name'] ?? '' ) . ' ' . (string) ( $raw['last_name'] ?? '' ) ),
-				'email' => sanitize_email( (string) ( $raw['email'] ?? '' ) ), 'level_id' => absint( $raw['level_id'] ?? 0 ),
-				'level_name' => sanitize_text_field( (string) ( $raw['level_name'] ?? '' ) ), 'source_status' => $status,
-				'start_date' => substr( (string) ( $raw['created_at_utc'] ?? '' ), 0, 10 ), 'end_date' => substr( (string) ( $raw['expires_at_utc'] ?? '' ), 0, 10 ),
-				'membership_date' => substr( (string) ( $raw['expires_at_utc'] ?? '' ), 0, 10 ), 'membership_date_state' => 'expires',
-				'operational_status' => $operational, 'account_link_status' => $linked_user_id > 0 ? self::LINK_LINKED : self::LINK_UNLINKED,
-				'match_type' => $linked_user_id > 0 ? 'linked' : 'none', 'matching_user_ids' => $linked_user_id > 0 ? array( $linked_user_id ) : array(),
-				'paypal_reference' => '', 'transitioned' => 'redeemed' === $status, 'notes' => sprintf( __( 'Purchased at %s. %s recorded. Activation email: %s.', 'oras-tickets' ), get_the_title( absint( $raw['event_id'] ?? 0 ) ), ucfirst( (string) ( $raw['payment_method'] ?? '' ) ), (string) ( $raw['email_status'] ?? '' ) ),
-				'phone' => sanitize_text_field( (string) ( $raw['phone'] ?? '' ) ), 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '', 'postcode' => '', 'country' => '', 'address_summary' => '', 'membership_questions' => array(),
-				'event_id' => absint( $raw['event_id'] ?? 0 ), 'credit_code' => (string) ( $raw['credit_code'] ?? '' ), 'email_status' => (string) ( $raw['email_status'] ?? '' ),
+				'source'                => self::SOURCE_OFFLINE,
+				'source_label'          => __( 'Offline Event Activation', 'oras-tickets' ),
+				'source_record_id'      => absint( $raw['id'] ?? 0 ),
+				'user_id'               => 0,
+				'linked_user_id'        => $linked_user_id,
+				'username'              => '',
+				'member_name'           => trim( (string) ( $raw['first_name'] ?? '' ) . ' ' . (string) ( $raw['last_name'] ?? '' ) ),
+				'email'                 => sanitize_email( (string) ( $raw['email'] ?? '' ) ),
+				'level_id'              => absint( $raw['level_id'] ?? 0 ),
+				'level_name'            => sanitize_text_field( (string) ( $raw['level_name'] ?? '' ) ),
+				'source_status'         => $status,
+				'start_date'            => substr( (string) ( $raw['created_at_utc'] ?? '' ), 0, 10 ),
+				'end_date'              => substr( (string) ( $raw['expires_at_utc'] ?? '' ), 0, 10 ),
+				'membership_date'       => substr( (string) ( $raw['expires_at_utc'] ?? '' ), 0, 10 ),
+				'membership_date_state' => 'expires',
+				'operational_status'    => $operational,
+				'account_link_status'   => $linked_user_id > 0 ? self::LINK_LINKED : self::LINK_UNLINKED,
+				'match_type'            => $linked_user_id > 0 ? 'linked' : 'none',
+				'matching_user_ids'     => $linked_user_id > 0 ? array( $linked_user_id ) : array(),
+				'paypal_reference'      => '',
+				'transitioned'          => 'redeemed' === $status,
+				'notes'                 => sprintf(
+					/* translators: 1: event title, 2: payment method, 3: activation email status. */
+					__( 'Purchased at %1$s. %2$s recorded. Activation email: %3$s.', 'oras-tickets' ),
+					get_the_title( absint( $raw['event_id'] ?? 0 ) ),
+					ucfirst( (string) ( $raw['payment_method'] ?? '' ) ),
+					(string) ( $raw['email_status'] ?? '' )
+				),
+				'phone'                 => sanitize_text_field( (string) ( $raw['phone'] ?? '' ) ),
+				'address_1'             => '',
+				'address_2'             => '',
+				'city'                  => '',
+				'state'                 => '',
+				'postcode'              => '',
+				'country'               => '',
+				'address_summary'       => '',
+				'membership_questions'  => array(),
+				'event_id'              => absint( $raw['event_id'] ?? 0 ),
+				'credit_code'           => (string) ( $raw['credit_code'] ?? '' ),
+				'email_status'          => (string) ( $raw['email_status'] ?? '' ),
 			);
 		}
 
@@ -679,15 +774,15 @@ final class Membership_Report_Service {
 	/** @param array<int,array<string,mixed>> $rows @return array<int,array<string,mixed>> */
 	private function sort_rows( array $rows ): array {
 		$ranks = array(
-			self::STATUS_ACTIVE        => 0,
-			self::STATUS_EXPIRING_SOON => 1,
+			self::STATUS_ACTIVE             => 0,
+			self::STATUS_EXPIRING_SOON      => 1,
 			self::STATUS_PENDING_ACTIVATION => 2,
-			self::STATUS_REDEEMED_OFFLINE => 3,
-			self::STATUS_EXPIRED       => 4,
-			self::STATUS_CREDIT_EXPIRED => 5,
-			self::STATUS_INACTIVE      => 6,
-			self::STATUS_CANCELLED     => 7,
-			self::STATUS_CREDIT_CANCELLED => 8,
+			self::STATUS_REDEEMED_OFFLINE   => 3,
+			self::STATUS_EXPIRED            => 4,
+			self::STATUS_CREDIT_EXPIRED     => 5,
+			self::STATUS_INACTIVE           => 6,
+			self::STATUS_CANCELLED          => 7,
+			self::STATUS_CREDIT_CANCELLED   => 8,
 		);
 		usort(
 			$rows,

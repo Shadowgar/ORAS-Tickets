@@ -1372,15 +1372,15 @@ final class Board_Reports {
 		$total = $stats['event_total'];
 		$memberships = $stats['memberships'];
 		$metrics = array(
-			__( 'Active registrations', 'oras-tickets' ) => (int) $total['active_registrations'],
-			__( 'People registered', 'oras-tickets' ) => (int) $total['people_registered'],
-			__( 'Unique attendees', 'oras-tickets' ) => (int) $total['unique_attendees'],
-			__( 'Attendance instances', 'oras-tickets' ) => (int) $total['attendance_instances'],
+			__( 'Active registrations', 'oras-tickets' )  => (int) $total['active_registrations'],
+			__( 'People registered', 'oras-tickets' )     => (int) $total['people_registered'],
+			__( 'Unique attendees', 'oras-tickets' )      => (int) $total['unique_attendees'],
+			__( 'Attendance instances', 'oras-tickets' )  => (int) $total['attendance_instances'],
 			__( 'No-show registrations', 'oras-tickets' ) => (int) $total['no_show_registrations'],
 			__( 'Website registrations', 'oras-tickets' ) => (int) $total['website_registrations'],
 			__( 'Walk-in registrations', 'oras-tickets' ) => (int) $total['walk_in_registrations'],
 			__( 'Complimentary registrations', 'oras-tickets' ) => (int) $total['complimentary_registrations'],
-			__( 'Family registrations', 'oras-tickets' ) => (int) $total['family_registrations'],
+			__( 'Family registrations', 'oras-tickets' )  => (int) $total['family_registrations'],
 			__( 'Actual family attendees', 'oras-tickets' ) => (int) $total['family_attendees_attended'],
 		);
 		?>
@@ -1400,8 +1400,26 @@ final class Board_Reports {
 			</div>
 			<h4><?php echo esc_html__( 'Memberships originating at this event', 'oras-tickets' ); ?></h4>
 			<div class="oras-board-reports__overview-grid">
-				<?php self::render_event_count_group( __( 'Activation status', 'oras-tickets' ), array( 'Pending online activation' => $memberships['pending'], 'Redeemed / active' => $memberships['redeemed'], 'Expired unused codes' => $memberships['expired'], 'Cancelled codes' => $memberships['cancelled'] ) ); ?>
-				<?php self::render_event_count_group( __( 'Cash / Check recorded', 'oras-tickets' ), array( 'Cash' => $memberships['cash'], 'Check' => $memberships['check'] ) ); ?>
+				<?php
+				self::render_event_count_group(
+					__( 'Activation status', 'oras-tickets' ),
+					array(
+						'Pending online activation' => $memberships['pending'],
+						'Redeemed / active'         => $memberships['redeemed'],
+						'Expired unused codes'      => $memberships['expired'],
+						'Cancelled codes'           => $memberships['cancelled'],
+					)
+				);
+				?>
+				<?php
+				self::render_event_count_group(
+					__( 'Cash / Check recorded', 'oras-tickets' ),
+					array(
+						'Cash'  => $memberships['cash'],
+						'Check' => $memberships['check'],
+					)
+				);
+				?>
 				<?php self::render_event_count_group( __( 'Membership levels', 'oras-tickets' ), $memberships['levels'] ); ?>
 			</div>
 		</section>
@@ -1412,7 +1430,9 @@ final class Board_Reports {
 	private static function render_event_count_group( string $title, array $counts ): void {
 		?>
 		<div class="oras-board-reports__metric"><p class="oras-board-reports__metric-label"><?php echo esc_html( $title ); ?></p><dl>
-			<?php foreach ( $counts as $label => $count ) : ?><div><dt><?php echo esc_html( ucwords( str_replace( '_', ' ', (string) $label ) ) ); ?></dt><dd><?php echo esc_html( number_format_i18n( (int) $count ) ); ?></dd></div><?php endforeach; ?>
+			<?php foreach ( $counts as $label => $count ) : ?>
+				<div><dt><?php echo esc_html( ucwords( str_replace( '_', ' ', (string) $label ) ) ); ?></dt><dd><?php echo esc_html( number_format_i18n( (int) $count ) ); ?></dd></div>
+			<?php endforeach; ?>
 		</dl></div>
 		<?php
 	}
@@ -1807,10 +1827,30 @@ final class Board_Reports {
 		$history = isset( $row['membership_history'] ) && is_array( $row['membership_history'] ) ? $row['membership_history'] : array();
 		$legacy = isset( $row['legacy_paypal_records'] ) && is_array( $row['legacy_paypal_records'] ) ? $row['legacy_paypal_records'] : array();
 		$offline = isset( $row['offline_activation_records'] ) && is_array( $row['offline_activation_records'] ) ? $row['offline_activation_records'] : array();
-		if ( ! empty( $website ) ) echo '<section><h5>' . esc_html__( 'Website Membership', 'oras-tickets' ) . '</h5><p>' . esc_html( (string) ( $website['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $website['source_status'] ?? '' ) ) ) . '</p></section>';
-		if ( ! empty( $history ) ) { echo '<section><h5>' . esc_html__( 'Membership History', 'oras-tickets' ) . '</h5><ul>'; foreach ( $history as $record ) echo '<li>' . esc_html( (string) ( $record['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
-		if ( ! empty( $legacy ) ) { echo '<section><h5>' . esc_html__( 'Legacy PayPal', 'oras-tickets' ) . '</h5><ul>'; foreach ( $legacy as $record ) echo '<li>' . esc_html__( 'Profile ID:', 'oras-tickets' ) . ' ' . esc_html( (string) ( $record['paypal_reference'] ?? '' ) ) . ' — ' . esc_html( ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
-		if ( ! empty( $offline ) ) { echo '<section><h5>' . esc_html__( 'Offline Event Activations', 'oras-tickets' ) . '</h5><ul>'; foreach ( $offline as $record ) echo '<li>' . esc_html( get_the_title( absint( $record['event_id'] ?? 0 ) ) . ' — ' . ucfirst( str_replace( '_', ' ', (string) ( $record['operational_status'] ?? '' ) ) ) . ' — Email ' . (string) ( $record['email_status'] ?? '' ) ) . '</li>'; echo '</ul></section>'; }
+		if ( ! empty( $website ) ) {
+			echo '<section><h5>' . esc_html__( 'Website Membership', 'oras-tickets' ) . '</h5><p>' . esc_html( (string) ( $website['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $website['source_status'] ?? '' ) ) ) . '</p></section>';
+		}
+		if ( ! empty( $history ) ) {
+			echo '<section><h5>' . esc_html__( 'Membership History', 'oras-tickets' ) . '</h5><ul>';
+			foreach ( $history as $record ) {
+				echo '<li>' . esc_html( (string) ( $record['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>';
+			}
+			echo '</ul></section>';
+		}
+		if ( ! empty( $legacy ) ) {
+			echo '<section><h5>' . esc_html__( 'Legacy PayPal', 'oras-tickets' ) . '</h5><ul>';
+			foreach ( $legacy as $record ) {
+				echo '<li>' . esc_html__( 'Profile ID:', 'oras-tickets' ) . ' ' . esc_html( (string) ( $record['paypal_reference'] ?? '' ) ) . ' — ' . esc_html( ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>';
+			}
+			echo '</ul></section>';
+		}
+		if ( ! empty( $offline ) ) {
+			echo '<section><h5>' . esc_html__( 'Offline Event Activations', 'oras-tickets' ) . '</h5><ul>';
+			foreach ( $offline as $record ) {
+				echo '<li>' . esc_html( get_the_title( absint( $record['event_id'] ?? 0 ) ) . ' — ' . ucfirst( str_replace( '_', ' ', (string) ( $record['operational_status'] ?? '' ) ) ) . ' — Email ' . (string) ( $record['email_status'] ?? '' ) ) . '</li>';
+			}
+			echo '</ul></section>';
+		}
 	}
 
 	/** @param array<string,mixed> $report */
@@ -4133,14 +4173,14 @@ final class Board_Reports {
 	 */
 	private static function get_dashboard_tabs(): array {
 		return array(
-			self::TAB_OVERVIEW        => __( 'Event Overview', 'oras-tickets' ),
-			self::TAB_TICKET_SALES    => __( 'Sales', 'oras-tickets' ),
-			self::TAB_RSVPS           => __( 'RSVP Management', 'oras-tickets' ),
-			self::TAB_ATTENTION       => __( 'Attention Needed', 'oras-tickets' ),
-			self::TAB_COMMUNICATIONS  => __( 'Communications', 'oras-tickets' ),
-			self::TAB_ATTENDEES       => __( 'Roster', 'oras-tickets' ),
-			self::TAB_OBSERVER_PASSES => __( 'Observer Passes', 'oras-tickets' ),
-			self::TAB_MEMBERSHIPS     => __( 'Memberships', 'oras-tickets' ),
+			self::TAB_OVERVIEW         => __( 'Event Overview', 'oras-tickets' ),
+			self::TAB_TICKET_SALES     => __( 'Sales', 'oras-tickets' ),
+			self::TAB_RSVPS            => __( 'RSVP Management', 'oras-tickets' ),
+			self::TAB_ATTENTION        => __( 'Attention Needed', 'oras-tickets' ),
+			self::TAB_COMMUNICATIONS   => __( 'Communications', 'oras-tickets' ),
+			self::TAB_ATTENDEES        => __( 'Roster', 'oras-tickets' ),
+			self::TAB_OBSERVER_PASSES  => __( 'Observer Passes', 'oras-tickets' ),
+			self::TAB_MEMBERSHIPS      => __( 'Memberships', 'oras-tickets' ),
 			self::TAB_EVENT_ATTENDANCE => __( 'Event Registration & Attendance', 'oras-tickets' ),
 		);
 	}
