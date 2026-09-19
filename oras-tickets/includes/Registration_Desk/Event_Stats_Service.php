@@ -56,10 +56,10 @@ final class Event_Stats_Service {
 	public static function summarize_rows( array $registrations, array $attendees, array $attendance, array $memberships, string $today, string $now_utc ): array {
 		$registrations_by_id = array();
 		$source_counts = array(
-			'website'         => 0,
-			'walk_in'         => 0,
-			'complimentary'   => 0,
-			'rsvp'            => 0,
+			'website'          => 0,
+			'walk_in'          => 0,
+			'complimentary'    => 0,
+			'rsvp'             => 0,
 			'manager_verified' => 0,
 		);
 		$classification = array();
@@ -95,10 +95,10 @@ final class Event_Stats_Service {
 		}
 		$today_people = array();
 		$today_source = array(
-			'website'         => array(),
-			'walk_in'         => array(),
-			'complimentary'   => array(),
-			'rsvp'            => array(),
+			'website'          => array(),
+			'walk_in'          => array(),
+			'complimentary'    => array(),
+			'rsvp'             => array(),
 			'manager_verified' => array(),
 		);
 		$attended_people = array();
@@ -169,23 +169,23 @@ final class Event_Stats_Service {
 				'pass_types'                => $today_pass_types,
 			),
 			'event_total' => array(
-				'active_registrations'        => count( $registrations ),
-				'website_registrations'       => $source_counts['website'],
-				'walk_in_registrations'       => $source_counts['walk_in'],
-				'complimentary_registrations' => $source_counts['complimentary'],
-				'rsvp_registrations'          => $source_counts['rsvp'],
+				'active_registrations'           => count( $registrations ),
+				'website_registrations'          => $source_counts['website'],
+				'walk_in_registrations'          => $source_counts['walk_in'],
+				'complimentary_registrations'    => $source_counts['complimentary'],
+				'rsvp_registrations'             => $source_counts['rsvp'],
 				'manager_verified_registrations' => $source_counts['manager_verified'],
-				'people_registered'           => count( $attendees ),
-				'unique_attendees'            => count( $attended_people ),
-				'attendance_instances'        => count( $attendance ),
-				'attendance_by_day'           => $attendance_by_day,
-				'pass_types'                  => $pass_types,
-				'classifications'             => $classification,
-				'validity'                    => $validity,
-				'family_registrations'        => (int) ( $classification['family'] ?? 0 ),
-				'family_attendees_attended'   => count( $family_people ),
-				'no_show_registrations'       => count( $registrations ) - count( $attended_registrations ),
-				'payment_assertions'          => $payment,
+				'people_registered'              => count( $attendees ),
+				'unique_attendees'               => count( $attended_people ),
+				'attendance_instances'           => count( $attendance ),
+				'attendance_by_day'              => $attendance_by_day,
+				'pass_types'                     => $pass_types,
+				'classifications'                => $classification,
+				'validity'                       => $validity,
+				'family_registrations'           => (int) ( $classification['family'] ?? 0 ),
+				'family_attendees_attended'      => count( $family_people ),
+				'no_show_registrations'          => count( $registrations ) - count( $attended_registrations ),
+				'payment_assertions'             => $payment,
 			),
 			'memberships' => $membership_summary,
 		);

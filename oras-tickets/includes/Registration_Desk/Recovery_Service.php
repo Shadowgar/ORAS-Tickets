@@ -102,20 +102,20 @@ final class Recovery_Service {
 		$status_label = function_exists( 'wc_get_order_status_name' ) ? wc_get_order_status_name( $status ) : ucwords( str_replace( '-', ' ', $status ) );
 
 		return array(
-			'order_id'          => (int) $evidence['order_id'],
-			'order_number'      => (string) ( $evidence['order_number'] ?? $evidence['order_id'] ),
-			'order_item_id'     => (int) $evidence['order_item_id'],
-			'contact_name'      => sanitize_text_field( (string) $evidence['contact_name'] ),
-			'email'             => sanitize_email( (string) $evidence['email'] ),
-			'phone'             => sanitize_text_field( (string) $evidence['phone'] ),
-			'order_status'      => $status,
+			'order_id'           => (int) $evidence['order_id'],
+			'order_number'       => (string) ( $evidence['order_number'] ?? $evidence['order_id'] ),
+			'order_item_id'      => (int) $evidence['order_item_id'],
+			'contact_name'       => sanitize_text_field( (string) $evidence['contact_name'] ),
+			'email'              => sanitize_email( (string) $evidence['email'] ),
+			'phone'              => sanitize_text_field( (string) $evidence['phone'] ),
+			'order_status'       => $status,
 			'order_status_label' => sanitize_text_field( (string) $status_label ),
-			'registration_type' => sanitize_text_field( (string) $evidence['item_label'] ),
-			'event_access'      => $valid ? 'valid' : ( $review ? 'review' : 'not_valid' ),
-			'access_label'      => $valid ? 'Valid for this event' : ( $review ? 'Manager review needed' : 'Not valid for this event' ),
-			'cross_event'       => $valid && (int) $evidence['source_event_id'] !== $event_id,
-			'projected'         => is_array( $projected ),
-			'registration_uuid' => is_array( $projected ) ? (string) $projected['registration_uuid'] : '',
+			'registration_type'  => sanitize_text_field( (string) $evidence['item_label'] ),
+			'event_access'       => $valid ? 'valid' : ( $review ? 'review' : 'not_valid' ),
+			'access_label'       => $valid ? 'Valid for this event' : ( $review ? 'Manager review needed' : 'Not valid for this event' ),
+			'cross_event'        => $valid && (int) $evidence['source_event_id'] !== $event_id,
+			'projected'          => is_array( $projected ),
+			'registration_uuid'  => is_array( $projected ) ? (string) $projected['registration_uuid'] : '',
 		);
 	}
 

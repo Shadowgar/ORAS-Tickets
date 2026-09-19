@@ -1013,15 +1013,15 @@ function oras_desk_integration_paid_not_found_recovery( array $context ): array 
 	$service  = new Service();
 	$users_before = count_users()['total_users'];
 	$manual_payload = array(
-		'first_name'             => 'Verified',
-		'last_name'              => 'Exception',
-		'email'                  => 'verified-exception-' . $run . '@example.test',
-		'phone'                  => '814-555-7070',
-		'option_uuid'            => (string) $offering['option_uuid'],
-		'offering_fingerprint'   => (string) $offering['offering_fingerprint'],
-		'reason'                 => 'Reviewed the attendee confirmation receipt.',
-		'proof_acknowledged'     => true,
-		'additional_attendees'   => array(),
+		'first_name'           => 'Verified',
+		'last_name'            => 'Exception',
+		'email'                => 'verified-exception-' . $run . '@example.test',
+		'phone'                => '814-555-7070',
+		'option_uuid'          => (string) $offering['option_uuid'],
+		'offering_fingerprint' => (string) $offering['offering_fingerprint'],
+		'reason'               => 'Reviewed the attendee confirmation receipt.',
+		'proof_acknowledged'   => true,
+		'additional_attendees' => array(),
 	);
 	$manual_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $token, wp_generate_uuid4() );
 	$manual = $service->create_manager_verified( $manual_payload, $manual_context );
