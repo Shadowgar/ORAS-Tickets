@@ -18,7 +18,12 @@ final class Member_Lookup_Service {
 		}
 		$results = array();
 		$seen_emails = array();
-		$report = ( new Membership_Report_Service() )->get_report( array( 'search' => $needle, 'roster_scope' => Membership_Report_Service::ROSTER_ALL ) );
+		$report = ( new Membership_Report_Service() )->get_report(
+			array(
+				'search'       => $needle,
+				'roster_scope' => Membership_Report_Service::ROSTER_ALL,
+			)
+		);
 		foreach ( is_array( $report['rows'] ?? null ) ? $report['rows'] : array() as $row ) {
 			$name  = (string) ( $row['member_name'] ?? '' );
 			$email = strtolower( (string) ( $row['email'] ?? '' ) );
@@ -35,7 +40,7 @@ final class Member_Lookup_Service {
 		}
 		foreach ( ( new Offline_Membership_Store() )->search( $needle ) as $pending ) {
 			$email = strtolower( (string) $pending['email'] );
-			if ( 'redeemed' === (string) $pending['status'] && isset( $seen_emails[ $email ] ) ) {
+			if ( isset( $seen_emails[ $email ] ) ) {
 				continue;
 			}
 			$status = (string) $pending['status'];

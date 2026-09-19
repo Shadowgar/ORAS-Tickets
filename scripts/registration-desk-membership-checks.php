@@ -88,4 +88,10 @@ foreach ( array( 'wp_insert_user(', 'pmpro_changeMembershipLevel(', 'wc_create_o
 oras_membership_assert( false !== strpos( $source, "'pmpro_check_discount_code'" ), 'Credit is bound to the purchaser email during checkout validation' );
 oras_membership_assert( false !== strpos( $source, "'pmpro_after_checkout'" ), 'Successful PMPro checkout marks the activation redeemed' );
 
+$lookup_source = (string) file_get_contents( $base . 'Member_Lookup_Service.php' );
+oras_membership_assert(
+	false !== strpos( $lookup_source, 'if ( isset( $seen_emails[ $email ] ) )' ),
+	'Member Lookup does not append an offline activation already represented by the shared membership report'
+);
+
 echo "Registration Desk membership checks passed.\n";
