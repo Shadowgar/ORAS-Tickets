@@ -4,6 +4,9 @@ set -euo pipefail
 readonly ROOT_DIR="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 readonly RUNNER="$ROOT_DIR/scripts/run-registration-desk-integration-checks.sh"
 readonly HARNESS="$ROOT_DIR/scripts/registration-desk-integration-checks.php"
+readonly HTTP_GUARD="$ROOT_DIR/scripts/fixtures/oras-registration-desk-test-guard.php"
+readonly CONCURRENCY_WORKER="$ROOT_DIR/scripts/registration-desk-concurrency-worker.php"
+readonly CONFIG_WORKER="$ROOT_DIR/scripts/registration-desk-config-concurrency-worker.php"
 
 fail() {
 	printf 'FAIL: %s\n' "$1" >&2
@@ -17,6 +20,12 @@ pass() {
 require_text() {
 	local needle="$1" message="$2"
 	/usr/bin/grep -F -- "$needle" "$RUNNER" >/dev/null || fail "$message"
+	pass "$message"
+}
+
+require_file_text() {
+	local file="$1" needle="$2" message="$3"
+	/usr/bin/grep -F -- "$needle" "$file" >/dev/null || fail "$message"
 	pass "$message"
 }
 
@@ -58,5 +67,14 @@ if /usr/bin/grep -F -- 'http://localhost:8895' "$HARNESS" >/dev/null; then
 fi
 pass 'Integration harness does not hard-code the old test-site URL.'
 require_text 'ORAS_REGISTRATION_DESK_TEST_URL_EXPECTED' 'Runner passes its verified dynamic URL into the integration harness.'
+require_file_text "$HTTP_GUARD" "'test_scope'" 'HTTP guard tags observations with the exact test process scope.'
+require_file_text "$HARNESS" 'prepare_http_baseline' 'Prepare-phase desk HTTP isolation is compared within one WordPress process.'
+require_file_text "$HARNESS" 'finish_http_baseline' 'Finish-phase desk HTTP isolation is compared within one WordPress process.'
+require_file_text "$CONCURRENCY_WORKER" 'worker_http_baseline' 'Each concurrency worker verifies its own desk request performs no HTTP.'
+require_file_text "$CONFIG_WORKER" 'worker_http_baseline' 'Each configuration worker verifies its own desk request performs no HTTP.'
+if /usr/bin/grep -F -- "'http_evidence' =>" "$HARNESS" >/dev/null || /usr/bin/grep -F -- "'http_log'      =>" "$HARNESS" >/dev/null; then
+	fail 'Bounded HTTP evidence is not compared across WordPress process boundaries.'
+fi
+pass 'Bounded HTTP evidence is not compared across WordPress process boundaries.'
 
 printf '%s\n' 'Registration Desk runner guard checks passed.'

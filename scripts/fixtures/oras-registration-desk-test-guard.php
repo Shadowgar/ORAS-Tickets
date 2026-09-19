@@ -112,8 +112,11 @@ add_filter(
 		oras_registration_desk_test_log_transport(
 			'http',
 			array(
-				'host'   => $host,
-				'method' => strtoupper( sanitize_key( (string) ( $args['method'] ?? 'GET' ) ) ),
+				'host'       => $host,
+				'method'     => strtoupper( sanitize_key( (string) ( $args['method'] ?? 'GET' ) ) ),
+				'test_scope' => defined( 'ORAS_REGISTRATION_DESK_WORKER_INDEX' )
+					? 'worker:' . (int) ORAS_REGISTRATION_DESK_WORKER_INDEX . ':pid:' . getmypid()
+					: ( defined( 'ORAS_REGISTRATION_DESK_TEST_PHASE' ) ? 'phase:' . sanitize_key( (string) ORAS_REGISTRATION_DESK_TEST_PHASE ) : '' ),
 			)
 		);
 

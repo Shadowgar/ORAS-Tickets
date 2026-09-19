@@ -31,6 +31,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Adapter.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Coverage_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Recovery_Cursor.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Projection_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Recovery_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Source_Change_Listener.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Rest_Controller.php';

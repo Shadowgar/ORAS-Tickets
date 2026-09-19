@@ -18,6 +18,17 @@ if ( ! in_array( $index, array( 1, 2 ), true ) || ! is_array( $context ) || empt
 	WP_CLI::error( 'Configuration worker context is missing.' );
 }
 wp_set_current_user( (int) $context['admin_id'] );
+$worker_scope     = 'worker:' . $index . ':pid:' . getmypid();
+$worker_http_rows = static function () use ( $worker_scope ): array {
+	return array_values(
+		array_filter(
+			(array) get_option( 'oras_registration_desk_test_http_log', array() ),
+			static fn( $row ): bool => is_array( $row ) && $worker_scope === (string) ( $row['test_scope'] ?? '' )
+		)
+	);
+};
+$worker_http_json     = wp_json_encode( $worker_http_rows() );
+$worker_http_baseline = hash( 'sha256', false === $worker_http_json ? '' : $worker_http_json );
 $raw = array(
 	'enabled' => true,
 	'options' => array(),
@@ -29,6 +40,11 @@ if ( 'same_event' === $config_race_mode ) {
 	$result = Config::save_and_activate( $target, $raw, 0, (int) $context['event_id'] );
 } else {
 	WP_CLI::error( 'Configuration worker mode is invalid.' );
+}
+$worker_http_json  = wp_json_encode( $worker_http_rows() );
+$worker_http_after = hash( 'sha256', false === $worker_http_json ? '' : $worker_http_json );
+if ( ! hash_equals( $worker_http_baseline, $worker_http_after ) ) {
+	WP_CLI::error( 'Concurrent configuration attempted external HTTP.' );
 }
 echo wp_json_encode(
 	array(

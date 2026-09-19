@@ -52,6 +52,9 @@ textarea {
 button,
 .desk-header-button,
 .desk-manager-card {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	min-height: 56px;
 	border: 0;
 	border-radius: 12px;
@@ -62,6 +65,15 @@ button,
 	letter-spacing: 0.01em;
 	cursor: pointer;
 	touch-action: manipulation;
+	text-align: center;
+	white-space: normal;
+}
+
+.desk-touch-centered {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
 }
 
 button:hover,
@@ -257,6 +269,8 @@ button.desk-danger {
 
 .desk-event-card {
 	display: grid;
+	align-content: center;
+	justify-items: center;
 	gap: 0.2rem;
 	width: 100%;
 	min-height: 92px;
@@ -264,7 +278,7 @@ button.desk-danger {
 	border: 2px solid var(--desk-line);
 	background: #fff;
 	color: var(--desk-ink);
-	text-align: left;
+	text-align: center;
 }
 
 .desk-event-card strong {
@@ -416,7 +430,7 @@ button.desk-danger {
 	gap: 0.6rem;
 	overflow: hidden;
 	border-radius: 20px;
-	padding: 1.25rem 4rem 1.25rem 1.25rem;
+	padding: 1.25rem;
 	box-shadow: var(--desk-shadow);
 	text-align: center;
 }
@@ -826,6 +840,57 @@ button.desk-link-button {
 }
 
 .desk-result-card button {
+	flex: 0 0 auto;
+}
+
+.desk-recovery-result {
+	border-left: 7px solid var(--desk-blue);
+}
+
+.desk-recovery-access {
+	width: fit-content;
+	margin-top: 0.45rem;
+	border-radius: 999px;
+	padding: 0.3rem 0.7rem;
+	font-size: 0.78rem;
+}
+
+.desk-recovery-access.desk-notice-success {
+	background: #e3f6ec;
+	color: var(--desk-green-dark);
+}
+
+.desk-recovery-access.desk-notice-warning {
+	background: #fff3d5;
+	color: #744b00;
+}
+
+.desk-recovery-access.desk-notice-error {
+	background: #fbe7e5;
+	color: #8b2721;
+}
+
+.desk-recovery-proof {
+	gap: 0.75rem;
+	max-width: 760px;
+	margin: 2rem auto;
+}
+
+.desk-proof-ack {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin: 1rem 0;
+	border: 2px solid var(--desk-gold);
+	border-radius: 12px;
+	background: #fffaf0;
+	padding: 1rem;
+	font-weight: 800;
+}
+
+.desk-proof-ack input {
+	width: 28px;
+	height: 28px;
 	flex: 0 0 auto;
 }
 

@@ -15,6 +15,7 @@ use ORAS\Tickets\Registration_Desk\Coverage_Store;
 use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
 use ORAS\Tickets\Registration_Desk\Manager_Access;
 use ORAS\Tickets\Registration_Desk\Projection_Service;
+use ORAS\Tickets\Registration_Desk\Recovery_Service;
 use ORAS\Tickets\Registration_Desk\Registration_Store;
 use ORAS\Tickets\Registration_Desk\Schema;
 use ORAS\Tickets\Registration_Desk\Service;
@@ -230,6 +231,20 @@ function oras_desk_integration_order_snapshot( int $order_id ): array {
 	);
 }
 
+/** @return array<int,array<string,mixed>> */
+function oras_desk_integration_http_evidence( string $scope = '' ): array {
+	return array_values(
+		array_filter(
+			(array) get_option( 'oras_registration_desk_test_http_log', array() ),
+			static function ( $row ) use ( $scope ): bool {
+				return is_array( $row )
+					&& ! in_array( (string) ( $row['host'] ?? '' ), array( 'localhost', '127.0.0.1', '::1' ), true )
+					&& $scope === (string) ( $row['test_scope'] ?? '' );
+			}
+		)
+	);
+}
+
 /** Capture every protected non-desk surface after fixture setup. */
 function oras_desk_integration_protected_snapshot( array $context ): array {
 	global $wpdb;
@@ -260,12 +275,6 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 	}
 	$pmpro_table = $wpdb->prefix . 'pmpro_memberships_users';
 	$membership_counts['pmpro'] = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $pmpro_table ) ) === $pmpro_table ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$pmpro_table}" ) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
-	$external_http = array_values(
-		array_filter(
-			(array) get_option( 'oras_registration_desk_test_http_log', array() ),
-			static fn( $row ): bool => is_array( $row ) && ! in_array( (string) ( $row['host'] ?? '' ), array( 'localhost', '127.0.0.1', '::1' ), true )
-		)
-	);
 	$order_query = wc_get_orders(
 		array(
 			'limit'    => 1,
@@ -285,8 +294,6 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		'users'         => oras_desk_integration_hash( array( $users, $usermeta ) ),
 		'memberships'   => oras_desk_integration_hash( $membership_counts ),
 		'qbo_actions'   => oras_desk_integration_hash( $scheduled ),
-		'http_evidence' => $external_http,
-		'http_log'      => oras_desk_integration_hash( $external_http ),
 		'mail_log'      => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
 		'write_log'     => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
 		'global_counts' => oras_desk_integration_hash( $global_counts ),
@@ -308,6 +315,33 @@ function oras_desk_integration_hook_has_class( string $hook, string $class_name 
 		}
 	}
 	return false;
+}
+
+/** Temporarily remove callbacks owned by one class and return their hook descriptors. */
+function oras_desk_integration_suspend_hook_class( string $hook, string $class_name ): array {
+	global $wp_filter;
+	$removed = array();
+	if ( empty( $wp_filter[ $hook ] ) || ! $wp_filter[ $hook ] instanceof WP_Hook ) {
+		return $removed;
+	}
+	foreach ( $wp_filter[ $hook ]->callbacks as $priority => $callbacks ) {
+		foreach ( $callbacks as $callback ) {
+			$function = $callback['function'] ?? null;
+			if ( is_array( $function ) && is_object( $function[0] ) && $function[0] instanceof $class_name ) {
+				$accepted_args = (int) ( $callback['accepted_args'] ?? 1 );
+				remove_action( $hook, $function, (int) $priority );
+				$removed[] = array( $function, (int) $priority, $accepted_args );
+			}
+		}
+	}
+	return $removed;
+}
+
+/** Restore callbacks returned by oras_desk_integration_suspend_hook_class(). */
+function oras_desk_integration_restore_hook_class( string $hook, array $callbacks ): void {
+	foreach ( $callbacks as $callback ) {
+		add_action( $hook, $callback[0], $callback[1], $callback[2] );
+	}
 }
 
 /** Build a Service context from a verified station payload. */
@@ -878,6 +912,142 @@ function oras_desk_integration_event_roster( array $context ): void {
 	oras_desk_integration_true( isset( $manager_data['manager_detail']['audit_history'] ), 'manager roster detail includes correction and audit history' );
 }
 
+/**
+ * Exercise paid-but-not-found recovery and the audited manual exception.
+ *
+ * @return array<int,int> Woo order IDs created as protected fixtures.
+ */
+function oras_desk_integration_paid_not_found_recovery( array $context ): array {
+	global $wpdb;
+	$event_id = (int) $context['event_id'];
+	$config   = Config::get_event_config( $event_id );
+	$product  = (int) $context['product_ids'][0];
+	$run      = (string) $context['run'];
+	$listener_callbacks = oras_desk_integration_suspend_hook_class( 'woocommerce_order_status_changed', \ORAS\Tickets\Registration_Desk\Source_Change_Listener::class );
+	$sources  = array(
+		'missing'        => oras_desk_integration_order( $product, $event_id, 1, 'completed', $run, 'RecoveryMissing' ),
+		'cancelled'      => oras_desk_integration_order( $product, $event_id, 1, 'cancelled', $run, 'RecoveryCancelled' ),
+		'wrong_event'    => oras_desk_integration_order( (int) $context['offering_fixture']['unrelated_product'], (int) $context['offering_fixture']['unrelated_event_id'], 1, 'completed', $run, 'RecoveryWrongEvent' ),
+		'canonical_only' => oras_desk_integration_order( $product, $event_id, 1, 'completed', $run, 'RecoveryCanonicalOnly' ),
+		'cross_event'    => oras_desk_integration_order( (int) $context['offering_fixture']['unrelated_product'], (int) $context['offering_fixture']['unrelated_event_id'], 1, 'completed', $run, 'RecoveryCrossEvent' ),
+	);
+	oras_desk_integration_restore_hook_class( 'woocommerce_order_status_changed', $listener_callbacks );
+	$order_ids = array_values( array_map( static fn( array $source ): int => (int) $source['order_id'], $sources ) );
+	$recovery  = new Recovery_Service();
+	$missing_email = 'recoverymissing-' . strtolower( $run ) . '@example.test';
+	$search    = $recovery->search( $event_id, $missing_email, $config );
+	oras_desk_integration_true( is_array( $search ) && 1 === count( $search['items'] ), 'manager recovery searches canonical Woo sources by purchaser name' );
+	$missing = $search['items'][0];
+	oras_desk_integration_same( $missing['event_access'], 'valid', 'eligible selected-event source is clearly valid for recovery' );
+	oras_desk_integration_same( $missing['projected'], false, 'paid-but-not-found result is identified before synchronization' );
+	$order_search = $recovery->search( $event_id, (string) $sources['missing']['order_id'], $config );
+	oras_desk_integration_true( is_array( $order_search ) && in_array( (int) $sources['missing']['order_id'], array_map( 'intval', array_column( $order_search['items'], 'order_id' ) ), true ), 'manager recovery searches canonical Woo sources by order reference' );
+
+	$source_before = oras_desk_integration_order_snapshot( (int) $sources['missing']['order_id'] );
+	$sync = $recovery->sync( $event_id, (int) $sources['missing']['order_id'], (int) $sources['missing']['item_id'], $config );
+	oras_desk_integration_true( is_array( $sync ) && 'registration_synchronized' === $sync['result'], 'one eligible canonical source synchronizes into the desk roster' );
+	$registration_uuid = (string) $sync['registration_uuid'];
+	$volunteer_results = ( new Service() )->search( $event_id, $missing_email );
+	oras_desk_integration_true( '' !== $registration_uuid && in_array( $registration_uuid, array_column( $volunteer_results, 'registration_uuid' ), true ), 'synchronized canonical source becomes searchable through the normal volunteer path' );
+
+	$token = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Recovery Manager' );
+	$check_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $token, wp_generate_uuid4() );
+	$checked = ( new Service() )->check_in(
+		$registration_uuid,
+		array(
+			'attendance_local_date' => (string) $context['today'],
+			'explicit_unpaid'       => false,
+			'arrivals'              => array(
+				array(
+					'slot_key'   => 'individual-1',
+					'first_name' => 'Recovery',
+					'last_name'  => 'Missing',
+				),
+			),
+		),
+		$check_context
+	);
+	oras_desk_integration_true( is_array( $checked ) && 'checked_in' === $checked['historical_result']['result'], 'recovered canonical registration uses the ordinary separate check-in action' );
+	$registration = ( new Registration_Store() )->find_by_uuid( $registration_uuid );
+	$tables       = Schema::table_names();
+	$attendee_count_before = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['attendees']} WHERE registration_id = %d", $registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	$audit_count_before = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['audit']} WHERE registration_uuid = %s", $registration_uuid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	$repeat = $recovery->sync( $event_id, (int) $sources['missing']['order_id'], (int) $sources['missing']['item_id'], $config );
+	oras_desk_integration_same( $repeat['registration_uuid'] ?? '', $registration_uuid, 'repeated recovery synchronization preserves registration identity' );
+	oras_desk_integration_same( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['attendees']} WHERE registration_id = %d", $registration['id'] ) ), $attendee_count_before, 'repeated recovery synchronization preserves attendee history' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['audit']} WHERE registration_uuid = %s", $registration_uuid ) ), $audit_count_before, 'repeated recovery synchronization preserves audit history' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( oras_desk_integration_hash( oras_desk_integration_order_snapshot( (int) $sources['missing']['order_id'] ) ), oras_desk_integration_hash( $source_before ), 'recovery does not mutate the Woo order, payment, notes, or line items' );
+
+	$cancelled = $recovery->search( $event_id, 'recoverycancelled-' . strtolower( $run ) . '@example.test', $config );
+	oras_desk_integration_same( $cancelled['items'][0]['event_access'] ?? '', 'not_valid', 'cancelled website order is shown as not valid for admission' );
+	oras_desk_integration_error( $recovery->sync( $event_id, (int) $sources['cancelled']['order_id'], (int) $sources['cancelled']['item_id'], $config ), 'oras_desk_recovery_not_valid', 'cancelled website order cannot be synchronized as valid access' );
+	$wrong = $recovery->search( $event_id, 'recoverywrongevent-' . strtolower( $run ) . '@example.test', $config );
+	oras_desk_integration_same( $wrong['items'][0]['event_access'] ?? '', 'not_valid', 'unrelated event ticket is not valid without an explicit entitlement' );
+	oras_desk_integration_error( $recovery->sync( $event_id, (int) $sources['wrong_event']['order_id'], (int) $sources['wrong_event']['item_id'], $config ), 'oras_desk_recovery_not_valid', 'unrelated event ticket cannot be synchronized into the selected event' );
+
+	$cross_event_id = (int) $context['offering_fixture']['event_id'];
+	$cross_config   = Config::get_event_config( $cross_event_id );
+	$cross = $recovery->search( $cross_event_id, 'recoverycrossevent-' . strtolower( $run ) . '@example.test', $cross_config );
+	oras_desk_integration_true( 'valid' === ( $cross['items'][0]['event_access'] ?? '' ) && true === ( $cross['items'][0]['cross_event'] ?? false ), 'explicit cross-event entitlement is identified as valid without becoming a walk-in product' );
+	$cross_sync = $recovery->sync( $cross_event_id, (int) $sources['cross_event']['order_id'], (int) $sources['cross_event']['item_id'], $cross_config );
+	oras_desk_integration_true( is_array( $cross_sync ) && '' !== (string) $cross_sync['registration_uuid'], 'explicit cross-event entitlement can be synchronized for existing-registration admission' );
+
+	wp_set_current_user( (int) $context['desk_id'] );
+	$unauthorized = new WP_REST_Request( 'GET', '/oras-tickets/v1/registration-desk/manager/recovery' );
+	$unauthorized->set_header( 'X-ORAS-Desk-Station', $token );
+	$unauthorized->set_param( 'q', $missing_email );
+	$denied = rest_do_request( $unauthorized );
+	oras_desk_integration_true( in_array( $denied->get_status(), array( 401, 403 ), true ), 'normal volunteer cannot invoke canonical recovery without manager PIN qualification' );
+	$station = Station_Session::validate( $token, (int) $context['desk_id'], $event_id, (int) $config['revision'] );
+	$manager_token = Manager_Access::unlock( '4826', $station, 'integration-recovery' );
+	if ( is_wp_error( $manager_token ) ) {
+		oras_desk_integration_fail( 'manager recovery unlock failed: ' . $manager_token->get_error_code() );
+	}
+	$authorized = new WP_REST_Request( 'GET', '/oras-tickets/v1/registration-desk/manager/recovery' );
+	$authorized->set_header( 'X-ORAS-Desk-Station', $token );
+	$authorized->set_header( 'X-ORAS-Desk-Manager', $manager_token );
+	$authorized->set_param( 'q', $missing_email );
+	oras_desk_integration_same( rest_do_request( $authorized )->get_status(), 200, 'manager PIN qualification authorizes canonical recovery search' );
+
+	$offering = Event_Offering_Resolver::desk_offerings( $event_id, $config )[0];
+	$service  = new Service();
+	$users_before = count_users()['total_users'];
+	$manual_payload = array(
+		'first_name'             => 'Verified',
+		'last_name'              => 'Exception',
+		'email'                  => 'verified-exception-' . $run . '@example.test',
+		'phone'                  => '814-555-7070',
+		'option_uuid'            => (string) $offering['option_uuid'],
+		'offering_fingerprint'   => (string) $offering['offering_fingerprint'],
+		'reason'                 => 'Reviewed the attendee confirmation receipt.',
+		'proof_acknowledged'     => true,
+		'additional_attendees'   => array(),
+	);
+	$manual_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $token, wp_generate_uuid4() );
+	$manual = $service->create_manager_verified( $manual_payload, $manual_context );
+	oras_desk_integration_true( is_array( $manual ) && 'manager_verified_recorded' === $manual['historical_result']['result'], 'manager can record the bounded audited exception after reviewing proof' );
+	$manual_registration = $manual['historical_result']['registration'];
+	oras_desk_integration_same( $manual_registration['source_type'], 'manager_verified_manual', 'manual exception retains the honest Manager Verified source' );
+	oras_desk_integration_same( count( $manual['historical_result']['attendance'] ), 0, 'manager verified registration does not imply attendance or immediate admission' );
+	oras_desk_integration_same( count_users()['total_users'], $users_before, 'manager verified recovery creates no attendee WordPress account' );
+	$manual_audit = ( new Audit_Store() )->for_registration( (string) $manual_registration['registration_uuid'] );
+	oras_desk_integration_true( 1 === count( $manual_audit ) && 'create_manager_verified_manual' === $manual_audit[0]['operation'], 'manager verified exception records the operator action and audit reason' );
+	$roster = ( new Event_Roster_Service() )->get( $event_id, array( 'q' => 'Verified Exception' ) );
+	oras_desk_integration_same( $roster['items'][0]['source_type'] ?? '', 'manager_verified_manual', 'event roster reports Manager Verified source honestly' );
+
+	$duplicate_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $token, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->create_manager_verified( $manual_payload, $duplicate_context ), 'oras_desk_verified_duplicate', 'exact desk contact duplicate blocks a second manager verified record without name-only merging' );
+	$canonical_payload = $manual_payload;
+	$canonical_payload['first_name'] = 'Canonical';
+	$canonical_payload['last_name']  = 'Blocked';
+	$canonical_payload['email']      = 'recoverycanonicalonly-' . strtolower( $run ) . '@example.test';
+	$canonical_payload['phone']      = '';
+	$canonical_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $token, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->create_manager_verified( $canonical_payload, $canonical_context ), 'oras_desk_verified_duplicate', 'exact canonical Woo contact blocks manual creation and directs the manager to synchronize' );
+
+	return $order_ids;
+}
+
 /** Prepare fixtures and run all single-connection checks. */
 function oras_desk_integration_prepare(): void {
 	global $wpdb;
@@ -1425,7 +1595,9 @@ function oras_desk_integration_prepare(): void {
 	);
 	oras_desk_integration_canonical_offerings_and_rsvp( $context );
 	oras_desk_integration_event_roster( $context );
-	$context['baseline'] = oras_desk_integration_protected_snapshot( $context );
+	$context['order_ids'] = array_merge( $context['order_ids'], oras_desk_integration_paid_not_found_recovery( $context ) );
+	$context['baseline']              = oras_desk_integration_protected_snapshot( $context );
+	$context['prepare_http_baseline'] = oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:prepare' ) );
 	update_option( 'oras_registration_desk_integration_context', $context, false );
 	oras_desk_integration_pass( 'protected commerce, account, integration, and transport baseline captured after fixture-only mutations' );
 
@@ -1718,6 +1890,7 @@ function oras_desk_integration_prepare(): void {
 	foreach ( $context['baseline'] as $surface => $hash ) {
 		oras_desk_integration_same( $after_prepare[ $surface ], $hash, 'prepare-phase desk operations leave ' . $surface . ' unchanged' );
 	}
+	oras_desk_integration_same( oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:prepare' ) ), $context['prepare_http_baseline'], 'prepare-phase desk operations perform no external HTTP' );
 	update_option( 'oras_registration_desk_integration_context', $context, false );
 	oras_desk_integration_pass( 'single-connection qualification complete; independent workers are prepared' );
 }
@@ -1740,6 +1913,7 @@ function oras_desk_integration_finish(): void {
 	if ( ! is_array( $context ) || empty( $context['concurrency'] ) ) {
 		oras_desk_integration_fail( 'prepared concurrency context is missing.' );
 	}
+	$finish_http_baseline = oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:finish' ) );
 	$tables = Schema::table_names();
 	$registration = ( new Registration_Store() )->find_by_uuid( $context['concurrency']['registration_uuid'] );
 	$attendee_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['attendees']} WHERE registration_id = %d", $registration['id'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
@@ -1771,6 +1945,7 @@ function oras_desk_integration_finish(): void {
 	foreach ( $context['baseline'] as $surface => $hash ) {
 		oras_desk_integration_same( $after[ $surface ], $hash, 'desk operations leave ' . $surface . ' unchanged' );
 	}
+	oras_desk_integration_same( oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:finish' ) ), $finish_http_baseline, 'finish-phase desk operations perform no external HTTP' );
 
 	oras_desk_integration_true( oras_desk_integration_hook_has_class( 'woocommerce_checkout_create_order_line_item', 'ORAS\\Tickets\\Commerce\\Woo\\Product_Sync' ), 'normal checkout item-snapshot integration remains registered' );
 	oras_desk_integration_true( oras_desk_integration_hook_has_class( 'woocommerce_order_status_completed', 'ORAS\\Tickets\\Commerce\\Woo\\Capacity_Consumption' ), 'normal paid-order capacity integration remains registered' );

@@ -28,6 +28,17 @@ if ( ! is_array( $context ) || empty( $context['concurrency'] ) ) {
 
 wp_set_current_user( (int) $context['desk_id'] );
 rest_get_server();
+$worker_scope     = 'worker:' . $worker . ':pid:' . getmypid();
+$worker_http_rows = static function () use ( $worker_scope ): array {
+	return array_values(
+		array_filter(
+			(array) get_option( 'oras_registration_desk_test_http_log', array() ),
+			static fn( $row ): bool => is_array( $row ) && $worker_scope === (string) ( $row['test_scope'] ?? '' )
+		)
+	);
+};
+$worker_http_json     = wp_json_encode( $worker_http_rows() );
+$worker_http_baseline = hash( 'sha256', false === $worker_http_json ? '' : $worker_http_json );
 $token_key   = 1 === $worker ? 'token_one' : 'token_two';
 $request_key = 1 === $worker ? 'request_one' : 'request_two';
 $request     = new WP_REST_Request(
@@ -45,7 +56,12 @@ $request->set_body_params(
 	)
 );
 $response = rest_do_request( $request );
-$data     = $response->get_data();
+$worker_http_json  = wp_json_encode( $worker_http_rows() );
+$worker_http_after = hash( 'sha256', false === $worker_http_json ? '' : $worker_http_json );
+if ( ! hash_equals( $worker_http_baseline, $worker_http_after ) ) {
+	WP_CLI::error( 'Concurrent check-in attempted external HTTP.' );
+}
+$data = $response->get_data();
 if ( 200 !== $response->get_status() || ! is_array( $data ) ) {
 	$code = is_array( $data ) ? sanitize_key( (string) ( $data['code'] ?? 'unknown' ) ) : 'invalid_response';
 	WP_CLI::error( 'Concurrent check-in failed with safe code: ' . $code );

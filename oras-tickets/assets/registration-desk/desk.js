@@ -17,6 +17,7 @@
 		failureCount: 0,
 		roster: {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []},
 		detailReturn: 'search',
+		managerDestination: 'manager',
 	};
 
 	const escapeHtml = (value) => String(value ?? '')
@@ -174,8 +175,11 @@
 		if (code === 'oras_desk_rsvp_closed') return 'RSVP registration is not open for this event.';
 		if (code === 'oras_desk_rsvp_full') return 'This event is full and no RSVP waitlist is available.';
 		if (code === 'oras_desk_rsvp_waitlisted') return 'This person is on the RSVP waitlist and has not been admitted.';
+		if (code === 'oras_desk_recovery_not_valid') return 'This website registration does not grant access to the selected event.';
+		if (code === 'oras_desk_verification_reason_required') return 'Add a short note describing the proof you reviewed.';
+		if (code === 'oras_desk_proof_acknowledgement_required') return 'Confirm that you verified proof outside this system.';
 		if (code === 'oras_desk_contact_required') {
-			return 'Enter a first name, last name, valid email address, and phone number.';
+			return 'Enter the required name and check any email or phone number you provided.';
 		}
 		if (code === 'oras_desk_attendee_name_invalid') {
 			return 'Enter both first and last name, or leave both blank for an unnamed family member.';
@@ -219,11 +223,12 @@
 	}
 
 	function sourceLabel(source) {
-		return {online: 'Website registration', walk_in: 'Walk-in registration', complimentary: 'Complimentary registration', speaker: 'Speaker registration', rsvp_walk_in: 'Desk RSVP', rsvp_waitlist: 'Desk RSVP waitlist', rsvp_website: 'Website RSVP'}[source] || 'Registration';
+		return {online: 'Website', walk_in: 'Walk-In', complimentary: 'Complimentary', speaker: 'Complimentary', rsvp_walk_in: 'RSVP', rsvp_waitlist: 'RSVP', rsvp_website: 'RSVP', manager_verified_manual: 'Manager Verified'}[source] || 'Registration';
 	}
 
 	function paymentLabel(registration, admission = {}) {
 		if (registration.source_type === 'online') return 'Website registration recorded';
+		if (registration.source_type === 'manager_verified_manual') return 'Manager Verified outside this system';
 		return {
 			paid_card: 'Walk-in marked paid by card',
 			paid_cash: 'Walk-in marked paid by cash',
@@ -345,7 +350,12 @@
 		main()?.focus({preventScroll: true});
 	}
 
+	function resetViewport() {
+		window.scrollTo(0, 0);
+	}
+
 	async function showHome(message = '') {
+		resetViewport();
 		state.view = 'home';
 		state.wizard = null;
 		if (!state.pendingPayload) resetPending();
@@ -372,8 +382,10 @@
 		return items.map((item) => `<div class="desk-recent-item"><span class="desk-mini-check">${icon('check')}</span><div><strong>${escapeHtml(item.display_name || 'Unnamed attendee')}</strong><small>Helped by ${escapeHtml(item.checked_in_operator_label)}</small></div><time datetime="${escapeHtml(item.checked_in_at_utc)}">${escapeHtml(formatLocalTime(item.checked_in_at_utc))}</time></div>`).join('');
 	}
 
-	function showManagerHelp() {
+	function showManagerHelp(destination = 'manager') {
+		resetViewport();
 		state.view = 'help';
+		state.managerDestination = destination;
 		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered desk-help-screen"><span class="desk-large-icon desk-gold-icon">${icon('manager')}</span><p class="desk-eyebrow">Manager only</p><h1>ENTER MANAGER PIN</h1><form id="desk-manager-pin-form" class="desk-form"><div class="desk-field"><label for="desk-manager-pin">4-digit PIN</label><input id="desk-manager-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required autofocus></div><div id="desk-pin-message"></div><button type="submit" class="desk-primary desk-wide">UNLOCK MANAGER MODE</button></form></section>`;
 		bindScreenActions(requestHome);
 		main().querySelector('#desk-manager-pin-form').addEventListener('submit', unlockManager);
@@ -388,7 +400,8 @@
 			const data = await api('/manager/unlock', {method: 'POST', body: JSON.stringify({pin: new FormData(form).get('pin')})});
 			state.station.manager_token = data.manager_token;
 			saveStation(state.station);
-			showManagerArea();
+			if (state.managerDestination === 'recovery') showMissingRegistration();
+			else showManagerArea();
 		} catch (error) {
 			form.querySelector('button').disabled = false;
 			form.querySelector('#desk-pin-message').innerHTML = notice(friendlyError(error), 'error');
@@ -415,6 +428,7 @@
 	}
 
 	async function showEventRoster(reset = false) {
+		resetViewport();
 		state.view = 'roster';
 		if (reset) state.roster = {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []};
 		main().innerHTML = '<div class="desk-loading">Loading event roster…</div>';
@@ -442,7 +456,7 @@
 	}
 
 	function rosterStatusChoices() {
-		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'ADMITTED'], ['waitlist', 'WAITLIST'], ['checked_in', 'CHECKED IN TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'CHECKED IN TODAY'], ['walk_ins', 'WALK-INS']];
+		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'CHECKED IN TODAY'], ['walk_ins', 'WALK-INS']];
 	}
 
 	function selectedRosterTypeLabel() {
@@ -469,7 +483,7 @@
 	}
 
 	function renderRosterRow(item) {
-		const status = item.checked_in_today ? '✓ Checked in today' : item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Not checked in today';
+		const status = item.checked_in_today ? '✓ Here today' : item.rsvp_status === 'waitlist' ? 'Waitlisted — not admitted' : item.rsvp_status ? 'Confirmed — not here today' : 'Not checked in today';
 		const action = item.detail_kind === 'public_rsvp' ? `data-roster-rsvp="${Number(item.rsvp_user_id)}"` : `data-roster-registration="${escapeHtml(item.registration_uuid)}"`;
 		return `<button type="button" class="desk-roster-row ${item.checked_in_today ? 'is-checked-in' : ''}" ${action}><span><strong>${escapeHtml(item.name || 'Unnamed registration')}</strong><small>${escapeHtml(item.phone || 'Phone not recorded')}</small></span><span><strong>${escapeHtml(item.registration_type)}</strong>${item.attendees?.length ? `<small>${escapeHtml(item.attendees.join(' · '))}</small>` : ''}</span><span class="desk-roster-state">${escapeHtml(status)}</span>${icon('arrow')}</button>`;
 	}
@@ -506,9 +520,9 @@
 			const stats = await api('/stats');
 			const data = view === 'today' ? stats.today : stats.event_total;
 			const cards = view === 'today' ? [
-				['Actual people checked in today', data.actual_people], ['Website attendees', data.website_people], ['Walk-in attendees', data.walk_in_people], ['Complimentary attendees', data.complimentary_people], ['New walk-in registrations', data.new_walk_in_registrations],
+				['Actual people checked in today', data.actual_people], ['Website attendees', data.website_people], ['Walk-in attendees', data.walk_in_people], ['Complimentary attendees', data.complimentary_people], ['RSVP attendees', data.rsvp_people], ['Manager Verified attendees', data.manager_verified_people], ['New walk-in registrations', data.new_walk_in_registrations],
 			] : [
-				['Active registrations', data.active_registrations], ['People registered', data.people_registered], ['Unique actual attendees', data.unique_attendees], ['Total check-ins', data.attendance_instances], ['Website registrations', data.website_registrations], ['Walk-in registrations', data.walk_in_registrations], ['Complimentary registrations', data.complimentary_registrations], ['Family registrations', data.family_registrations], ['Actual family attendees', data.family_attendees_attended], ['Registered but never attended', data.no_show_registrations],
+				['Active registrations', data.active_registrations], ['People registered', data.people_registered], ['Unique actual attendees', data.unique_attendees], ['Total check-ins', data.attendance_instances], ['Website registrations', data.website_registrations], ['Walk-in registrations', data.walk_in_registrations], ['Complimentary registrations', data.complimentary_registrations], ['RSVP registrations', data.rsvp_registrations], ['Manager Verified registrations', data.manager_verified_registrations], ['Family registrations', data.family_registrations], ['Actual family attendees', data.family_attendees_attended], ['Registered but never attended', data.no_show_registrations],
 			];
 			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-stats"><h1>EVENT STATS</h1><div class="desk-segmented"><button type="button" data-stats-view="today" class="${view === 'today' ? 'is-selected' : ''}">TODAY</button><button type="button" data-stats-view="total" class="${view === 'total' ? 'is-selected' : ''}">EVENT TOTAL</button></div><p>Registrations are passes. People are actual attendees.</p><div class="desk-stats-grid">${cards.map(([label, value]) => `<div class="desk-stat-card"><strong>${Number(value || 0)}</strong><span>${escapeHtml(label)}</span></div>`).join('')}</div>${renderStatsBreakdown(view === 'today' ? data.pass_types : data.attendance_by_day, view === 'today' ? 'Today by pass type' : 'Attendance by day')}</section>`;
 			bindScreenActions(requestHome);
@@ -549,8 +563,9 @@
 			const data = await api(`/registrations?q=${encodeURIComponent(query)}`);
 			if (!data.coverage_complete) message.innerHTML = notice('We may not have all website registrations loaded yet. Please ask a manager for help.', 'warning');
 			if (!data.items.length) {
-				results.innerHTML = `<div class="desk-no-results"><span class="desk-large-icon">${icon('search')}</span><h2>We couldn’t find a registration.</h2><p>Check the spelling or try a different email or phone number.</p><div class="desk-actions"><button type="button" class="desk-secondary" id="desk-search-again">SEARCH AGAIN</button><button type="button" id="desk-search-walkin">REGISTER AS WALK-IN</button></div></div>`;
+				results.innerHTML = `<div class="desk-no-results"><span class="desk-large-icon">${icon('search')}</span><h2>WE COULDN’T FIND THEIR REGISTRATION.</h2><p>Check the spelling or try a different email or phone number.</p><div class="desk-actions"><button type="button" class="desk-secondary desk-touch-centered" id="desk-search-again">SEARCH AGAIN</button><button type="button" class="desk-touch-centered" id="desk-search-recovery">THEY SAY THEY ALREADY REGISTERED</button><button type="button" class="desk-touch-centered" id="desk-search-walkin">REGISTER AS WALK-IN</button></div></div>`;
 				results.querySelector('#desk-search-again').addEventListener('click', () => { main().querySelector('#desk-search').focus(); main().querySelector('#desk-search').select(); });
+				results.querySelector('#desk-search-recovery').addEventListener('click', showRecoveryProofPrompt);
 				results.querySelector('#desk-search-walkin').addEventListener('click', () => startWalkInWizard(false));
 				return;
 			}
@@ -559,6 +574,132 @@
 		} catch (error) {
 			results.innerHTML = `${notice(friendlyError(error), 'error')}<button type="button" class="desk-secondary" id="desk-search-retry">TRY AGAIN</button>`;
 			results.querySelector('#desk-search-retry').addEventListener('click', () => event.currentTarget.requestSubmit());
+		}
+	}
+
+	function showRecoveryProofPrompt() {
+		state.view = 'recovery-proof';
+		main().innerHTML = `${screenActions('Back to Search', false)}<section class="desk-centered desk-recovery-proof"><span class="desk-large-icon desk-gold-icon">${icon('help')}</span><p class="desk-eyebrow">Registration recovery</p><h1>DO THEY HAVE PROOF OF REGISTRATION OR PAYMENT?</h1><p>Ask for an order number, confirmation email, receipt, or other clear proof. A manager can search the website order records without changing payment or creating an order.</p><div class="desk-actions"><button type="button" class="desk-primary desk-touch-centered" id="desk-recovery-manager">GET MANAGER HELP</button><button type="button" class="desk-secondary desk-touch-centered" id="desk-recovery-back">GO BACK</button></div></section>`;
+		bindScreenActions(showSearch);
+		main().querySelector('#desk-recovery-manager').addEventListener('click', () => state.station.manager_token ? showMissingRegistration() : showManagerHelp('recovery'));
+		main().querySelector('#desk-recovery-back').addEventListener('click', showSearch);
+		focusMain();
+	}
+
+	function recoveryResultCard(item) {
+		const accessClass = item.event_access === 'valid' ? 'desk-notice-success' : item.event_access === 'review' ? 'desk-notice-warning' : 'desk-notice-error';
+		const action = item.event_access === 'valid' ? (item.projected ? `<button type="button" class="desk-secondary desk-touch-centered" data-recovery-open="${escapeHtml(item.registration_uuid)}">OPEN REGISTRATION</button>` : `<button type="button" class="desk-primary desk-touch-centered" data-recovery-sync="${Number(item.order_id)}" data-recovery-item="${Number(item.order_item_id)}">SYNC THIS REGISTRATION</button>`) : '';
+		return `<article class="desk-result-card desk-recovery-result"><div class="desk-result-main"><strong>${escapeHtml(item.contact_name || 'Website registration')}</strong><span>${escapeHtml(item.registration_type || 'Registration')}</span><small>${escapeHtml(item.email || 'Email not recorded')} · ${escapeHtml(item.phone || 'Phone not recorded')}</small><small>Website order ${escapeHtml(item.order_number)} · ${escapeHtml(item.order_status_label)}</small>${item.cross_event ? '<small>Includes access to this event from another event ticket.</small>' : ''}<span class="desk-recovery-access ${accessClass}">${escapeHtml(item.access_label)}</span></div>${action}</article>`;
+	}
+
+	function showMissingRegistration() {
+		resetViewport();
+		if (!state.station.manager_token) return showManagerHelp('recovery');
+		state.view = 'recovery';
+		state.managerDestination = 'manager';
+		main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-kiosk-panel desk-recovery-search"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><p class="desk-eyebrow">Paid-but-not-found recovery</p><h1>FIND MISSING REGISTRATION</h1><p>Search canonical website orders by name, email, phone, order number, or reference. Results are limited to this event and explicit access from another event.</p><form id="desk-recovery-search-form" class="desk-search-form"><label class="desk-sr-only" for="desk-recovery-query">Name, email, phone, order number, or reference</label><div class="desk-search-box">${icon('search')}<input id="desk-recovery-query" name="q" minlength="2" value="${escapeHtml(state.searchQuery)}" placeholder="Name, email, phone, order number, or reference" required autofocus></div><button type="submit" class="desk-primary desk-touch-centered">SEARCH</button></form><div id="desk-recovery-message"></div><div id="desk-recovery-results" class="desk-results"></div></section>`;
+		bindScreenActions(showManagerArea);
+		main().querySelector('#desk-recovery-search-form').addEventListener('submit', searchMissingRegistration);
+		focusMain();
+	}
+
+	async function searchMissingRegistration(event) {
+		event.preventDefault();
+		const query = String(new FormData(event.currentTarget).get('q') || '').trim();
+		state.searchQuery = query;
+		const results = main().querySelector('#desk-recovery-results');
+		const message = main().querySelector('#desk-recovery-message');
+		results.innerHTML = '<div class="desk-loading desk-loading-small">Searching website registrations…</div>';
+		message.innerHTML = '';
+		try {
+			const data = await api(`/manager/recovery?q=${encodeURIComponent(query)}`);
+			results.innerHTML = data.items?.length ? data.items.map(recoveryResultCard).join('') : `<div class="desk-no-results"><h2>NO WEBSITE REGISTRATION WAS FOUND</h2><p>Try another order number, email, phone, or name. If the person has clear proof that cannot be found in the website records, use the audited manual option.</p><button type="button" class="desk-primary desk-touch-centered" id="desk-recovery-manual">RECORD VERIFIED MANUAL REGISTRATION</button></div>`;
+			results.querySelector('#desk-recovery-manual')?.addEventListener('click', showManagerVerifiedForm);
+			results.querySelectorAll('[data-recovery-open]').forEach((button) => button.addEventListener('click', () => showRegistration(button.dataset.recoveryOpen, 'recovery')));
+			results.querySelectorAll('[data-recovery-sync]').forEach((button) => button.addEventListener('click', () => syncMissingRegistration(button)));
+		} catch (error) {
+			results.innerHTML = notice(friendlyError(error), 'error');
+		}
+	}
+
+	async function syncMissingRegistration(button) {
+		button.disabled = true;
+		try {
+			const data = await api('/manager/recovery/sync', {method: 'POST', body: JSON.stringify({order_id: Number(button.dataset.recoverySync), order_item_id: Number(button.dataset.recoveryItem)})});
+			resetViewport();
+			main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">Manager recovery</p><h1>REGISTRATION FOUND</h1><p>${escapeHtml(data.message || 'Registration found and added to the roster.')}</p><p>No payment, order, email, membership, or website account was changed.</p><div class="desk-success-actions"><button type="button" class="desk-primary desk-touch-centered" id="desk-recovery-open">OPEN REGISTRATION</button><button type="button" class="desk-secondary desk-touch-centered" id="desk-recovery-done">RETURN TO MANAGER TOOLS</button></div></section>`;
+			bindScreenActions(showManagerArea);
+			main().querySelector('#desk-recovery-open').addEventListener('click', () => showRegistration(data.registration_uuid, 'recovery'));
+			main().querySelector('#desk-recovery-done').addEventListener('click', () => showManagerArea('Website registration synchronized.'));
+		} catch (error) {
+			button.disabled = false;
+			main().querySelector('#desk-recovery-message').innerHTML = notice(friendlyError(error), 'error');
+		}
+	}
+
+	async function showManagerVerifiedForm() {
+		resetViewport();
+		main().innerHTML = '<div class="desk-loading">Loading current registration choices…</div>';
+		try {
+			const data = await api('/offerings');
+			const options = (data.items || []).filter((option) => option.kind !== 'rsvp' && option.available_for_new);
+			main().innerHTML = `${screenActions('Back to Missing Registration', false)}<section class="desk-kiosk-panel desk-manager-verified"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><p class="desk-eyebrow">Audited exception</p><h1>RECORD VERIFIED MANUAL REGISTRATION</h1><p>Use this only after canonical website search found no source and you reviewed clear proof outside this system. This records access only; it does not check anyone in.</p>${options.length ? `<form id="desk-manager-verified-form" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" required></div><div class="desk-field"><label>Last name</label><input name="last_name" required></div><div class="desk-field"><label>Email (optional)</label><input name="email" type="email"></div><div class="desk-field"><label>Phone (optional)</label><input name="phone" type="tel"></div><div class="desk-field desk-field-wide"><label>Current event registration option</label><select name="option_uuid" required><option value="">Choose an option</option>${options.map((option) => `<option value="${escapeHtml(option.option_uuid)}" data-fingerprint="${escapeHtml(option.offering_fingerprint)}" data-classification="${escapeHtml(option.classification)}" data-maximum="${Number(option.max_attendees || 1)}">${escapeHtml(option.label)} — $${Number(option.price || 0).toFixed(2)}</option>`).join('')}</select></div><div class="desk-field desk-field-wide" id="desk-manager-family" hidden><label>Additional family members (optional)</label><div id="desk-manager-family-members" class="desk-family-list"></div><button type="button" class="desk-secondary desk-wide" id="desk-manager-family-add">+ ADD FAMILY MEMBER</button><p class="desk-help" id="desk-manager-family-help"></p></div><div class="desk-field desk-field-wide"><label>Reason and proof reviewed</label><textarea name="reason" rows="3" minlength="5" required></textarea></div></div><label class="desk-proof-ack"><input type="checkbox" name="proof_acknowledged" value="1" required><span>I verified proof of registration/payment outside this system.</span></label><div id="desk-manager-verified-message"></div><button type="submit" class="desk-primary desk-wide desk-touch-centered">SAVE MANAGER VERIFIED REGISTRATION</button></form>` : notice('No current ticket offering is available for a verified manual registration.', 'warning')}</section>`;
+			bindScreenActions(showMissingRegistration);
+			const form = main().querySelector('#desk-manager-verified-form');
+			form?.addEventListener('submit', saveManagerVerified);
+			form?.querySelector('select[name="option_uuid"]').addEventListener('change', () => renderManagerVerifiedFamily(form));
+			form?.querySelector('#desk-manager-family-add').addEventListener('click', () => {
+				const selected = form.querySelector('select[name="option_uuid"] option:checked');
+				addWizardFamilyRow(form.querySelector('#desk-manager-family-members'), Number(selected?.dataset.maximum || 1));
+			});
+		} catch (error) {
+			main().innerHTML = `${screenActions('Back to Missing Registration', false)}${notice(friendlyError(error), 'error')}`;
+			bindScreenActions(showMissingRegistration);
+		}
+	}
+
+	function renderManagerVerifiedFamily(form) {
+		const selected = form.querySelector('select[name="option_uuid"] option:checked');
+		const section = form.querySelector('#desk-manager-family');
+		const container = form.querySelector('#desk-manager-family-members');
+		const maximum = Math.max(1, Number(selected?.dataset.maximum || 1));
+		container.innerHTML = '';
+		section.hidden = selected?.dataset.classification !== 'family';
+		form.querySelector('#desk-manager-family-help').textContent = `The primary contact is included. This registration allows up to ${maximum} people total.`;
+	}
+
+	function managerVerifiedAttendees(form) {
+		return [...form.querySelectorAll('#desk-manager-family-members .desk-family-row')].map((row) => ({
+			first_name: row.querySelector('[data-first]').value,
+			last_name: row.querySelector('[data-last]').value,
+		}));
+	}
+
+	async function saveManagerVerified(event) {
+		event.preventDefault();
+		const form = event.currentTarget;
+		const payload = Object.fromEntries(new FormData(form).entries());
+		const selected = form.querySelector('select[name="option_uuid"] option:checked');
+		payload.offering_fingerprint = selected?.dataset.fingerprint || '';
+		payload.proof_acknowledged = Boolean(payload.proof_acknowledged);
+		payload.additional_attendees = managerVerifiedAttendees(form);
+		const message = form.querySelector('#desk-manager-verified-message');
+		form.querySelector('button[type="submit"]').disabled = true;
+		try {
+			const data = await api('/registrations/manager-verified', {method: 'POST', body: JSON.stringify(payload)}, uuid());
+			const result = data.historical_result || {};
+			const registration = result.registration || {};
+			resetViewport();
+			main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">Manager Verified</p><h1>REGISTRATION RECORDED</h1><p>Manager verified registration manually. No one was checked in.</p><div class="desk-success-actions"><button type="button" class="desk-primary desk-touch-centered" id="desk-manager-verified-open">OPEN REGISTRATION</button><button type="button" class="desk-secondary desk-touch-centered" id="desk-manager-verified-done">RETURN TO MANAGER TOOLS</button></div></section>`;
+			bindScreenActions(showManagerArea);
+			main().querySelector('#desk-manager-verified-open').addEventListener('click', () => showRegistration(registration.registration_uuid, 'recovery'));
+			main().querySelector('#desk-manager-verified-done').addEventListener('click', () => showManagerArea('Manager Verified registration recorded.'));
+		} catch (error) {
+			form.querySelector('button[type="submit"]').disabled = false;
+			if (error.code === 'oras_desk_verified_duplicate') {
+				const candidates = error.data?.candidates || [];
+				message.innerHTML = `<div class="desk-confirm-card"><h2>MATCHING REGISTRATION FOUND</h2><p>Open or synchronize the existing source. A second registration was not created.</p>${candidates.map((candidate) => `<p><strong>${escapeHtml(candidate.contact_name || 'Existing registration')}</strong> · ${escapeHtml(sourceLabel(candidate.source_type))}</p>`).join('')}</div>`;
+			} else message.innerHTML = notice(friendlyError(error), 'error');
 		}
 	}
 
@@ -583,8 +724,9 @@
 			const allowed = data.admission?.allowed !== false;
 			const canAddAttendee = registration.classification === 'family' && existing.length < maximum;
 			const everyoneCheckedIn = existing.length > 0 && existing.every((attendee) => attendee.current_attendance?.state === 'checked_in');
-			const back = state.detailReturn === 'roster' ? () => renderEventRoster(false) : showSearch;
-			main().innerHTML = `${screenActions(state.detailReturn === 'roster' ? 'Back to Event Roster' : 'Back to Search')}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
+			const back = state.detailReturn === 'roster' ? () => renderEventRoster(false) : state.detailReturn === 'recovery' ? showMissingRegistration : showSearch;
+			const backLabel = state.detailReturn === 'roster' ? 'Back to Event Roster' : state.detailReturn === 'recovery' ? 'Back to Missing Registration' : 'Back to Search';
+			main().innerHTML = `${screenActions(backLabel)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
 				<div id="desk-detail-message">${allowed ? '' : notice('This registration cannot be checked in. Please ask a manager for help.', 'error')}</div>
 				<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2>${everyoneCheckedIn ? '<div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div>' : `<p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form>`}</section>
 				${state.station.manager_token && data.manager_detail ? renderManagerRosterDetail(data.manager_detail) : ''}${state.station.manager_token && data.editable_registration ? `<section class="desk-manager-inline"><details><summary>Manager correction tools</summary>${renderCorrectionForm(data.editable_registration)}</details></section>` : ''}`;
@@ -605,7 +747,7 @@
 			focusMain();
 		} catch (error) {
 			main().innerHTML = `${screenActions('Back to Search')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
-			bindScreenActions(state.detailReturn === 'roster' ? () => renderEventRoster(false) : showSearch);
+			bindScreenActions(state.detailReturn === 'roster' ? () => renderEventRoster(false) : state.detailReturn === 'recovery' ? showMissingRegistration : showSearch);
 		}
 	}
 
@@ -718,6 +860,7 @@
 	}
 
 	function showWalkInStep(step) {
+		resetViewport();
 		if (!state.wizard) return startWalkInWizard(false);
 		state.wizard.step = step;
 		if (step === 'type') return showWizardType();
@@ -880,6 +1023,7 @@
 	}
 
 	function showWaitlistSuccess(name) {
+		resetViewport();
 		state.view = 'success';
 		state.wizard = null;
 		main().innerHTML = `<section class="desk-success-screen desk-waitlist-screen"><span class="desk-large-icon">${icon('calendar')}</span><p class="desk-eyebrow">RSVP waitlist</p><h1>ADDED TO THE WAITLIST</h1><p class="desk-success-name">${escapeHtml(name)}</p><p><strong>This person was not admitted or checked in.</strong></p><p>The event is currently full. Their accountless RSVP was saved to the waitlist.</p><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">REGISTER ANOTHER</button></div></section>`;
@@ -910,6 +1054,7 @@
 	}
 
 	function showSuccess(details) {
+		resetViewport();
 		state.view = 'success';
 		const isWalkIn = details.kind === 'walk-in' || details.kind === 'manager';
 		const time = formatLocalTime(details.when);
@@ -922,13 +1067,14 @@
 	}
 
 	async function showManagerArea(messageText = '') {
+		resetViewport();
 		state.view = 'manager';
 		if (!state.station.manager_token) return showManagerHelp();
 		main().innerHTML = '<div class="desk-loading">Opening manager tools…</div>';
 		try {
 			const data = await api('/dashboard');
 			const summary = data.summary || {};
-			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area"><div class="desk-manager-banner"><strong>MANAGER MODE</strong><button type="button" id="desk-exit-manager">EXIT MANAGER MODE</button></div><div class="desk-wizard-heading"><h1>MANAGER TOOLS</h1><p>Corrections and recovery actions are audited.</p></div>${messageText ? notice(messageText, 'success') : ''}<div id="desk-sync-message"></div>${state.pendingPayload ? '<div class="desk-recovery-card"><h2>UNSAVED REGISTRATION NEEDS HELP</h2><p>The original request and payment warning are still available.</p><button type="button" id="desk-resume-failed">RESUME SAME REQUEST</button></div>' : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-manager-comp">${icon('person')}<strong>COMPLIMENTARY / SPEAKER</strong><span>Create an approved nonfinancial registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-membership">${icon('family')}<strong>RECORD MEMBERSHIP</strong><span>Cash or check paid at this event.</span></button><button type="button" class="desk-manager-card" id="desk-manager-pending">${icon('calendar')}<strong>PENDING MEMBERSHIP ACTIVATIONS</strong><span>Resend, copy, or cancel unused credits.</span></button><button type="button" class="desk-manager-card" id="desk-sync-registrations">${icon('search')}<strong>SYNC WEBSITE REGISTRATIONS</strong><span>Refresh website registration search.</span></button></div><section class="desk-manager-summary"><div><strong>${Number(summary.checked_in_today || 0)}</strong><span>Checked in today</span></div><div><strong>${Number(summary.active_registrations || 0)}</strong><span>Active registrations</span></div><div><strong>${Number(summary.reversed_today || 0)}</strong><span>Reversals today</span></div></section>${data.recent?.length ? `<section class="desk-recent"><h2>Recent operational activity</h2><div class="desk-recent-list">${renderRecent(data.recent.slice(0, 8))}</div></section>` : ''}</section>`;
+			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area"><div class="desk-manager-banner"><strong>MANAGER MODE</strong><button type="button" id="desk-exit-manager">EXIT MANAGER MODE</button></div><div class="desk-wizard-heading"><h1>MANAGER TOOLS</h1><p>Corrections and recovery actions are audited.</p></div>${messageText ? notice(messageText, 'success') : ''}<div id="desk-sync-message"></div>${state.pendingPayload ? '<div class="desk-recovery-card"><h2>UNSAVED REGISTRATION NEEDS HELP</h2><p>The original request and payment warning are still available.</p><button type="button" id="desk-resume-failed">RESUME SAME REQUEST</button></div>' : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-manager-recovery">${icon('search')}<strong>FIND MISSING REGISTRATION</strong><span>Search and synchronize a paid website registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-comp">${icon('person')}<strong>COMPLIMENTARY / SPEAKER</strong><span>Create an approved nonfinancial registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-membership">${icon('family')}<strong>RECORD MEMBERSHIP</strong><span>Cash or check paid at this event.</span></button><button type="button" class="desk-manager-card" id="desk-manager-pending">${icon('calendar')}<strong>PENDING MEMBERSHIP ACTIVATIONS</strong><span>Resend, copy, or cancel unused credits.</span></button><button type="button" class="desk-manager-card" id="desk-sync-registrations">${icon('search')}<strong>SYNC WEBSITE REGISTRATIONS</strong><span>Refresh website registration search.</span></button></div><section class="desk-manager-summary"><div><strong>${Number(summary.checked_in_today || 0)}</strong><span>Checked in today</span></div><div><strong>${Number(summary.active_registrations || 0)}</strong><span>Active registrations</span></div><div><strong>${Number(summary.reversed_today || 0)}</strong><span>Reversals today</span></div></section>${data.recent?.length ? `<section class="desk-recent"><h2>Recent operational activity</h2><div class="desk-recent-list">${renderRecent(data.recent.slice(0, 8))}</div></section>` : ''}</section>`;
 			bindScreenActions(requestHome);
 			main().querySelector('#desk-exit-manager').addEventListener('click', () => {
 				delete state.station.manager_token;
@@ -936,6 +1082,7 @@
 				showHome('Manager Mode closed.');
 			});
 			main().querySelector('#desk-manager-comp').addEventListener('click', () => startWalkInWizard(true));
+			main().querySelector('#desk-manager-recovery').addEventListener('click', showMissingRegistration);
 			main().querySelector('#desk-manager-membership').addEventListener('click', () => showMembershipForm());
 			main().querySelector('#desk-manager-pending').addEventListener('click', () => showPendingMemberships());
 			main().querySelector('#desk-resume-failed')?.addEventListener('click', () => {
@@ -1049,7 +1196,7 @@
 
 	function renderCorrectionForm(editor) {
 		const options = availableOptions(true);
-		return `<form id="desk-correction-form" class="desk-form desk-manager-form"><p>Correct this desk-created registration. Attendance changes use the separate Reverse check-in action.</p><input type="hidden" name="expected_record_version" value="${Number(editor.expected_record_version)}"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" value="${escapeHtml(editor.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" value="${escapeHtml(editor.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" value="${escapeHtml(editor.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" value="${escapeHtml(editor.phone)}" required></div><div class="desk-field desk-field-wide"><label>Option</label><select name="option_uuid" required>${options.map((option) => `<option value="${escapeHtml(option.option_uuid)}" ${option.option_uuid === editor.option_uuid ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div><div class="desk-field"><label>One-day date</label><input name="valid_local_date" type="date" value="${escapeHtml(editor.valid_local_date)}"></div><div class="desk-field"><label>Recorded statement</label><select name="payment_assertion"><option value="paid_card" ${editor.payment_assertion === 'paid_card' ? 'selected' : ''}>Paid by card</option><option value="paid_cash" ${editor.payment_assertion === 'paid_cash' ? 'selected' : ''}>Paid by cash</option><option value="paid_check" ${editor.payment_assertion === 'paid_check' ? 'selected' : ''}>Paid by check</option><option value="unpaid" ${editor.payment_assertion === 'unpaid' ? 'selected' : ''}>Unpaid</option><option value="complimentary" ${editor.payment_assertion === 'complimentary' ? 'selected' : ''}>Complimentary / speaker</option></select></div></div><input type="hidden" name="address_1" value="${escapeHtml(editor.address_1)}"><input type="hidden" name="address_2" value="${escapeHtml(editor.address_2)}"><input type="hidden" name="city" value="${escapeHtml(editor.city)}"><input type="hidden" name="state" value="${escapeHtml(editor.state)}"><input type="hidden" name="postcode" value="${escapeHtml(editor.postcode)}"><button type="submit">SAVE CORRECTION</button></form>`;
+		return `<form id="desk-correction-form" class="desk-form desk-manager-form"><p>Correct this desk-created registration. Attendance changes use the separate Reverse check-in action.</p><input type="hidden" name="expected_record_version" value="${Number(editor.expected_record_version)}"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" value="${escapeHtml(editor.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" value="${escapeHtml(editor.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" value="${escapeHtml(editor.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" value="${escapeHtml(editor.phone)}" required></div><div class="desk-field desk-field-wide"><label>Option</label><select name="option_uuid" required>${options.map((option) => `<option value="${escapeHtml(option.option_uuid)}" ${option.option_uuid === editor.option_uuid ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div><div class="desk-field"><label>One-day date</label><input name="valid_local_date" type="date" value="${escapeHtml(editor.valid_local_date)}"></div><div class="desk-field"><label>Recorded statement</label><select name="payment_assertion"><option value="paid_card" ${editor.payment_assertion === 'paid_card' ? 'selected' : ''}>Paid by card</option><option value="paid_cash" ${editor.payment_assertion === 'paid_cash' ? 'selected' : ''}>Paid by cash</option><option value="paid_check" ${editor.payment_assertion === 'paid_check' ? 'selected' : ''}>Paid by check</option><option value="unpaid" ${editor.payment_assertion === 'unpaid' ? 'selected' : ''}>Unpaid</option><option value="complimentary" ${editor.payment_assertion === 'complimentary' ? 'selected' : ''}>Complimentary / speaker</option><option value="manager_verified" ${editor.payment_assertion === 'manager_verified' ? 'selected' : ''}>Manager Verified</option></select></div></div><input type="hidden" name="address_1" value="${escapeHtml(editor.address_1)}"><input type="hidden" name="address_2" value="${escapeHtml(editor.address_2)}"><input type="hidden" name="city" value="${escapeHtml(editor.city)}"><input type="hidden" name="state" value="${escapeHtml(editor.state)}"><input type="hidden" name="postcode" value="${escapeHtml(editor.postcode)}"><button type="submit">SAVE CORRECTION</button></form>`;
 	}
 
 	async function reverseAttendance(registration, button) {

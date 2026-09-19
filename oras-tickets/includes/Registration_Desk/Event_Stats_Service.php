@@ -56,9 +56,11 @@ final class Event_Stats_Service {
 	public static function summarize_rows( array $registrations, array $attendees, array $attendance, array $memberships, string $today, string $now_utc ): array {
 		$registrations_by_id = array();
 		$source_counts = array(
-			'website'       => 0,
-			'walk_in'       => 0,
-			'complimentary' => 0,
+			'website'         => 0,
+			'walk_in'         => 0,
+			'complimentary'   => 0,
+			'rsvp'            => 0,
+			'manager_verified' => 0,
 		);
 		$classification = array();
 		$validity = array();
@@ -93,9 +95,11 @@ final class Event_Stats_Service {
 		}
 		$today_people = array();
 		$today_source = array(
-			'website'       => array(),
-			'walk_in'       => array(),
-			'complimentary' => array(),
+			'website'         => array(),
+			'walk_in'         => array(),
+			'complimentary'   => array(),
+			'rsvp'            => array(),
+			'manager_verified' => array(),
 		);
 		$attended_people = array();
 		$attended_registrations = array();
@@ -159,6 +163,8 @@ final class Event_Stats_Service {
 				'website_people'            => count( $today_source['website'] ),
 				'walk_in_people'            => count( $today_source['walk_in'] ),
 				'complimentary_people'      => count( $today_source['complimentary'] ),
+				'rsvp_people'               => count( $today_source['rsvp'] ),
+				'manager_verified_people'   => count( $today_source['manager_verified'] ),
 				'new_walk_in_registrations' => $new_walk_ins,
 				'pass_types'                => $today_pass_types,
 			),
@@ -167,6 +173,8 @@ final class Event_Stats_Service {
 				'website_registrations'       => $source_counts['website'],
 				'walk_in_registrations'       => $source_counts['walk_in'],
 				'complimentary_registrations' => $source_counts['complimentary'],
+				'rsvp_registrations'          => $source_counts['rsvp'],
+				'manager_verified_registrations' => $source_counts['manager_verified'],
 				'people_registered'           => count( $attendees ),
 				'unique_attendees'            => count( $attended_people ),
 				'attendance_instances'        => count( $attendance ),
@@ -190,8 +198,11 @@ final class Event_Stats_Service {
 		if ( 'speaker' === $source ) {
 			return 'complimentary';
 		}
-		if ( in_array( $source, array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
-			return 'walk_in';
+		if ( str_starts_with( $source, 'rsvp_' ) ) {
+			return 'rsvp';
+		}
+		if ( 'manager_verified_manual' === $source ) {
+			return 'manager_verified';
 		}
 
 		return in_array( $source, array( 'walk_in', 'complimentary' ), true ) ? $source : 'website';

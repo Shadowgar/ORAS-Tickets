@@ -41,6 +41,7 @@ final class Event_Roster_Service {
 			'rsvp_waitlist'                => __( 'RSVP Waitlist', 'oras-tickets' ),
 			'complimentary'                => __( 'Complimentary', 'oras-tickets' ),
 			'speaker'                      => __( 'Speaker', 'oras-tickets' ),
+			'manager_verified_manual'       => __( 'Manager Verified', 'oras-tickets' ),
 			default                        => __( 'Event registration', 'oras-tickets' ),
 		};
 	}

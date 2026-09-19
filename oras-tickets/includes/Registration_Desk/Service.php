@@ -82,6 +82,116 @@ final class Service {
 	}
 
 	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
+	public function create_manager_verified( array $payload, array $context ) {
+		$binding = $this->binding( 'create_manager_verified_manual', $payload, $context );
+		if ( $binding instanceof \WP_Error ) {
+			return $binding;
+		}
+		$replay = $this->replay_or_conflict( $binding );
+		if ( null !== $replay ) {
+			return $replay;
+		}
+		$event_id = (int) $context['event_id'];
+		$config   = Config::get_event_config( $event_id );
+		$option   = Event_Offering_Resolver::find_desk_offering( $event_id, $config, sanitize_text_field( (string) ( $payload['option_uuid'] ?? '' ) ) );
+		if ( null === $option || empty( $option['available_for_new'] ) ) {
+			return new \WP_Error( 'oras_desk_option_invalid', 'Choose an available registration option.', array( 'status' => 400 ) );
+		}
+		if ( ! hash_equals( (string) $option['offering_fingerprint'], sanitize_text_field( (string) ( $payload['offering_fingerprint'] ?? '' ) ) ) ) {
+			return new \WP_Error( 'oras_desk_offering_changed', 'That registration option changed. Review the current details before continuing.', array( 'status' => 409 ) );
+		}
+		$validated = $this->validate_manager_verified_payload( $payload, $option );
+		if ( $validated instanceof \WP_Error ) {
+			return $validated;
+		}
+		$duplicates = $this->registrations->duplicate_candidates( $event_id, (string) $validated['email'], (string) $validated['phone'] );
+		if ( ! empty( $duplicates ) ) {
+			return $this->manager_verified_duplicate_error(
+				array_map(
+					static fn( array $row ): array => array(
+						'registration_uuid' => (string) $row['registration_uuid'],
+						'contact_name'      => (string) $row['source_contact_name'],
+						'source_type'       => (string) $row['source_type'],
+					),
+					$duplicates
+				)
+			);
+		}
+		$canonical = ( new Recovery_Service( $this->source_adapter, null, $this->registrations ) )->contact_matches( $event_id, (string) $validated['email'], (string) $validated['phone'], $config );
+		if ( $canonical instanceof \WP_Error ) {
+			return $canonical;
+		}
+		if ( ! empty( $canonical ) ) {
+			return $this->manager_verified_duplicate_error( $canonical );
+		}
+
+		$result = Store::transaction(
+			function () use ( $validated, $event_id, $context, $binding ) {
+				$record                    = $validated;
+				$record['source_type']     = 'manager_verified_manual';
+				$record['event_id']        = $event_id;
+				$record['config_revision'] = (int) $context['config_revision'];
+				$registration = $this->registrations->create_manual( $record );
+				if ( $registration instanceof \WP_Error ) {
+					return $registration;
+				}
+				$attendees = array();
+				foreach ( $validated['arrivals'] as $index => $arrival ) {
+					$prefix   = 'individual' === $validated['classification'] ? 'individual' : 'family';
+					$attendee = $this->attendees->confirm_slot( (int) $registration['id'], $prefix . '-' . ( $index + 1 ), (string) $arrival['first_name'], (string) $arrival['last_name'] );
+					if ( $attendee instanceof \WP_Error ) {
+						return $attendee;
+					}
+					$attendees[] = $attendee;
+				}
+				$response = array(
+					'result'       => 'manager_verified_recorded',
+					'message'      => 'Manager verified registration manually.',
+					'registration' => $registration,
+					'attendees'    => $attendees,
+					'attendance'   => array(),
+				);
+				$result_json  = wp_json_encode( $response );
+				$changes_json = wp_json_encode(
+					array(
+						'source' => 'manager_verified_manual',
+						'reason' => (string) $validated['evidence']['manager_verification']['reason'],
+					)
+				);
+				$audit = $this->audits->append(
+					array_merge(
+						$binding,
+						array(
+							'registration_uuid' => (string) $registration['registration_uuid'],
+							'attendee_uuid'     => (string) ( $attendees[0]['attendee_uuid'] ?? '' ),
+							'attendance_id'     => null,
+							'result_status'     => 'success',
+							'result_code'       => 'manager_verified_recorded',
+							'result_json'       => is_string( $result_json ) ? $result_json : '{}',
+							'changes_json'      => is_string( $changes_json ) ? $changes_json : '{}',
+						)
+					)
+				);
+				if ( $audit instanceof \WP_Error ) {
+					return $audit;
+				}
+
+				return array(
+					'replayed'           => false,
+					'historical_result'  => $response,
+					'current_attendance' => null,
+				);
+			}
+		);
+		if ( $result instanceof \WP_Error && 'oras_desk_request_exists' === $result->get_error_code() ) {
+			$replay = $this->replay_or_conflict( $binding );
+			return null !== $replay ? $replay : $result;
+		}
+
+		return $result;
+	}
+
+	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
 	public function check_in_public_rsvp( int $user_id, array $payload, array $context ) {
 		$event_id = (int) $context['event_id'];
 		if ( $user_id <= 0 || ! class_exists( \ORAS\Tickets\Frontend\Event_RSVP::class ) || 'yes' !== \ORAS\Tickets\Frontend\Event_RSVP::get_user_status( $event_id, $user_id ) ) {
@@ -327,7 +437,7 @@ final class Service {
 			return $range instanceof \WP_Error ? $range : new \WP_Error( 'oras_desk_wrong_date', 'This registration is not valid for today.', array( 'status' => 409 ) );
 		}
 		if ( 'online' !== $registration['source_type'] || empty( $registration['source_order_id'] ) || empty( $registration['source_order_item_id'] ) ) {
-			return new \WP_Error( 'oras_desk_source_review', 'This M1A registration does not have a supported online source.', array( 'status' => 409 ) );
+			return new \WP_Error( 'oras_desk_source_review', 'This registration does not have a supported website source.', array( 'status' => 409 ) );
 		}
 		$evidence = $this->source_adapter->load( (int) $registration['source_order_id'], (int) $registration['source_order_item_id'] );
 		if ( $evidence instanceof \WP_Error ) {
@@ -891,6 +1001,102 @@ final class Service {
 		);
 	}
 
+	/** @param array<string,mixed> $payload @param array<string,mixed> $option @return array<string,mixed>|\WP_Error */
+	private function validate_manager_verified_payload( array $payload, array $option ) {
+		$first_name = sanitize_text_field( (string) ( $payload['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( (string) ( $payload['last_name'] ?? '' ) );
+		$email      = strtolower( sanitize_email( (string) ( $payload['email'] ?? '' ) ) );
+		$phone      = sanitize_text_field( (string) ( $payload['phone'] ?? '' ) );
+		$reason     = sanitize_textarea_field( (string) ( $payload['reason'] ?? '' ) );
+		if ( '' === $first_name || '' === $last_name ) {
+			return new \WP_Error( 'oras_desk_contact_required', 'First and last name are required.', array( 'status' => 400 ) );
+		}
+		if ( '' !== $email && ! is_email( $email ) ) {
+			return new \WP_Error( 'oras_desk_contact_required', 'Enter a valid email address or leave it blank.', array( 'status' => 400 ) );
+		}
+		if ( '' !== $phone && strlen( preg_replace( '/\D+/', '', $phone ) ?? '' ) < 7 ) {
+			return new \WP_Error( 'oras_desk_contact_required', 'Enter a valid phone number or leave it blank.', array( 'status' => 400 ) );
+		}
+		if ( strlen( $reason ) < 5 ) {
+			return new \WP_Error( 'oras_desk_verification_reason_required', 'Record a short note explaining the proof you reviewed.', array( 'status' => 400 ) );
+		}
+		if ( empty( $payload['proof_acknowledged'] ) ) {
+			return new \WP_Error( 'oras_desk_proof_acknowledgement_required', 'Confirm that you verified proof outside this system.', array( 'status' => 400 ) );
+		}
+		$classification = (string) ( $option['classification'] ?? 'unclassified' );
+		$validity       = (string) ( $option['validity_type'] ?? 'unclassified' );
+		if ( ! in_array( $classification, array( 'individual', 'family' ), true ) || ! in_array( $validity, array( 'full_event', 'one_day' ), true ) ) {
+			return new \WP_Error( 'oras_desk_option_review', 'This registration option needs manager review.', array( 'status' => 409 ) );
+		}
+		$arrivals = array(
+			array(
+				'first_name' => $first_name,
+				'last_name'  => $last_name,
+			),
+		);
+		if ( 'family' === $classification ) {
+			foreach ( is_array( $payload['additional_attendees'] ?? null ) ? $payload['additional_attendees'] : array() as $arrival ) {
+				if ( ! is_array( $arrival ) ) {
+					continue;
+				}
+				$additional_first = sanitize_text_field( (string) ( $arrival['first_name'] ?? '' ) );
+				$additional_last  = sanitize_text_field( (string) ( $arrival['last_name'] ?? '' ) );
+				if ( ( '' === $additional_first ) !== ( '' === $additional_last ) ) {
+					return new \WP_Error( 'oras_desk_attendee_name_invalid', 'Provide both names for a family member, or leave both blank.', array( 'status' => 400 ) );
+				}
+				$arrivals[] = array(
+					'first_name' => $additional_first,
+					'last_name'  => $additional_last,
+				);
+			}
+		}
+		if ( count( $arrivals ) > max( 1, min( 20, (int) ( $option['max_attendees'] ?? 1 ) ) ) ) {
+			return new \WP_Error( 'oras_desk_arrivals_invalid', 'The attendee list exceeds this registration type’s family limit.', array( 'status' => 400 ) );
+		}
+
+		return array(
+			'first_name'        => $first_name,
+			'last_name'         => $last_name,
+			'email'             => $email,
+			'phone'             => $phone,
+			'option_uuid'       => (string) $option['option_uuid'],
+			'classification'    => $classification,
+			'validity_type'     => $validity,
+			'valid_local_date'  => 'one_day' === $validity ? sanitize_text_field( (string) ( $option['valid_local_date'] ?? '' ) ) : '',
+			'payment_assertion' => 'manager_verified',
+			'arrivals'          => $arrivals,
+			'evidence'          => array(
+				'manager_verification' => array(
+					'reason'             => $reason,
+					'proof_acknowledged' => true,
+				),
+				'offering'             => array(
+					'option_uuid'     => (string) $option['option_uuid'],
+					'ticket_key'      => (string) ( $option['ticket_key'] ?? '' ),
+					'product_id'      => absint( $option['product_id'] ?? 0 ),
+					'label'           => sanitize_text_field( (string) ( $option['label'] ?? '' ) ),
+					'description'     => sanitize_text_field( (string) ( $option['description'] ?? '' ) ),
+					'price'           => sanitize_text_field( (string) ( $option['price'] ?? '' ) ),
+					'phase_key'       => sanitize_key( (string) ( $option['phase_key'] ?? '' ) ),
+					'phase_label'     => sanitize_text_field( (string) ( $option['phase_label'] ?? '' ) ),
+					'attendance_mode' => sanitize_key( (string) ( $option['attendance_mode'] ?? '' ) ),
+				),
+			),
+		);
+	}
+
+	/** @param array<int,array<string,mixed>> $candidates */
+	private function manager_verified_duplicate_error( array $candidates ): \WP_Error {
+		return new \WP_Error(
+			'oras_desk_verified_duplicate',
+			'A matching registration already exists. Open or synchronize that record instead of creating another one.',
+			array(
+				'status'     => 409,
+				'candidates' => $candidates,
+			)
+		);
+	}
+
 	/** @param array<string,mixed> $registration @param array<string,mixed> $config @return string|\WP_Error */
 	private function registration_payment_label( array $registration, array $config, bool $explicit_unpaid ) {
 		if ( 'online' !== (string) $registration['source_type'] ) {
@@ -901,6 +1107,7 @@ final class Service {
 				'unpaid'       => 'Unpaid admission',
 				'complimentary' => 'Complimentary / speaker registration',
 				'rsvp'          => 'Accountless desk RSVP',
+				'manager_verified' => 'Manager verified registration manually',
 				default        => new \WP_Error( 'oras_desk_payment_statement_missing', 'Desk registration payment statement is missing.', array( 'status' => 409 ) ),
 			};
 		}

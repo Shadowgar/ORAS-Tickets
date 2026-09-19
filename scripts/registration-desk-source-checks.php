@@ -50,7 +50,7 @@ foreach ( array( 'Domain/Meta.php', 'Domain/Ticket.php', 'Domain/Ticket_Collecti
 	require_once $includes . $file;
 }
 $base = $includes . 'Registration_Desk/';
-foreach ( array( 'Coverage_Store.php', 'Recovery_Cursor.php', 'Source_Change_Listener.php', 'Source_Adapter.php', 'Source_Resolver.php', 'Eligibility.php', 'Projection_Service.php' ) as $file ) {
+foreach ( array( 'Coverage_Store.php', 'Recovery_Cursor.php', 'Source_Change_Listener.php', 'Source_Adapter.php', 'Source_Resolver.php', 'Eligibility.php', 'Projection_Service.php', 'Recovery_Service.php' ) as $file ) {
 	oras_source_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
@@ -195,6 +195,11 @@ foreach ( glob( $base . '*.php' ) as $file ) {
 foreach ( array( 'payment_complete(', 'wc_create_order(', 'wp_insert_user(', 'update_status(', 'update_meta_data(', 'saveOrder(' ) as $forbidden_call ) {
 	oras_source_assert( false === strpos( $new_code, $forbidden_call ), "Desk backend does not call {$forbidden_call}" );
 }
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads local source fixture.
+$recovery_code = (string) file_get_contents( $base . 'Recovery_Service.php' );
+oras_source_assert( false !== strpos( $recovery_code, 'Source_Resolver::resolve' ), 'Recovery evaluates canonical event access rather than trusting a claim' );
+oras_source_assert( false !== strpos( $recovery_code, 'reconcile_source' ), 'Recovery synchronizes through the idempotent source projection service' );
+oras_source_assert( false !== strpos( $new_code, 'manager_verified_manual' ), 'Verified manual recovery has a distinct honest source type' );
 oras_source_assert( false !== strpos( $new_code, 'PMPro_Discount_Code' ), 'The explicit offline-membership exception reuses PMPro credits' );
 
 echo "Registration Desk source checks passed.\n";

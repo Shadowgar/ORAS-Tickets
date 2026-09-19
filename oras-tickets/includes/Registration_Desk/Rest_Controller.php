@@ -14,13 +14,15 @@ final class Rest_Controller {
 	private Membership_Credit_Service $membership_credit;
 	private Member_Lookup_Service $member_lookup;
 	private Event_Roster_Service $event_roster;
+	private Recovery_Service $recovery;
 
-	public function __construct( ?Service $service = null, ?Projection_Service $projection = null, ?Membership_Credit_Service $membership_credit = null, ?Member_Lookup_Service $member_lookup = null, ?Event_Roster_Service $event_roster = null ) {
+	public function __construct( ?Service $service = null, ?Projection_Service $projection = null, ?Membership_Credit_Service $membership_credit = null, ?Member_Lookup_Service $member_lookup = null, ?Event_Roster_Service $event_roster = null, ?Recovery_Service $recovery = null ) {
 		$this->service    = $service ?? new Service();
 		$this->projection = $projection ?? new Projection_Service();
 		$this->membership_credit = $membership_credit ?? new Membership_Credit_Service();
 		$this->member_lookup      = $member_lookup ?? new Member_Lookup_Service();
 		$this->event_roster       = $event_roster ?? new Event_Roster_Service();
+		$this->recovery           = $recovery ?? new Recovery_Service();
 	}
 
 	public function register(): void {
@@ -80,6 +82,24 @@ final class Rest_Controller {
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'manager_unlock' ),
 				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/manager/recovery',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'recovery_search' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/manager/recovery/sync',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'recovery_sync' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
 			)
 		);
 		register_rest_route(
@@ -221,6 +241,15 @@ final class Rest_Controller {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'create_complimentary' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/registrations/manager-verified',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'create_manager_verified' ),
 				'permission_callback' => array( $this, 'permission_manage' ),
 			)
 		);
@@ -370,6 +399,34 @@ final class Rest_Controller {
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
+	public function recovery_search( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$query = sanitize_text_field( (string) $request->get_param( 'q' ) );
+		$result = $this->recovery->search( (int) $context['event_id'], $query, Config::get_event_config( (int) $context['event_id'] ) );
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function recovery_sync( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$result = $this->recovery->sync(
+			(int) $context['event_id'],
+			absint( $request->get_param( 'order_id' ) ),
+			absint( $request->get_param( 'order_item_id' ) ),
+			Config::get_event_config( (int) $context['event_id'] )
+		);
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
 	public function member_lookup( \WP_REST_Request $request ) {
 		$context = $this->context( $request );
 		if ( $context instanceof \WP_Error ) {
@@ -459,7 +516,7 @@ final class Rest_Controller {
 				'items'             => $items,
 				'coverage'          => $coverage,
 				'coverage_complete' => 'complete' === $coverage['status'],
-				'limitations'       => array( 'M1A search includes listener-discovered and recovered direct individual registrations only.' ),
+				'limitations'       => array( 'Search includes discovered and recovered direct individual registrations only.' ),
 			)
 		);
 	}
@@ -628,6 +685,21 @@ final class Rest_Controller {
 		}
 		$context['request_uuid'] = $this->request_uuid( $request );
 		$result = $this->service->create_complimentary( $this->manual_payload( $request ), $context );
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function create_manager_verified( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$context['request_uuid'] = $this->request_uuid( $request );
+		$payload = $this->manual_payload( $request );
+		$payload['reason']             = sanitize_textarea_field( (string) $request->get_param( 'reason' ) );
+		$payload['proof_acknowledged'] = rest_sanitize_boolean( $request->get_param( 'proof_acknowledged' ) );
+		$result = $this->service->create_manager_verified( $payload, $context );
 
 		return $result instanceof \WP_Error ? $result : $this->response( $result );
 	}

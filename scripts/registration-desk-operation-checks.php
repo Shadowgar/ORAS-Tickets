@@ -26,7 +26,7 @@ function oras_operation_assert( bool $condition, string $message ): void {
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
-foreach ( array( 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Service.php', 'Rest_Controller.php' ) as $file ) {
+foreach ( array( 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Recovery_Service.php', 'Service.php', 'Rest_Controller.php' ) as $file ) {
 	oras_operation_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
@@ -71,9 +71,12 @@ oras_operation_assert( false === $service::date_is_within_event( '2026-10-12', '
 foreach ( array( 'station', 'offerings', 'search', 'detail', 'confirm_and_check_in', 'recent', 'reverse' ) as $method ) {
 	oras_operation_assert( method_exists( $rest, $method ), "REST controller exposes {$method} contract" );
 }
-foreach ( array( 'dashboard', 'create_walk_in', 'check_in', 'create_complimentary', 'correct_registration' ) as $method ) {
+foreach ( array( 'dashboard', 'create_walk_in', 'check_in', 'create_complimentary', 'create_manager_verified', 'correct_registration' ) as $method ) {
 	oras_operation_assert( method_exists( $service, $method ), "V1 service exposes {$method} workflow" );
 	oras_operation_assert( method_exists( $rest, $method ), "V1 REST controller exposes {$method} contract" );
+}
+foreach ( array( 'recovery_search', 'recovery_sync' ) as $method ) {
+	oras_operation_assert( method_exists( $rest, $method ), "Manager REST controller exposes {$method} contract" );
 }
 foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $statement ) {
 	oras_operation_assert( true === $service::payment_assertion_is_valid( $statement ), "{$statement} is an allowed operational payment statement" );
@@ -107,6 +110,8 @@ $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/offerings' ), 'Walk-in choices have a current-offerings route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
+oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/manager/recovery' ), 'Missing-registration recovery has a manager-only route' );
+oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations/manager-verified' ), 'Manager-verified manual registration has a dedicated route' );
 oras_operation_assert( false === strpos( $rest_code, '/orders/(?P<' ), 'No desk route uses an order ID as registration identity' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
@@ -143,6 +148,20 @@ oras_operation_assert( false !== strpos( $desk_js, 'Before taking payment, ask w
 oras_operation_assert( false !== strpos( $desk_js, 'failureCount' ), 'Save recovery tracks repeated failure without discarding request identity' );
 oras_operation_assert( false !== strpos( $desk_js, 'RETURN HOME ONLY AFTER CONFIRMATION' ), 'Second save failure offers only confirmed abandonment' );
 oras_operation_assert( false === strpos( $desk_js, 'desk-today-count' ), 'Volunteer home does not contain count clutter' );
+oras_operation_assert( false !== strpos( $desk_js, 'THEY SAY THEY ALREADY REGISTERED' ), 'Failed volunteer search offers the approved recovery choice' );
+oras_operation_assert( false !== strpos( $desk_js, 'DO THEY HAVE PROOF OF REGISTRATION OR PAYMENT?' ), 'Recovery explains acceptable proof in plain language' );
+oras_operation_assert( false !== strpos( $desk_js, 'FIND MISSING REGISTRATION' ), 'Manager PIN recovery opens the dedicated missing-registration workflow' );
+oras_operation_assert( false !== strpos( $desk_js, 'SYNC THIS REGISTRATION' ), 'Manager can synchronize one canonical registration source' );
+oras_operation_assert( false !== strpos( $desk_js, 'RECORD VERIFIED MANUAL REGISTRATION' ), 'Manager can record a nonfinancial verified manual registration' );
+oras_operation_assert( false !== strpos( $desk_js, 'I verified proof of registration/payment outside this system.' ), 'Manual recovery requires explicit proof acknowledgement' );
+oras_operation_assert( false !== strpos( $desk_js, 'data-classification' ) && false !== strpos( $desk_js, 'data-maximum' ), 'Manual recovery carries canonical family coverage into the manager form' );
+oras_operation_assert( false !== strpos( $desk_js, 'desk-manager-family-members' ) && false !== strpos( $desk_js, 'managerVerifiedAttendees' ), 'Manual recovery collects optional family members up to the canonical limit' );
+oras_operation_assert( false !== strpos( $desk_js, 'const options = (data.items || []).filter' ), 'Manual recovery consumes the current-offerings response contract' );
+oras_operation_assert( false !== strpos( $desk_js, 'function resetViewport()' ) && substr_count( $desk_js, 'resetViewport();' ) >= 8, 'Major kiosk screen transitions reset inherited scroll position' );
+oras_operation_assert( false !== strpos( $desk_js, "['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']" ), 'RSVP filters use approved volunteer wording' );
+foreach ( array( 'Historical label ignored by desk', 'needs_review', 'source revoked', 'projection incomplete', 'stale configuration', 'raw REST status', 'raw UUID', 'raw SQL error' ) as $internal_phrase ) {
+	oras_operation_assert( false === strpos( $desk_js, $internal_phrase ), "Volunteer UI omits internal phrase: {$internal_phrase}" );
+}
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $desk_css = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.css' );
@@ -152,5 +171,7 @@ oras_operation_assert( false !== strpos( $desk_css, '@media (orientation: portra
 oras_operation_assert( false !== strpos( $desk_css, '100dvh' ), 'Kiosk sizing uses the dynamic iOS viewport' );
 oras_operation_assert( false !== strpos( $desk_css, 'env(safe-area-inset-top)' ), 'Kiosk respects iOS safe-area insets' );
 oras_operation_assert( false !== strpos( $desk_css, 'overflow-x: hidden' ), 'Kiosk prevents horizontal page scrolling' );
+oras_operation_assert( false !== strpos( $desk_css, '.desk-touch-centered' ), 'Kiosk exposes one reusable centered large-control style' );
+oras_operation_assert( false !== strpos( $desk_css, 'align-items: center' ) && false !== strpos( $desk_css, 'justify-content: center' ), 'Large kiosk controls center wrapped labels on both axes' );
 
 echo "Registration Desk operation checks passed.\n";
