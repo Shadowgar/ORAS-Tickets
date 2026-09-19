@@ -453,11 +453,26 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	oras_desk_integration_same( count( $initial ), 1, 'initial event exposes one canonical ticket' );
 	$envelope = get_post_meta( $event_id, '_oras_tickets_v1', true );
 	$envelope['tickets']['ticket-b'] = array(
-		'ticket_key' => 'ticket-b', 'name' => 'Canonical Beta', 'price' => '15.00', 'price_phases' => array(), 'capacity' => 100,
-		'sale_start' => '', 'sale_end' => '', 'description' => 'Added canonical offering', 'attendance_mode' => 'virtual', 'hide_sold_out' => false,
+		'ticket_key'      => 'ticket-b',
+		'name'            => 'Canonical Beta',
+		'price'           => '15.00',
+		'price_phases'    => array(),
+		'capacity'        => 100,
+		'sale_start'      => '',
+		'sale_end'        => '',
+		'description'     => 'Added canonical offering',
+		'attendance_mode' => 'virtual',
+		'hide_sold_out'   => false,
 	);
 	update_post_meta( $event_id, '_oras_tickets_v1', $envelope );
-	update_post_meta( $event_id, '_oras_tickets_woo_map_v1', array( 0 => (int) $fixture['product_a'], 1 => (int) $fixture['product_b'] ) );
+	update_post_meta(
+		$event_id,
+		'_oras_tickets_woo_map_v1',
+		array(
+			0 => (int) $fixture['product_a'],
+			1 => (int) $fixture['product_b'],
+		)
+	);
 	oras_desk_integration_same( count( $assert_aligned( 'ticket addition flows to public and desk together' ) ), 2, 'added ticket appears without desk reconfiguration' );
 	$envelope['tickets']['ticket-a']['name'] = 'Canonical Alpha Renamed';
 	update_post_meta( $event_id, '_oras_tickets_v1', $envelope );
@@ -467,8 +482,15 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	$stale_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $stale_token, wp_generate_uuid4() );
 	$stale_result = ( new Service() )->create_walk_in(
 		array(
-			'first_name' => 'Stale', 'last_name' => 'Choice', 'email' => 'stale-choice@example.test', 'phone' => '814-555-0901',
-			'option_uuid' => $initial[0]['option_uuid'], 'offering_fingerprint' => $initial[0]['offering_fingerprint'], 'valid_local_date' => '', 'payment_assertion' => 'paid_card', 'additional_attendees' => array(),
+			'first_name'           => 'Stale',
+			'last_name'            => 'Choice',
+			'email'                => 'stale-choice@example.test',
+			'phone'                => '814-555-0901',
+			'option_uuid'          => $initial[0]['option_uuid'],
+			'offering_fingerprint' => $initial[0]['offering_fingerprint'],
+			'valid_local_date'     => '',
+			'payment_assertion'    => 'paid_card',
+			'additional_attendees' => array(),
 		),
 		$stale_context
 	);
@@ -483,7 +505,15 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	oras_desk_integration_true( in_array( 'ticket-a', array_column( $opened, 'ticket_key' ), true ), 'ticket becomes available when its canonical sale window opens' );
 	$phase_start = gmdate( 'Y-m-d H:i', time() - HOUR_IN_SECONDS );
 	$phase_end   = gmdate( 'Y-m-d H:i', time() + HOUR_IN_SECONDS );
-	$envelope['tickets']['ticket-a']['price_phases'] = array( array( 'key' => 'door', 'label' => 'Door', 'price' => '45.00', 'start' => $phase_start, 'end' => $phase_end ) );
+	$envelope['tickets']['ticket-a']['price_phases'] = array(
+		array(
+			'key'   => 'door',
+			'label' => 'Door',
+			'price' => '45.00',
+			'start' => $phase_start,
+			'end'   => $phase_end,
+		),
+	);
 	update_post_meta( $event_id, '_oras_tickets_v1', $envelope );
 	$phased = $assert_aligned( 'active pricing phase flows to public and desk together' );
 	oras_desk_integration_same( array( $phased[0]['price'], $phased[0]['phase_key'] ), array( '45.00', 'door' ), 'desk uses the canonical effective price resolver' );
@@ -516,8 +546,15 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	$removed_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $stale_token, wp_generate_uuid4() );
 	$removed_result = ( new Service() )->create_walk_in(
 		array(
-			'first_name' => 'Removed', 'last_name' => 'Choice', 'email' => 'removed-choice@example.test', 'phone' => '814-555-0902',
-			'option_uuid' => $beta['option_uuid'], 'offering_fingerprint' => $beta['offering_fingerprint'], 'valid_local_date' => '', 'payment_assertion' => 'paid_card', 'additional_attendees' => array(),
+			'first_name'           => 'Removed',
+			'last_name'            => 'Choice',
+			'email'                => 'removed-choice@example.test',
+			'phone'                => '814-555-0902',
+			'option_uuid'          => $beta['option_uuid'],
+			'offering_fingerprint' => $beta['offering_fingerprint'],
+			'valid_local_date'     => '',
+			'payment_assertion'    => 'paid_card',
+			'additional_attendees' => array(),
 		),
 		$removed_context
 	);
@@ -538,8 +575,14 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 		$desk_context = oras_desk_integration_context( (int) $context['desk_id'], $rsvp_event_id, $config, $token, wp_generate_uuid4() );
 		return $service->create_walk_in(
 			array(
-				'first_name' => $name, 'last_name' => 'RSVP', 'email' => strtolower( $name ) . '-' . $sequence . '@example.test', 'phone' => '814-555-' . str_pad( (string) $sequence, 4, '0', STR_PAD_LEFT ),
-				'option_uuid' => Event_Offering_Resolver::option_uuid( $rsvp_event_id, 'rsvp' ), 'valid_local_date' => '', 'payment_assertion' => 'rsvp', 'additional_attendees' => array(),
+				'first_name'           => $name,
+				'last_name'            => 'RSVP',
+				'email'                => strtolower( $name ) . '-' . $sequence . '@example.test',
+				'phone'                => '814-555-' . str_pad( (string) $sequence, 4, '0', STR_PAD_LEFT ),
+				'option_uuid'          => Event_Offering_Resolver::option_uuid( $rsvp_event_id, 'rsvp' ),
+				'valid_local_date'     => '',
+				'payment_assertion'    => 'rsvp',
+				'additional_attendees' => array(),
 			),
 			$desk_context
 		);
@@ -606,16 +649,16 @@ function oras_desk_integration_prepare(): void {
 			'schema'  => 1,
 			'tickets' => array(
 				'canonical-individual' => array(
-					'ticket_key'     => 'canonical-individual',
-					'name'           => 'Canonical Individual',
-					'price'          => '20.00',
-					'price_phases'   => array(),
-					'capacity'       => 100,
-					'sale_start'     => '',
-					'sale_end'       => '',
-					'description'    => 'Canonical integration offering',
-					'attendance_mode'=> 'onsite',
-					'hide_sold_out'  => false,
+					'ticket_key'      => 'canonical-individual',
+					'name'            => 'Canonical Individual',
+					'price'           => '20.00',
+					'price_phases'    => array(),
+					'capacity'        => 100,
+					'sale_start'      => '',
+					'sale_end'        => '',
+					'description'     => 'Canonical integration offering',
+					'attendance_mode' => 'onsite',
+					'hide_sold_out'   => false,
 				),
 			),
 		)
@@ -700,9 +743,23 @@ function oras_desk_integration_prepare(): void {
 		'attendance_mode' => 'onsite',
 		'hide_sold_out'   => false,
 	);
-	update_post_meta( $offering_event_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => array( 'ticket-a' => $canonical_ticket( 'ticket-a', 'Canonical Alpha', '30.00' ) ) ) );
+	update_post_meta(
+		$offering_event_id,
+		'_oras_tickets_v1',
+		array(
+			'schema'  => 1,
+			'tickets' => array( 'ticket-a' => $canonical_ticket( 'ticket-a', 'Canonical Alpha', '30.00' ) ),
+		)
+	);
 	update_post_meta( $offering_event_id, '_oras_tickets_woo_map_v1', array( 0 => $offering_product_a ) );
-	update_post_meta( $unrelated_event_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => array( 'unrelated' => $canonical_ticket( 'unrelated', 'Unrelated Ticket', '80.00' ) ) ) );
+	update_post_meta(
+		$unrelated_event_id,
+		'_oras_tickets_v1',
+		array(
+			'schema'  => 1,
+			'tickets' => array( 'unrelated' => $canonical_ticket( 'unrelated', 'Unrelated Ticket', '80.00' ) ),
+		)
+	);
 	update_post_meta( $unrelated_event_id, '_oras_tickets_woo_map_v1', array( 0 => $unrelated_product ) );
 	$offering_config = Config::save_event_config(
 		$offering_event_id,
@@ -711,7 +768,7 @@ function oras_desk_integration_prepare(): void {
 			'ticket_rules' => array(),
 			'entitlements' => array(
 				array(
-					'entitlement_uuid' => wp_generate_uuid4(),
+					'entitlement_uuid'  => wp_generate_uuid4(),
 					'source_event_id'   => $unrelated_event_id,
 					'source_product_id' => $unrelated_product,
 					'classification'    => 'individual',
@@ -727,9 +784,31 @@ function oras_desk_integration_prepare(): void {
 	$rsvp_available_id = oras_desk_integration_event( $run, 'rsvp-available', $today, $today );
 	$rsvp_waitlist_id  = oras_desk_integration_event( $run, 'rsvp-waitlist', $today, $today );
 	$rsvp_full_id      = oras_desk_integration_event( $run, 'rsvp-full', $today, $today );
-	foreach ( array( $rsvp_available_id => true, $rsvp_waitlist_id => true, $rsvp_full_id => false ) as $rsvp_event_id => $waitlist_enabled ) {
-		update_post_meta( $rsvp_event_id, '_oras_rsvp_v1', array( 'enabled' => true, 'capacity' => $rsvp_event_id === $rsvp_available_id ? 2 : 1, 'waitlist_enabled' => $waitlist_enabled, 'open_at' => '', 'close_at' => '' ) );
-		$rsvp_config = Config::save_event_config( $rsvp_event_id, array( 'enabled' => true, 'ticket_rules' => array(), 'entitlements' => array() ), 0 );
+	foreach ( array(
+		$rsvp_available_id => true,
+		$rsvp_waitlist_id  => true,
+		$rsvp_full_id      => false,
+	) as $rsvp_event_id => $waitlist_enabled ) {
+		update_post_meta(
+			$rsvp_event_id,
+			'_oras_rsvp_v1',
+			array(
+				'enabled'          => true,
+				'capacity'         => $rsvp_event_id === $rsvp_available_id ? 2 : 1,
+				'waitlist_enabled' => $waitlist_enabled,
+				'open_at'          => '',
+				'close_at'         => '',
+			)
+		);
+		$rsvp_config = Config::save_event_config(
+			$rsvp_event_id,
+			array(
+				'enabled'      => true,
+				'ticket_rules' => array(),
+				'entitlements' => array(),
+			),
+			0
+		);
 		if ( is_wp_error( $rsvp_config ) ) {
 			oras_desk_integration_fail( 'RSVP fixture configuration failed.' );
 		}
@@ -941,14 +1020,14 @@ function oras_desk_integration_prepare(): void {
 		),
 		'token_one'         => $token_one,
 		'token_two'         => $token_two,
-		'offering_fixture'   => array(
-			'event_id'          => $offering_event_id,
-			'unrelated_event_id'=> $unrelated_event_id,
-			'product_a'         => $offering_product_a,
-			'product_b'         => $offering_product_b,
-			'unrelated_product' => $unrelated_product,
+		'offering_fixture'  => array(
+			'event_id'           => $offering_event_id,
+			'unrelated_event_id' => $unrelated_event_id,
+			'product_a'          => $offering_product_a,
+			'product_b'          => $offering_product_b,
+			'unrelated_product'  => $unrelated_product,
 		),
-		'rsvp_fixture'       => array(
+		'rsvp_fixture'      => array(
 			'available_event_id' => $rsvp_available_id,
 			'waitlist_event_id'  => $rsvp_waitlist_id,
 			'full_event_id'      => $rsvp_full_id,

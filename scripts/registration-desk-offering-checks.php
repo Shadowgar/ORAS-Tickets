@@ -1,4 +1,4 @@
-<?php
+<?php // phpcs:disable WordPress.Files.FileName.InvalidClassFileName, Universal.Files.SeparateFunctionsFromOO.Mixed -- Standalone CLI test doubles intentionally share this script.
 
 declare(strict_types=1);
 
@@ -14,6 +14,7 @@ function absint( mixed $value ): int {
 	return abs( (int) $value );
 }
 function wp_json_encode( mixed $value ): string|false {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone WordPress-function test double.
 	return json_encode( $value );
 }
 function get_post_meta( int $post_id, string $key, bool $single = false ): mixed {
@@ -32,13 +33,21 @@ final class Oras_Offering_Test_Product {
 		private bool $purchasable = true,
 		private bool $in_stock = true
 	) {}
-	public function get_id(): int { return $this->id; }
-	public function get_name(): string { return $this->name; }
-	public function managing_stock(): bool { return $this->managing_stock; }
-	public function get_stock_quantity(): int { return $this->stock; }
-	public function is_purchasable(): bool { return $this->purchasable; }
-	public function is_in_stock(): bool { return $this->in_stock; }
-	public function set_stock( int $stock ): void { $this->stock = $stock; $this->in_stock = $stock > 0; }
+	public function get_id(): int {
+		return $this->id; }
+	public function get_name(): string {
+		return $this->name; }
+	public function managing_stock(): bool {
+		return $this->managing_stock; }
+	public function get_stock_quantity(): int {
+		return $this->stock; }
+	public function is_purchasable(): bool {
+		return $this->purchasable; }
+	public function is_in_stock(): bool {
+		return $this->in_stock; }
+	public function set_stock( int $stock ): void {
+		$this->stock = $stock;
+		$this->in_stock = $stock > 0; }
 }
 
 function oras_offering_assert( bool $condition, string $message ): void {
@@ -49,17 +58,17 @@ function oras_offering_assert( bool $condition, string $message ): void {
 	fwrite( STDOUT, "PASS: {$message}\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
 }
 
-$plugin = dirname( __DIR__ ) . '/oras-tickets/includes/';
-require_once $plugin . 'Domain/Meta.php';
-require_once $plugin . 'Domain/Ticket.php';
-require_once $plugin . 'Domain/Ticket_Collection.php';
-require_once $plugin . 'Domain/Pricing/Price_Resolver.php';
+$plugin_root = dirname( __DIR__ ) . '/oras-tickets/includes/';
+require_once $plugin_root . 'Domain/Meta.php';
+require_once $plugin_root . 'Domain/Ticket.php';
+require_once $plugin_root . 'Domain/Ticket_Collection.php';
+require_once $plugin_root . 'Domain/Pricing/Price_Resolver.php';
 
-$resolver_file = $plugin . 'Domain/Event_Offering_Resolver.php';
+$resolver_file = $plugin_root . 'Domain/Event_Offering_Resolver.php';
 oras_offering_assert( file_exists( $resolver_file ), 'Shared event offering resolver exists' );
 require_once $resolver_file;
 
-$capacity_file = $plugin . 'Registration_Desk/RSVP_Capacity.php';
+$capacity_file = $plugin_root . 'Registration_Desk/RSVP_Capacity.php';
 oras_offering_assert( file_exists( $capacity_file ), 'Shared RSVP capacity policy exists' );
 require_once $capacity_file;
 
@@ -75,16 +84,16 @@ $GLOBALS['oras_offering_products'][201] = new Oras_Offering_Test_Product( 201, '
 $ticket = static function ( string $key, string $name, string $price, array $extra = array() ): array {
 	return array_merge(
 		array(
-			'ticket_key'     => $key,
-			'name'           => $name,
-			'price'          => $price,
-			'price_phases'   => array(),
-			'capacity'       => 0,
-			'sale_start'     => '',
-			'sale_end'       => '',
-			'description'    => 'Canonical description',
-			'attendance_mode'=> 'onsite',
-			'hide_sold_out'  => false,
+			'ticket_key'      => $key,
+			'name'            => $name,
+			'price'           => $price,
+			'price_phases'    => array(),
+			'capacity'        => 0,
+			'sale_start'      => '',
+			'sale_end'        => '',
+			'description'     => 'Canonical description',
+			'attendance_mode' => 'onsite',
+			'hide_sold_out'   => false,
 		),
 		$extra
 	);
@@ -99,7 +108,13 @@ $GLOBALS['oras_offering_meta'][11][ Meta::META_KEY_TICKETS ] = array(
 			'50.00',
 			array(
 				'price_phases' => array(
-					array( 'key' => 'early', 'label' => 'Early', 'price' => '35.00', 'start' => '2026-09-01 00:00', 'end' => '2026-09-30 23:59' ),
+					array(
+						'key'   => 'early',
+						'label' => 'Early',
+						'price' => '35.00',
+						'start' => '2026-09-01 00:00',
+						'end'   => '2026-09-30 23:59',
+					),
 				),
 			)
 		),
@@ -122,10 +137,22 @@ oras_offering_assert( true === $resolved[0]['visible'] && true === $resolved[0][
 
 $config = array(
 	'ticket_rules' => array(
-		array( 'ticket_key' => 'alpha-ticket', 'classification' => 'family', 'max_attendees' => 4, 'validity_type' => 'full_event', 'valid_local_date' => '' ),
+		array(
+			'ticket_key'       => 'alpha-ticket',
+			'classification'   => 'family',
+			'max_attendees'    => 4,
+			'validity_type'    => 'full_event',
+			'valid_local_date' => '',
+		),
 	),
 	'entitlements' => array(
-		array( 'source_event_id' => 22, 'source_product_id' => 201, 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'full_event' ),
+		array(
+			'source_event_id'   => 22,
+			'source_product_id' => 201,
+			'classification'    => 'individual',
+			'max_attendees'     => 1,
+			'validity_type'     => 'full_event',
+		),
 	),
 );
 $desk = Event_Offering_Resolver::desk_offerings( 11, $config, $now );

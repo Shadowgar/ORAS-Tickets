@@ -18,16 +18,21 @@ function sanitize_key( mixed $value ): string {
 function absint( mixed $value ): int {
 	return abs( (int) $value ); }
 function wp_json_encode( mixed $value ): string|false {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone WordPress-function test double.
 	return json_encode( $value ); }
 function get_post_meta( int $post_id, string $key, bool $single = false ): mixed {
 	return $GLOBALS['oras_source_meta'][ $post_id ][ $key ] ?? ''; }
 function wc_get_product( int $product_id ): object {
 	return new class($product_id) {
 		public function __construct( private int $id ) {}
-		public function get_name(): string { return 'Canonical product ' . $this->id; }
-		public function managing_stock(): bool { return false; }
-		public function is_purchasable(): bool { return true; }
-		public function is_in_stock(): bool { return true; }
+		public function get_name(): string {
+			return 'Canonical product ' . $this->id; }
+		public function managing_stock(): bool {
+			return false; }
+		public function is_purchasable(): bool {
+			return true; }
+		public function is_in_stock(): bool {
+			return true; }
 	};
 }
 function oras_source_assert( bool $condition, string $message ): void {
@@ -54,16 +59,16 @@ $resolver = '\\ORAS\\Tickets\\Registration_Desk\\Source_Resolver';
 $policy   = '\\ORAS\\Tickets\\Registration_Desk\\Eligibility';
 
 $ticket = static fn( string $key, string $name ): array => array(
-	'ticket_key'     => $key,
-	'name'           => $name,
-	'price'          => '25.00',
-	'price_phases'   => array(),
-	'capacity'       => 0,
-	'sale_start'     => '',
-	'sale_end'       => '',
-	'description'    => '',
-	'attendance_mode'=> 'onsite',
-	'hide_sold_out'  => false,
+	'ticket_key'      => $key,
+	'name'            => $name,
+	'price'           => '25.00',
+	'price_phases'    => array(),
+	'capacity'        => 0,
+	'sale_start'      => '',
+	'sale_end'        => '',
+	'description'     => '',
+	'attendance_mode' => 'onsite',
+	'hide_sold_out'   => false,
 );
 $GLOBALS['oras_source_meta'][123]['_oras_tickets_v1'] = array(
 	'schema'  => 1,
@@ -76,32 +81,32 @@ $GLOBALS['oras_source_meta'][123]['_oras_tickets_v1'] = array(
 $GLOBALS['oras_source_meta'][123]['_oras_tickets_woo_map_v1'] = array( 42, 43, 44 );
 
 $config = array(
-	'enabled'  => true,
-	'revision' => 4,
-	'ticket_rules'  => array(
+	'enabled'      => true,
+	'revision'     => 4,
+	'ticket_rules' => array(
 		array(
-			'ticket_key'            => 'individual',
-			'classification'        => 'individual',
-			'validity_type'         => 'full_event',
-			'max_attendees'         => 1,
+			'ticket_key'     => 'individual',
+			'classification' => 'individual',
+			'validity_type'  => 'full_event',
+			'max_attendees'  => 1,
 		),
 		array(
-			'ticket_key'            => 'family',
-			'classification'        => 'family',
-			'validity_type'         => 'full_event',
-			'max_attendees'         => 5,
+			'ticket_key'     => 'family',
+			'classification' => 'family',
+			'validity_type'  => 'full_event',
+			'max_attendees'  => 5,
 		),
 		array(
-			'ticket_key'            => 'day',
-			'classification'        => 'individual',
-			'validity_type'         => 'one_day',
-			'valid_local_date'      => '2026-10-08',
-			'max_attendees'         => 1,
+			'ticket_key'       => 'day',
+			'classification'   => 'individual',
+			'validity_type'    => 'one_day',
+			'valid_local_date' => '2026-10-08',
+			'max_attendees'    => 1,
 		),
 	),
 	'entitlements' => array(
 		array(
-			'entitlement_uuid' => '11111111-1111-4111-8111-111111111111',
+			'entitlement_uuid'  => '11111111-1111-4111-8111-111111111111',
 			'source_event_id'   => 456,
 			'source_product_id' => 42,
 			'classification'    => 'individual',

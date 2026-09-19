@@ -91,19 +91,19 @@ oras_access_assert( array() === $default['options'], 'Missing configuration has 
 
 $configured = $config_class::normalize_event_config(
 	array(
-		'enabled'  => true,
-		'revision' => 7,
+		'enabled'      => true,
+		'revision'     => 7,
 		'ticket_rules' => array(
 			array(
-				'ticket_key'            => 'canonical-family',
-				'classification'        => 'family',
-				'validity_type'         => 'full_event',
-				'max_attendees'         => 4,
+				'ticket_key'     => 'canonical-family',
+				'classification' => 'family',
+				'validity_type'  => 'full_event',
+				'max_attendees'  => 4,
 			),
 		),
 		'entitlements' => array(
 			array(
-				'entitlement_uuid' => '11111111-1111-4111-8111-111111111111',
+				'entitlement_uuid'  => '11111111-1111-4111-8111-111111111111',
 				'source_event_id'   => 456,
 				'source_product_id' => 42,
 				'classification'    => 'individual',

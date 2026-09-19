@@ -755,10 +755,10 @@ WC()->cart->remove_cart_item( $cart_item_key );
         $has_ended_ticket      = false;
         $next_sale_start_ts    = 0;
         $next_sale_start_label = '';
-        foreach ( Event_Offering_Resolver::resolve_for_event( $event_id, $now ) as $offering ) {
-            $sale_state = (string) $offering['sale_state'];
-            if ( 'upcoming' === $sale_state ) {
-                $ticket     = is_array( $offering['canonical_ticket'] ?? null ) ? $offering['canonical_ticket'] : array();
+		foreach ( Event_Offering_Resolver::resolve_for_event( $event_id, $now ) as $offering ) {
+			$sale_state = (string) $offering['sale_state'];
+			if ( 'upcoming' === $sale_state ) {
+				$ticket     = is_array( $offering['canonical_ticket'] ?? null ) ? $offering['canonical_ticket'] : array();
                 $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
                 $start_ts   = $sale_start !== '' ? strtotime( $sale_start . ' UTC' ) : false;
                 if ( $start_ts && ( 0 === $next_sale_start_ts || $start_ts < $next_sale_start_ts ) ) {
@@ -772,9 +772,9 @@ WC()->cart->remove_cart_item( $cart_item_key );
                 $has_ended_ticket = true;
                 continue;
             }
-            if ( ! empty( $offering['visible'] ) ) {
-                $tickets_on_sale[] = $offering;
-            }
+			if ( ! empty( $offering['visible'] ) ) {
+				$tickets_on_sale[] = $offering;
+			}
         }
 
         ob_start();
@@ -833,21 +833,21 @@ WC()->cart->remove_cart_item( $cart_item_key );
         echo '<thead><tr><th>Ticket</th><th>Price</th><th>Status</th><th>Qty</th></tr></thead>';
         echo '<tbody>';
 
-        foreach ( $tickets_on_sale as $offering ) {
-            $key           = (string) $offering['ticket_index'];
-            $name          = esc_html( (string) $offering['name'] );
-            $resolved      = $offering;
-            $price_raw     = (string) $offering['price'];
+		foreach ( $tickets_on_sale as $offering ) {
+			$key           = (string) $offering['ticket_index'];
+			$name          = esc_html( (string) $offering['name'] );
+			$resolved      = $offering;
+			$price_raw     = (string) $offering['price'];
             $price_display = $price_raw !== '' && is_numeric( $price_raw ) ? '$' . number_format( (float) $price_raw, 2, '.', '' ) : esc_html( (string) $price_raw );
             $description   = esc_html( (string) $offering['description'] );
             $attendance_mode = (string) $offering['attendance_mode'];
             $attendance_label = Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode
                 ? __( 'Virtual Access', 'oras-tickets' )
                 : __( 'On-site Access', 'oras-tickets' );
-            $status          = (string) $offering['availability_label'];
+			$status          = (string) $offering['availability_label'];
             $status_class    = 'sold_out' === (string) $offering['availability'] ? 'oras-status--sold-out' : 'oras-status--on-sale';
             $disabled        = empty( $offering['selectable'] );
-            $disabled_reason = $disabled ? $status : '';
+			$disabled_reason = $disabled ? $status : '';
             $manages         = ! empty( $offering['managing_stock'] );
             $max             = (int) $offering['max_quantity'];
 
