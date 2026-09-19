@@ -11,6 +11,8 @@ use ORAS\Tickets\Registration_Desk\Attendance_Store;
 use ORAS\Tickets\Registration_Desk\Audit_Store;
 use ORAS\Tickets\Registration_Desk\Config;
 use ORAS\Tickets\Registration_Desk\Coverage_Store;
+use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
+use ORAS\Tickets\Registration_Desk\Manager_Access;
 use ORAS\Tickets\Registration_Desk\Projection_Service;
 use ORAS\Tickets\Registration_Desk\Registration_Store;
 use ORAS\Tickets\Registration_Desk\Schema;
@@ -435,6 +437,19 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	$fixture  = $context['offering_fixture'];
 	$event_id = (int) $fixture['event_id'];
 	$config   = Config::get_event_config( $event_id );
+	wp_set_current_user( (int) $context['desk_id'] );
+	$roster_token = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Roster Types' );
+	$roster_type_labels = static function () use ( $roster_token ): array {
+		$request = new WP_REST_Request( 'GET', '/oras-tickets/v1/registration-desk/roster' );
+		$request->set_header( 'X-ORAS-Desk-Station', $roster_token );
+		$request->set_param( 'limit', 10 );
+		$response = rest_do_request( $request );
+		if ( 200 !== $response->get_status() ) {
+			oras_desk_integration_fail( 'canonical roster filter request failed.' );
+		}
+
+		return array_column( (array) ( $response->get_data()['registration_types'] ?? array() ), 'label' );
+	};
 	$assert_aligned = static function ( string $message ) use ( $event_id, $config ): array {
 		$public = array_values( array_filter( Event_Offering_Resolver::resolve_for_event( $event_id ), static fn( array $offering ): bool => ! empty( $offering['visible'] ) ) );
 		$desk   = Event_Offering_Resolver::desk_offerings( $event_id, $config );
@@ -452,6 +467,7 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 
 	$initial = $assert_aligned( 'public and desk begin with the same canonical offering' );
 	oras_desk_integration_same( count( $initial ), 1, 'initial event exposes one canonical ticket' );
+	oras_desk_integration_same( $roster_type_labels(), array( 'Canonical Alpha' ), 'roster type filter begins from the same canonical offering' );
 	$envelope = get_post_meta( $event_id, '_oras_tickets_v1', true );
 	$envelope['tickets']['ticket-b'] = array(
 		'ticket_key'      => 'ticket-b',
@@ -475,10 +491,12 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 		)
 	);
 	oras_desk_integration_same( count( $assert_aligned( 'ticket addition flows to public and desk together' ) ), 2, 'added ticket appears without desk reconfiguration' );
+	oras_desk_integration_same( $roster_type_labels(), array( 'Canonical Alpha', 'Canonical Beta' ), 'ticket addition flows to roster type choices' );
 	$envelope['tickets']['ticket-a']['name'] = 'Canonical Alpha Renamed';
 	update_post_meta( $event_id, '_oras_tickets_v1', $envelope );
 	$renamed = $assert_aligned( 'ticket rename flows to public and desk together' );
 	oras_desk_integration_same( $renamed[0]['name'], 'Canonical Alpha Renamed', 'desk reads the current canonical ticket name' );
+	oras_desk_integration_same( $roster_type_labels(), array( 'Canonical Alpha Renamed', 'Canonical Beta' ), 'ticket rename flows to roster type choices' );
 	$stale_token = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Stale Offering' );
 	$stale_context = oras_desk_integration_context( (int) $context['desk_id'], $event_id, $config, $stale_token, wp_generate_uuid4() );
 	$stale_result = ( new Service() )->create_walk_in(
@@ -600,7 +618,24 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	$refused = $create( $rsvp_cases['full'], 'Refused' );
 	oras_desk_integration_error( $refused, 'oras_desk_rsvp_full', 'full RSVP-only event without waitlist refuses the registration clearly' );
 	oras_desk_integration_same( count_users()['total_users'], $user_before, 'accountless desk RSVP and waitlist create no WordPress attendee account' );
+	$rsvp_roster = ( new Event_Roster_Service() )->get( $rsvp_cases['available'], array( 'limit' => 25 ) );
+	oras_desk_integration_same( $rsvp_roster['mode'], 'rsvp', 'RSVP-only event uses RSVP roster mode without fabricated tickets' );
+	oras_desk_integration_same( count( $rsvp_roster['items'] ), 3, 'RSVP-only roster combines website, admitted desk, and waitlisted desk records' );
+	oras_desk_integration_same( count( ( new Event_Roster_Service() )->get( $rsvp_cases['available'], array( 'status' => 'admitted' ) )['items'] ), 2, 'RSVP admitted filter covers website and accountless admitted records' );
+	oras_desk_integration_same( count( ( new Event_Roster_Service() )->get( $rsvp_cases['available'], array( 'status' => 'waitlist' ) )['items'] ), 1, 'RSVP waitlist filter returns only non-admitted records' );
+	oras_desk_integration_same( count( ( new Event_Roster_Service() )->get( $rsvp_cases['available'], array( 'status' => 'checked_in' ) )['items'] ), 1, 'RSVP checked-in filter uses actual Registration Desk attendance' );
+	$rsvp_config = Config::get_event_config( $rsvp_cases['available'] );
+	$rsvp_token  = Station_Session::issue( (int) $context['desk_id'], $rsvp_cases['available'], (int) $rsvp_config['revision'], 'RSVP Roster' );
+	$rsvp_checkin = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/roster/rsvp/' . (int) $context['member_id'] . '/check-in' );
+	$rsvp_checkin->set_header( 'X-ORAS-Desk-Station', $rsvp_token );
+	$rsvp_checkin->set_header( 'X-ORAS-Desk-Request', wp_generate_uuid4() );
+	$rsvp_checkin->set_body_params( array( 'attendance_local_date' => $context['today'] ) );
+	$rsvp_response = rest_do_request( $rsvp_checkin );
+	oras_desk_integration_same( $rsvp_response->get_status(), 200, 'admitted website RSVP can be checked in from the same safe roster detail flow' );
+	oras_desk_integration_same( count_users()['total_users'], $user_before, 'website RSVP roster check-in creates no attendee WordPress account' );
+	oras_desk_integration_same( count( ( new Event_Roster_Service() )->get( $rsvp_cases['available'], array( 'status' => 'checked_in' ) )['items'] ), 2, 'website RSVP check-in participates in the shared roster attendance state' );
 	oras_desk_integration_true( Event_Offering_Resolver::has_canonical_tickets( (int) $context['event_id'] ), 'event with tickets and RSVP uses canonical ticket precedence' );
+	oras_desk_integration_same( ( new Event_Roster_Service() )->get( (int) $context['synthetic_ticketed_a']['event_id'], array() )['mode'], 'tickets', 'tickets plus RSVP event keeps canonical ticket roster mode' );
 }
 
 /** Prepare fixtures and run all single-connection checks. */
@@ -782,6 +817,51 @@ function oras_desk_integration_prepare(): void {
 	if ( is_wp_error( $offering_config ) ) {
 		oras_desk_integration_fail( 'canonical offering configuration failed.' );
 	}
+	$synthetic_a_id = oras_desk_integration_event( $run, 'synthetic-ticketed-a', $today, $today );
+	$synthetic_a_products = array();
+	$synthetic_a_tickets  = array();
+	$synthetic_a_names    = array( 'General Admission', 'Family Pass', 'Student Pass', 'Single-Day Pass' );
+	foreach ( $synthetic_a_names as $index => $name ) {
+		$key = 'synthetic-a-' . ( $index + 1 );
+		$synthetic_a_products[] = oras_desk_integration_product( $run, $key );
+		$synthetic_a_tickets[ $key ] = $canonical_ticket( $key, $name, (string) ( 10 + $index * 5 ) . '.00' );
+	}
+	update_post_meta( $synthetic_a_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => $synthetic_a_tickets ) );
+	update_post_meta( $synthetic_a_id, '_oras_tickets_woo_map_v1', $synthetic_a_products );
+	update_post_meta( $synthetic_a_id, '_oras_rsvp_v1', array( 'enabled' => true, 'capacity' => 100, 'waitlist_enabled' => true ) );
+	$synthetic_a_config = Config::save_event_config(
+		$synthetic_a_id,
+		array(
+			'enabled' => true,
+			'ticket_rules' => array(
+				array( 'ticket_key' => 'synthetic-a-1', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'full_event' ),
+				array( 'ticket_key' => 'synthetic-a-2', 'classification' => 'family', 'max_attendees' => 5, 'validity_type' => 'full_event' ),
+				array( 'ticket_key' => 'synthetic-a-3', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'full_event' ),
+				array( 'ticket_key' => 'synthetic-a-4', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'one_day', 'valid_local_date' => $today ),
+			),
+			'entitlements' => array(),
+		),
+		0
+	);
+	if ( is_wp_error( $synthetic_a_config ) ) {
+		oras_desk_integration_fail( 'synthetic ticketed event A configuration failed.' );
+	}
+	$synthetic_b_id = oras_desk_integration_event( $run, 'synthetic-ticketed-many', $today, $today );
+	$synthetic_b_products = array();
+	$synthetic_b_tickets  = array();
+	foreach ( array( 'Basic', 'Premium', 'Virtual', 'Exhibitor', 'Workshop', 'Weekend', 'Guest' ) as $index => $name ) {
+		$key = 'synthetic-b-' . ( $index + 1 );
+		$synthetic_b_products[] = oras_desk_integration_product( $run, $key );
+		$synthetic_b_tickets[ $key ] = $canonical_ticket( $key, $name, (string) ( 20 + $index * 5 ) . '.00' );
+	}
+	update_post_meta( $synthetic_b_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => $synthetic_b_tickets ) );
+	update_post_meta( $synthetic_b_id, '_oras_tickets_woo_map_v1', $synthetic_b_products );
+	$synthetic_b_config = Config::save_event_config( $synthetic_b_id, array( 'enabled' => true, 'ticket_rules' => array(), 'entitlements' => array() ), 0 );
+	if ( is_wp_error( $synthetic_b_config ) ) {
+		oras_desk_integration_fail( 'synthetic ticketed event B configuration failed.' );
+	}
+	oras_desk_integration_same( count( Event_Offering_Resolver::desk_offerings( $synthetic_a_id, $synthetic_a_config ) ), 4, 'synthetic ticketed event A exposes four canonical offerings' );
+	oras_desk_integration_same( count( Event_Offering_Resolver::desk_offerings( $synthetic_b_id, $synthetic_b_config ) ), 7, 'synthetic ticketed event B exposes enough canonical offerings for the large picker' );
 	$rsvp_available_id = oras_desk_integration_event( $run, 'rsvp-available', $today, $today );
 	$rsvp_waitlist_id  = oras_desk_integration_event( $run, 'rsvp-waitlist', $today, $today );
 	$rsvp_full_id      = oras_desk_integration_event( $run, 'rsvp-full', $today, $today );
@@ -815,6 +895,16 @@ function oras_desk_integration_prepare(): void {
 		}
 		update_user_meta( (int) $member_id, '_oras_rsvp_event_' . $rsvp_event_id, 'yes' );
 		update_user_meta( (int) $member_id, '_oras_rsvp_event_' . $rsvp_event_id . '_attendance_mode', 'onsite' );
+		update_user_meta(
+			(int) $member_id,
+			'_oras_rsvp_event_' . $rsvp_event_id . '_contact',
+			array(
+				'first_name' => 'Website',
+				'last_name'  => 'RSVP',
+				'email'      => 'website-rsvp-' . $run . '@example.test',
+				'phone'      => '814-555-0199',
+			)
+		);
 	}
 	oras_desk_integration_true( true === Config::set_active_event_id( $event_id ), 'administrator selects the active event' );
 	$first_combined = Config::save_and_activate(
@@ -1008,7 +1098,7 @@ function oras_desk_integration_prepare(): void {
 		'desk_id'           => (int) $desk_id,
 		'member_id'         => (int) $member_id,
 		'user_ids'          => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
-		'product_ids'       => array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ),
+		'product_ids'       => array_merge( array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ), $synthetic_a_products, $synthetic_b_products ),
 		'order_ids'         => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
 		'orders'            => $orders,
 		'projected'         => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
@@ -1032,6 +1122,14 @@ function oras_desk_integration_prepare(): void {
 			'available_event_id' => $rsvp_available_id,
 			'waitlist_event_id'  => $rsvp_waitlist_id,
 			'full_event_id'      => $rsvp_full_id,
+		),
+		'synthetic_ticketed_a' => array(
+			'event_id'    => $synthetic_a_id,
+			'product_ids' => $synthetic_a_products,
+		),
+		'synthetic_ticketed_b' => array(
+			'event_id'    => $synthetic_b_id,
+			'product_ids' => $synthetic_b_products,
 		),
 	);
 	oras_desk_integration_canonical_offerings_and_rsvp( $context );

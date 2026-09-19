@@ -15,6 +15,8 @@
 		pendingPayload: null,
 		pendingPayment: '',
 		failureCount: 0,
+		roster: {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []},
+		detailReturn: 'search',
 	};
 
 	const escapeHtml = (value) => String(value ?? '')
@@ -217,7 +219,7 @@
 	}
 
 	function sourceLabel(source) {
-		return {online: 'Website registration', walk_in: 'Walk-in registration', complimentary: 'Complimentary registration', speaker: 'Speaker registration'}[source] || 'Registration';
+		return {online: 'Website registration', walk_in: 'Walk-in registration', complimentary: 'Complimentary registration', speaker: 'Speaker registration', rsvp_walk_in: 'Desk RSVP', rsvp_waitlist: 'Desk RSVP waitlist', rsvp_website: 'Website RSVP'}[source] || 'Registration';
 	}
 
 	function paymentLabel(registration, admission = {}) {
@@ -351,13 +353,15 @@
 				${message ? notice(message, 'success') : ''}
 				<div class="desk-home-heading"><p class="desk-eyebrow">Welcome, ${escapeHtml(state.station.operator_label)}</p><h1>WHAT DO YOU NEED TO DO?</h1></div>
 				<div class="desk-task-grid">
-					<button type="button" class="desk-task-card desk-task-find" id="desk-home-find"><span class="desk-task-icon">${icon('search')}</span><strong>FIND A REGISTRATION</strong><small>Someone already registered.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
+					<button type="button" class="desk-task-card desk-task-find" id="desk-home-find"><span class="desk-task-icon">${icon('search')}</span><strong>FIND A REGISTRATION</strong><small>Someone is standing here and you need to find them.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
 					<button type="button" class="desk-task-card desk-task-walkin" id="desk-home-walkin"><span class="desk-task-icon">${icon('family')}</span><strong>REGISTER A WALK-IN</strong><small>Use this for someone registering here today.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
+					<button type="button" class="desk-task-card desk-task-roster" id="desk-home-roster"><span class="desk-task-icon">${icon('calendar')}</span><strong>EVENT ROSTER</strong><small>See everyone registered for this event.</small><span class="desk-task-next">Browse ${icon('arrow')}</span></button>
 				</div>
-				<div class="desk-home-secondary"><button type="button" class="desk-help-button" id="desk-home-members">${icon('person')} MEMBER LOOKUP</button><button type="button" class="desk-help-button" id="desk-home-stats">${icon('calendar')} EVENT STATS</button><button type="button" class="desk-help-button" id="desk-home-help">${icon('manager')} MANAGER HELP</button></div>
+				<div class="desk-home-secondary"><button type="button" class="desk-help-button" id="desk-home-members">${icon('person')} ORAS MEMBERSHIP</button><button type="button" class="desk-help-button" id="desk-home-stats">${icon('calendar')} EVENT STATS</button><button type="button" class="desk-help-button" id="desk-home-help">${icon('manager')} MANAGER HELP</button></div>
 			</section>`;
 		main().querySelector('#desk-home-find').addEventListener('click', () => showSearch());
 		main().querySelector('#desk-home-walkin').addEventListener('click', () => startWalkInWizard(false));
+		main().querySelector('#desk-home-roster').addEventListener('click', () => showEventRoster(true));
 		main().querySelector('#desk-home-members').addEventListener('click', () => showMemberLookup());
 		main().querySelector('#desk-home-stats').addEventListener('click', () => showEventStats());
 		main().querySelector('#desk-home-help').addEventListener('click', () => state.station.manager_token ? showManagerArea() : showManagerHelp());
@@ -394,7 +398,7 @@
 
 	function showMemberLookup() {
 		state.view = 'members';
-		main().innerHTML = `${screenActions('Back to Home')}<section class="desk-kiosk-panel"><p class="desk-eyebrow">Read only</p><h1>MEMBER LOOKUP</h1><p class="desk-lede">Type a name or email address.</p><form id="desk-member-form" class="desk-search-form"><label class="desk-sr-only" for="desk-member-query">Name or email</label><div class="desk-search-box">${icon('search')}<input id="desk-member-query" name="q" minlength="2" placeholder="Name or email" required autofocus></div><button type="submit" class="desk-primary">SEARCH</button></form><div id="desk-member-results" class="desk-results"></div></section>`;
+		main().innerHTML = `${screenActions('Back to Home')}<section class="desk-kiosk-panel"><p class="desk-eyebrow">Organization membership — not the event roster</p><h1>ORAS MEMBERSHIP LOOKUP</h1><p class="desk-lede">Type a member name or email address.</p><form id="desk-member-form" class="desk-search-form"><label class="desk-sr-only" for="desk-member-query">Name or email</label><div class="desk-search-box">${icon('search')}<input id="desk-member-query" name="q" minlength="2" placeholder="Member name or email" required autofocus></div><button type="submit" class="desk-primary">SEARCH</button></form><div id="desk-member-results" class="desk-results"></div></section>`;
 		bindScreenActions(showHome);
 		main().querySelector('#desk-member-form').addEventListener('submit', async (event) => {
 			event.preventDefault();
@@ -407,6 +411,80 @@
 				target.innerHTML = notice(friendlyError(error), 'error');
 			}
 		});
+		focusMain();
+	}
+
+	async function showEventRoster(reset = false) {
+		state.view = 'roster';
+		if (reset) state.roster = {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []};
+		main().innerHTML = '<div class="desk-loading">Loading event roster…</div>';
+		await loadEventRoster(true);
+	}
+
+	function rosterQuery() {
+		const query = new URLSearchParams({q: state.roster.q, status: state.roster.status, option_uuid: state.roster.option_uuid, offset: String(state.roster.offset), limit: '25'});
+		return `/roster?${query.toString()}`;
+	}
+
+	async function loadEventRoster(replace) {
+		try {
+			const data = await api(rosterQuery());
+			state.roster.mode = data.mode || 'tickets';
+			state.roster.registration_types = Array.isArray(data.registration_types) ? data.registration_types : [];
+			state.roster.items = replace ? (data.items || []) : [...state.roster.items, ...(data.items || [])];
+			state.roster.offset = Number(data.next_offset || state.roster.items.length);
+			renderEventRoster(Boolean(data.has_more));
+		} catch (error) {
+			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>EVENT ROSTER</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
+			bindScreenActions(showHome);
+			main().querySelector('#desk-roster-retry').addEventListener('click', () => showEventRoster(false));
+		}
+	}
+
+	function rosterStatusChoices() {
+		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'ADMITTED'], ['waitlist', 'WAITLIST'], ['checked_in', 'CHECKED IN TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'CHECKED IN TODAY'], ['walk_ins', 'WALK-INS']];
+	}
+
+	function selectedRosterTypeLabel() {
+		return state.roster.registration_types.find((type) => type.option_uuid === state.roster.option_uuid)?.label || 'ALL REGISTRATION TYPES';
+	}
+
+	function renderEventRoster(hasMore) {
+		const types = state.roster.registration_types;
+		const typeControls = types.length <= 4 ? `<div class="desk-roster-types"><button type="button" data-roster-type="" class="${state.roster.option_uuid ? '' : 'is-selected'}">ALL TYPES</button>${types.map((type) => `<button type="button" data-roster-type="${escapeHtml(type.option_uuid)}" class="${state.roster.option_uuid === type.option_uuid ? 'is-selected' : ''}">${escapeHtml(type.label)}</button>`).join('')}</div>` : `<div class="desk-roster-type-summary"><span>Showing:</span><strong>${escapeHtml(selectedRosterTypeLabel())}</strong><div><button type="button" id="desk-change-type">CHANGE TYPE</button>${state.roster.option_uuid ? '<button type="button" class="desk-secondary" id="desk-clear-type">SHOW ALL TYPES</button>' : ''}</div></div>`;
+		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-roster"><div class="desk-roster-heading"><p class="desk-eyebrow">Selected event</p><h1>EVENT ROSTER</h1><p>Everyone registered for ${escapeHtml(state.station.event_title)} appears here.</p></div><form id="desk-roster-search" class="desk-search-form"><label class="desk-sr-only" for="desk-roster-query">SEARCH THIS ROSTER</label><div class="desk-search-box">${icon('search')}<input id="desk-roster-query" name="q" autocomplete="off" placeholder="SEARCH THIS ROSTER" value="${escapeHtml(state.roster.q)}"></div><button type="submit">SEARCH</button></form><div class="desk-roster-reset"><button type="button" class="desk-secondary" id="desk-show-everyone">SHOW EVERYONE</button></div><fieldset class="desk-roster-filter"><legend>SHOW:</legend><div class="desk-roster-status">${rosterStatusChoices().map(([value, label]) => `<button type="button" data-roster-status="${value}" class="${state.roster.status === value ? 'is-selected' : ''}">${state.roster.status === value ? '✓ ' : ''}${label}</button>`).join('')}</div></fieldset>${types.length ? `<section class="desk-type-filter"><h2>REGISTRATION TYPE</h2>${typeControls}</section>` : ''}<div class="desk-roster-results">${state.roster.items.length ? state.roster.items.map(renderRosterRow).join('') : '<div class="desk-no-results"><h2>NO PEOPLE MATCH THESE CHOICES</h2><p>Tap Show Everyone to return to the complete roster.</p></div>'}</div>${hasMore ? '<button type="button" class="desk-primary desk-wide desk-show-more" id="desk-roster-more">SHOW MORE PEOPLE</button>' : ''}<dialog class="desk-type-picker" id="desk-type-picker"><form method="dialog"><h2>CHOOSE REGISTRATION TYPE</h2><button value="">ALL TYPES</button>${types.map((type) => `<button value="${escapeHtml(type.option_uuid)}">${escapeHtml(type.label)}</button>`).join('')}<button value="cancel" class="desk-secondary">CANCEL</button></form></dialog></section>`;
+		bindScreenActions(showHome);
+		main().querySelector('#desk-roster-search').addEventListener('submit', (event) => { event.preventDefault(); state.roster.q = String(new FormData(event.currentTarget).get('q') || '').trim(); refreshRoster(); });
+		main().querySelector('#desk-show-everyone').addEventListener('click', () => { state.roster.q = ''; state.roster.status = 'everyone'; state.roster.option_uuid = ''; refreshRoster(); });
+		main().querySelectorAll('[data-roster-status]').forEach((button) => button.addEventListener('click', () => { state.roster.status = button.dataset.rosterStatus; refreshRoster(); }));
+		main().querySelectorAll('[data-roster-type]').forEach((button) => button.addEventListener('click', () => { state.roster.option_uuid = button.dataset.rosterType; refreshRoster(); }));
+		main().querySelector('#desk-roster-more')?.addEventListener('click', () => loadEventRoster(false));
+		main().querySelectorAll('[data-roster-registration]').forEach((button) => button.addEventListener('click', () => showRegistration(button.dataset.rosterRegistration, 'roster')));
+		main().querySelectorAll('[data-roster-rsvp]').forEach((button) => button.addEventListener('click', () => showPublicRsvp(state.roster.items.find((item) => String(item.rsvp_user_id) === button.dataset.rosterRsvp))));
+		const picker = main().querySelector('#desk-type-picker');
+		main().querySelector('#desk-change-type')?.addEventListener('click', () => picker.showModal());
+		main().querySelector('#desk-clear-type')?.addEventListener('click', () => { state.roster.option_uuid = ''; refreshRoster(); });
+		picker?.addEventListener('close', () => { if (picker.returnValue !== 'cancel') { state.roster.option_uuid = picker.returnValue; refreshRoster(); } });
+		focusMain();
+	}
+
+	function renderRosterRow(item) {
+		const status = item.checked_in_today ? '✓ Checked in today' : item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Not checked in today';
+		const action = item.detail_kind === 'public_rsvp' ? `data-roster-rsvp="${Number(item.rsvp_user_id)}"` : `data-roster-registration="${escapeHtml(item.registration_uuid)}"`;
+		return `<button type="button" class="desk-roster-row ${item.checked_in_today ? 'is-checked-in' : ''}" ${action}><span><strong>${escapeHtml(item.name || 'Unnamed registration')}</strong><small>${escapeHtml(item.phone || 'Phone not recorded')}</small></span><span><strong>${escapeHtml(item.registration_type)}</strong>${item.attendees?.length ? `<small>${escapeHtml(item.attendees.join(' · '))}</small>` : ''}</span><span class="desk-roster-state">${escapeHtml(status)}</span>${icon('arrow')}</button>`;
+	}
+
+	function refreshRoster() {
+		state.roster.offset = 0;
+		state.roster.items = [];
+		main().innerHTML = '<div class="desk-loading">Updating event roster…</div>';
+		loadEventRoster(true);
+	}
+
+	function showPublicRsvp(item) {
+		if (!item) return showEventRoster(false);
+		main().innerHTML = `${screenActions('Back to Event Roster', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Admitted RSVP'}</span></div></section><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>This website RSVP is admitted. Website RSVP check-in will be enabled after its normalized registration is opened.</p>'}</section>`;
+		bindScreenActions(() => renderEventRoster(false));
 		focusMain();
 	}
 
@@ -479,8 +557,9 @@
 		return `<article class="desk-result-card"><div class="desk-result-main"><strong>${escapeHtml(item.contact_name || 'Registration')}</strong><span>${escapeHtml(registrationType(option, item))}</span><small>${escapeHtml(date)} · ${escapeHtml(sourceLabel(item.source_type))}</small><small>${escapeHtml(item.contact_email)} · ${escapeHtml(item.contact_phone)}</small></div><button type="button" data-registration="${escapeHtml(item.registration_uuid)}">OPEN REGISTRATION ${icon('arrow')}</button></article>`;
 	}
 
-	async function showRegistration(registrationUuid) {
+	async function showRegistration(registrationUuid, returnTo = 'search') {
 		state.view = 'registration';
+		state.detailReturn = returnTo;
 		main().innerHTML = '<div class="desk-loading">Opening registration…</div>';
 		try {
 			const data = await api(`/registrations/${encodeURIComponent(registrationUuid)}`);
@@ -493,13 +572,14 @@
 			const allowed = data.admission?.allowed !== false;
 			const canAddAttendee = registration.classification === 'family' && existing.length < maximum;
 			const everyoneCheckedIn = existing.length > 0 && existing.every((attendee) => attendee.current_attendance?.state === 'checked_in');
-			main().innerHTML = `${screenActions('Back to Search')}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
+			const back = state.detailReturn === 'roster' ? () => renderEventRoster(false) : showSearch;
+			main().innerHTML = `${screenActions(state.detailReturn === 'roster' ? 'Back to Event Roster' : 'Back to Search')}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
 				<div id="desk-detail-message">${allowed ? '' : notice('This registration cannot be checked in. Please ask a manager for help.', 'error')}</div>
 				<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2>${everyoneCheckedIn ? '<div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div>' : `<p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form>`}</section>
-				${state.station.manager_token && data.editable_registration ? `<section class="desk-manager-inline"><details><summary>Manager correction tools</summary>${renderCorrectionForm(data.editable_registration)}</details></section>` : ''}`;
-			bindScreenActions(showSearch);
+				${state.station.manager_token && data.manager_detail ? renderManagerRosterDetail(data.manager_detail) : ''}${state.station.manager_token && data.editable_registration ? `<section class="desk-manager-inline"><details><summary>Manager correction tools</summary>${renderCorrectionForm(data.editable_registration)}</details></section>` : ''}`;
+			bindScreenActions(back);
 			const form = main().querySelector('#desk-checkin-form');
-			main().querySelector('#desk-detail-done')?.addEventListener('click', () => showSearch());
+			main().querySelector('#desk-detail-done')?.addEventListener('click', back);
 			if (!form) { focusMain(); return; }
 			const updateSubmitState = () => { form.querySelector('[type="submit"]').disabled = !allowed || !collectArrivals(form).length; };
 			const add = (name = {}) => { addArrivalRow(main().querySelector('#desk-arrival-rows'), registration.classification, maximum, name); updateSubmitState(); };
@@ -514,8 +594,13 @@
 			focusMain();
 		} catch (error) {
 			main().innerHTML = `${screenActions('Back to Search')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
-			bindScreenActions(showSearch);
+			bindScreenActions(state.detailReturn === 'roster' ? () => renderEventRoster(false) : showSearch);
 		}
+	}
+
+	function renderManagerRosterDetail(detail) {
+		const address = Object.values(detail.mailing_address || {}).filter(Boolean).join(', ');
+		return `<section class="desk-manager-inline desk-manager-roster-detail"><div class="desk-manager-banner"><strong>MANAGER DETAIL</strong></div><dl><dt>Full name</dt><dd>${escapeHtml(detail.full_name || 'Not recorded')}</dd><dt>Full phone</dt><dd>${escapeHtml(detail.phone || 'Not recorded')}</dd><dt>Email</dt><dd>${escapeHtml(detail.email || 'Not recorded')}</dd><dt>Mailing address</dt><dd>${escapeHtml(address || 'Not recorded')}</dd><dt>Source</dt><dd>${escapeHtml(sourceLabel(detail.source_type))}</dd><dt>Registration type</dt><dd>${escapeHtml(detail.registration_type)}</dd><dt>Payment assertion</dt><dd>${escapeHtml(detail.payment_assertion || 'Not applicable')}</dd><dt>Created</dt><dd>${escapeHtml(detail.created_at_utc)}</dd><dt>Source reference</dt><dd>${detail.source_order_id ? `Order ${Number(detail.source_order_id)} · Item ${Number(detail.source_order_item_id)}` : 'Desk record'}</dd></dl><details><summary>Corrections and audit history</summary><div class="desk-audit-history">${(detail.audit_history || []).map((entry) => `<p><strong>${escapeHtml(entry.operation)}</strong> · ${escapeHtml(entry.operator_label || 'System')} · ${escapeHtml(entry.created_at_utc)}</p>`).join('') || '<p>No audit entries recorded.</p>'}</div></details></section>`;
 	}
 
 	function renderExistingAttendee(attendee) {
@@ -883,9 +968,13 @@
 
 	function showMembershipForm() {
 		const levels = state.station.membership_levels || [];
-		main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-wizard"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><div class="desk-wizard-heading"><p class="desk-eyebrow">Cash or check only</p><h1>RECORD MEMBERSHIP</h1><p>Receive the payment, place it in the event bag, and record the membership product in AlfaPOS before saving here.</p></div>${levels.length ? `<form id="desk-membership-form" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" required></div><div class="desk-field"><label>Last name</label><input name="last_name" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel"></div><div class="desk-field desk-field-wide"><label>Membership level</label><select name="level_id" required><option value="">Choose a level</option>${levels.map((level) => `<option value="${Number(level.level_id)}">${escapeHtml(level.display_name)} — ${escapeHtml(level.price)}</option>`).join('')}</select></div></div><h2>PAYMENT RECEIVED</h2><div class="desk-payment-grid"><label><input type="radio" name="payment_method" value="cash" required><strong>CASH</strong></label><label><input type="radio" name="payment_method" value="check" required><strong>CHECK</strong></label></div><div id="desk-membership-message"></div><button type="submit" class="desk-primary desk-wide">ALFAPOS IS COMPLETE — RECORD MEMBERSHIP</button></form>` : notice('No membership levels are configured. An administrator must add exact PMPro level mappings in Registration Desk settings.', 'warning')}</section>`;
+		main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-wizard"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><div class="desk-wizard-heading"><p class="desk-eyebrow">Cash or check only</p><h1>RECORD MEMBERSHIP</h1><p>Receive the payment, place it in the event bag, and record the membership product in AlfaPOS before saving here.</p></div>${levels.length ? `<form id="desk-membership-form" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" required></div><div class="desk-field"><label>Last name</label><input name="last_name" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel"></div><div class="desk-field desk-field-wide"><label>Membership level</label><select name="level_id" required><option value="">Choose a level</option>${levels.map((level) => `<option value="${Number(level.level_id)}">${escapeHtml(level.display_name)} — ${escapeHtml(level.price)}</option>`).join('')}</select></div></div><h2>HOW DID THEY PAY?</h2><div class="desk-membership-payment-grid"><label class="desk-membership-payment-choice"><input type="radio" name="payment_method" value="cash" required><span>${icon('cash')}<strong>CASH</strong></span></label><label class="desk-membership-payment-choice"><input type="radio" name="payment_method" value="check" required><span>${icon('check')}<strong>CHECK</strong></span></label></div><p class="desk-alfapos-confirmation">PAYMENT RECORDED IN ALFAPOS</p><div id="desk-membership-message"></div><button type="submit" class="desk-primary desk-wide">RECORD MEMBERSHIP &amp; SEND EMAIL</button></form>` : notice('No membership levels are configured. An administrator must add exact PMPro level mappings in Registration Desk settings.', 'warning')}</section>`;
 		bindScreenActions(showManagerArea);
 		main().querySelector('#desk-membership-form')?.addEventListener('submit', recordMembership);
+		main().querySelectorAll('.desk-membership-payment-choice input').forEach((input) => input.addEventListener('change', () => {
+			main().querySelectorAll('.desk-membership-payment-choice').forEach((choice) => choice.classList.toggle('is-selected', choice.contains(input)));
+			main().querySelectorAll('.desk-membership-payment-choice strong').forEach((label) => { label.textContent = label.closest('label').classList.contains('is-selected') ? `✓ ${label.textContent.replace(/^✓ /, '')}` : label.textContent.replace(/^✓ /, ''); });
+		}));
 		focusMain();
 	}
 

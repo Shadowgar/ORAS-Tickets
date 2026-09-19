@@ -32,6 +32,7 @@ html {
 body.oras-registration-desk-page {
 	margin: 0;
 	min-height: 100dvh;
+	overflow-x: hidden;
 	background:
 		radial-gradient(circle at 10% 10%, rgb(8 118 209 / 5%), transparent 25rem),
 		linear-gradient(180deg, #fff 0, var(--desk-canvas) 75%);
@@ -400,7 +401,7 @@ button.desk-danger {
 
 .desk-task-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: clamp(1rem, 2.5vw, 1.6rem);
 	width: min(920px, 100%);
 	margin: 0 auto;
@@ -436,6 +437,10 @@ button.desk-danger {
 
 .desk-task-walkin {
 	background: linear-gradient(135deg, #139b63, #087147);
+}
+
+.desk-task-roster {
+	background: linear-gradient(135deg, #8a5a05, #694200);
 }
 
 .desk-task-icon {
@@ -641,6 +646,154 @@ button.desk-link-button {
 
 .desk-results-title {
 	margin-bottom: 0;
+}
+
+.desk-roster-heading,
+.desk-roster-reset,
+.desk-type-filter {
+	text-align: center;
+}
+
+.desk-roster-reset {
+	margin: 0.75rem 0;
+}
+
+.desk-roster-filter {
+	margin: 1rem 0;
+	border: 0;
+	padding: 0;
+}
+
+.desk-roster-filter legend,
+.desk-type-filter h2 {
+	width: 100%;
+	margin-bottom: 0.65rem;
+	color: var(--desk-muted);
+	font-size: 0.88rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	text-align: center;
+}
+
+.desk-roster-status,
+.desk-roster-types {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0.7rem;
+}
+
+.desk-roster-status button,
+.desk-roster-types button {
+	min-height: 68px;
+	border: 2px solid var(--desk-line);
+	background: #fff;
+	color: var(--desk-ink);
+}
+
+.desk-roster-status button.is-selected,
+.desk-roster-types button.is-selected {
+	border-color: var(--desk-blue);
+	background: var(--desk-pale-blue);
+	color: var(--desk-blue-dark);
+	box-shadow: 0 0 0 3px rgb(8 118 209 / 14%);
+}
+
+.desk-roster-results {
+	display: grid;
+	gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+.desk-roster-row {
+	display: grid;
+	grid-template-columns: minmax(180px, 1.1fr) minmax(180px, 1fr) minmax(160px, 0.8fr) auto;
+	align-items: center;
+	gap: 1rem;
+	min-height: 92px;
+	border: 2px solid var(--desk-line);
+	background: #fff;
+	color: var(--desk-ink);
+	text-align: left;
+}
+
+.desk-roster-row > span strong,
+.desk-roster-row > span small {
+	display: block;
+}
+
+.desk-roster-row > span small {
+	color: var(--desk-muted);
+}
+
+.desk-roster-row.is-checked-in {
+	border-color: #83c9a6;
+	background: #edf8f2;
+}
+
+.desk-roster-state {
+	font-weight: 850;
+}
+
+.desk-show-more {
+	margin-top: 1rem;
+}
+
+.desk-roster-type-summary {
+	display: grid;
+	justify-items: center;
+	gap: 0.5rem;
+	border: 2px solid var(--desk-line);
+	border-radius: 14px;
+	background: #fff;
+	padding: 1rem;
+}
+
+.desk-roster-type-summary > span,
+.desk-roster-type-summary > strong {
+	display: block;
+}
+
+.desk-roster-type-summary > div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+.desk-type-picker {
+	width: min(680px, calc(100% - 2rem));
+	max-height: calc(100dvh - 2rem);
+	border: 0;
+	border-radius: 20px;
+	padding: 1.25rem;
+	box-shadow: 0 24px 80px rgb(5 34 56 / 35%);
+}
+
+.desk-type-picker::backdrop {
+	background: rgb(5 34 56 / 75%);
+}
+
+.desk-type-picker form {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.desk-type-picker button {
+	min-height: 64px;
+}
+
+.desk-manager-roster-detail dl {
+	display: grid;
+	grid-template-columns: minmax(150px, 0.4fr) minmax(0, 1fr);
+	gap: 0.65rem 1rem;
+}
+
+.desk-manager-roster-detail dt {
+	color: var(--desk-muted);
+	font-weight: 800;
+}
+
+.desk-manager-roster-detail dd {
+	margin: 0;
 }
 
 .desk-result-card {
@@ -1087,6 +1240,64 @@ button.desk-link-button {
 	color: #8a5a05;
 }
 
+.desk-membership-payment-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+}
+
+.desk-membership-payment-choice {
+	position: relative;
+	display: block;
+	cursor: pointer;
+}
+
+.desk-membership-payment-choice input {
+	position: absolute;
+	opacity: 0;
+}
+
+.desk-membership-payment-choice > span {
+	display: grid;
+	min-height: 128px;
+	place-items: center;
+	align-content: center;
+	gap: 0.45rem;
+	border: 3px solid var(--desk-line);
+	border-radius: 14px;
+	background: #fff;
+	color: var(--desk-blue-dark);
+	font-size: 1.15rem;
+	box-shadow: var(--desk-shadow);
+}
+
+.desk-membership-payment-choice input:focus-visible + span {
+	outline: 4px solid rgb(231 173 58 / 75%);
+	outline-offset: 3px;
+}
+
+.desk-membership-payment-choice.is-selected > span,
+.desk-membership-payment-choice:has(input:checked) > span {
+	border-color: var(--desk-green);
+	background: #eaf8f1;
+	color: var(--desk-green-dark);
+}
+
+.desk-membership-payment-choice .desk-icon {
+	font-size: 2rem;
+}
+
+.desk-alfapos-confirmation {
+	margin: 0;
+	border: 2px solid #9cccb4;
+	border-radius: 12px;
+	background: #edf8f2;
+	padding: 0.85rem;
+	color: var(--desk-green-dark);
+	font-weight: 900;
+	text-align: center;
+}
+
 .desk-confirm-card,
 .desk-recovery-card {
 	margin: 1rem 0;
@@ -1428,6 +1639,15 @@ button.desk-link-button {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
+	.desk-roster-status,
+	.desk-roster-types {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.desk-roster-row {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
 	.desk-new-attendee,
 	.desk-family-row {
 		grid-template-columns: auto 1fr 1fr;
@@ -1492,6 +1712,14 @@ button.desk-link-button {
 	.desk-result-card,
 	.desk-detail-actions {
 		display: grid;
+		grid-template-columns: 1fr;
+	}
+
+	.desk-roster-row,
+	.desk-roster-status,
+	.desk-roster-types,
+	.desk-membership-payment-grid,
+	.desk-manager-roster-detail dl {
 		grid-template-columns: 1fr;
 	}
 

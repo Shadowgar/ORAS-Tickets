@@ -22,6 +22,21 @@ final class Audit_Store extends Store {
 		return is_array( $row ) ? $row : null;
 	}
 
+	/** @return array<int,array<string,mixed>> */
+	public function for_registration( string $registration_uuid, int $limit = 50 ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT operation,operator_label,result_status,result_code,changes_json,created_at_utc FROM {$this->table} WHERE registration_uuid = %s ORDER BY created_at_utc DESC,id DESC LIMIT %d",
+				$registration_uuid,
+				max( 1, min( 100, $limit ) )
+			),
+			ARRAY_A
+		);
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
 	/** @param array<string,mixed> $record @return array<string,mixed>|\WP_Error */
 	public function append( array $record ) {
 		global $wpdb;

@@ -134,7 +134,8 @@ oras_operation_assert( false !== strpos( $desk_js, 'formatLocalTime' ), 'Volunte
 oras_operation_assert( false !== strpos( $desk_js, 'showManagerArea' ), 'Manager functions are separated from normal volunteer tasks' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/events'" ), 'Volunteer chooses from the server event catalog after entering a name' );
 oras_operation_assert( false !== strpos( $desk_js, 'CHANGE EVENT' ), 'Compact header exposes event switching' );
-oras_operation_assert( false !== strpos( $desk_js, 'MEMBER LOOKUP' ), 'Volunteer home exposes read-only member lookup' );
+oras_operation_assert( false !== strpos( $desk_js, 'EVENT ROSTER' ), 'Volunteer home exposes the selected-event roster' );
+oras_operation_assert( false !== strpos( $desk_js, 'ORAS MEMBERSHIP' ), 'Organization membership remains conceptually separate from the event roster' );
 oras_operation_assert( false !== strpos( $desk_js, 'EVENT STATS' ), 'Volunteer home exposes shared event statistics' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/manager/unlock'" ), 'Manager Help performs PIN unlock inside the kiosk' );
 oras_operation_assert( false !== strpos( $desk_js, 'RECORD MEMBERSHIP' ), 'Manager area exposes the offline membership workflow' );
@@ -150,5 +151,6 @@ oras_operation_assert( false !== strpos( $desk_css, 'min-height: 56px' ), 'Kiosk
 oras_operation_assert( false !== strpos( $desk_css, '@media (orientation: portrait)' ), 'Kiosk has an explicit iPad portrait layout' );
 oras_operation_assert( false !== strpos( $desk_css, '100dvh' ), 'Kiosk sizing uses the dynamic iOS viewport' );
 oras_operation_assert( false !== strpos( $desk_css, 'env(safe-area-inset-top)' ), 'Kiosk respects iOS safe-area insets' );
+oras_operation_assert( false !== strpos( $desk_css, 'overflow-x: hidden' ), 'Kiosk prevents horizontal page scrolling' );
 
 echo "Registration Desk operation checks passed.\n";

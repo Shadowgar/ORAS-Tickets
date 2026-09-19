@@ -13,12 +13,14 @@ final class Rest_Controller {
 	private Projection_Service $projection;
 	private Membership_Credit_Service $membership_credit;
 	private Member_Lookup_Service $member_lookup;
+	private Event_Roster_Service $event_roster;
 
-	public function __construct( ?Service $service = null, ?Projection_Service $projection = null, ?Membership_Credit_Service $membership_credit = null, ?Member_Lookup_Service $member_lookup = null ) {
+	public function __construct( ?Service $service = null, ?Projection_Service $projection = null, ?Membership_Credit_Service $membership_credit = null, ?Member_Lookup_Service $member_lookup = null, ?Event_Roster_Service $event_roster = null ) {
 		$this->service    = $service ?? new Service();
 		$this->projection = $projection ?? new Projection_Service();
 		$this->membership_credit = $membership_credit ?? new Membership_Credit_Service();
 		$this->member_lookup      = $member_lookup ?? new Member_Lookup_Service();
+		$this->event_roster       = $event_roster ?? new Event_Roster_Service();
 	}
 
 	public function register(): void {
@@ -50,6 +52,15 @@ final class Rest_Controller {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'offerings' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/roster',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'roster' ),
 				'permission_callback' => array( $this, 'permission_use' ),
 			)
 		);
@@ -286,6 +297,39 @@ final class Rest_Controller {
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
+	public function roster( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$result = $this->event_roster->get(
+			(int) $context['event_id'],
+			array(
+				'q'           => $request->get_param( 'q' ),
+				'status'      => $request->get_param( 'status' ),
+				'option_uuid' => $request->get_param( 'option_uuid' ),
+				'offset'      => $request->get_param( 'offset' ),
+				'limit'       => $request->get_param( 'limit' ),
+			)
+		);
+		$config = Config::get_event_config( (int) $context['event_id'] );
+		$result['registration_types'] = array_values(
+			array_map(
+				static fn( array $offering ): array => array(
+					'option_uuid' => (string) $offering['option_uuid'],
+					'label'       => (string) $offering['label'],
+				),
+				array_filter(
+					Event_Offering_Resolver::desk_offerings( (int) $context['event_id'], $config ),
+					static fn( array $offering ): bool => ! empty( $offering['visible'] )
+				)
+			)
+		);
+
+		return $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
 	public function manager_unlock( \WP_REST_Request $request ) {
 		$station = $this->station_payload( $request );
 		if ( $station instanceof \WP_Error ) {
@@ -406,7 +450,8 @@ final class Rest_Controller {
 			return $result;
 		}
 		$raw_registration = $result['registration'];
-		if ( $this->is_manager_request( $request ) && 'online' !== (string) $raw_registration['source_type'] ) {
+		$is_manager = $this->is_manager_request( $request );
+		if ( $is_manager && 'online' !== (string) $raw_registration['source_type'] ) {
 			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
 			$address  = is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array();
 			$name     = preg_split( '/\s+/', trim( (string) $raw_registration['source_contact_name'] ), 2 );
@@ -424,6 +469,23 @@ final class Rest_Controller {
 				'city'                    => (string) ( $address['city'] ?? '' ),
 				'state'                   => (string) ( $address['state'] ?? '' ),
 				'postcode'                => (string) ( $address['postcode'] ?? '' ),
+			);
+		}
+		if ( $is_manager ) {
+			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
+			$evidence = is_array( $evidence ) ? $evidence : array();
+			$result['manager_detail'] = array(
+				'full_name'          => (string) $raw_registration['source_contact_name'],
+				'phone'              => (string) $raw_registration['source_phone'],
+				'email'              => (string) $raw_registration['source_email'],
+				'mailing_address'    => is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array(),
+				'source_type'        => (string) $raw_registration['source_type'],
+				'source_order_id'    => (int) $raw_registration['source_order_id'],
+				'source_order_item_id' => (int) $raw_registration['source_order_item_id'],
+				'registration_type'  => Event_Roster_Service::historical_label( $raw_registration ),
+				'payment_assertion'  => (string) $raw_registration['payment_assertion'],
+				'created_at_utc'     => (string) $raw_registration['created_at_utc'],
+				'audit_history'      => ( new Audit_Store() )->for_registration( (string) $raw_registration['registration_uuid'] ),
 			);
 		}
 		$result['registration'] = $this->public_registration( $result['registration'] );
@@ -713,6 +775,7 @@ final class Rest_Controller {
 			'validity_type'     => (string) $row['validity_type'],
 			'valid_local_date'  => (string) $row['valid_local_date'],
 			'payment_assertion' => (string) $row['payment_assertion'],
+			'registration_type' => Event_Roster_Service::historical_label( $row ),
 			'record_version'    => (int) $row['record_version'],
 		);
 	}

@@ -21,6 +21,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Offline_Membership_S
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Membership_Credit_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Member_Lookup_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Stats_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Roster_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Landing_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Access.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Admin_Settings.php';
