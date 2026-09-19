@@ -66,6 +66,15 @@ final class Rest_Controller {
 		);
 		register_rest_route(
 			'oras-tickets/v1',
+			'/registration-desk/roster/rsvp/(?P<user_id>\d+)/check-in',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rsvp_roster_check_in' ),
+				'permission_callback' => array( $this, 'permission_admit' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
 			'/registration-desk/manager/unlock',
 			array(
 				'methods'             => 'POST',
@@ -327,6 +336,22 @@ final class Rest_Controller {
 		);
 
 		return $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function rsvp_roster_check_in( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$context['request_uuid'] = $this->request_uuid( $request );
+		$result = $this->service->check_in_public_rsvp(
+			absint( $request['user_id'] ),
+			array( 'attendance_local_date' => sanitize_text_field( (string) $request->get_param( 'attendance_local_date' ) ) ),
+			$context
+		);
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */

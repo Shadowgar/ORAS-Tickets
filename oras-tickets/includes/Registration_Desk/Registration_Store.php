@@ -78,6 +78,67 @@ final class Registration_Store extends Store {
 		return $this->find_by_uuid( $uuid ) ?? array();
 	}
 
+	/** @param array<string,mixed> $contact @return array<string,mixed>|\WP_Error */
+	public function ensure_rsvp_website( int $event_id, int $user_id, array $contact, int $config_revision ) {
+		global $wpdb;
+		$source_key = 'rsvp-user:' . $user_id;
+		$existing   = $this->find_by_source_key( $event_id, $source_key );
+		if ( $existing ) {
+			return $existing;
+		}
+		$first_name = sanitize_text_field( (string) ( $contact['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( (string) ( $contact['last_name'] ?? '' ) );
+		$name       = trim( $first_name . ' ' . $last_name );
+		$email      = strtolower( sanitize_email( (string) ( $contact['email'] ?? '' ) ) );
+		$phone      = sanitize_text_field( (string) ( $contact['phone'] ?? '' ) );
+		$evidence   = wp_json_encode(
+			array(
+				'rsvp_user_id' => $user_id,
+				'item_label'   => 'Event RSVP',
+				'contact'      => $contact,
+			)
+		);
+		$now = self::utc_now();
+		$inserted = $wpdb->insert(
+			$this->table,
+			array(
+				'registration_uuid'     => self::uuid(),
+				'event_id'              => $event_id,
+				'option_uuid'           => \ORAS\Tickets\Domain\Event_Offering_Resolver::option_uuid( $event_id, 'rsvp' ),
+				'source_type'           => 'rsvp_website',
+				'source_key'            => $source_key,
+				'source_order_id'       => null,
+				'source_order_item_id'  => null,
+				'source_unit_number'    => 1,
+				'classification'        => 'individual',
+				'status'                => 'active',
+				'source_status'         => 'yes',
+				'source_contact_name'   => $name,
+				'source_email'          => $email,
+				'source_phone'          => $phone,
+				'search_name'           => self::normalize_search( $name ),
+				'search_email'          => $email,
+				'search_phone'          => self::normalize_phone( $phone ),
+				'coverage_type'         => 'individual',
+				'validity_type'         => 'full_event',
+				'valid_local_date'      => null,
+				'payment_assertion'     => 'rsvp',
+				'source_evidence'       => is_string( $evidence ) ? $evidence : '{}',
+				'source_checked_at_utc' => $now,
+				'config_revision'       => $config_revision,
+				'record_version'        => 1,
+				'created_at_utc'        => $now,
+				'updated_at_utc'        => $now,
+			)
+		);
+		if ( false === $inserted ) {
+			$existing = $this->find_by_source_key( $event_id, $source_key );
+			return $existing ?: new \WP_Error( 'oras_desk_rsvp_projection_failed', 'The website RSVP could not be prepared for check-in.', array( 'status' => 409 ) );
+		}
+
+		return $this->find_by_source_key( $event_id, $source_key ) ?? array();
+	}
+
 	/** @return array<int,array<string,mixed>> */
 	public function duplicate_candidates( int $event_id, string $email, string $phone, string $exclude_uuid = '' ): array {
 		global $wpdb;

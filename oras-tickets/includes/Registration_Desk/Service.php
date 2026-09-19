@@ -82,6 +82,44 @@ final class Service {
 	}
 
 	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
+	public function check_in_public_rsvp( int $user_id, array $payload, array $context ) {
+		$event_id = (int) $context['event_id'];
+		if ( $user_id <= 0 || ! class_exists( \ORAS\Tickets\Frontend\Event_RSVP::class ) || 'yes' !== \ORAS\Tickets\Frontend\Event_RSVP::get_user_status( $event_id, $user_id ) ) {
+			return new \WP_Error( 'oras_desk_rsvp_not_admitted', 'This website RSVP is not currently admitted.', array( 'status' => 409 ) );
+		}
+		$stored = get_user_meta( $user_id, '_oras_rsvp_event_' . $event_id . '_contact', true );
+		$stored = is_array( $stored ) ? $stored : array();
+		$user   = get_userdata( $user_id );
+		$first  = sanitize_text_field( (string) ( $stored['first_name'] ?? get_user_meta( $user_id, 'first_name', true ) ) );
+		$last   = sanitize_text_field( (string) ( $stored['last_name'] ?? get_user_meta( $user_id, 'last_name', true ) ) );
+		if ( '' === trim( $first . $last ) && $user instanceof \WP_User ) {
+			$parts = preg_split( '/\s+/', trim( (string) $user->display_name ), 2 );
+			$first = sanitize_text_field( (string) ( $parts[0] ?? '' ) );
+			$last  = sanitize_text_field( (string) ( $parts[1] ?? '' ) );
+		}
+		$contact = array(
+			'first_name' => $first,
+			'last_name'  => $last,
+			'email'      => sanitize_email( (string) ( $stored['email'] ?? ( $user instanceof \WP_User ? $user->user_email : '' ) ) ),
+			'phone'      => sanitize_text_field( (string) ( $stored['phone'] ?? get_user_meta( $user_id, 'billing_phone', true ) ) ),
+		);
+		$registration = $this->registrations->ensure_rsvp_website( $event_id, $user_id, $contact, (int) $context['config_revision'] );
+		if ( $registration instanceof \WP_Error ) {
+			return $registration;
+		}
+		$payload['explicit_unpaid'] = false;
+		$payload['arrivals'] = array(
+			array(
+				'slot_key'   => 'individual-1',
+				'first_name' => $first,
+				'last_name'  => $last,
+			),
+		);
+
+		return $this->check_in( (string) $registration['registration_uuid'], $payload, $context );
+	}
+
+	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
 	public function check_in( string $registration_uuid, array $payload, array $context ) {
 		$binding = $this->binding( 'check_in_attendees', $payload, $context );
 		if ( $binding instanceof \WP_Error ) {
@@ -106,7 +144,7 @@ final class Service {
 			return new \WP_Error( 'oras_desk_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 409 ) );
 		}
 		$option = Event_Offering_Resolver::find_access_option( (int) $context['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
-		if ( null === $option && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
+		if ( null === $option && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist', 'rsvp_website' ), true ) ) {
 			$option = array(
 				'existing_access_valid' => true,
 				'max_attendees'         => 1,

@@ -483,8 +483,19 @@
 
 	function showPublicRsvp(item) {
 		if (!item) return showEventRoster(false);
-		main().innerHTML = `${screenActions('Back to Event Roster', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Admitted RSVP'}</span></div></section><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>This website RSVP is admitted. Website RSVP check-in will be enabled after its normalized registration is opened.</p>'}</section>`;
+		main().innerHTML = `${screenActions('Back to Event Roster', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Admitted RSVP'}</span></div></section><div id="desk-detail-message"></div><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>Confirm that this admitted website RSVP is here now.</p><button type="button" class="desk-primary desk-wide" id="desk-rsvp-checkin">CHECK IN THIS PERSON</button>'}</section>`;
 		bindScreenActions(() => renderEventRoster(false));
+		main().querySelector('#desk-rsvp-checkin')?.addEventListener('click', async (event) => {
+			event.currentTarget.disabled = true;
+			try {
+				const result = await api(`/roster/rsvp/${Number(item.rsvp_user_id)}/check-in`, {method: 'POST', body: JSON.stringify({attendance_local_date: state.station.local_date})}, uuid());
+				const attendance = Array.isArray(result.current_attendance) ? result.current_attendance[0] : result.current_attendance;
+				showSuccess({kind: 'checkin', name: item.name, count: 1, type: item.registration_type, when: attendance?.checked_in_at_utc || ''});
+			} catch (error) {
+				event.currentTarget.disabled = false;
+				main().querySelector('#desk-detail-message').innerHTML = notice(friendlyError(error), 'error');
+			}
+		});
 		focusMain();
 	}
 
