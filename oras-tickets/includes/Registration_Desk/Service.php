@@ -48,8 +48,10 @@ final class Service {
 		$today = wp_date( 'Y-m-d', null, wp_timezone() );
 
 		return array(
-			'summary' => $this->attendance->dashboard( $event_id, $today ),
-			'recent'  => $this->attendance->recent_detailed( $event_id, 12 ),
+			'local_date'    => $today,
+			'friendly_date' => wp_date( 'l, F j, Y', null, wp_timezone() ),
+			'summary'       => $this->attendance->dashboard( $event_id, $today ),
+			'recent'        => $this->attendance->recent_detailed( $event_id, 12 ),
 		);
 	}
 

@@ -139,6 +139,13 @@ oras_access_assert( false !== strpos( $landing_code, 'flush_rewrite_rules' ), 'E
 oras_access_assert( false !== strpos( $landing_code, 'permalink_structure' ), 'Desk URL supports test and production permalink modes' );
 oras_access_assert( false !== strpos( $landing_code, 'filemtime' ), 'Desk assets are cache-busted when their files change' );
 oras_access_assert( false !== strpos( $landing_code, 'show_admin_bar( false )' ), 'Desk stays distraction-free for administrator stations' );
+oras_access_assert( false !== strpos( $landing_code, 'wp_timezone_string()' ), 'Desk browser formatting is bound to the WordPress timezone' );
+oras_access_assert( false !== strpos( $landing_code, "'settingsUrl'" ), 'Manager kiosk can link to desk configuration without exposing it to volunteers' );
+oras_access_assert( false !== strpos( $landing_code, 'rel="icon"' ), 'Standalone desk supplies an inline icon without a failing favicon request' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$rest_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Rest_Controller.php' );
+oras_access_assert( false !== strpos( $rest_code, "'friendly_date'" ), 'Station bootstrap supplies a friendly site-local date' );
+oras_access_assert( false !== strpos( $rest_code, 'html_entity_decode( wp_logout_url' ), 'Station bootstrap supplies a usable single-escaped logout URL' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
 oras_access_assert( false !== strpos( $settings_code, 'options[' ), 'Administrator settings expose structured option fields' );

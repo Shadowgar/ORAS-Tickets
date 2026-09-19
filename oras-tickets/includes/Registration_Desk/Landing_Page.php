@@ -63,9 +63,11 @@ final class Landing_Page {
 			'oras-registration-desk',
 			'ORASRegistrationDesk',
 			array(
-				'restUrl' => untrailingslashit( rest_url( 'oras-tickets/v1/registration-desk' ) ),
-				'nonce'   => wp_create_nonce( 'wp_rest' ),
-				'appUrl'  => self::url(),
+				'restUrl'     => untrailingslashit( rest_url( 'oras-tickets/v1/registration-desk' ) ),
+				'nonce'       => wp_create_nonce( 'wp_rest' ),
+				'appUrl'      => self::url(),
+				'timeZone'    => wp_timezone_string(),
+				'settingsUrl' => admin_url( 'admin.php?page=oras-registration-desk-settings' ),
 			)
 		);
 		header( 'Content-Type: text/html; charset=' . get_option( 'blog_charset', 'UTF-8' ) );
@@ -73,6 +75,7 @@ final class Landing_Page {
 		language_attributes();
 		echo '><head>';
 		echo '<meta charset="' . esc_attr( get_option( 'blog_charset', 'UTF-8' ) ) . '"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">';
+		echo '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2230%22 fill=%22%23072f4b%22 stroke=%22%23f0b33a%22 stroke-width=%224%22/%3E%3Cpath d=%22M17 43 43 23M27 36l9 9M19 48h28%22 stroke=%22white%22 stroke-width=%224%22 fill=%22none%22/%3E%3C/svg%3E">';
 		echo '<title>' . esc_html__( 'Registration Desk', 'oras-tickets' ) . '</title>';
 		wp_head();
 		echo '</head><body class="oras-registration-desk-page">';

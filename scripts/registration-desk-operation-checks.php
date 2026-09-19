@@ -100,6 +100,7 @@ oras_operation_assert( false !== strpos( $service_code, 'source_adapter->load' )
 oras_operation_assert( false !== strpos( $service_code, 'explicit_unpaid_required' ), 'On-hold admission requires explicit unpaid intent' );
 oras_operation_assert( false !== strpos( $service_code, 'expected_record_version' ), 'Reversal binds the expected attendance version' );
 oras_operation_assert( false !== strpos( $service_code, 'current_attendance' ), 'Replay response includes current attendance state' );
+oras_operation_assert( false !== strpos( $service_code, "'friendly_date' => wp_date" ), 'Dashboard refresh carries the authoritative friendly local date' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
@@ -115,5 +116,22 @@ oras_operation_assert( false !== strpos( $desk_js, 'saveCorrection' ), 'Manager 
 oras_operation_assert( false !== strpos( $desk_js, 'syncWebsiteRegistrations' ), 'Manager UI exposes initial website registration recovery' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/project'" ), 'Website registration recovery uses the manager-only projection endpoint' );
 oras_operation_assert( false !== strpos( $desk_js, 'URLSearchParams' ), 'Desk REST queries support both plain and pretty permalinks' );
+oras_operation_assert( false !== strpos( $desk_js, 'WHAT DO YOU NEED TO DO?' ), 'Volunteer home uses the approved kiosk prompt' );
+oras_operation_assert( false !== strpos( $desk_js, 'FIND SOMEONE ALREADY REGISTERED' ), 'Volunteer home exposes a large registered-attendee task' );
+oras_operation_assert( false !== strpos( $desk_js, 'REGISTER A WALK-IN' ), 'Volunteer home exposes a large walk-in task' );
+oras_operation_assert( false === strpos( $desk_js, 'class="desk-nav"' ), 'Volunteer shell has no side navigation' );
+oras_operation_assert( false !== strpos( $desk_js, 'showWalkInStep' ), 'Walk-in registration is a stateful step-by-step wizard' );
+oras_operation_assert( false !== strpos( $desk_js, 'PAYMENT IS HANDLED IN ALFAPOS' ), 'Walk-in payment step preserves the separate AlfaPOS boundary' );
+oras_operation_assert( false !== strpos( $desk_js, 'PAYMENT WAS ALREADY HANDLED' ), 'Lost-response recovery warns volunteers not to collect payment twice' );
+oras_operation_assert( false !== strpos( $desk_js, 'showSuccess' ), 'Completed check-in and registration use a dedicated success screen' );
+oras_operation_assert( false !== strpos( $desk_js, 'friendlyError' ), 'Volunteer errors pass through a plain-language error mapper' );
+oras_operation_assert( false !== strpos( $desk_js, 'formatLocalTime' ), 'Volunteer timestamps use a site-local formatter' );
+oras_operation_assert( false !== strpos( $desk_js, 'showManagerArea' ), 'Manager functions are separated from normal volunteer tasks' );
+
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+$desk_css = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.css' );
+oras_operation_assert( false !== strpos( $desk_css, '--desk-navy:' ), 'Kiosk styling uses the approved navy brand foundation' );
+oras_operation_assert( false !== strpos( $desk_css, 'min-height: 56px' ), 'Kiosk controls provide large touch targets' );
+oras_operation_assert( false !== strpos( $desk_css, '@media (orientation: portrait)' ), 'Kiosk has an explicit iPad portrait layout' );
 
 echo "Registration Desk operation checks passed.\n";

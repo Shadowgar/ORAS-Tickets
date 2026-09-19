@@ -164,8 +164,9 @@ final class Rest_Controller {
 				'operator_label'  => $label,
 				'options'         => $config['options'],
 				'local_date'      => wp_date( 'Y-m-d', null, wp_timezone() ),
+				'friendly_date'   => wp_date( 'l, F j, Y', null, wp_timezone() ),
 				'can_manage'      => current_user_can( 'oras_tickets_manage_registration_desk' ),
-				'logout_url'      => wp_logout_url( Landing_Page::url() ),
+				'logout_url'      => html_entity_decode( wp_logout_url( Landing_Page::url() ), ENT_QUOTES, 'UTF-8' ),
 			)
 		);
 	}

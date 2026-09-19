@@ -255,8 +255,9 @@ final class Registration_Store extends Store {
 		if ( '' === $query ) {
 			return array();
 		}
-		$like       = '%' . $wpdb->esc_like( $query ) . '%';
-		$phone_like = '%' . $wpdb->esc_like( self::normalize_phone( $query ) ) . '%';
+		$like        = '%' . $wpdb->esc_like( $query ) . '%';
+		$phone_query = self::normalize_phone( $query );
+		$phone_like  = '' !== $phone_query ? '%' . $wpdb->esc_like( $phone_query ) . '%' : '__no_phone_match__';
 		$rows = $wpdb->get_results(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
 			$wpdb->prepare(

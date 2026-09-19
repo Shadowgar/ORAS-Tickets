@@ -642,6 +642,7 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_same( $repeat['registrations'][0]['registration_uuid'], $concurrent_row['registration_uuid'], 'source projection is repeat-safe and preserves registration identity' );
 	$service = new Service();
 	oras_desk_integration_true( count( $service->search( $event_id, 'Concurrent' ) ) >= 1, 'event-scoped operational search finds the supported registration' );
+	oras_desk_integration_same( count( $service->search( $event_id, 'Zznoresult' ) ), 0, 'alphabetic search with no match does not become a wildcard phone search' );
 	oras_desk_integration_error( $service->detail( $other_id, $concurrent_row['registration_uuid'] ), 'oras_desk_registration_missing', 'object access cannot cross the active event boundary' );
 
 	$cancel_order = wc_get_order( $orders['cancelled']['order_id'] );
