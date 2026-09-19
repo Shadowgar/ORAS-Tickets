@@ -7,6 +7,7 @@
 
 use ORAS\Tickets\Capabilities;
 use ORAS\Tickets\Domain\Event_Offering_Resolver;
+use ORAS\Tickets\Registration_Desk\Attendee_Store;
 use ORAS\Tickets\Registration_Desk\Attendance_Store;
 use ORAS\Tickets\Registration_Desk\Audit_Store;
 use ORAS\Tickets\Registration_Desk\Config;
@@ -638,6 +639,147 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	oras_desk_integration_same( ( new Event_Roster_Service() )->get( (int) $context['synthetic_ticketed_a']['event_id'], array() )['mode'], 'tickets', 'tickets plus RSVP event keeps canonical ticket roster mode' );
 }
 
+/** Exercise the event-scoped roster with enough people to require kiosk pagination. */
+function oras_desk_integration_event_roster( array $context ): void {
+	$event_id = (int) $context['synthetic_ticketed_a']['event_id'];
+	$config   = Config::get_event_config( $event_id );
+	$offerings = Event_Offering_Resolver::desk_offerings( $event_id, $config );
+	$labels    = array_column( $offerings, 'label' );
+	oras_desk_integration_same( $labels, array( 'General Admission', 'Family Pass', 'Student Pass', 'Single-Day Pass' ), 'ticketed roster filters use only the selected event canonical types' );
+
+	$last_names = array(
+		'Zulu', 'Alpha', 'Yankee', 'Bravo', 'Xray', 'Charlie', 'Whiskey', 'Delta', 'Victor',
+		'Echo', 'Uniform', 'Foxtrot', 'Tango', 'Golf', 'Sierra', 'Hotel', 'Romeo', 'India',
+		'Quebec', 'Juliet', 'Papa', 'Kilo', 'Oscar', 'Lima', 'November', 'Mike', 'SearchTarget',
+	);
+	$registrations = new Registration_Store();
+	$attendees     = new Attendee_Store();
+	$attendance    = new Attendance_Store();
+	$rows_by_name  = array();
+	$type_counts   = array();
+	$walk_in_count = 0;
+	$checked_count = 0;
+	foreach ( $last_names as $index => $last_name ) {
+		$offering = $offerings[ $index % count( $offerings ) ];
+		$label    = 0 === $index ? 'Historic General Admission' : (string) $offering['label'];
+		$source   = 0 === $index % 3 ? 'walk_in' : 'complimentary';
+		$record   = $registrations->create_manual(
+			array(
+				'event_id'          => $event_id,
+				'option_uuid'       => (string) $offering['option_uuid'],
+				'source_type'       => $source,
+				'first_name'        => 'Roster',
+				'last_name'         => $last_name,
+				'email'             => 'roster-' . $index . '@example.test',
+				'phone'             => sprintf( '814-555-10%02d', $index ),
+				'classification'    => (string) $offering['classification'],
+				'validity_type'     => (string) $offering['validity_type'],
+				'valid_local_date'  => 'one_day' === (string) $offering['validity_type'] ? (string) $context['today'] : '',
+				'payment_assertion' => 'walk_in' === $source ? 'paid_cash' : 'complimentary',
+				'config_revision'   => (int) $config['revision'],
+				'evidence'          => array(
+					'mailing_address' => array( 'address_1' => '100 Test Lane', 'city' => 'Erie', 'state' => 'PA', 'postcode' => '16501' ),
+					'offering'        => array( 'label' => $label ),
+				),
+			)
+		);
+		if ( is_wp_error( $record ) ) {
+			oras_desk_integration_fail( 'synthetic roster registration failed: ' . $record->get_error_code() );
+		}
+		$attendee = $attendees->confirm_slot( (int) $record['id'], ( 'family' === $record['classification'] ? 'family' : 'individual' ) . '-1', 'Roster', $last_name );
+		if ( is_wp_error( $attendee ) ) {
+			oras_desk_integration_fail( 'synthetic roster attendee failed: ' . $attendee->get_error_code() );
+		}
+		if ( $index < 6 ) {
+			$check_in = $attendance->check_in( $event_id, (int) $attendee['id'], (string) $context['today'], (int) $context['desk_id'], wp_generate_uuid4(), 'Roster Fixture' );
+			if ( is_wp_error( $check_in ) ) {
+				oras_desk_integration_fail( 'synthetic roster attendance failed: ' . $check_in->get_error_code() );
+			}
+			++$checked_count;
+		}
+		$name = 'Roster ' . $last_name;
+		$rows_by_name[ $name ] = $record;
+		$type_counts[ (string) $offering['option_uuid'] ] = ( $type_counts[ (string) $offering['option_uuid'] ] ?? 0 ) + 1;
+		if ( 'walk_in' === $source ) {
+			++$walk_in_count;
+		}
+	}
+
+	$other_record = $registrations->create_manual(
+		array(
+			'event_id'          => (int) $context['synthetic_ticketed_b']['event_id'],
+			'option_uuid'       => (string) Event_Offering_Resolver::desk_offerings( (int) $context['synthetic_ticketed_b']['event_id'], Config::get_event_config( (int) $context['synthetic_ticketed_b']['event_id'] ) )[0]['option_uuid'],
+			'source_type'       => 'walk_in',
+			'first_name'        => 'Unrelated',
+			'last_name'         => 'Registrant',
+			'email'             => 'unrelated-roster@example.test',
+			'phone'             => '814-555-9999',
+			'classification'    => 'individual',
+			'validity_type'     => 'full_event',
+			'payment_assertion' => 'paid_card',
+			'config_revision'   => (int) Config::get_event_config( (int) $context['synthetic_ticketed_b']['event_id'] )['revision'],
+			'evidence'          => array( 'offering' => array( 'label' => 'Basic' ) ),
+		)
+	);
+	oras_desk_integration_true( is_array( $other_record ), 'unrelated-event roster fixture is created independently' );
+
+	$roster = new Event_Roster_Service();
+	$first  = $roster->get( $event_id, array( 'limit' => 10 ) );
+	$second = $roster->get( $event_id, array( 'limit' => 10, 'offset' => $first['next_offset'] ) );
+	$third  = $roster->get( $event_id, array( 'limit' => 10, 'offset' => $second['next_offset'] ) );
+	$all    = array_merge( $first['items'], $second['items'], $third['items'] );
+	oras_desk_integration_same( count( $all ), count( $last_names ), 'ticketed roster opens with the full event population across bounded pages' );
+	oras_desk_integration_true( true === $first['has_more'] && true === $second['has_more'] && false === $third['has_more'], 'Show More pagination reports each remaining roster page honestly' );
+	oras_desk_integration_same( count( array_unique( array_column( $all, 'registration_uuid' ) ) ), count( $all ), 'Show More pagination does not repeat registrations' );
+	$actual_names = array_column( $all, 'name' );
+	$expected_names = $actual_names;
+	usort(
+		$expected_names,
+		static function ( string $left, string $right ): int {
+			$left_parts  = preg_split( '/\s+/', strtolower( $left ) ) ?: array( '' );
+			$right_parts = preg_split( '/\s+/', strtolower( $right ) ) ?: array( '' );
+			return array( (string) end( $left_parts ), (string) reset( $left_parts ) ) <=> array( (string) end( $right_parts ), (string) reset( $right_parts ) );
+		}
+	);
+	oras_desk_integration_same( $actual_names, $expected_names, 'ticketed roster is alphabetical by last name then first name' );
+	oras_desk_integration_true( ! in_array( 'Unrelated Registrant', $actual_names, true ), 'unrelated event registrations never leak into the selected event roster' );
+	oras_desk_integration_true( ! array_key_exists( 'email', $all[0] ) && ! array_key_exists( 'address', $all[0] ), 'volunteer roster omits manager-only contact fields' );
+	oras_desk_integration_true( str_starts_with( (string) $all[0]['phone'], '814-555-' ), 'volunteer roster includes the required usable phone number' );
+	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'checked_in', 'limit' => 50 ) )['items'] ), $checked_count, 'Checked In Today filter uses actual attendance' );
+	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'not_checked_in', 'limit' => 50 ) )['items'] ), count( $last_names ) - $checked_count, 'Not Checked In filter excludes today attendance' );
+	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'walk_ins', 'limit' => 50 ) )['items'] ), $walk_in_count, 'Walk-Ins filter uses registration source without changing statistics' );
+	$first_type = (string) $offerings[0]['option_uuid'];
+	oras_desk_integration_same( count( $roster->get( $event_id, array( 'option_uuid' => $first_type, 'limit' => 50 ) )['items'] ), $type_counts[ $first_type ], 'one dynamic canonical registration type narrows the full roster' );
+	$search = $roster->get( $event_id, array( 'q' => 'SearchTarget', 'limit' => 10 ) );
+	oras_desk_integration_same( array_column( $search['items'], 'name' ), array( 'Roster SearchTarget' ), 'roster search queries the full event rather than the visible page' );
+	$historic = array_values( array_filter( $all, static fn( array $item ): bool => 'Roster Zulu' === $item['name'] ) );
+	oras_desk_integration_same( $historic[0]['registration_type'] ?? '', 'Historic General Admission', 'historical registration label remains honest when current canonical wording differs' );
+
+	wp_set_current_user( (int) $context['desk_id'] );
+	$station_token = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Roster Authorization' );
+	$detail_uuid   = (string) $rows_by_name['Roster Alpha']['registration_uuid'];
+	$detail_route  = '/oras-tickets/v1/registration-desk/registrations/' . $detail_uuid;
+	$volunteer_request = new WP_REST_Request( 'GET', $detail_route );
+	$volunteer_request->set_header( 'X-ORAS-Desk-Station', $station_token );
+	$volunteer_data = rest_do_request( $volunteer_request )->get_data();
+	oras_desk_integration_true( ! isset( $volunteer_data['manager_detail'] ) && ! isset( $volunteer_data['editable_registration'] ), 'normal volunteer cannot retrieve manager-only roster detail through the API' );
+	oras_desk_integration_true( ! str_contains( (string) ( $volunteer_data['registration']['contact_email'] ?? '' ), 'roster-1@' ), 'normal volunteer detail does not expose the full email address' );
+	oras_desk_integration_true( true === Manager_Access::set_pin( '4826' ), 'disposable kiosk manager PIN is configured for manager-detail qualification' );
+	$station = Station_Session::validate( $station_token, (int) $context['desk_id'], $event_id, (int) $config['revision'] );
+	$manager_token = Manager_Access::unlock( '4826', $station, 'integration-roster' );
+	if ( is_wp_error( $manager_token ) ) {
+		oras_desk_integration_fail( 'manager roster unlock failed: ' . $manager_token->get_error_code() );
+	}
+	$manager_request = new WP_REST_Request( 'GET', $detail_route );
+	$manager_request->set_header( 'X-ORAS-Desk-Station', $station_token );
+	$manager_request->set_header( 'X-ORAS-Desk-Manager', $manager_token );
+	$manager_data = rest_do_request( $manager_request )->get_data();
+	oras_desk_integration_same( $manager_data['manager_detail']['email'] ?? '', 'roster-1@example.test', 'manager roster detail exposes full contact only after server-side PIN validation' );
+	oras_desk_integration_same( $manager_data['manager_detail']['mailing_address']['address_1'] ?? '', '100 Test Lane', 'manager roster detail includes collected mailing address' );
+	oras_desk_integration_same( $manager_data['manager_detail']['source_type'] ?? '', 'complimentary', 'manager roster detail includes registration source' );
+	oras_desk_integration_true( isset( $manager_data['manager_detail']['audit_history'] ), 'manager roster detail includes correction and audit history' );
+}
+
 /** Prepare fixtures and run all single-connection checks. */
 function oras_desk_integration_prepare(): void {
 	global $wpdb;
@@ -1133,6 +1275,7 @@ function oras_desk_integration_prepare(): void {
 		),
 	);
 	oras_desk_integration_canonical_offerings_and_rsvp( $context );
+	oras_desk_integration_event_roster( $context );
 	$context['baseline'] = oras_desk_integration_protected_snapshot( $context );
 	update_option( 'oras_registration_desk_integration_context', $context, false );
 	oras_desk_integration_pass( 'protected commerce, account, integration, and transport baseline captured after fixture-only mutations' );
