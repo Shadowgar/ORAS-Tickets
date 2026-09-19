@@ -403,6 +403,7 @@ function oras_desk_integration_discovery( string $run, int $event_id, int $other
 	$continuation = '';
 	$saw_empty_nonfinal = false;
 	$pages = 0;
+	$page_limit = max( 500, (int) ( $retry_result['source_orders'] ?? 0 ) + 10 );
 	do {
 		$page = $projection->reconcile_page( $event_id, $config, $continuation, 1 );
 		if ( is_wp_error( $page ) ) {
@@ -411,7 +412,7 @@ function oras_desk_integration_discovery( string $run, int $event_id, int $other
 		$saw_empty_nonfinal = $saw_empty_nonfinal || ( 0 === $page['matching_items'] && true === $page['has_more'] );
 		$continuation = (string) $page['continuation'];
 		++$pages;
-		if ( $pages > 500 ) {
+		if ( $pages > $page_limit ) {
 			oras_desk_integration_fail( 'recovery exceeded its bounded fixture page count.' );
 		}
 	} while ( $page['has_more'] );
