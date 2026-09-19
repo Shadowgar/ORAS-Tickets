@@ -648,9 +648,33 @@ function oras_desk_integration_event_roster( array $context ): void {
 	oras_desk_integration_same( $labels, array( 'General Admission', 'Family Pass', 'Student Pass', 'Single-Day Pass' ), 'ticketed roster filters use only the selected event canonical types' );
 
 	$last_names = array(
-		'Zulu', 'Alpha', 'Yankee', 'Bravo', 'Xray', 'Charlie', 'Whiskey', 'Delta', 'Victor',
-		'Echo', 'Uniform', 'Foxtrot', 'Tango', 'Golf', 'Sierra', 'Hotel', 'Romeo', 'India',
-		'Quebec', 'Juliet', 'Papa', 'Kilo', 'Oscar', 'Lima', 'November', 'Mike', 'SearchTarget',
+		'Zulu',
+		'Alpha',
+		'Yankee',
+		'Bravo',
+		'Xray',
+		'Charlie',
+		'Whiskey',
+		'Delta',
+		'Victor',
+		'Echo',
+		'Uniform',
+		'Foxtrot',
+		'Tango',
+		'Golf',
+		'Sierra',
+		'Hotel',
+		'Romeo',
+		'India',
+		'Quebec',
+		'Juliet',
+		'Papa',
+		'Kilo',
+		'Oscar',
+		'Lima',
+		'November',
+		'Mike',
+		'SearchTarget',
 	);
 	$registrations = new Registration_Store();
 	$attendees     = new Attendee_Store();
@@ -678,7 +702,12 @@ function oras_desk_integration_event_roster( array $context ): void {
 				'payment_assertion' => 'walk_in' === $source ? 'paid_cash' : 'complimentary',
 				'config_revision'   => (int) $config['revision'],
 				'evidence'          => array(
-					'mailing_address' => array( 'address_1' => '100 Test Lane', 'city' => 'Erie', 'state' => 'PA', 'postcode' => '16501' ),
+					'mailing_address' => array(
+						'address_1' => '100 Test Lane',
+						'city'      => 'Erie',
+						'state'     => 'PA',
+						'postcode'  => '16501',
+					),
 					'offering'        => array( 'label' => $label ),
 				),
 			)
@@ -725,8 +754,20 @@ function oras_desk_integration_event_roster( array $context ): void {
 
 	$roster = new Event_Roster_Service();
 	$first  = $roster->get( $event_id, array( 'limit' => 10 ) );
-	$second = $roster->get( $event_id, array( 'limit' => 10, 'offset' => $first['next_offset'] ) );
-	$third  = $roster->get( $event_id, array( 'limit' => 10, 'offset' => $second['next_offset'] ) );
+	$second = $roster->get(
+		$event_id,
+		array(
+			'limit'  => 10,
+			'offset' => $first['next_offset'],
+		)
+	);
+	$third  = $roster->get(
+		$event_id,
+		array(
+			'limit'  => 10,
+			'offset' => $second['next_offset'],
+		)
+	);
 	$all    = array_merge( $first['items'], $second['items'], $third['items'] );
 	oras_desk_integration_same( count( $all ), count( $last_names ), 'ticketed roster opens with the full event population across bounded pages' );
 	oras_desk_integration_true( true === $first['has_more'] && true === $second['has_more'] && false === $third['has_more'], 'Show More pagination reports each remaining roster page honestly' );
@@ -736,8 +777,10 @@ function oras_desk_integration_event_roster( array $context ): void {
 	usort(
 		$expected_names,
 		static function ( string $left, string $right ): int {
-			$left_parts  = preg_split( '/\s+/', strtolower( $left ) ) ?: array( '' );
-			$right_parts = preg_split( '/\s+/', strtolower( $right ) ) ?: array( '' );
+			$left_parts  = preg_split( '/\s+/', strtolower( $left ) );
+			$right_parts = preg_split( '/\s+/', strtolower( $right ) );
+			$left_parts  = is_array( $left_parts ) ? $left_parts : array( '' );
+			$right_parts = is_array( $right_parts ) ? $right_parts : array( '' );
 			return array( (string) end( $left_parts ), (string) reset( $left_parts ) ) <=> array( (string) end( $right_parts ), (string) reset( $right_parts ) );
 		}
 	);
@@ -745,12 +788,66 @@ function oras_desk_integration_event_roster( array $context ): void {
 	oras_desk_integration_true( ! in_array( 'Unrelated Registrant', $actual_names, true ), 'unrelated event registrations never leak into the selected event roster' );
 	oras_desk_integration_true( ! array_key_exists( 'email', $all[0] ) && ! array_key_exists( 'address', $all[0] ), 'volunteer roster omits manager-only contact fields' );
 	oras_desk_integration_true( str_starts_with( (string) $all[0]['phone'], '814-555-' ), 'volunteer roster includes the required usable phone number' );
-	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'checked_in', 'limit' => 50 ) )['items'] ), $checked_count, 'Checked In Today filter uses actual attendance' );
-	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'not_checked_in', 'limit' => 50 ) )['items'] ), count( $last_names ) - $checked_count, 'Not Checked In filter excludes today attendance' );
-	oras_desk_integration_same( count( $roster->get( $event_id, array( 'status' => 'walk_ins', 'limit' => 50 ) )['items'] ), $walk_in_count, 'Walk-Ins filter uses registration source without changing statistics' );
+	oras_desk_integration_same(
+		count(
+			$roster->get(
+				$event_id,
+				array(
+					'status' => 'checked_in',
+					'limit'  => 50,
+				)
+			)['items']
+		),
+		$checked_count,
+		'Checked In Today filter uses actual attendance'
+	);
+	oras_desk_integration_same(
+		count(
+			$roster->get(
+				$event_id,
+				array(
+					'status' => 'not_checked_in',
+					'limit'  => 50,
+				)
+			)['items']
+		),
+		count( $last_names ) - $checked_count,
+		'Not Checked In filter excludes today attendance'
+	);
+	oras_desk_integration_same(
+		count(
+			$roster->get(
+				$event_id,
+				array(
+					'status' => 'walk_ins',
+					'limit'  => 50,
+				)
+			)['items']
+		),
+		$walk_in_count,
+		'Walk-Ins filter uses registration source without changing statistics'
+	);
 	$first_type = (string) $offerings[0]['option_uuid'];
-	oras_desk_integration_same( count( $roster->get( $event_id, array( 'option_uuid' => $first_type, 'limit' => 50 ) )['items'] ), $type_counts[ $first_type ], 'one dynamic canonical registration type narrows the full roster' );
-	$search = $roster->get( $event_id, array( 'q' => 'SearchTarget', 'limit' => 10 ) );
+	oras_desk_integration_same(
+		count(
+			$roster->get(
+				$event_id,
+				array(
+					'option_uuid' => $first_type,
+					'limit'       => 50,
+				)
+			)['items']
+		),
+		$type_counts[ $first_type ],
+		'one dynamic canonical registration type narrows the full roster'
+	);
+	$search = $roster->get(
+		$event_id,
+		array(
+			'q'     => 'SearchTarget',
+			'limit' => 10,
+		)
+	);
 	oras_desk_integration_same( array_column( $search['items'], 'name' ), array( 'Roster SearchTarget' ), 'roster search queries the full event rather than the visible page' );
 	$historic = array_values( array_filter( $all, static fn( array $item ): bool => 'Roster Zulu' === $item['name'] ) );
 	oras_desk_integration_same( $historic[0]['registration_type'] ?? '', 'Historic General Admission', 'historical registration label remains honest when current canonical wording differs' );
@@ -968,18 +1065,54 @@ function oras_desk_integration_prepare(): void {
 		$synthetic_a_products[] = oras_desk_integration_product( $run, $key );
 		$synthetic_a_tickets[ $key ] = $canonical_ticket( $key, $name, (string) ( 10 + $index * 5 ) . '.00' );
 	}
-	update_post_meta( $synthetic_a_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => $synthetic_a_tickets ) );
+	update_post_meta(
+		$synthetic_a_id,
+		'_oras_tickets_v1',
+		array(
+			'schema'  => 1,
+			'tickets' => $synthetic_a_tickets,
+		)
+	);
 	update_post_meta( $synthetic_a_id, '_oras_tickets_woo_map_v1', $synthetic_a_products );
-	update_post_meta( $synthetic_a_id, '_oras_rsvp_v1', array( 'enabled' => true, 'capacity' => 100, 'waitlist_enabled' => true ) );
+	update_post_meta(
+		$synthetic_a_id,
+		'_oras_rsvp_v1',
+		array(
+			'enabled'          => true,
+			'capacity'         => 100,
+			'waitlist_enabled' => true,
+		)
+	);
 	$synthetic_a_config = Config::save_event_config(
 		$synthetic_a_id,
 		array(
-			'enabled' => true,
+			'enabled'      => true,
 			'ticket_rules' => array(
-				array( 'ticket_key' => 'synthetic-a-1', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'full_event' ),
-				array( 'ticket_key' => 'synthetic-a-2', 'classification' => 'family', 'max_attendees' => 5, 'validity_type' => 'full_event' ),
-				array( 'ticket_key' => 'synthetic-a-3', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'full_event' ),
-				array( 'ticket_key' => 'synthetic-a-4', 'classification' => 'individual', 'max_attendees' => 1, 'validity_type' => 'one_day', 'valid_local_date' => $today ),
+				array(
+					'ticket_key'     => 'synthetic-a-1',
+					'classification' => 'individual',
+					'max_attendees'  => 1,
+					'validity_type'  => 'full_event',
+				),
+				array(
+					'ticket_key'     => 'synthetic-a-2',
+					'classification' => 'family',
+					'max_attendees'  => 5,
+					'validity_type'  => 'full_event',
+				),
+				array(
+					'ticket_key'     => 'synthetic-a-3',
+					'classification' => 'individual',
+					'max_attendees'  => 1,
+					'validity_type'  => 'full_event',
+				),
+				array(
+					'ticket_key'       => 'synthetic-a-4',
+					'classification'   => 'individual',
+					'max_attendees'    => 1,
+					'validity_type'    => 'one_day',
+					'valid_local_date' => $today,
+				),
 			),
 			'entitlements' => array(),
 		),
@@ -996,9 +1129,24 @@ function oras_desk_integration_prepare(): void {
 		$synthetic_b_products[] = oras_desk_integration_product( $run, $key );
 		$synthetic_b_tickets[ $key ] = $canonical_ticket( $key, $name, (string) ( 20 + $index * 5 ) . '.00' );
 	}
-	update_post_meta( $synthetic_b_id, '_oras_tickets_v1', array( 'schema' => 1, 'tickets' => $synthetic_b_tickets ) );
+	update_post_meta(
+		$synthetic_b_id,
+		'_oras_tickets_v1',
+		array(
+			'schema'  => 1,
+			'tickets' => $synthetic_b_tickets,
+		)
+	);
 	update_post_meta( $synthetic_b_id, '_oras_tickets_woo_map_v1', $synthetic_b_products );
-	$synthetic_b_config = Config::save_event_config( $synthetic_b_id, array( 'enabled' => true, 'ticket_rules' => array(), 'entitlements' => array() ), 0 );
+	$synthetic_b_config = Config::save_event_config(
+		$synthetic_b_id,
+		array(
+			'enabled'      => true,
+			'ticket_rules' => array(),
+			'entitlements' => array(),
+		),
+		0
+	);
 	if ( is_wp_error( $synthetic_b_config ) ) {
 		oras_desk_integration_fail( 'synthetic ticketed event B configuration failed.' );
 	}
@@ -1231,36 +1379,36 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_true( 401 === $reverse_denied->get_status() || 403 === $reverse_denied->get_status(), 'desk role cannot invoke the administrator reversal endpoint' );
 
 	$context = array(
-		'run'               => $run,
-		'today'             => $today,
-		'event_id'          => $event_id,
-		'other_event_id'    => $other_id,
-		'past_event_id'     => $past_id,
-		'admin_id'          => (int) $admin_id,
-		'desk_id'           => (int) $desk_id,
-		'member_id'         => (int) $member_id,
-		'user_ids'          => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
-		'product_ids'       => array_merge( array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ), $synthetic_a_products, $synthetic_b_products ),
-		'order_ids'         => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
-		'orders'            => $orders,
-		'projected'         => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
-		'quantity_unit_two' => $quantity_unit_two['registration_uuid'],
-		'options'           => $options,
-		'config_race'       => array(
+		'run'                  => $run,
+		'today'                => $today,
+		'event_id'             => $event_id,
+		'other_event_id'       => $other_id,
+		'past_event_id'        => $past_id,
+		'admin_id'             => (int) $admin_id,
+		'desk_id'              => (int) $desk_id,
+		'member_id'            => (int) $member_id,
+		'user_ids'             => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
+		'product_ids'          => array_merge( array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ), $synthetic_a_products, $synthetic_b_products ),
+		'order_ids'            => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
+		'orders'               => $orders,
+		'projected'            => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
+		'quantity_unit_two'    => $quantity_unit_two['registration_uuid'],
+		'options'              => $options,
+		'config_race'          => array(
 			'event_id'     => $config_race_id,
 			'activation_a' => $activation_race_a,
 			'activation_b' => $activation_race_b,
 		),
-		'token_one'         => $token_one,
-		'token_two'         => $token_two,
-		'offering_fixture'  => array(
+		'token_one'            => $token_one,
+		'token_two'            => $token_two,
+		'offering_fixture'     => array(
 			'event_id'           => $offering_event_id,
 			'unrelated_event_id' => $unrelated_event_id,
 			'product_a'          => $offering_product_a,
 			'product_b'          => $offering_product_b,
 			'unrelated_product'  => $unrelated_product,
 		),
-		'rsvp_fixture'      => array(
+		'rsvp_fixture'         => array(
 			'available_event_id' => $rsvp_available_id,
 			'waitlist_event_id'  => $rsvp_waitlist_id,
 			'full_event_id'      => $rsvp_full_id,

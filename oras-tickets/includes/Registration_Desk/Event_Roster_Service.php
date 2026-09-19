@@ -145,20 +145,20 @@ final class Event_Roster_Service {
 				$status  = 'waitlist' === (string) $row['rsvp_status'] ? 'waitlist' : 'admitted';
 
 				return array(
-					'row_id'              => 'rsvp-user-' . absint( $row['ID'] ),
-					'detail_kind'         => 'public_rsvp',
-					'rsvp_user_id'        => absint( $row['ID'] ),
-					'registration_uuid'   => '',
-					'name'                => '' !== $name ? $name : sanitize_text_field( (string) $row['display_name'] ),
-					'phone'               => self::display_phone( (string) ( $contact['phone'] ?? '' ) ),
-					'registration_type'   => 'waitlist' === $status ? __( 'RSVP Waitlist', 'oras-tickets' ) : __( 'Event RSVP', 'oras-tickets' ),
-					'source_type'         => 'rsvp_website',
-					'rsvp_status'         => $status,
-					'checked_in_today'    => false,
-					'attendees'           => array(),
-					'classification'      => 'individual',
-					'validity_type'       => 'full_event',
-					'valid_local_date'    => '',
+					'row_id'            => 'rsvp-user-' . absint( $row['ID'] ),
+					'detail_kind'       => 'public_rsvp',
+					'rsvp_user_id'      => absint( $row['ID'] ),
+					'registration_uuid' => '',
+					'name'              => '' !== $name ? $name : sanitize_text_field( (string) $row['display_name'] ),
+					'phone'             => self::display_phone( (string) ( $contact['phone'] ?? '' ) ),
+					'registration_type' => 'waitlist' === $status ? __( 'RSVP Waitlist', 'oras-tickets' ) : __( 'Event RSVP', 'oras-tickets' ),
+					'source_type'       => 'rsvp_website',
+					'rsvp_status'       => $status,
+					'checked_in_today'  => false,
+					'attendees'         => array(),
+					'classification'    => 'individual',
+					'validity_type'     => 'full_event',
+					'valid_local_date'  => '',
 				);
 			},
 			is_array( $rows ) ? $rows : array()
@@ -195,7 +195,8 @@ final class Event_Roster_Service {
 	private static function compare_rows( array $left, array $right ): int {
 		$parts = static function ( array $row ): array {
 			$name  = strtolower( trim( (string) ( $row['name'] ?? '' ) ) );
-			$words = preg_split( '/\s+/', $name ) ?: array( '' );
+			$words = preg_split( '/\s+/', $name );
+			$words = is_array( $words ) ? $words : array( '' );
 
 			return array( (string) end( $words ), (string) reset( $words ), $name );
 		};

@@ -133,7 +133,7 @@ final class Registration_Store extends Store {
 		);
 		if ( false === $inserted ) {
 			$existing = $this->find_by_source_key( $event_id, $source_key );
-			return $existing ?: new \WP_Error( 'oras_desk_rsvp_projection_failed', 'The website RSVP could not be prepared for check-in.', array( 'status' => 409 ) );
+			return $existing ?? new \WP_Error( 'oras_desk_rsvp_projection_failed', 'The website RSVP could not be prepared for check-in.', array( 'status' => 409 ) );
 		}
 
 		return $this->find_by_source_key( $event_id, $source_key ) ?? array();

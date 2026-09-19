@@ -500,17 +500,17 @@ final class Rest_Controller {
 			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
 			$evidence = is_array( $evidence ) ? $evidence : array();
 			$result['manager_detail'] = array(
-				'full_name'          => (string) $raw_registration['source_contact_name'],
-				'phone'              => (string) $raw_registration['source_phone'],
-				'email'              => (string) $raw_registration['source_email'],
-				'mailing_address'    => is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array(),
-				'source_type'        => (string) $raw_registration['source_type'],
-				'source_order_id'    => (int) $raw_registration['source_order_id'],
+				'full_name'            => (string) $raw_registration['source_contact_name'],
+				'phone'                => (string) $raw_registration['source_phone'],
+				'email'                => (string) $raw_registration['source_email'],
+				'mailing_address'      => is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array(),
+				'source_type'          => (string) $raw_registration['source_type'],
+				'source_order_id'      => (int) $raw_registration['source_order_id'],
 				'source_order_item_id' => (int) $raw_registration['source_order_item_id'],
-				'registration_type'  => Event_Roster_Service::historical_label( $raw_registration ),
-				'payment_assertion'  => (string) $raw_registration['payment_assertion'],
-				'created_at_utc'     => (string) $raw_registration['created_at_utc'],
-				'audit_history'      => ( new Audit_Store() )->for_registration( (string) $raw_registration['registration_uuid'] ),
+				'registration_type'    => Event_Roster_Service::historical_label( $raw_registration ),
+				'payment_assertion'    => (string) $raw_registration['payment_assertion'],
+				'created_at_utc'       => (string) $raw_registration['created_at_utc'],
+				'audit_history'        => ( new Audit_Store() )->for_registration( (string) $raw_registration['registration_uuid'] ),
 			);
 		}
 		$result['registration'] = $this->public_registration( $result['registration'] );

@@ -9,7 +9,7 @@ function sanitize_key( mixed $value ): string {
 }
 
 function sanitize_text_field( mixed $value ): string {
-	return trim( strip_tags( (string) $value ) );
+	return trim( strip_tags( (string) $value ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
 }
 
 function absint( mixed $value ): int {
