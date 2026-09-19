@@ -27,32 +27,10 @@ final class Event_Catalog {
 		$rows = array();
 		foreach ( $posts as $post ) {
 			$event_id = absint( $post instanceof \WP_Post ? $post->ID : $post );
-			if ( $event_id <= 0 ) {
-				continue;
+			$row      = self::eligible_row( $event_id, $year );
+			if ( null !== $row ) {
+				$rows[] = $row;
 			}
-			$start = substr( (string) get_post_meta( $event_id, '_EventStartDate', true ), 0, 10 );
-			$end   = substr( (string) get_post_meta( $event_id, '_EventEndDate', true ), 0, 10 );
-			if ( '' === $end ) {
-				$end = $start;
-			}
-			if ( ! self::overlaps_year( $start, $end, $year ) ) {
-				continue;
-			}
-			$tickets = ! Ticket_Collection::load_for_event( $event_id )->is_empty();
-			$rsvp     = get_post_meta( $event_id, '_oras_rsvp_v1', true );
-			$rsvp     = is_array( $rsvp ) && ! empty( $rsvp['enabled'] );
-			if ( ! $tickets && ! $rsvp ) {
-				continue;
-			}
-			$rows[] = array(
-				'event_id'      => $event_id,
-				'title'         => get_the_title( $event_id ),
-				'start_date'    => $start,
-				'end_date'      => $end,
-				'friendly_date' => self::friendly_date( $start, $end ),
-				'has_tickets'   => $tickets,
-				'has_rsvp'      => $rsvp,
-			);
 		}
 
 		return self::sort_rows( $rows, $today );
@@ -60,13 +38,41 @@ final class Event_Catalog {
 
 	/** @return array<string,mixed>|null */
 	public static function find( int $event_id ): ?array {
-		foreach ( self::current_year() as $event ) {
-			if ( $event_id === (int) $event['event_id'] ) {
-				return $event;
-			}
+		$today = wp_date( 'Y-m-d', null, wp_timezone() );
+
+		return self::eligible_row( $event_id, (int) substr( $today, 0, 4 ) );
+	}
+
+	/** @return array<string,mixed>|null */
+	private static function eligible_row( int $event_id, int $year ): ?array {
+		$post = get_post( $event_id );
+		if ( ! $post instanceof \WP_Post || 'tribe_events' !== $post->post_type || 'publish' !== $post->post_status ) {
+			return null;
+		}
+		$start = substr( (string) get_post_meta( $event_id, '_EventStartDate', true ), 0, 10 );
+		$end   = substr( (string) get_post_meta( $event_id, '_EventEndDate', true ), 0, 10 );
+		if ( '' === $end ) {
+			$end = $start;
+		}
+		if ( ! self::overlaps_year( $start, $end, $year ) ) {
+			return null;
+		}
+		$tickets = ! Ticket_Collection::load_for_event( $event_id )->is_empty();
+		$rsvp     = get_post_meta( $event_id, '_oras_rsvp_v1', true );
+		$rsvp     = is_array( $rsvp ) && ! empty( $rsvp['enabled'] );
+		if ( ! $tickets && ! $rsvp ) {
+			return null;
 		}
 
-		return null;
+		return array(
+			'event_id'      => $event_id,
+			'title'         => get_the_title( $event_id ),
+			'start_date'    => $start,
+			'end_date'      => $end,
+			'friendly_date' => self::friendly_date( $start, $end ),
+			'has_tickets'   => $tickets,
+			'has_rsvp'      => $rsvp,
+		);
 	}
 
 	public static function overlaps_year( string $start_date, string $end_date, int $year ): bool {
