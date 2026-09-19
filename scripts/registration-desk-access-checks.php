@@ -84,6 +84,8 @@ $catalog_class = '\\ORAS\\Tickets\\Registration_Desk\\Event_Catalog';
 $manager_class = '\\ORAS\\Tickets\\Registration_Desk\\Manager_Access';
 $caps_class    = '\\ORAS\\Tickets\\Capabilities';
 
+oras_access_assert( 'Synthetic Event – Many Types' === $catalog_class::display_title( 'Synthetic Event &#8211; Many Types' ), 'Event catalog decodes WordPress title entities for the kiosk' );
+
 $default = $config_class::normalize_event_config( array() );
 oras_access_assert( false === $default['enabled'], 'Desk feature is inactive by default' );
 oras_access_assert( 0 === $default['revision'], 'Missing configuration has revision zero' );

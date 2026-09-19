@@ -43,6 +43,10 @@ final class Event_Catalog {
 		return self::eligible_row( $event_id, (int) substr( $today, 0, 4 ) );
 	}
 
+	public static function display_title( string $title ): string {
+		return sanitize_text_field( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+	}
+
 	/** @return array<string,mixed>|null */
 	private static function eligible_row( int $event_id, int $year ): ?array {
 		$post = get_post( $event_id );
@@ -66,7 +70,7 @@ final class Event_Catalog {
 
 		return array(
 			'event_id'      => $event_id,
-			'title'         => get_the_title( $event_id ),
+			'title'         => self::display_title( get_the_title( $event_id ) ),
 			'start_date'    => $start,
 			'end_date'      => $end,
 			'friendly_date' => self::friendly_date( $start, $end ),
