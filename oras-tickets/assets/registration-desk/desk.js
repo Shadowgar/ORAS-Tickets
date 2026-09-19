@@ -194,13 +194,51 @@
 					<section class="desk-card desk-stat"><strong>${Number(summary.active_registrations || 0)}</strong><span>active registrations, not capacity remaining</span></section>
 					<section class="desk-card desk-stat"><strong>${Number(summary.reversed_today || 0)}</strong><span>attendance reversals today</span></section>
 				</div>
+				${state.station.can_manage ? `
+					<section class="desk-card desk-section">
+						<h2>Website registrations</h2>
+						<p class="desk-help">Refresh the desk's read-only search index from WooCommerce orders after setup or when search coverage is incomplete.</p>
+						<div id="desk-sync-message" aria-live="polite"></div>
+						<button type="button" class="desk-secondary" id="desk-sync-registrations">Sync website registrations</button>
+					</section>` : ''}
 				<section class="desk-section">
 					<div class="desk-section-heading"><h2>Recent arrivals</h2><button type="button" class="desk-secondary" id="desk-refresh">Refresh</button></div>
 					<div class="desk-stack">${renderRecent(data.recent || [])}</div>
 				</section>`;
 			main().querySelector('#desk-refresh').addEventListener('click', () => showDashboard());
+			main().querySelector('#desk-sync-registrations')?.addEventListener('click', syncWebsiteRegistrations);
 		} catch (error) {
 			main().innerHTML = `<h1>Dashboard</h1>${notice(error.message, 'error')}`;
+		}
+	}
+
+	async function syncWebsiteRegistrations(event) {
+		const button = event.currentTarget;
+		const message = main().querySelector('#desk-sync-message');
+		let continuation = '';
+		let scanned = 0;
+		let matching = 0;
+		let pages = 0;
+		button.disabled = true;
+		try {
+			do {
+				message.innerHTML = notice(`Syncing website registrations… page ${pages + 1}.`);
+				const data = await api('/project', {
+					method: 'POST',
+					body: JSON.stringify({continuation, limit: 50}),
+				});
+				pages += 1;
+				scanned += Number(data.scanned_orders || 0);
+				matching += Number(data.matching_items || 0);
+				continuation = String(data.continuation || '');
+				if (data.has_more && !continuation) {
+					throw new DeskError('Website registration sync stopped because the server did not return a continuation. Start the sync again.', 'recovery_continuation_missing');
+				}
+			} while (continuation);
+			await showDashboard(`Website registration sync complete: ${scanned} orders checked and ${matching} matching items refreshed.`);
+		} catch (error) {
+			message.innerHTML = notice(error.message, 'error');
+			button.disabled = false;
 		}
 	}
 

@@ -112,6 +112,8 @@ $desk_js = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/asset
 oras_operation_assert( false !== strpos( $desk_js, 'performCheckIn(form, registration, true)' ), 'Volunteer UI offers the explicit unpaid admission path when required' );
 oras_operation_assert( false !== strpos( $desk_js, 'reverseAttendance' ), 'Manager UI exposes audited attendance reversal' );
 oras_operation_assert( false !== strpos( $desk_js, 'saveCorrection' ), 'Manager UI exposes guarded manual-registration correction' );
+oras_operation_assert( false !== strpos( $desk_js, 'syncWebsiteRegistrations' ), 'Manager UI exposes initial website registration recovery' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/project'" ), 'Website registration recovery uses the manager-only projection endpoint' );
 oras_operation_assert( false !== strpos( $desk_js, 'URLSearchParams' ), 'Desk REST queries support both plain and pretty permalinks' );
 
 echo "Registration Desk operation checks passed.\n";
