@@ -150,7 +150,7 @@ final class Event_Roster_Service {
 					'rsvp_user_id'        => absint( $row['ID'] ),
 					'registration_uuid'   => '',
 					'name'                => '' !== $name ? $name : sanitize_text_field( (string) $row['display_name'] ),
-					'phone'               => self::mask_phone( (string) ( $contact['phone'] ?? '' ) ),
+					'phone'               => self::display_phone( (string) ( $contact['phone'] ?? '' ) ),
 					'registration_type'   => 'waitlist' === $status ? __( 'RSVP Waitlist', 'oras-tickets' ) : __( 'Event RSVP', 'oras-tickets' ),
 					'source_type'         => 'rsvp_website',
 					'rsvp_status'         => $status,
@@ -175,7 +175,7 @@ final class Event_Roster_Service {
 			'rsvp_user_id'      => 0,
 			'registration_uuid' => (string) $row['registration_uuid'],
 			'name'              => (string) $row['source_contact_name'],
-			'phone'             => self::mask_phone( (string) $row['source_phone'] ),
+			'phone'             => self::display_phone( (string) $row['source_phone'] ),
 			'registration_type' => self::historical_label( $row ),
 			'source_type'       => (string) $row['source_type'],
 			'rsvp_status'       => 'rsvp_waitlist' === (string) $row['source_type'] ? 'waitlist' : ( str_starts_with( (string) $row['source_type'], 'rsvp_' ) ? 'admitted' : '' ),
@@ -187,10 +187,8 @@ final class Event_Roster_Service {
 		);
 	}
 
-	private static function mask_phone( string $phone ): string {
-		$digits = preg_replace( '/\D+/', '', $phone ) ?? '';
-
-		return strlen( $digits ) >= 4 ? 'Phone ending ' . substr( $digits, -4 ) : '';
+	private static function display_phone( string $phone ): string {
+		return sanitize_text_field( $phone );
 	}
 
 	/** @param array<string,mixed> $left @param array<string,mixed> $right */
