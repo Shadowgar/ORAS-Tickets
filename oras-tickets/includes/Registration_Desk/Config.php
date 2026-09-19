@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Config {
 	public const EVENT_META_KEY = '_oras_registration_desk_v1';
 	public const ACTIVE_EVENT_OPTION = 'oras_registration_desk_active_event';
+	public const MEMBERSHIP_MAPPINGS_OPTION = 'oras_registration_desk_membership_mappings';
 
 	/** @return array<string,mixed> */
 	public static function get_event_config( int $event_id ): array {
@@ -78,6 +79,50 @@ final class Config {
 
 	public static function get_active_event_id(): int {
 		return absint( get_option( self::ACTIVE_EVENT_OPTION, 0 ) );
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public static function get_membership_mappings(): array {
+		$raw = get_option( self::MEMBERSHIP_MAPPINGS_OPTION, array() );
+
+		return self::normalize_membership_mappings( is_array( $raw ) ? $raw : array() );
+	}
+
+	/** @param array<int,mixed> $raw @return array<int,array<string,mixed>> */
+	public static function normalize_membership_mappings( array $raw ): array {
+		$mappings = array();
+		foreach ( $raw as $candidate ) {
+			if ( ! is_array( $candidate ) ) {
+				continue;
+			}
+			$level_id = absint( $candidate['level_id'] ?? 0 );
+			$name     = sanitize_text_field( (string) ( $candidate['display_name'] ?? '' ) );
+			$url      = esc_url_raw( (string) ( $candidate['checkout_url'] ?? '' ) );
+			$price    = preg_replace( '/[^0-9.]/', '', (string) ( $candidate['price'] ?? '' ) ) ?? '';
+			if ( $level_id <= 0 || '' === $name || '' === $url || '' === $price || ! is_numeric( $price ) ) {
+				continue;
+			}
+			$mappings[] = array(
+				'level_id'     => $level_id,
+				'display_name' => $name,
+				'price'        => number_format( (float) $price, 2, '.', '' ),
+				'checkout_url' => $url,
+				'behavior'     => 'zero_initial_preserve_recurring',
+			);
+		}
+
+		return $mappings;
+	}
+
+	/** @return array<string,mixed>|null */
+	public static function membership_mapping( int $level_id ): ?array {
+		foreach ( self::get_membership_mappings() as $mapping ) {
+			if ( $level_id === (int) $mapping['level_id'] ) {
+				return $mapping;
+			}
+		}
+
+		return null;
 	}
 
 	/** @return true|\WP_Error */

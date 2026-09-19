@@ -30,6 +30,7 @@ final class Admin_Settings {
 		if ( isset( $_GET['updated'] ) ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Registration Desk settings saved and activated.', 'oras-tickets' ) . '</p></div>';
 		}
+		echo '<h2>' . esc_html__( 'Manager PIN', 'oras-tickets' ) . '</h2><p>' . esc_html__( 'Set a four-digit PIN for manager tools inside the kiosk. The PIN is stored as a password hash.', 'oras-tickets' ) . '</p>';
 		echo '<p>' . esc_html__( 'Choose an event, configure its registration options, then save to make it the active desk event.', 'oras-tickets' ) . '</p>';
 		$events = get_posts(
 			array(
@@ -58,6 +59,16 @@ final class Admin_Settings {
 		echo '<input type="hidden" name="expected_active_event_id" value="' . esc_attr( (string) $active_event_id ) . '">';
 		echo '<input type="hidden" name="event_id" value="' . esc_attr( (string) $event_id ) . '">';
 		echo '<input type="hidden" name="expected_revision" value="' . esc_attr( (string) $config['revision'] ) . '">';
+		echo '<p><label><strong>' . esc_html__( 'New manager PIN', 'oras-tickets' ) . '</strong><br><input type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" name="manager_pin" autocomplete="new-password"> <span class="description">' . esc_html__( 'Leave blank to keep the current PIN.', 'oras-tickets' ) . '</span></label></p>';
+		echo '<h2>' . esc_html__( 'Offline membership activation', 'oras-tickets' ) . '</h2><p class="description">' . esc_html__( 'Map each supported PMPro level to its exact checkout page. Prices and URLs are configuration, never kiosk constants.', 'oras-tickets' ) . '</p>';
+		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'PMPro level ID', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Display name', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Reference price', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Exact checkout URL', 'oras-tickets' ) . '</th></tr></thead><tbody>';
+		$membership_mappings = Config::get_membership_mappings();
+		$membership_mappings[] = array();
+		foreach ( $membership_mappings as $mapping_index => $mapping ) {
+			$name = 'membership_levels[' . (int) $mapping_index . ']';
+			echo '<tr><td><input type="number" min="1" name="' . esc_attr( $name . '[level_id]' ) . '" value="' . esc_attr( (string) ( $mapping['level_id'] ?? '' ) ) . '"></td><td><input name="' . esc_attr( $name . '[display_name]' ) . '" value="' . esc_attr( (string) ( $mapping['display_name'] ?? '' ) ) . '"></td><td><input inputmode="decimal" name="' . esc_attr( $name . '[price]' ) . '" value="' . esc_attr( (string) ( $mapping['price'] ?? '' ) ) . '"></td><td><input type="url" class="large-text" name="' . esc_attr( $name . '[checkout_url]' ) . '" value="' . esc_attr( (string) ( $mapping['checkout_url'] ?? '' ) ) . '"></td></tr>';
+		}
+		echo '</tbody></table>';
 		echo '<h2>' . esc_html( get_the_title( $event_id ) ) . '</h2><p><label><input type="checkbox" name="enabled" value="1" ' . checked( ! empty( $config['enabled'] ), true, false ) . '> ' . esc_html__( 'Enable the volunteer desk for this event', 'oras-tickets' ) . '</label></p>';
 		echo '<p class="description">' . esc_html__( 'Product and source event IDs are explicit mappings. Leave them blank for walk-in-only options. No event-specific values are built into the plugin.', 'oras-tickets' ) . '</p>';
 		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'Option', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Access', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Type and validity', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Explicit source mappings', 'oras-tickets' ) . '</th></tr></thead><tbody>';
@@ -80,6 +91,15 @@ final class Admin_Settings {
 		$revision = isset( $_POST['expected_revision'] ) ? absint( wp_unslash( $_POST['expected_revision'] ) ) : 0;
 		$expected_active_event_id = isset( $_POST['expected_active_event_id'] ) ? absint( wp_unslash( $_POST['expected_active_event_id'] ) ) : 0;
 		$posted_options = isset( $_POST['options'] ) && is_array( $_POST['options'] ) ? wp_unslash( $_POST['options'] ) : array();
+		$manager_pin = isset( $_POST['manager_pin'] ) ? sanitize_text_field( wp_unslash( $_POST['manager_pin'] ) ) : '';
+		if ( '' !== $manager_pin ) {
+			$pin_saved = Manager_Access::set_pin( $manager_pin );
+			if ( $pin_saved instanceof \WP_Error ) {
+				wp_die( esc_html( $pin_saved->get_error_message() ) );
+			}
+		}
+		$posted_mappings = isset( $_POST['membership_levels'] ) && is_array( $_POST['membership_levels'] ) ? wp_unslash( $_POST['membership_levels'] ) : array();
+		update_option( Config::MEMBERSHIP_MAPPINGS_OPTION, Config::normalize_membership_mappings( $posted_mappings ), false );
 		$options = array();
 		foreach ( $posted_options as $posted ) {
 			if ( ! is_array( $posted ) ) {

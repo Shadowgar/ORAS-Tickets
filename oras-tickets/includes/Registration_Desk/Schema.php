@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Schema {
-	public const VERSION = 1;
+	public const VERSION = 2;
 	public const OPTION_VERSION = 'oras_registration_desk_schema_version';
 
 	/** @return array<string,string> */
@@ -18,10 +18,11 @@ final class Schema {
 		}
 
 		return array(
-			'registrations' => $prefix . 'oras_event_registrations',
-			'attendees'     => $prefix . 'oras_event_attendees',
-			'attendance'    => $prefix . 'oras_event_attendance',
-			'audit'         => $prefix . 'oras_event_audit',
+			'registrations'       => $prefix . 'oras_event_registrations',
+			'attendees'           => $prefix . 'oras_event_attendees',
+			'attendance'          => $prefix . 'oras_event_attendance',
+			'audit'               => $prefix . 'oras_event_audit',
+			'offline_memberships' => $prefix . 'oras_offline_memberships',
 		);
 	}
 
@@ -130,6 +131,46 @@ final class Schema {
 				KEY event_created (event_id,created_at_utc,id),
 				KEY registration_created (registration_uuid,created_at_utc,id),
 				KEY attendee_created (attendee_uuid,created_at_utc,id)
+			) {$suffix};",
+			"CREATE TABLE {$tables['offline_memberships']} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				activation_uuid char(36) NOT NULL,
+				request_uuid char(36) NOT NULL,
+				event_id bigint(20) unsigned NOT NULL,
+				first_name varchar(100) NOT NULL,
+				last_name varchar(100) NOT NULL,
+				email varchar(191) NOT NULL,
+				normalized_email varchar(191) NOT NULL,
+				phone varchar(64) NOT NULL DEFAULT '',
+				level_id bigint(20) unsigned NOT NULL,
+				level_name varchar(191) NOT NULL,
+				reference_price varchar(32) NOT NULL DEFAULT '',
+				checkout_url text NOT NULL,
+				payment_method varchar(16) NOT NULL,
+				credit_code varchar(64) NOT NULL,
+				discount_code_id bigint(20) unsigned NULL,
+				status varchar(24) NOT NULL DEFAULT 'pending',
+				email_status varchar(24) NOT NULL DEFAULT 'not_sent',
+				email_attempts int(10) unsigned NOT NULL DEFAULT 0,
+				last_email_at_utc datetime NULL,
+				expires_at_utc datetime NOT NULL,
+				linked_user_id bigint(20) unsigned NULL,
+				redeemed_at_utc datetime NULL,
+				cancelled_at_utc datetime NULL,
+				cancelled_by bigint(20) unsigned NULL,
+				cancel_reason text NULL,
+				actor_user_id bigint(20) unsigned NOT NULL,
+				station_uuid char(36) NOT NULL,
+				operator_label varchar(100) NOT NULL,
+				created_at_utc datetime NOT NULL,
+				updated_at_utc datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY activation_uuid (activation_uuid),
+				UNIQUE KEY request_uuid (request_uuid),
+				UNIQUE KEY credit_code (credit_code),
+				KEY event_status (event_id,status,id),
+				KEY email_status (normalized_email,status,id),
+				KEY discount_code_id (discount_code_id)
 			) {$suffix};",
 		);
 	}

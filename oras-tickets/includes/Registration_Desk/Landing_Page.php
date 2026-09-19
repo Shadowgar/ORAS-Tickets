@@ -66,6 +66,7 @@ final class Landing_Page {
 				'restUrl'     => untrailingslashit( rest_url( 'oras-tickets/v1/registration-desk' ) ),
 				'nonce'       => wp_create_nonce( 'wp_rest' ),
 				'appUrl'      => self::url(),
+				'markUrl'     => ORAS_TICKETS_URL . 'assets/registration-desk/oras-mark.png',
 				'timeZone'    => wp_timezone_string(),
 				'settingsUrl' => admin_url( 'admin.php?page=oras-registration-desk-settings' ),
 			)
@@ -74,8 +75,10 @@ final class Landing_Page {
 		echo '<!doctype html><html ';
 		language_attributes();
 		echo '><head>';
+		$mark_url = ORAS_TICKETS_URL . 'assets/registration-desk/oras-mark.png';
 		echo '<meta charset="' . esc_attr( get_option( 'blog_charset', 'UTF-8' ) ) . '"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">';
-		echo '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2230%22 fill=%22%23072f4b%22 stroke=%22%23f0b33a%22 stroke-width=%224%22/%3E%3Cpath d=%22M17 43 43 23M27 36l9 9M19 48h28%22 stroke=%22white%22 stroke-width=%224%22 fill=%22none%22/%3E%3C/svg%3E">';
+		echo '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="ORAS Desk"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#062d49">';
+		echo '<link rel="icon" type="image/png" href="' . esc_url( $mark_url ) . '"><link rel="apple-touch-icon" href="' . esc_url( $mark_url ) . '">';
 		echo '<title>' . esc_html__( 'Registration Desk', 'oras-tickets' ) . '</title>';
 		wp_head();
 		echo '</head><body class="oras-registration-desk-page">';

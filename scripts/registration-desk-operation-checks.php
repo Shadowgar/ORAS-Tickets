@@ -117,7 +117,7 @@ oras_operation_assert( false !== strpos( $desk_js, 'syncWebsiteRegistrations' ),
 oras_operation_assert( false !== strpos( $desk_js, "api('/project'" ), 'Website registration recovery uses the manager-only projection endpoint' );
 oras_operation_assert( false !== strpos( $desk_js, 'URLSearchParams' ), 'Desk REST queries support both plain and pretty permalinks' );
 oras_operation_assert( false !== strpos( $desk_js, 'WHAT DO YOU NEED TO DO?' ), 'Volunteer home uses the approved kiosk prompt' );
-oras_operation_assert( false !== strpos( $desk_js, 'FIND SOMEONE ALREADY REGISTERED' ), 'Volunteer home exposes a large registered-attendee task' );
+oras_operation_assert( false !== strpos( $desk_js, 'FIND A REGISTRATION' ), 'Volunteer home exposes a large registered-attendee task' );
 oras_operation_assert( false !== strpos( $desk_js, 'REGISTER A WALK-IN' ), 'Volunteer home exposes a large walk-in task' );
 oras_operation_assert( false === strpos( $desk_js, 'class="desk-nav"' ), 'Volunteer shell has no side navigation' );
 oras_operation_assert( false !== strpos( $desk_js, 'showWalkInStep' ), 'Walk-in registration is a stateful step-by-step wizard' );
@@ -127,11 +127,23 @@ oras_operation_assert( false !== strpos( $desk_js, 'showSuccess' ), 'Completed c
 oras_operation_assert( false !== strpos( $desk_js, 'friendlyError' ), 'Volunteer errors pass through a plain-language error mapper' );
 oras_operation_assert( false !== strpos( $desk_js, 'formatLocalTime' ), 'Volunteer timestamps use a site-local formatter' );
 oras_operation_assert( false !== strpos( $desk_js, 'showManagerArea' ), 'Manager functions are separated from normal volunteer tasks' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/events'" ), 'Volunteer chooses from the server event catalog after entering a name' );
+oras_operation_assert( false !== strpos( $desk_js, 'CHANGE EVENT' ), 'Compact header exposes event switching' );
+oras_operation_assert( false !== strpos( $desk_js, 'MEMBER LOOKUP' ), 'Volunteer home exposes read-only member lookup' );
+oras_operation_assert( false !== strpos( $desk_js, 'EVENT STATS' ), 'Volunteer home exposes shared event statistics' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/manager/unlock'" ), 'Manager Help performs PIN unlock inside the kiosk' );
+oras_operation_assert( false !== strpos( $desk_js, 'RECORD MEMBERSHIP' ), 'Manager area exposes the offline membership workflow' );
+oras_operation_assert( false !== strpos( $desk_js, 'Before taking payment, ask whether they are buying anything else today.' ), 'AlfaPOS handoff is a dedicated instruction step' );
+oras_operation_assert( false !== strpos( $desk_js, 'failureCount' ), 'Save recovery tracks repeated failure without discarding request identity' );
+oras_operation_assert( false !== strpos( $desk_js, 'RETURN HOME ONLY AFTER CONFIRMATION' ), 'Second save failure offers only confirmed abandonment' );
+oras_operation_assert( false === strpos( $desk_js, 'desk-today-count' ), 'Volunteer home does not contain count clutter' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $desk_css = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.css' );
 oras_operation_assert( false !== strpos( $desk_css, '--desk-navy:' ), 'Kiosk styling uses the approved navy brand foundation' );
 oras_operation_assert( false !== strpos( $desk_css, 'min-height: 56px' ), 'Kiosk controls provide large touch targets' );
 oras_operation_assert( false !== strpos( $desk_css, '@media (orientation: portrait)' ), 'Kiosk has an explicit iPad portrait layout' );
+oras_operation_assert( false !== strpos( $desk_css, '100dvh' ), 'Kiosk sizing uses the dynamic iOS viewport' );
+oras_operation_assert( false !== strpos( $desk_css, 'env(safe-area-inset-top)' ), 'Kiosk respects iOS safe-area insets' );
 
 echo "Registration Desk operation checks passed.\n";

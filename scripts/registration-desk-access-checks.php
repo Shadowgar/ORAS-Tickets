@@ -7,6 +7,8 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 require_once __DIR__ . '/fixtures/class-wp-error.php';
 
 $GLOBALS['oras_test_session_token'] = 'wordpress-session-a';
+$GLOBALS['oras_test_options']       = array();
+$GLOBALS['oras_test_transients']    = array();
 
 function wp_json_encode( mixed $value ): string|false {
 	// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone WordPress-function test double.
@@ -27,6 +29,23 @@ function sanitize_key( mixed $value ): string {
 	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
 function absint( mixed $value ): int {
 	return abs( (int) $value ); }
+function wp_hash_password( string $password ): string {
+	return password_hash( $password, PASSWORD_DEFAULT ); }
+function wp_check_password( string $password, string $hash ): bool {
+	return password_verify( $password, $hash ); }
+function get_option( string $key, mixed $default = false ): mixed {
+	return $GLOBALS['oras_test_options'][ $key ] ?? $default; }
+function update_option( string $key, mixed $value, bool $autoload = true ): bool {
+	$GLOBALS['oras_test_options'][ $key ] = $value;
+	return true; }
+function get_transient( string $key ): mixed {
+	return $GLOBALS['oras_test_transients'][ $key ] ?? false; }
+function set_transient( string $key, mixed $value, int $expiration ): bool {
+	$GLOBALS['oras_test_transients'][ $key ] = $value;
+	return true; }
+function delete_transient( string $key ): bool {
+	unset( $GLOBALS['oras_test_transients'][ $key ] );
+	return true; }
 
 function oras_access_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
@@ -44,6 +63,8 @@ $php_files  = array(
 	'includes/Registration_Desk/Config.php',
 	'includes/Registration_Desk/Access.php',
 	'includes/Registration_Desk/Station_Session.php',
+	'includes/Registration_Desk/Event_Catalog.php',
+	'includes/Registration_Desk/Manager_Access.php',
 	'includes/Registration_Desk/Admin_Settings.php',
 	'includes/Registration_Desk/Landing_Page.php',
 );
@@ -59,6 +80,8 @@ foreach ( array( 'assets/registration-desk/desk.css', 'assets/registration-desk/
 $config_class  = '\\ORAS\\Tickets\\Registration_Desk\\Config';
 $station_class = '\\ORAS\\Tickets\\Registration_Desk\\Station_Session';
 $access_class  = '\\ORAS\\Tickets\\Registration_Desk\\Access';
+$catalog_class = '\\ORAS\\Tickets\\Registration_Desk\\Event_Catalog';
+$manager_class = '\\ORAS\\Tickets\\Registration_Desk\\Manager_Access';
 $caps_class    = '\\ORAS\\Tickets\\Capabilities';
 
 $default = $config_class::normalize_event_config( array() );
@@ -121,6 +144,29 @@ $expired_token = $expired_body . '.' . hash_hmac( 'sha256', $expired_body, wp_sa
 $expired_result = $station_class::validate( $expired_token, 99, 123, 7 );
 oras_access_assert( $expired_result instanceof WP_Error && 'oras_desk_station_expired' === $expired_result->get_error_code(), 'Correctly signed expired station token is rejected without sleeping' );
 
+oras_access_assert( $catalog_class::overlaps_year( '2025-12-30', '2026-01-02', 2026 ), 'Event crossing New Year overlaps the current year' );
+oras_access_assert( ! $catalog_class::overlaps_year( '2025-01-01', '2025-12-31', 2026 ), 'Prior-year event does not overlap the current year' );
+$ordered = $catalog_class::sort_rows(
+	array(
+		array( 'event_id' => 1, 'start_date' => '2026-09-01', 'end_date' => '2026-09-01', 'title' => 'Earlier' ),
+		array( 'event_id' => 2, 'start_date' => '2026-10-01', 'end_date' => '2026-10-02', 'title' => 'Upcoming' ),
+		array( 'event_id' => 3, 'start_date' => '2026-09-19', 'end_date' => '2026-09-20', 'title' => 'Current' ),
+	),
+	'2026-09-19'
+);
+oras_access_assert( array( 3, 2, 1 ) === array_column( $ordered, 'event_id' ), 'Catalog sorts current, upcoming, then earlier events' );
+
+oras_access_assert( $manager_class::set_pin( '12' ) instanceof WP_Error, 'Manager PIN must contain exactly four digits' );
+oras_access_assert( true === $manager_class::set_pin( '4826' ), 'Valid manager PIN can be configured' );
+$stored_pin = (string) $GLOBALS['oras_test_options'][ $manager_class::PIN_HASH_OPTION ];
+oras_access_assert( '4826' !== $stored_pin && wp_check_password( '4826', $stored_pin ), 'Manager PIN is stored only as a password hash' );
+$manager_token = $manager_class::unlock( '4826', $session_a, 'test-device' );
+oras_access_assert( is_string( $manager_token ), 'Correct PIN issues a manager token' );
+oras_access_assert( is_array( $manager_class::validate( $manager_token, $session_a ) ), 'Manager token validates for the same station scope' );
+$changed_station = $session_a;
+$changed_station['event_id'] = 124;
+oras_access_assert( $manager_class::validate( $manager_token, $changed_station ) instanceof WP_Error, 'Changing event invalidates manager mode' );
+
 oras_access_assert( defined( $caps_class . '::REGISTRATION_DESK_ROLE' ), 'Dedicated desk role is defined' );
 oras_access_assert( in_array( 'oras_tickets_use_registration_desk', $caps_class::REGISTRATION_DESK_CAPS, true ), 'Desk role can use the desk' );
 oras_access_assert( in_array( 'oras_tickets_admit_registration_desk', $caps_class::REGISTRATION_DESK_CAPS, true ), 'Desk role can admit supported attendees' );
@@ -141,9 +187,13 @@ oras_access_assert( false !== strpos( $landing_code, 'filemtime' ), 'Desk assets
 oras_access_assert( false !== strpos( $landing_code, 'show_admin_bar( false )' ), 'Desk stays distraction-free for administrator stations' );
 oras_access_assert( false !== strpos( $landing_code, 'wp_timezone_string()' ), 'Desk browser formatting is bound to the WordPress timezone' );
 oras_access_assert( false !== strpos( $landing_code, "'settingsUrl'" ), 'Manager kiosk can link to desk configuration without exposing it to volunteers' );
-oras_access_assert( false !== strpos( $landing_code, 'rel="icon"' ), 'Standalone desk supplies an inline icon without a failing favicon request' );
+oras_access_assert( false !== strpos( $landing_code, 'apple-mobile-web-app-capable' ), 'Kiosk page alone opts into iOS standalone mode' );
+oras_access_assert( false !== strpos( $landing_code, 'assets/registration-desk/oras-mark.png' ), 'Kiosk metadata uses the local official ORAS mark' );
+oras_access_assert( file_exists( $plugin_dir . 'assets/registration-desk/oras-mark.png' ), 'Official ORAS mark is packaged locally' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $rest_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Rest_Controller.php' );
+oras_access_assert( false !== strpos( $rest_code, '/registration-desk/events' ), 'Volunteer startup exposes the eligible event catalog' );
+oras_access_assert( false !== strpos( $rest_code, "get_param( 'event_id' )" ), 'Station creation binds the explicitly selected event' );
 oras_access_assert( false !== strpos( $rest_code, "'friendly_date'" ), 'Station bootstrap supplies a friendly site-local date' );
 oras_access_assert( false !== strpos( $rest_code, 'html_entity_decode( wp_logout_url' ), 'Station bootstrap supplies a usable single-escaped logout URL' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.

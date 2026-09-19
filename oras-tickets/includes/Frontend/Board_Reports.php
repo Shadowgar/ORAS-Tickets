@@ -15,6 +15,7 @@ use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
 use ORAS\Tickets\Storage\Legacy_Membership_Store;
 use ORAS\Tickets\Storage\Manual_Observer_Pass_Store;
 use ORAS\Tickets\Waitlist_Store;
+use ORAS\Tickets\Registration_Desk\Event_Stats_Service;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -52,6 +53,7 @@ final class Board_Reports {
 	private const TAB_STATISTICS = 'statistics';
 	private const TAB_OBSERVER_PASSES = 'observer_passes';
 	private const TAB_MEMBERSHIPS = 'memberships';
+	private const TAB_EVENT_ATTENDANCE = 'event_registration_attendance';
 	private const OBSERVER_QUERY_PREFIX = 'oras_observer_';
 	private const MEMBERSHIP_QUERY_PREFIX = 'oras_membership_';
 
@@ -1239,6 +1241,8 @@ final class Board_Reports {
 				<?php self::render_observer_passes_tab( $observer_report, $observer_filters, $page_id ); ?>
 			<?php elseif ( self::TAB_MEMBERSHIPS === $active_tab ) : ?>
 				<?php self::render_memberships_tab( $membership_report, $membership_filters, $page_id ); ?>
+			<?php elseif ( self::TAB_EVENT_ATTENDANCE === $active_tab ) : ?>
+				<?php self::render_event_attendance_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
@@ -1356,6 +1360,60 @@ final class Board_Reports {
 				<p><strong><?php echo esc_html__( 'Selected event:', 'oras-tickets' ); ?></strong> <?php echo esc_html( get_the_title( $event_id ) ); ?></p>
 			<?php endif; ?>
 		</section>
+		<?php
+	}
+
+	private static function render_event_attendance_tab( int $event_id ): void {
+		if ( $event_id <= 0 ) {
+			echo '<section class="oras-board-reports__placeholder"><h3>' . esc_html__( 'Event Registration & Attendance', 'oras-tickets' ) . '</h3><p>' . esc_html__( 'Select an event to view its Registration Desk history.', 'oras-tickets' ) . '</p></section>';
+			return;
+		}
+		$stats = ( new Event_Stats_Service() )->for_event( $event_id );
+		$total = $stats['event_total'];
+		$memberships = $stats['memberships'];
+		$metrics = array(
+			__( 'Active registrations', 'oras-tickets' ) => (int) $total['active_registrations'],
+			__( 'People registered', 'oras-tickets' ) => (int) $total['people_registered'],
+			__( 'Unique attendees', 'oras-tickets' ) => (int) $total['unique_attendees'],
+			__( 'Attendance instances', 'oras-tickets' ) => (int) $total['attendance_instances'],
+			__( 'No-show registrations', 'oras-tickets' ) => (int) $total['no_show_registrations'],
+			__( 'Website registrations', 'oras-tickets' ) => (int) $total['website_registrations'],
+			__( 'Walk-in registrations', 'oras-tickets' ) => (int) $total['walk_in_registrations'],
+			__( 'Complimentary registrations', 'oras-tickets' ) => (int) $total['complimentary_registrations'],
+			__( 'Family registrations', 'oras-tickets' ) => (int) $total['family_registrations'],
+			__( 'Actual family attendees', 'oras-tickets' ) => (int) $total['family_attendees_attended'],
+		);
+		?>
+		<section class="oras-board-reports__placeholder">
+			<h3><?php echo esc_html( get_the_title( $event_id ) ); ?> — <?php echo esc_html__( 'Registration & Attendance', 'oras-tickets' ); ?></h3>
+			<p><?php echo esc_html__( 'Registration Desk payment methods are operational assertions only; no dollar revenue is calculated here.', 'oras-tickets' ); ?></p>
+			<div class="oras-board-reports__overview-grid">
+				<?php foreach ( $metrics as $label => $value ) : ?>
+					<div class="oras-board-reports__metric"><p class="oras-board-reports__metric-label"><?php echo esc_html( $label ); ?></p><p class="oras-board-reports__metric-value"><?php echo esc_html( number_format_i18n( $value ) ); ?></p></div>
+				<?php endforeach; ?>
+			</div>
+			<div class="oras-board-reports__overview-grid">
+				<?php self::render_event_count_group( __( 'Attendance by day', 'oras-tickets' ), $total['attendance_by_day'] ); ?>
+				<?php self::render_event_count_group( __( 'Registration/pass types', 'oras-tickets' ), $total['pass_types'] ); ?>
+				<?php self::render_event_count_group( __( 'One-day and full-event', 'oras-tickets' ), $total['validity'] ); ?>
+				<?php self::render_event_count_group( __( 'Walk-in payment assertions', 'oras-tickets' ), $total['payment_assertions'] ); ?>
+			</div>
+			<h4><?php echo esc_html__( 'Memberships originating at this event', 'oras-tickets' ); ?></h4>
+			<div class="oras-board-reports__overview-grid">
+				<?php self::render_event_count_group( __( 'Activation status', 'oras-tickets' ), array( 'Pending online activation' => $memberships['pending'], 'Redeemed / active' => $memberships['redeemed'], 'Expired unused codes' => $memberships['expired'], 'Cancelled codes' => $memberships['cancelled'] ) ); ?>
+				<?php self::render_event_count_group( __( 'Cash / Check recorded', 'oras-tickets' ), array( 'Cash' => $memberships['cash'], 'Check' => $memberships['check'] ) ); ?>
+				<?php self::render_event_count_group( __( 'Membership levels', 'oras-tickets' ), $memberships['levels'] ); ?>
+			</div>
+		</section>
+		<?php
+	}
+
+	/** @param array<string,int> $counts */
+	private static function render_event_count_group( string $title, array $counts ): void {
+		?>
+		<div class="oras-board-reports__metric"><p class="oras-board-reports__metric-label"><?php echo esc_html( $title ); ?></p><dl>
+			<?php foreach ( $counts as $label => $count ) : ?><div><dt><?php echo esc_html( ucwords( str_replace( '_', ' ', (string) $label ) ) ); ?></dt><dd><?php echo esc_html( number_format_i18n( (int) $count ) ); ?></dd></div><?php endforeach; ?>
+		</dl></div>
 		<?php
 	}
 
@@ -1748,9 +1806,11 @@ final class Board_Reports {
 		$website = isset( $row['website_membership'] ) && is_array( $row['website_membership'] ) ? $row['website_membership'] : array();
 		$history = isset( $row['membership_history'] ) && is_array( $row['membership_history'] ) ? $row['membership_history'] : array();
 		$legacy = isset( $row['legacy_paypal_records'] ) && is_array( $row['legacy_paypal_records'] ) ? $row['legacy_paypal_records'] : array();
+		$offline = isset( $row['offline_activation_records'] ) && is_array( $row['offline_activation_records'] ) ? $row['offline_activation_records'] : array();
 		if ( ! empty( $website ) ) echo '<section><h5>' . esc_html__( 'Website Membership', 'oras-tickets' ) . '</h5><p>' . esc_html( (string) ( $website['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $website['source_status'] ?? '' ) ) ) . '</p></section>';
 		if ( ! empty( $history ) ) { echo '<section><h5>' . esc_html__( 'Membership History', 'oras-tickets' ) . '</h5><ul>'; foreach ( $history as $record ) echo '<li>' . esc_html( (string) ( $record['level_name'] ?? '' ) . ' — ' . ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
 		if ( ! empty( $legacy ) ) { echo '<section><h5>' . esc_html__( 'Legacy PayPal', 'oras-tickets' ) . '</h5><ul>'; foreach ( $legacy as $record ) echo '<li>' . esc_html__( 'Profile ID:', 'oras-tickets' ) . ' ' . esc_html( (string) ( $record['paypal_reference'] ?? '' ) ) . ' — ' . esc_html( ucfirst( (string) ( $record['source_status'] ?? '' ) ) ) . '</li>'; echo '</ul></section>'; }
+		if ( ! empty( $offline ) ) { echo '<section><h5>' . esc_html__( 'Offline Event Activations', 'oras-tickets' ) . '</h5><ul>'; foreach ( $offline as $record ) echo '<li>' . esc_html( get_the_title( absint( $record['event_id'] ?? 0 ) ) . ' — ' . ucfirst( str_replace( '_', ' ', (string) ( $record['operational_status'] ?? '' ) ) ) . ' — Email ' . (string) ( $record['email_status'] ?? '' ) ) . '</li>'; echo '</ul></section>'; }
 	}
 
 	/** @param array<string,mixed> $report */
@@ -1862,6 +1922,7 @@ final class Board_Reports {
 			Membership_Report_Service::SOURCE_ALL     => __( 'All Sources', 'oras-tickets' ),
 			Membership_Report_Service::SOURCE_WEBSITE => __( 'Website / PMPro', 'oras-tickets' ),
 			Membership_Report_Service::SOURCE_LEGACY  => __( 'Legacy PayPal', 'oras-tickets' ),
+			Membership_Report_Service::SOURCE_OFFLINE => __( 'Offline Event Activation', 'oras-tickets' ),
 		);
 	}
 
@@ -1874,6 +1935,10 @@ final class Board_Reports {
 			Membership_Report_Service::STATUS_EXPIRED   => __( 'Expired', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_INACTIVE  => __( 'Inactive', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_CANCELLED => __( 'Cancelled', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_PENDING_ACTIVATION => __( 'Pending Online Activation', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_REDEEMED_OFFLINE => __( 'Redeemed Offline Activation', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_CREDIT_EXPIRED => __( 'Expired Credit', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_CREDIT_CANCELLED => __( 'Cancelled Credit', 'oras-tickets' ),
 		);
 	}
 
@@ -4076,6 +4141,7 @@ final class Board_Reports {
 			self::TAB_ATTENDEES       => __( 'Roster', 'oras-tickets' ),
 			self::TAB_OBSERVER_PASSES => __( 'Observer Passes', 'oras-tickets' ),
 			self::TAB_MEMBERSHIPS     => __( 'Memberships', 'oras-tickets' ),
+			self::TAB_EVENT_ATTENDANCE => __( 'Event Registration & Attendance', 'oras-tickets' ),
 		);
 	}
 

@@ -14,6 +14,12 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Audit_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Config.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Station_Session.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Catalog.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Manager_Access.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Offline_Membership_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Membership_Credit_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Member_Lookup_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Stats_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Landing_Page.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Access.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Admin_Settings.php';
@@ -112,6 +118,7 @@ final class Bootstrap
         \ORAS\Tickets\Privacy_Manager::register();
         \ORAS\Tickets\Event_Question_Attention_Store::maybe_upgrade();
 		\ORAS\Tickets\Registration_Desk\Schema::maybe_upgrade();
+		\ORAS\Tickets\Registration_Desk\Membership_Credit_Service::register();
         \ORAS\Tickets\Storage\Manual_Observer_Pass_Store::register();
         \ORAS\Tickets\Storage\Legacy_Membership_Store::register();
         if (class_exists(\ORAS\Tickets\Capabilities::class)) {

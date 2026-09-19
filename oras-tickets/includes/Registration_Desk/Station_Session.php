@@ -28,7 +28,7 @@ final class Station_Session {
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
-	public static function validate( string $token, int $user_id, int $event_id, int $config_revision ) {
+	public static function validate( string $token, int $user_id, ?int $event_id = null, ?int $config_revision = null ) {
 		$parts = explode( '.', trim( $token ) );
 		if ( 2 !== count( $parts ) ) {
 			return self::error( 'oras_desk_station_invalid', 'Station session is invalid.' );
@@ -48,10 +48,10 @@ final class Station_Session {
 		if ( $user_id !== (int) ( $payload['user_id'] ?? 0 ) || ! hash_equals( self::wordpress_session_digest(), (string) ( $payload['wp_session'] ?? '' ) ) ) {
 			return self::error( 'oras_desk_station_session_changed', 'WordPress session changed. Set up this station again.' );
 		}
-		if ( $event_id !== (int) ( $payload['event_id'] ?? 0 ) ) {
+		if ( null !== $event_id && $event_id !== (int) ( $payload['event_id'] ?? 0 ) ) {
 			return self::error( 'oras_desk_station_event_changed', 'The active event changed. Set up this station again.' );
 		}
-		if ( $config_revision !== (int) ( $payload['config_revision'] ?? -1 ) ) {
+		if ( null !== $config_revision && $config_revision !== (int) ( $payload['config_revision'] ?? -1 ) ) {
 			return self::error( 'oras_desk_station_config_changed', 'Registration Desk settings changed. Set up this station again.' );
 		}
 

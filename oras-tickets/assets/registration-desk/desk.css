@@ -31,6 +31,7 @@ html {
 
 body.oras-registration-desk-page {
 	margin: 0;
+	min-height: 100dvh;
 	background:
 		radial-gradient(circle at 10% 10%, rgb(8 118 209 / 5%), transparent 25rem),
 		linear-gradient(180deg, #fff 0, var(--desk-canvas) 75%);
@@ -121,6 +122,7 @@ button.desk-danger {
 
 .desk-shell {
 	min-height: 100vh;
+	min-height: 100dvh;
 }
 
 .desk-topbar {
@@ -132,7 +134,7 @@ button.desk-danger {
 	align-items: center;
 	gap: clamp(0.7rem, 1.5vw, 1.5rem);
 	min-height: 96px;
-	padding: 0.75rem clamp(1rem, 3vw, 2.5rem);
+	padding: calc(0.75rem + env(safe-area-inset-top)) max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-right)) 0.75rem max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-left));
 	background: linear-gradient(135deg, var(--desk-navy), var(--desk-navy-deep));
 	color: #fff;
 	box-shadow: 0 4px 18px rgb(2 24 40 / 25%);
@@ -158,18 +160,13 @@ button.desk-danger {
 	width: 58px;
 	height: 58px;
 	place-items: center;
-	border-radius: 50%;
-	color: var(--desk-gold);
+	color: #fff;
 }
 
-.desk-logo-mark svg {
+.desk-logo-mark img {
 	width: 100%;
 	height: 100%;
-	fill: none;
-	stroke: currentcolor;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-	stroke-width: 2.4;
+	object-fit: contain;
 }
 
 .desk-brand-copy strong,
@@ -240,9 +237,118 @@ button.desk-danger {
 .desk-main {
 	width: min(1120px, 100%);
 	min-height: calc(100vh - 96px);
+	min-height: calc(100dvh - 96px);
 	margin: 0 auto;
 	padding: clamp(1rem, 2.5vw, 2rem);
 	outline: none;
+}
+
+.desk-event-picker {
+	width: min(760px, calc(100vw - 2rem));
+	max-height: calc(100dvh - 2rem);
+	overflow: auto;
+}
+
+.desk-event-list {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.desk-event-card {
+	display: grid;
+	gap: 0.2rem;
+	width: 100%;
+	min-height: 92px;
+	padding: 1rem 1.2rem;
+	border: 2px solid var(--desk-line);
+	background: #fff;
+	color: var(--desk-ink);
+	text-align: left;
+}
+
+.desk-event-card strong {
+	font-size: clamp(1.05rem, 2vw, 1.35rem);
+}
+
+.desk-event-card small {
+	color: var(--desk-blue-dark);
+	font-weight: 800;
+}
+
+.desk-manager-banner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1rem;
+	padding: 0.65rem 1rem;
+	border-radius: 12px;
+	background: #7c2d12;
+	color: #fff;
+	letter-spacing: 0.08em;
+}
+
+.desk-manager-banner button {
+	min-height: 44px;
+	background: #fff;
+	color: #7c2d12;
+}
+
+.desk-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 0.8rem;
+	margin: 1rem 0;
+}
+
+.desk-stat-card {
+	display: grid;
+	gap: 0.2rem;
+	padding: 1rem;
+	border: 1px solid var(--desk-line);
+	border-radius: 14px;
+	background: #fff;
+}
+
+.desk-stat-card strong {
+	font-size: clamp(1.8rem, 4vw, 2.8rem);
+	color: var(--desk-navy);
+}
+
+.desk-segmented {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.5rem;
+}
+
+.desk-segmented button:not(.is-selected) {
+	background: #dbe7f0;
+	color: var(--desk-ink);
+}
+
+.desk-stats-breakdown {
+	margin-top: 1rem;
+	padding: 1rem;
+	border-radius: 14px;
+	background: #fff;
+}
+
+.desk-stats-breakdown > div {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.45rem 0;
+	border-top: 1px solid var(--desk-line);
+}
+
+.desk-all-checked {
+	display: grid;
+	gap: 0.7rem;
+	justify-items: start;
+	padding: 1.2rem;
+	border-radius: 14px;
+	background: #e7f8ef;
+	color: #075d39;
 }
 
 .desk-main h1,
@@ -1280,7 +1386,7 @@ button.desk-link-button {
 	}
 
 	.desk-event-block {
-		grid-column: 1 / -1;
+		grid-column: 1 / 3;
 		grid-row: 2;
 		border-top: 1px solid rgb(255 255 255 / 20%);
 		padding-top: 0.55rem;
@@ -1293,6 +1399,11 @@ button.desk-link-button {
 
 	.desk-logout {
 		grid-column: 3;
+	}
+
+	#desk-change-event {
+		grid-column: 3;
+		grid-row: 2;
 	}
 
 	.desk-main {
@@ -1356,7 +1467,13 @@ button.desk-link-button {
 	}
 
 	.desk-event-block {
-		grid-column: 1 / -1;
+		grid-column: 1;
+	}
+
+	#desk-change-event {
+		grid-column: 2;
+		grid-row: 2;
+		font-size: 0.72rem;
 	}
 
 	.desk-main {

@@ -149,8 +149,9 @@ foreach ( glob( $base . '*.php' ) as $file ) {
 	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads local source fixtures.
 	$new_code .= (string) file_get_contents( $file );
 }
-foreach ( array( 'payment_complete(', 'wc_create_order(', 'wp_insert_user(', 'update_status(', 'update_meta_data(', '->save(' ) as $forbidden_call ) {
+foreach ( array( 'payment_complete(', 'wc_create_order(', 'wp_insert_user(', 'update_status(', 'update_meta_data(', 'saveOrder(' ) as $forbidden_call ) {
 	oras_source_assert( false === strpos( $new_code, $forbidden_call ), "Desk backend does not call {$forbidden_call}" );
 }
+oras_source_assert( false !== strpos( $new_code, 'PMPro_Discount_Code' ), 'The explicit offline-membership exception reuses PMPro credits' );
 
 echo "Registration Desk source checks passed.\n";

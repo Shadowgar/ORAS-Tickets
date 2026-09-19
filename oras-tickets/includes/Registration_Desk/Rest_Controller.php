@@ -9,10 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Rest_Controller {
 	private Service $service;
 	private Projection_Service $projection;
+	private Membership_Credit_Service $membership_credit;
+	private Member_Lookup_Service $member_lookup;
 
-	public function __construct( ?Service $service = null, ?Projection_Service $projection = null ) {
+	public function __construct( ?Service $service = null, ?Projection_Service $projection = null, ?Membership_Credit_Service $membership_credit = null, ?Member_Lookup_Service $member_lookup = null ) {
 		$this->service    = $service ?? new Service();
 		$this->projection = $projection ?? new Projection_Service();
+		$this->membership_credit = $membership_credit ?? new Membership_Credit_Service();
+		$this->member_lookup      = $member_lookup ?? new Member_Lookup_Service();
 	}
 
 	public function register(): void {
@@ -22,11 +26,72 @@ final class Rest_Controller {
 	public function routes(): void {
 		register_rest_route(
 			'oras-tickets/v1',
+			'/registration-desk/events',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'events' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
 			'/registration-desk/station',
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'station' ),
 				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/manager/unlock',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'manager_unlock' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/members',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'member_lookup' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/memberships',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'memberships' ),
+					'permission_callback' => array( $this, 'permission_manage' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'record_membership' ),
+					'permission_callback' => array( $this, 'permission_manage' ),
+				),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/memberships/(?P<activation_uuid>[0-9a-f-]{36})/resend',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'resend_membership' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/memberships/(?P<activation_uuid>[0-9a-f-]{36})/cancel',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'cancel_membership' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
 			)
 		);
 		register_rest_route(
@@ -94,6 +159,15 @@ final class Rest_Controller {
 		);
 		register_rest_route(
 			'oras-tickets/v1',
+			'/registration-desk/stats',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'stats' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
 			'/registration-desk/registrations/walk-in',
 			array(
 				'methods'             => 'POST',
@@ -138,17 +212,33 @@ final class Rest_Controller {
 		return is_user_logged_in() && current_user_can( 'oras_tickets_admit_registration_desk' );
 	}
 
-	public function permission_manage(): bool {
-		return is_user_logged_in() && current_user_can( 'oras_tickets_manage_registration_desk' );
+	/** @return bool|\WP_Error */
+	public function permission_manage( ?\WP_REST_Request $request = null ) {
+		if ( ! $this->permission_use() || null === $request ) {
+			return false;
+		}
+		$station = $this->station_payload( $request );
+		if ( $station instanceof \WP_Error ) {
+			return $station;
+		}
+
+		return Manager_Access::validate( (string) $request->get_header( 'X-ORAS-Desk-Manager' ), $station ) instanceof \WP_Error
+			? new \WP_Error( 'oras_desk_manager_required', 'Enter the manager PIN to use this action.', array( 'status' => 403 ) )
+			: true;
+	}
+
+	public function events(): \WP_REST_Response {
+		return $this->response( array( 'items' => Event_Catalog::current_year() ) );
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
 	public function station( \WP_REST_Request $request ) {
-		$event_id = Config::get_active_event_id();
-		$config   = Config::get_event_config( $event_id );
-		if ( $event_id <= 0 || empty( $config['enabled'] ) ) {
-			return new \WP_Error( 'oras_desk_inactive', 'Registration Desk is not enabled for an active event.', array( 'status' => 409 ) );
+		$event_id = absint( $request->get_param( 'event_id' ) );
+		$event    = Event_Catalog::find( $event_id );
+		if ( null === $event ) {
+			return new \WP_Error( 'oras_desk_event_unavailable', 'Choose one of the available events.', array( 'status' => 400 ) );
 		}
+		$config   = Config::get_event_config( $event_id );
 		$label = sanitize_text_field( (string) $request->get_param( 'operator_label' ) );
 		if ( '' === $label ) {
 			return new \WP_Error( 'oras_desk_operator_required', 'Enter the operator name for this station.', array( 'status' => 400 ) );
@@ -157,18 +247,95 @@ final class Rest_Controller {
 
 		return $this->response(
 			array(
-				'station_token'   => $token,
-				'event_id'        => $event_id,
-				'event_title'     => get_the_title( $event_id ),
-				'config_revision' => (int) $config['revision'],
-				'operator_label'  => $label,
-				'options'         => $config['options'],
-				'local_date'      => wp_date( 'Y-m-d', null, wp_timezone() ),
-				'friendly_date'   => wp_date( 'l, F j, Y', null, wp_timezone() ),
-				'can_manage'      => current_user_can( 'oras_tickets_manage_registration_desk' ),
-				'logout_url'      => html_entity_decode( wp_logout_url( Landing_Page::url() ), ENT_QUOTES, 'UTF-8' ),
+				'station_token'          => $token,
+				'event_id'               => $event_id,
+				'event_title'            => (string) $event['title'],
+				'event_date'             => (string) $event['friendly_date'],
+				'config_revision'        => (int) $config['revision'],
+				'operator_label'         => $label,
+				'options'                => $config['options'],
+				'membership_levels'      => Config::get_membership_mappings(),
+				'local_date'             => wp_date( 'Y-m-d', null, wp_timezone() ),
+				'friendly_date'          => wp_date( 'l, F j, Y', null, wp_timezone() ),
+				'manager_pin_configured' => '' !== (string) get_option( Manager_Access::PIN_HASH_OPTION, '' ),
+				'logout_url'             => html_entity_decode( wp_logout_url( Landing_Page::url() ), ENT_QUOTES, 'UTF-8' ),
 			)
 		);
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function manager_unlock( \WP_REST_Request $request ) {
+		$station = $this->station_payload( $request );
+		if ( $station instanceof \WP_Error ) {
+			return $station;
+		}
+		$identity = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$token    = Manager_Access::unlock( preg_replace( '/\D+/', '', (string) $request->get_param( 'pin' ) ) ?? '', $station, $identity );
+		if ( $token instanceof \WP_Error ) {
+			return $token;
+		}
+
+		return $this->response( array( 'manager_token' => $token ) );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function member_lookup( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$query = sanitize_text_field( (string) $request->get_param( 'q' ) );
+		if ( strlen( $query ) < 2 ) {
+			return new \WP_Error( 'oras_desk_search_short', 'Enter at least two characters.', array( 'status' => 400 ) );
+		}
+
+		return $this->response( array( 'items' => $this->member_lookup->search( $query ) ) );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function memberships( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+
+		return $this->response( array( 'items' => ( new Offline_Membership_Store() )->for_event( (int) $context['event_id'] ) ) );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function record_membership( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$context['request_uuid'] = $this->request_uuid( $request );
+		$result = $this->membership_credit->create(
+			array(
+				'first_name'     => sanitize_text_field( (string) $request->get_param( 'first_name' ) ),
+				'last_name'      => sanitize_text_field( (string) $request->get_param( 'last_name' ) ),
+				'email'          => sanitize_email( (string) $request->get_param( 'email' ) ),
+				'phone'          => sanitize_text_field( (string) $request->get_param( 'phone' ) ),
+				'level_id'       => absint( $request->get_param( 'level_id' ) ),
+				'payment_method' => sanitize_key( (string) $request->get_param( 'payment_method' ) ),
+			),
+			$context
+		);
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function resend_membership( \WP_REST_Request $request ) {
+		$result = $this->membership_credit->resend( sanitize_text_field( (string) $request['activation_uuid'] ) );
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function cancel_membership( \WP_REST_Request $request ) {
+		$result = $this->membership_credit->cancel( sanitize_text_field( (string) $request['activation_uuid'] ), get_current_user_id(), sanitize_text_field( (string) $request->get_param( 'reason' ) ) );
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
@@ -217,7 +384,7 @@ final class Rest_Controller {
 			return $result;
 		}
 		$raw_registration = $result['registration'];
-		if ( current_user_can( 'oras_tickets_manage_registration_desk' ) && 'online' !== (string) $raw_registration['source_type'] ) {
+		if ( $this->is_manager_request( $request ) && 'online' !== (string) $raw_registration['source_type'] ) {
 			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
 			$address  = is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array();
 			$name     = preg_split( '/\s+/', trim( (string) $raw_registration['source_contact_name'] ), 2 );
@@ -305,6 +472,16 @@ final class Rest_Controller {
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
+	public function stats( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+
+		return $this->response( ( new Event_Stats_Service() )->for_event( (int) $context['event_id'] ) );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
 	public function create_walk_in( \WP_REST_Request $request ) {
 		$context = $this->context( $request );
 		if ( $context instanceof \WP_Error ) {
@@ -362,16 +539,12 @@ final class Rest_Controller {
 
 	/** @return array<string,mixed>|\WP_Error */
 	private function context( \WP_REST_Request $request ) {
-		$event_id = Config::get_active_event_id();
-		$config   = Config::get_event_config( $event_id );
-		if ( $event_id <= 0 || empty( $config['enabled'] ) ) {
-			return new \WP_Error( 'oras_desk_inactive', 'Registration Desk is not enabled for an active event.', array( 'status' => 409 ) );
-		}
-		$token   = (string) $request->get_header( 'X-ORAS-Desk-Station' );
-		$station = Station_Session::validate( $token, get_current_user_id(), $event_id, (int) $config['revision'] );
+		$station = $this->station_payload( $request );
 		if ( $station instanceof \WP_Error ) {
 			return $station;
 		}
+		$event_id = (int) $station['event_id'];
+		$config   = Config::get_event_config( $event_id );
 
 		return array(
 			'event_id'        => $event_id,
@@ -380,6 +553,31 @@ final class Rest_Controller {
 			'station_uuid'    => (string) $station['station_uuid'],
 			'operator_label'  => (string) $station['operator_label'],
 		);
+	}
+
+	/** @return array<string,mixed>|\WP_Error */
+	private function station_payload( \WP_REST_Request $request ) {
+		$token   = (string) $request->get_header( 'X-ORAS-Desk-Station' );
+		$station = Station_Session::validate( $token, get_current_user_id() );
+		if ( $station instanceof \WP_Error ) {
+			return $station;
+		}
+		$event_id = (int) ( $station['event_id'] ?? 0 );
+		$config   = Config::get_event_config( $event_id );
+		if ( (int) ( $station['config_revision'] ?? -1 ) !== (int) $config['revision'] ) {
+			return new \WP_Error( 'oras_desk_station_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 401 ) );
+		}
+		if ( null === Event_Catalog::find( $event_id ) ) {
+			return new \WP_Error( 'oras_desk_station_event_changed', 'That event is no longer available. Choose an event again.', array( 'status' => 401 ) );
+		}
+
+		return $station;
+	}
+
+	private function is_manager_request( \WP_REST_Request $request ): bool {
+		$station = $this->station_payload( $request );
+
+		return is_array( $station ) && is_array( Manager_Access::validate( (string) $request->get_header( 'X-ORAS-Desk-Manager' ), $station ) );
 	}
 
 	private function request_uuid( \WP_REST_Request $request ): string {

@@ -435,14 +435,15 @@ function oras_desk_integration_prepare(): void {
 	Schema::install();
 	$tables_first = Schema::table_names();
 	Schema::install();
-	oras_desk_integration_true( Schema::tables_exist(), 'repeat-safe schema setup leaves all four tables present' );
-	oras_desk_integration_true( Schema::verify_transactional_tables(), 'all four desk tables use InnoDB' );
-	oras_desk_integration_same( count( $tables_first ), 4, 'schema owns exactly four desk tables' );
+	oras_desk_integration_true( Schema::tables_exist(), 'repeat-safe schema setup leaves all five tables present' );
+	oras_desk_integration_true( Schema::verify_transactional_tables(), 'all five desk tables use InnoDB' );
+	oras_desk_integration_same( count( $tables_first ), 5, 'schema owns four registration tables and one pending-membership table' );
 
 	$run        = strtolower( wp_generate_password( 8, false, false ) );
 	$today      = wp_date( 'Y-m-d', null, wp_timezone() );
 	$yesterday  = wp_date( 'Y-m-d', time() - DAY_IN_SECONDS, wp_timezone() );
 	$event_id   = oras_desk_integration_event( $run, 'active', $today, $today );
+	update_post_meta( $event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
 	$other_id   = oras_desk_integration_event( $run, 'other', $today, $today );
 	$past_id    = oras_desk_integration_event( $run, 'past', $yesterday, $yesterday );
 	$config_fail_id = oras_desk_integration_event( $run, 'config-failure', $today, $today );
@@ -698,6 +699,7 @@ function oras_desk_integration_prepare(): void {
 	rest_get_server();
 	$station_request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/station' );
 	$station_request->set_param( 'operator_label', 'REST Operator' );
+	$station_request->set_param( 'event_id', $event_id );
 	$station_response = rest_do_request( $station_request );
 	oras_desk_integration_same( $station_response->get_status(), 200, 'restricted desk account can bootstrap a station without an existing station token' );
 	$bypass_response = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/users' ) );
