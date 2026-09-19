@@ -168,6 +168,10 @@
 		if (code === 'oras_desk_pin_rate_limited') return 'Too many incorrect tries. Please wait a few minutes.';
 		if (code === 'oras_desk_membership_unavailable') return 'Membership activation is unavailable. Ask an administrator to check PMPro.';
 		if (code === 'oras_desk_membership_email_failed') return 'Membership was recorded, but the email could not be sent.';
+		if (code === 'oras_desk_offering_changed') return 'That registration option changed. Return to ticket selection and review the current name, price, and availability.';
+		if (code === 'oras_desk_rsvp_closed') return 'RSVP registration is not open for this event.';
+		if (code === 'oras_desk_rsvp_full') return 'This event is full and no RSVP waitlist is available.';
+		if (code === 'oras_desk_rsvp_waitlisted') return 'This person is on the RSVP waitlist and has not been admitted.';
 		if (code === 'oras_desk_contact_required') {
 			return 'Enter a first name, last name, valid email address, and phone number.';
 		}
@@ -200,7 +204,7 @@
 
 	function availableOptions(administrator = false) {
 		return (state.station?.options || [])
-			.filter((option) => administrator || option.available_for_new)
+			.filter((option) => option.visible !== false)
 			.filter((option) => ['individual', 'family'].includes(option.classification) && ['full_event', 'one_day'].includes(option.validity_type))
 			.filter((option) => option.validity_type !== 'one_day' || option.valid_local_date === state.station.local_date);
 	}
@@ -582,10 +586,21 @@
 		}
 	}
 
-	function startWalkInWizard(administrator) {
+	async function startWalkInWizard(administrator) {
 		state.view = administrator ? 'complimentary' : 'walk-in';
 		resetPending();
-		state.wizard = {administrator, step: 'type', data: {first_name: '', last_name: '', email: '', phone: '', address_1: '', address_2: '', city: '', state: '', postcode: '', option_uuid: '', valid_local_date: '', source_type: 'complimentary'}, additional_attendees: [], payment: ''};
+		main().innerHTML = '<section class="desk-centered"><h1>LOADING CURRENT REGISTRATION OPTIONS…</h1></section>';
+		try {
+			const response = await api('/offerings');
+			state.station.options = Array.isArray(response.items) ? response.items : [];
+			saveStation(state.station);
+		} catch (error) {
+			main().innerHTML = `<section class="desk-centered">${notice(friendlyError(error), 'error')}<button type="button" id="desk-offerings-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-offerings-home">RETURN HOME</button></section>`;
+			main().querySelector('#desk-offerings-retry').addEventListener('click', () => startWalkInWizard(administrator));
+			main().querySelector('#desk-offerings-home').addEventListener('click', showHome);
+			return;
+		}
+		state.wizard = {administrator, step: 'type', data: {first_name: '', last_name: '', email: '', phone: '', address_1: '', address_2: '', city: '', state: '', postcode: '', option_uuid: '', offering_fingerprint: '', valid_local_date: '', source_type: 'complimentary'}, additional_attendees: [], payment: ''};
 		showWalkInStep('type');
 	}
 
@@ -594,6 +609,7 @@
 		const steps = ['type', 'contact'];
 		if (option.classification === 'family') steps.push('attendees');
 		steps.push('review');
+		if (option.kind === 'rsvp') return steps;
 		if (state.wizard?.administrator) steps.push('kind');
 		else steps.push('handoff', 'payment');
 		return steps;
@@ -625,10 +641,11 @@
 
 	function showWizardType() {
 		const options = availableOptions(state.wizard.administrator);
-		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">${state.wizard.administrator ? 'Manager registration' : 'Walk-in registration'}</p><h1>WHAT TYPE OF REGISTRATION?</h1><p>Tap the option that applies.</p></div><div class="desk-option-grid">${options.map((option) => `<button type="button" class="desk-option-card" data-option="${escapeHtml(option.option_uuid)}"><span class="desk-option-icon">${icon(option.validity_type === 'one_day' ? 'calendar' : option.classification === 'family' ? 'family' : 'person')}</span><strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(registrationType(option))}</span>${option.validity_type === 'one_day' ? `<small>${escapeHtml(formatDateValue(option.valid_local_date))}</small>` : '<small>All event days</small>'}</button>`).join('')}</div>${options.length ? '' : notice('No walk-in registration types are available. Please ask a manager for help.', 'warning')}`, showHome);
+		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">${state.wizard.administrator ? 'Manager registration' : 'Walk-in registration'}</p><h1>WHAT TYPE OF REGISTRATION?</h1><p>These choices come directly from the selected event.</p></div><div class="desk-option-grid">${options.map((option) => `<button type="button" class="desk-option-card" data-option="${escapeHtml(option.option_uuid)}" ${option.selectable ? '' : 'disabled'}><span class="desk-option-icon">${icon(option.kind === 'rsvp' || option.validity_type === 'one_day' ? 'calendar' : option.classification === 'family' ? 'family' : 'person')}</span><strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option))}</span>${option.description ? `<small>${escapeHtml(option.description)}</small>` : ''}<small>${option.kind === 'rsvp' ? escapeHtml(option.availability_label) : `${escapeHtml(option.attendance_mode === 'virtual' ? 'Virtual' : 'On-site')} · $${Number(option.price || 0).toFixed(2)} · ${escapeHtml(option.availability_label)}`}</small></button>`).join('')}</div>${options.length ? '' : notice('No current walk-in registration choices are available. Please ask a manager for help.', 'warning')}`, showHome);
 		main().querySelectorAll('[data-option]').forEach((button) => button.addEventListener('click', () => {
 			const option = optionFor(button.dataset.option);
 			state.wizard.data.option_uuid = option.option_uuid;
+			state.wizard.data.offering_fingerprint = option.offering_fingerprint || '';
 			state.wizard.data.valid_local_date = option.validity_type === 'one_day' ? option.valid_local_date : '';
 			showWalkInStep('contact');
 		}));
@@ -672,9 +689,9 @@
 		const data = state.wizard.data;
 		const option = optionFor(data.option_uuid);
 		const familyCount = 1 + state.wizard.additional_attendees.length;
-		wizardFrame(`<div class="desk-wizard-heading"><h1>PLEASE CHECK THIS INFORMATION</h1><p>Nothing has been saved yet.</p></div><section class="desk-review-card"><dl><dt>Name</dt><dd>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</dd><dt>Email</dt><dd>${escapeHtml(data.email)}</dd><dt>Phone</dt><dd>${escapeHtml(data.phone)}</dd><dt>Registration</dt><dd>${escapeHtml(option.label)}<small>${escapeHtml(registrationType(option))}</small></dd>${option.validity_type === 'one_day' ? `<dt>Day</dt><dd>${escapeHtml(formatDateValue(data.valid_local_date))}</dd>` : ''}<dt>Checking in</dt><dd>${familyCount} ${familyCount === 1 ? 'person' : 'people'} today</dd></dl></section><div class="desk-actions desk-review-actions"><button type="button" class="desk-secondary" id="desk-review-back">GO BACK AND FIX</button><button type="button" class="desk-primary" id="desk-review-correct">INFORMATION IS CORRECT ${icon('arrow')}</button></div>`, () => showWalkInStep(option.classification === 'family' ? 'attendees' : 'contact'));
+		wizardFrame(`<div class="desk-wizard-heading"><h1>PLEASE CHECK THIS INFORMATION</h1><p>Nothing has been saved yet.</p></div><section class="desk-review-card"><dl><dt>Name</dt><dd>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</dd><dt>Email</dt><dd>${escapeHtml(data.email)}</dd><dt>Phone</dt><dd>${escapeHtml(data.phone)}</dd><dt>Registration</dt><dd>${escapeHtml(option.label)}<small>${escapeHtml(option.kind === 'rsvp' ? option.availability_label : registrationType(option))}</small></dd>${option.validity_type === 'one_day' ? `<dt>Day</dt><dd>${escapeHtml(formatDateValue(data.valid_local_date))}</dd>` : ''}<dt>${option.kind === 'rsvp' && option.availability === 'waitlist' ? 'Outcome' : 'Checking in'}</dt><dd>${option.kind === 'rsvp' && option.availability === 'waitlist' ? 'Add to waitlist — no check-in' : `${familyCount} ${familyCount === 1 ? 'person' : 'people'} today`}</dd></dl></section><div id="desk-payment-message"></div><div class="desk-actions desk-review-actions"><button type="button" class="desk-secondary" id="desk-review-back">GO BACK AND FIX</button><button type="button" class="desk-primary" id="desk-review-correct">INFORMATION IS CORRECT ${icon('arrow')}</button></div>`, () => showWalkInStep(option.classification === 'family' ? 'attendees' : 'contact'));
 		main().querySelector('#desk-review-back').addEventListener('click', () => showWalkInStep('contact'));
-		main().querySelector('#desk-review-correct').addEventListener('click', () => showWalkInStep(state.wizard.administrator ? 'kind' : 'handoff'));
+		main().querySelector('#desk-review-correct').addEventListener('click', () => option.kind === 'rsvp' ? saveManual('rsvp', false) : showWalkInStep(state.wizard.administrator ? 'kind' : 'handoff'));
 	}
 
 	function showWizardHandoff() {
@@ -726,15 +743,18 @@
 		const payload = {...state.pendingPayload, payment_assertion: payment, duplicate_acknowledged: acknowledge};
 		const target = administrator ? '/registrations/complimentary' : '/registrations/walk-in';
 		const message = main().querySelector('#desk-payment-message') || main().querySelector('#desk-kind-message');
+		const pendingOption = optionFor(state.pendingPayload.option_uuid);
 		main().querySelectorAll('button').forEach((button) => { button.disabled = true; });
 		try {
 			const result = await api(target, {method: 'POST', body: JSON.stringify(payload)}, state.pendingRequest);
 			const count = result.historical_result?.attendance?.length || 1;
 			const attendance = result.historical_result?.attendance?.[0] || result.current_attendance?.[0];
 			const name = `${state.pendingPayload.first_name} ${state.pendingPayload.last_name}`.trim();
-			const option = optionFor(state.pendingPayload.option_uuid);
+			const option = pendingOption;
+			const outcome = result.historical_result?.result || '';
 			resetPending();
-			showSuccess({kind: administrator ? 'manager' : 'walk-in', name, count, type: registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
+			if (outcome === 'rsvp_waitlisted') showWaitlistSuccess(name);
+			else showSuccess({kind: administrator ? 'manager' : 'walk-in', name, count, type: option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
 		} catch (error) {
 			main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 			if (error.code === 'oras_desk_possible_duplicate') {
@@ -742,6 +762,8 @@
 				message.innerHTML = `<div class="desk-confirm-card desk-duplicate-card"><h2>POSSIBLE MATCH FOUND</h2><p>Another registration uses the same email or phone. Nothing will be merged.</p>${candidates.map((candidate) => `<div class="desk-duplicate-name"><strong>${escapeHtml(candidate.contact_name || 'Existing registration')}</strong><span>${escapeHtml(sourceLabel(candidate.source_type))}</span></div>`).join('')}<p><strong>If payment was handled in AlfaPOS, do not collect it again.</strong></p><div class="desk-actions"><button type="button" id="desk-continue-duplicate">KEEP SEPARATE AND RETRY</button><button type="button" class="desk-secondary" id="desk-duplicate-manager">ASK A MANAGER</button></div></div>`;
 				message.querySelector('#desk-continue-duplicate').addEventListener('click', () => saveManual(payment, administrator, true));
 				message.querySelector('#desk-duplicate-manager').addEventListener('click', () => { message.innerHTML = notice('Please ask a manager to review the possible match. Keep this screen open.', 'warning'); });
+			} else if (pendingOption.kind === 'rsvp') {
+				showRsvpRefusal(message, error);
 			} else if (!administrator) {
 				state.failureCount += 1;
 				persistPending();
@@ -751,6 +773,23 @@
 				message.querySelector('#desk-save-retry').addEventListener('click', () => saveManual(payment, administrator, acknowledge));
 			}
 		}
+	}
+
+	function showRsvpRefusal(container, error) {
+		resetPending();
+		const full = error.code === 'oras_desk_rsvp_full';
+		container.innerHTML = `<div class="desk-confirm-card desk-rsvp-refusal"><span class="desk-large-icon">${icon('help')}</span><h2>${full ? 'EVENT IS FULL' : 'RSVP NOT AVAILABLE'}</h2><p>${escapeHtml(friendlyError(error))}</p><p><strong>This person was not registered or checked in.</strong></p><div class="desk-actions"><button type="button" class="desk-secondary" id="desk-rsvp-review">REVIEW CURRENT OPTIONS</button><button type="button" class="desk-secondary" id="desk-rsvp-home">RETURN HOME</button></div></div>`;
+		container.querySelector('#desk-rsvp-review').addEventListener('click', () => startWalkInWizard(false));
+		container.querySelector('#desk-rsvp-home').addEventListener('click', showHome);
+	}
+
+	function showWaitlistSuccess(name) {
+		state.view = 'success';
+		state.wizard = null;
+		main().innerHTML = `<section class="desk-success-screen desk-waitlist-screen"><span class="desk-large-icon">${icon('calendar')}</span><p class="desk-eyebrow">RSVP waitlist</p><h1>ADDED TO THE WAITLIST</h1><p class="desk-success-name">${escapeHtml(name)}</p><p><strong>This person was not admitted or checked in.</strong></p><p>The event is currently full. Their accountless RSVP was saved to the waitlist.</p><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">REGISTER ANOTHER</button></div></section>`;
+		main().querySelector('#desk-success-home').addEventListener('click', showHome);
+		main().querySelector('#desk-success-another').addEventListener('click', () => startWalkInWizard(false));
+		focusMain();
 	}
 
 	function showPaymentRecovery(container, error, payment, acknowledge) {

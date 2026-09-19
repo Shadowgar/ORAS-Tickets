@@ -19,7 +19,15 @@ final class Event_Stats_Service {
 		}
 		$registrations = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$tables['registrations']} WHERE event_id = %d AND status = 'active' ORDER BY id", $event_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name.
 		foreach ( is_array( $registrations ) ? $registrations : array() as &$registration ) {
-			$registration['option_label'] = $labels[ (string) $registration['option_uuid'] ] ?? __( 'Other', 'oras-tickets' );
+			$evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
+			$snapshot = is_array( $evidence['offering'] ?? null ) ? sanitize_text_field( (string) ( $evidence['offering']['label'] ?? '' ) ) : '';
+			if ( '' === $snapshot && 'online' === (string) $registration['source_type'] && is_array( $evidence ) ) {
+				$snapshot = sanitize_text_field( (string) ( $evidence['item_label'] ?? '' ) );
+			}
+			if ( '' === $snapshot && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
+				$snapshot = 'RSVP';
+			}
+			$registration['option_label'] = '' !== $snapshot ? $snapshot : ( $labels[ (string) $registration['option_uuid'] ] ?? __( 'Other', 'oras-tickets' ) );
 			$registration['created_local_date'] = get_date_from_gmt( (string) $registration['created_at_utc'], 'Y-m-d' );
 		}
 		unset( $registration );
@@ -74,7 +82,7 @@ final class Event_Stats_Service {
 			if ( 'walk_in' === (string) ( $registration['source_type'] ?? '' ) && isset( $payment[ $assertion ] ) ) {
 				++$payment[ $assertion ];
 			}
-			if ( 'walk_in' === (string) ( $registration['source_type'] ?? '' ) && $today === (string) ( $registration['created_local_date'] ?? '' ) ) {
+			if ( in_array( (string) ( $registration['source_type'] ?? '' ), array( 'walk_in', 'rsvp_walk_in' ), true ) && $today === (string) ( $registration['created_local_date'] ?? '' ) ) {
 				++$new_walk_ins;
 			}
 		}
@@ -181,6 +189,9 @@ final class Event_Stats_Service {
 		}
 		if ( 'speaker' === $source ) {
 			return 'complimentary';
+		}
+		if ( in_array( $source, array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
+			return 'walk_in';
 		}
 
 		return in_array( $source, array( 'walk_in', 'complimentary' ), true ) ? $source : 'website';

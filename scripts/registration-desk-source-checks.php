@@ -6,6 +6,8 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 require_once __DIR__ . '/fixtures/class-wp-error.php';
 
+$GLOBALS['oras_source_meta'] = array();
+
 function sanitize_email( mixed $value ): string {
 	return strtolower( trim( (string) $value ) ); }
 function sanitize_text_field( mixed $value ): string {
@@ -13,6 +15,21 @@ function sanitize_text_field( mixed $value ): string {
 	return trim( strip_tags( (string) $value ) ); }
 function sanitize_key( mixed $value ): string {
 	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' ); }
+function absint( mixed $value ): int {
+	return abs( (int) $value ); }
+function wp_json_encode( mixed $value ): string|false {
+	return json_encode( $value ); }
+function get_post_meta( int $post_id, string $key, bool $single = false ): mixed {
+	return $GLOBALS['oras_source_meta'][ $post_id ][ $key ] ?? ''; }
+function wc_get_product( int $product_id ): object {
+	return new class($product_id) {
+		public function __construct( private int $id ) {}
+		public function get_name(): string { return 'Canonical product ' . $this->id; }
+		public function managing_stock(): bool { return false; }
+		public function is_purchasable(): bool { return true; }
+		public function is_in_stock(): bool { return true; }
+	};
+}
 function oras_source_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Standalone CLI test output.
@@ -23,7 +40,11 @@ function oras_source_assert( bool $condition, string $message ): void {
 	fwrite( STDOUT, "PASS: {$message}\n" );
 }
 
-$base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
+$includes = dirname( __DIR__ ) . '/oras-tickets/includes/';
+foreach ( array( 'Domain/Meta.php', 'Domain/Ticket.php', 'Domain/Ticket_Collection.php', 'Domain/Pricing/Price_Resolver.php', 'Domain/Event_Offering_Resolver.php' ) as $file ) {
+	require_once $includes . $file;
+}
+$base = $includes . 'Registration_Desk/';
 foreach ( array( 'Coverage_Store.php', 'Recovery_Cursor.php', 'Source_Change_Listener.php', 'Source_Adapter.php', 'Source_Resolver.php', 'Eligibility.php', 'Projection_Service.php' ) as $file ) {
 	oras_source_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
@@ -32,43 +53,60 @@ foreach ( array( 'Coverage_Store.php', 'Recovery_Cursor.php', 'Source_Change_Lis
 $resolver = '\\ORAS\\Tickets\\Registration_Desk\\Source_Resolver';
 $policy   = '\\ORAS\\Tickets\\Registration_Desk\\Eligibility';
 
+$ticket = static fn( string $key, string $name ): array => array(
+	'ticket_key'     => $key,
+	'name'           => $name,
+	'price'          => '25.00',
+	'price_phases'   => array(),
+	'capacity'       => 0,
+	'sale_start'     => '',
+	'sale_end'       => '',
+	'description'    => '',
+	'attendance_mode'=> 'onsite',
+	'hide_sold_out'  => false,
+);
+$GLOBALS['oras_source_meta'][123]['_oras_tickets_v1'] = array(
+	'schema'  => 1,
+	'tickets' => array(
+		'individual' => $ticket( 'individual', 'Canonical Individual' ),
+		'family'     => $ticket( 'family', 'Canonical Family' ),
+		'day'        => $ticket( 'day', 'Canonical Day' ),
+	),
+);
+$GLOBALS['oras_source_meta'][123]['_oras_tickets_woo_map_v1'] = array( 42, 43, 44 );
+
 $config = array(
 	'enabled'  => true,
 	'revision' => 4,
-	'options'  => array(
+	'ticket_rules'  => array(
 		array(
-			'option_uuid'           => '11111111-1111-4111-8111-111111111111',
-			'label'                 => 'Synthetic Individual',
-			'available_for_new'     => false,
-			'existing_access_valid' => true,
+			'ticket_key'            => 'individual',
 			'classification'        => 'individual',
 			'validity_type'         => 'full_event',
-			'source_product_ids'    => array( 42 ),
-			'source_event_ids'      => array( 123, 456 ),
 			'max_attendees'         => 1,
 		),
 		array(
-			'option_uuid'           => '22222222-2222-4222-8222-222222222222',
-			'label'                 => 'Synthetic Family',
-			'available_for_new'     => true,
-			'existing_access_valid' => true,
+			'ticket_key'            => 'family',
 			'classification'        => 'family',
 			'validity_type'         => 'full_event',
-			'source_product_ids'    => array( 43 ),
-			'source_event_ids'      => array( 123 ),
 			'max_attendees'         => 5,
 		),
 		array(
-			'option_uuid'           => '33333333-3333-4333-8333-333333333333',
-			'label'                 => 'Synthetic Day',
-			'available_for_new'     => true,
-			'existing_access_valid' => true,
+			'ticket_key'            => 'day',
 			'classification'        => 'individual',
 			'validity_type'         => 'one_day',
-			'source_product_ids'    => array( 44 ),
-			'source_event_ids'      => array( 123 ),
 			'valid_local_date'      => '2026-10-08',
 			'max_attendees'         => 1,
+		),
+	),
+	'entitlements' => array(
+		array(
+			'entitlement_uuid' => '11111111-1111-4111-8111-111111111111',
+			'source_event_id'   => 456,
+			'source_product_id' => 42,
+			'classification'    => 'individual',
+			'validity_type'     => 'full_event',
+			'max_attendees'     => 1,
 		),
 	),
 );
@@ -92,7 +130,7 @@ $resolved = $resolver::resolve( $base_evidence, 123, $config );
 oras_source_assert( 'supported' === $resolved['resolution'], 'Exact event and product evidence resolves a configured option' );
 oras_source_assert( 'individual' === $resolved['classification'], 'Configured individual classification is retained' );
 oras_source_assert( 'eligible' === $resolved['eligibility'], 'Processing direct individual is eligible' );
-oras_source_assert( false === $resolved['available_for_new'], 'Disabled-for-new does not invalidate existing access' );
+oras_source_assert( true === $resolved['available_for_new'], 'Current canonical availability is retained without a desk override' );
 
 $completed = $policy::evaluate( array_merge( $base_evidence, array( 'order_status' => 'completed' ) ), $resolved['option'] );
 oras_source_assert( 'eligible' === $completed['state'], 'Completed source is eligible' );

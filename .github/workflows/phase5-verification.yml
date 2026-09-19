@@ -51,6 +51,7 @@ jobs:
         php scripts/registration-desk-access-checks.php
         php scripts/registration-desk-source-checks.php
         php scripts/registration-desk-operation-checks.php
+        php scripts/registration-desk-offering-checks.php
         bash scripts/registration-desk-runner-guard-tests.sh
 
     - name: Setup Node

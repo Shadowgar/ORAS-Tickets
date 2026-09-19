@@ -7,6 +7,7 @@ use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Question_Attention_Store;
 use ORAS\Tickets\Event_Questions;
 use ORAS\Tickets\Integrations\Zoom\Phone_Join_Instructions;
+use ORAS\Tickets\Registration_Desk\RSVP_Capacity;
 use ORAS\Tickets\Support\DbLock;
 use ORAS\Tickets\Waitlist_Store;
 
@@ -130,7 +131,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
         $status = self::get_user_status( $event_id, $user_id );
         $attendance_mode = self::get_user_attendance_mode( $event_id, $user_id );
         $contact = self::get_user_contact_defaults( $event_id, $user_id );
-        $yes_count = self::yes_count( $event_id );
+        $yes_count = RSVP_Capacity::effective_count( $event_id, self::yes_count( $event_id ) );
         $selected_mode = '' !== $attendance_mode ? $attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE;
 
         if ( 'yes' === $status ) {
@@ -357,6 +358,9 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                     '' !== $current_attendance_mode ? $current_attendance_mode : Ticket::ATTENDANCE_MODE_ONSITE
                 );
                 $yes_count = self::yes_count( $event_id );
+                $desk_count = RSVP_Capacity::desk_admitted_count( $event_id );
+                $capacity_decision = RSVP_Capacity::decision( $capacity, $yes_count, $desk_count, $waitlist_enabled );
+                $rsvp_state = RSVP_Capacity::state( $event_id );
                 $waitlist_lifecycle = Waitlist_Store::get_current_waitlist_status( $event_id, $user_id );
                 $was_waitlisted = ( 'waitlist' === $current || 'waiting' === $waitlist_lifecycle );
 
@@ -368,9 +372,11 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                         if ( 'yes' === $current ) {
                             $new_status = 'yes';
                         } else {
-                            if ( 0 === $capacity || $yes_count < $capacity ) {
+                            if ( 'open' !== (string) $rsvp_state['window_state'] ) {
+                                $error = true;
+                            } elseif ( 'admit' === $capacity_decision ) {
                                 $new_status = 'yes';
-                            } elseif ( $waitlist_enabled ) {
+                            } elseif ( 'waitlist' === $capacity_decision ) {
                                 $new_status = 'waitlist';
                             } else {
                                 $error = true;
@@ -383,7 +389,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
                         break;
 
                     case 'waitlist':
-                        if ( $waitlist_enabled && ( $capacity > 0 && $yes_count >= $capacity ) ) {
+                        if ( 'open' === (string) $rsvp_state['window_state'] && 'waitlist' === $capacity_decision ) {
                             $new_status = 'waitlist';
                         } else {
                             $error = true;
@@ -1418,7 +1424,7 @@ final class Event_RSVP { // NOSONAR legacy WP class naming
             return true;
         }
 
-        return self::yes_count( $event_id ) < $capacity;
+        return RSVP_Capacity::effective_count( $event_id, self::yes_count( $event_id ) ) < $capacity;
     }
 
     private static function send_waitlist_promotion_email( int $event_id, int $user_id ): bool {

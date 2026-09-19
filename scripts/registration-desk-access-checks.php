@@ -93,25 +93,29 @@ $configured = $config_class::normalize_event_config(
 	array(
 		'enabled'  => true,
 		'revision' => 7,
-		'options'  => array(
+		'ticket_rules' => array(
 			array(
-				'option_uuid'           => '11111111-1111-4111-8111-111111111111',
-				'label'                 => 'Synthetic Individual',
-				'available_for_new'     => false,
-				'existing_access_valid' => true,
-				'classification'        => 'individual',
+				'ticket_key'            => 'canonical-family',
+				'classification'        => 'family',
 				'validity_type'         => 'full_event',
-				'source_product_ids'    => array( 42 ),
-				'source_event_ids'      => array( 123, 456 ),
 				'max_attendees'         => 4,
+			),
+		),
+		'entitlements' => array(
+			array(
+				'entitlement_uuid' => '11111111-1111-4111-8111-111111111111',
+				'source_event_id'   => 456,
+				'source_product_id' => 42,
+				'classification'    => 'individual',
+				'validity_type'     => 'full_event',
 			),
 		),
 	)
 );
-oras_access_assert( false === $configured['options'][0]['available_for_new'], 'New-registration availability is independent' );
-oras_access_assert( true === $configured['options'][0]['existing_access_valid'], 'Existing access validity is independent' );
-oras_access_assert( array( 123, 456 ) === $configured['options'][0]['source_event_ids'], 'Explicit source-event access mappings are normalized' );
-oras_access_assert( 4 === $configured['options'][0]['max_attendees'], 'Configured family-size ceiling is normalized' );
+oras_access_assert( 'canonical-family' === $configured['ticket_rules'][0]['ticket_key'], 'Supplemental ticket rule is keyed by canonical identity' );
+oras_access_assert( 4 === $configured['ticket_rules'][0]['max_attendees'], 'Configured family-size ceiling is normalized' );
+oras_access_assert( 456 === $configured['entitlements'][0]['source_event_id'] && 42 === $configured['entitlements'][0]['source_product_id'], 'Explicit cross-event entitlement is normalized separately' );
+oras_access_assert( array() === $configured['options'], 'New configuration does not synthesize manual walk-in options' );
 oras_access_assert( 7 === $configured['revision'], 'Configuration revision is preserved' );
 
 $token_a = $station_class::issue( 99, 123, 7, 'Alice', 600 );
@@ -213,7 +217,10 @@ oras_access_assert( false !== strpos( $rest_code, "'friendly_date'" ), 'Station 
 oras_access_assert( false !== strpos( $rest_code, 'html_entity_decode( wp_logout_url' ), 'Station bootstrap supplies a usable single-escaped logout URL' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
-oras_access_assert( false !== strpos( $settings_code, 'options[' ), 'Administrator settings expose structured option fields' );
+oras_access_assert( false !== strpos( $settings_code, 'ticket_rules[' ), 'Administrator settings expose canonical-ticket supplemental fields' );
+oras_access_assert( false !== strpos( $settings_code, 'entitlements[' ), 'Administrator settings separate cross-event entitlements' );
+oras_access_assert( false === strpos( $settings_code, '[label]' ), 'Administrator settings cannot override canonical ticket names' );
+oras_access_assert( false === strpos( $settings_code, '[available_for_new]' ), 'Administrator settings cannot override canonical ticket availability' );
 oras_access_assert( false === strpos( $settings_code, 'config_json' ), 'Administrator setup does not require raw JSON editing' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $desk_css = (string) file_get_contents( $plugin_dir . 'assets/registration-desk/desk.css' );

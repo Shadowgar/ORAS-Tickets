@@ -68,7 +68,7 @@ oras_operation_assert( true === $service::date_is_within_event( '2026-10-06', '2
 oras_operation_assert( true === $service::date_is_within_event( '2026-10-11', '2026-10-06', '2026-10-11' ), 'Event end date is admissible' );
 oras_operation_assert( false === $service::date_is_within_event( '2026-10-12', '2026-10-06', '2026-10-11' ), 'Date after event is rejected without a grace period' );
 
-foreach ( array( 'station', 'search', 'detail', 'confirm_and_check_in', 'recent', 'reverse' ) as $method ) {
+foreach ( array( 'station', 'offerings', 'search', 'detail', 'confirm_and_check_in', 'recent', 'reverse' ) as $method ) {
 	oras_operation_assert( method_exists( $rest, $method ), "REST controller exposes {$method} contract" );
 }
 foreach ( array( 'dashboard', 'create_walk_in', 'check_in', 'create_complimentary', 'correct_registration' ) as $method ) {
@@ -105,6 +105,7 @@ oras_operation_assert( false !== strpos( $service_code, "'friendly_date' => wp_d
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
+oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/offerings' ), 'Walk-in choices have a current-offerings route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
 oras_operation_assert( false === strpos( $rest_code, '/orders/(?P<' ), 'No desk route uses an order ID as registration identity' );
 
@@ -121,6 +122,10 @@ oras_operation_assert( false !== strpos( $desk_js, 'FIND A REGISTRATION' ), 'Vol
 oras_operation_assert( false !== strpos( $desk_js, 'REGISTER A WALK-IN' ), 'Volunteer home exposes a large walk-in task' );
 oras_operation_assert( false === strpos( $desk_js, 'class="desk-nav"' ), 'Volunteer shell has no side navigation' );
 oras_operation_assert( false !== strpos( $desk_js, 'showWalkInStep' ), 'Walk-in registration is a stateful step-by-step wizard' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/offerings'" ), 'Walk-in registration refreshes canonical offerings when opened' );
+oras_operation_assert( false !== strpos( $desk_js, 'offering_fingerprint' ), 'Walk-in submission carries the reviewed offering fingerprint' );
+oras_operation_assert( false !== strpos( $desk_js, 'showWaitlistSuccess' ), 'RSVP waitlisting has an explicit not-admitted success state' );
+oras_operation_assert( false !== strpos( $desk_js, 'showRsvpRefusal' ), 'Unavailable RSVP submission has a clear refusal state' );
 oras_operation_assert( false !== strpos( $desk_js, 'PAYMENT IS HANDLED IN ALFAPOS' ), 'Walk-in payment step preserves the separate AlfaPOS boundary' );
 oras_operation_assert( false !== strpos( $desk_js, 'PAYMENT WAS ALREADY HANDLED' ), 'Lost-response recovery warns volunteers not to collect payment twice' );
 oras_operation_assert( false !== strpos( $desk_js, 'showSuccess' ), 'Completed check-in and registration use a dedicated success screen' );

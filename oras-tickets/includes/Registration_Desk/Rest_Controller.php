@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Domain\Event_Offering_Resolver;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -39,6 +41,15 @@ final class Rest_Controller {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'station' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/offerings',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'offerings' ),
 				'permission_callback' => array( $this, 'permission_use' ),
 			)
 		);
@@ -253,7 +264,7 @@ final class Rest_Controller {
 				'event_date'             => (string) $event['friendly_date'],
 				'config_revision'        => (int) $config['revision'],
 				'operator_label'         => $label,
-				'options'                => $config['options'],
+				'options'                => $this->current_offerings( $event_id, $config ),
 				'membership_levels'      => Config::get_membership_mappings(),
 				'local_date'             => wp_date( 'Y-m-d', null, wp_timezone() ),
 				'friendly_date'          => wp_date( 'l, F j, Y', null, wp_timezone() ),
@@ -261,6 +272,17 @@ final class Rest_Controller {
 				'logout_url'             => html_entity_decode( wp_logout_url( Landing_Page::url() ), ENT_QUOTES, 'UTF-8' ),
 			)
 		);
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function offerings( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$config = Config::get_event_config( (int) $context['event_id'] );
+
+		return $this->response( array( 'items' => $this->current_offerings( (int) $context['event_id'], $config ) ) );
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
@@ -586,6 +608,63 @@ final class Rest_Controller {
 		return '' !== trim( $header ) ? trim( $header ) : trim( (string) $request->get_param( 'request_uuid' ) );
 	}
 
+	/** @param array<string,mixed> $config @return array<int,array<string,mixed>> */
+	private function current_offerings( int $event_id, array $config ): array {
+		if ( Event_Offering_Resolver::has_canonical_tickets( $event_id ) ) {
+			return Event_Offering_Resolver::desk_offerings( $event_id, $config );
+		}
+		$rsvp = RSVP_Capacity::state( $event_id );
+		if ( empty( $rsvp['enabled'] ) ) {
+			return array();
+		}
+		$can_submit = 'open' === (string) $rsvp['window_state'] && in_array( (string) $rsvp['decision'], array( 'admit', 'waitlist' ), true );
+		$label      = match ( (string) $rsvp['decision'] ) {
+			'waitlist' => __( 'RSVP — Waitlist', 'oras-tickets' ),
+			'refuse'   => __( 'RSVP — Full', 'oras-tickets' ),
+			default    => __( 'RSVP — On-site', 'oras-tickets' ),
+		};
+
+		$option = array(
+			'kind'                  => 'rsvp',
+			'event_id'              => $event_id,
+			'option_uuid'           => Event_Offering_Resolver::option_uuid( $event_id, 'rsvp' ),
+			'ticket_key'            => '',
+			'product_id'            => 0,
+			'name'                  => $label,
+			'label'                 => $label,
+			'description'           => __( 'Accountless event RSVP recorded at the Registration Desk.', 'oras-tickets' ),
+			'price'                 => '0.00',
+			'phase_key'             => null,
+			'phase_label'           => null,
+			'attendance_mode'       => 'onsite',
+			'sale_state'            => (string) $rsvp['window_state'],
+			'availability'          => (string) $rsvp['decision'],
+			'availability_label'    => 'waitlist' === (string) $rsvp['decision'] ? __( 'Waitlist available', 'oras-tickets' ) : ( $can_submit ? __( 'Space available', 'oras-tickets' ) : __( 'No RSVP space or waitlist is available', 'oras-tickets' ) ),
+			'visible'               => true,
+			'selectable'            => $can_submit,
+			'available_for_new'     => $can_submit,
+			'existing_access_valid' => true,
+			'classification'        => 'individual',
+			'validity_type'         => 'full_event',
+			'valid_local_date'      => '',
+			'max_attendees'         => 1,
+			'rsvp_state'            => $rsvp,
+		);
+		$option['offering_fingerprint'] = hash(
+			'sha256',
+			(string) wp_json_encode(
+				array(
+					'event_id'   => $event_id,
+					'rsvp_state' => $rsvp,
+				)
+			)
+		);
+
+		return array(
+			$option,
+		);
+	}
+
 	/** @return array<string,mixed> */
 	private function manual_payload( \WP_REST_Request $request ): array {
 		$additional = $request->get_param( 'additional_attendees' );
@@ -601,6 +680,7 @@ final class Rest_Controller {
 			'state'                  => sanitize_text_field( (string) $request->get_param( 'state' ) ),
 			'postcode'               => sanitize_text_field( (string) $request->get_param( 'postcode' ) ),
 			'option_uuid'            => sanitize_text_field( (string) $request->get_param( 'option_uuid' ) ),
+			'offering_fingerprint'   => sanitize_text_field( (string) $request->get_param( 'offering_fingerprint' ) ),
 			'valid_local_date'       => sanitize_text_field( (string) $request->get_param( 'valid_local_date' ) ),
 			'payment_assertion'      => sanitize_key( (string) $request->get_param( 'payment_assertion' ) ),
 			'source_type'            => sanitize_key( (string) $request->get_param( 'source_type' ) ),

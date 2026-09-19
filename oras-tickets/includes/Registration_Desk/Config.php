@@ -22,6 +22,44 @@ final class Config {
 
 	/** @param array<string,mixed> $raw @return array<string,mixed> */
 	public static function normalize_event_config( array $raw ): array {
+		$ticket_rules = array();
+		foreach ( is_array( $raw['ticket_rules'] ?? null ) ? $raw['ticket_rules'] : array() as $candidate ) {
+			if ( ! is_array( $candidate ) ) {
+				continue;
+			}
+			$ticket_key = sanitize_text_field( (string) ( $candidate['ticket_key'] ?? '' ) );
+			if ( '' === $ticket_key ) {
+				continue;
+			}
+			$ticket_rules[] = array_merge( array( 'ticket_key' => $ticket_key ), self::normalize_coverage( $candidate ) );
+		}
+
+		$entitlements = array();
+		foreach ( is_array( $raw['entitlements'] ?? null ) ? $raw['entitlements'] : array() as $candidate ) {
+			if ( ! is_array( $candidate ) ) {
+				continue;
+			}
+			$source_event_id   = absint( $candidate['source_event_id'] ?? 0 );
+			$source_product_id = absint( $candidate['source_product_id'] ?? 0 );
+			if ( $source_event_id <= 0 || $source_product_id <= 0 ) {
+				continue;
+			}
+			$uuid = strtolower( sanitize_text_field( (string) ( $candidate['entitlement_uuid'] ?? '' ) ) );
+			if ( ! self::is_uuid( $uuid ) ) {
+				$uuid = wp_generate_uuid4();
+			}
+			$entitlements[] = array_merge(
+				array(
+					'entitlement_uuid'  => $uuid,
+					'source_event_id'   => $source_event_id,
+					'source_product_id' => $source_product_id,
+				),
+				self::normalize_coverage( $candidate )
+			);
+		}
+
+		// Legacy options remain readable only for already-created records. They are never
+		// returned as current walk-in offerings.
 		$options = array();
 		foreach ( is_array( $raw['options'] ?? null ) ? $raw['options'] : array() as $candidate ) {
 			if ( ! is_array( $candidate ) ) {
@@ -60,10 +98,35 @@ final class Config {
 		}
 
 		return array(
-			'schema'   => 1,
-			'enabled'  => ! empty( $raw['enabled'] ),
-			'revision' => max( 0, (int) ( $raw['revision'] ?? 0 ) ),
-			'options'  => $options,
+			'schema'       => 2,
+			'enabled'      => ! empty( $raw['enabled'] ),
+			'revision'     => max( 0, (int) ( $raw['revision'] ?? 0 ) ),
+			'ticket_rules' => $ticket_rules,
+			'entitlements' => $entitlements,
+			'options'      => $options,
+		);
+	}
+
+	/** @param array<string,mixed> $candidate @return array<string,mixed> */
+	private static function normalize_coverage( array $candidate ): array {
+		$classification = sanitize_key( (string) ( $candidate['classification'] ?? 'individual' ) );
+		if ( ! in_array( $classification, array( 'individual', 'family' ), true ) ) {
+			$classification = 'individual';
+		}
+		$validity = sanitize_key( (string) ( $candidate['validity_type'] ?? 'full_event' ) );
+		if ( ! in_array( $validity, array( 'full_event', 'one_day' ), true ) ) {
+			$validity = 'full_event';
+		}
+		$date = sanitize_text_field( (string) ( $candidate['valid_local_date'] ?? '' ) );
+		if ( 'one_day' !== $validity || 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+			$date = '';
+		}
+
+		return array(
+			'classification'   => $classification,
+			'validity_type'    => $validity,
+			'valid_local_date' => $date,
+			'max_attendees'    => 'family' === $classification ? max( 1, min( 20, absint( $candidate['max_attendees'] ?? 1 ) ) ) : 1,
 		);
 	}
 

@@ -3,8 +3,8 @@
 namespace ORAS\Tickets\Frontend;
 
 use ORAS\Tickets\Admin\Pages\Settings_Page;
+use ORAS\Tickets\Domain\Event_Offering_Resolver;
 use ORAS\Tickets\Domain\Meta;
-use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
 use ORAS\Tickets\Event_Questions;
@@ -432,27 +432,6 @@ WC()->cart->remove_cart_item( $cart_item_key );
         return true;
     }
 
-    private function get_ticket_sale_state( array $ticket, int $now ): string {
-        $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
-        $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
-
-        if ( $sale_start !== '' ) {
-            $start_ts = strtotime( $sale_start . ' UTC' );
-            if ( $start_ts && $start_ts > $now ) {
-                return 'upcoming';
-            }
-        }
-
-        if ( $sale_end !== '' ) {
-            $end_ts = strtotime( $sale_end . ' UTC' );
-            if ( $end_ts && $end_ts < $now ) {
-                return 'ended';
-            }
-        }
-
-        return 'on_sale';
-    }
-
     private function format_ticket_datetime( string $value ): string {
         if ( '' === $value ) {
             return '';
@@ -769,23 +748,17 @@ WC()->cart->remove_cart_item( $cart_item_key );
             return '';
         }
 
-        $map = get_post_meta( $event_id, '_oras_tickets_woo_map_v1', true );
-        if ( ! is_array( $map ) ) {
-            $map = array();
-        }
-
-        // All sale window comparisons are done in UTC.
-        $now                   = (int) time();
-        $tickets               = $collection->all();
-        $tickets_on_sale       = array();
+		// All sale window comparisons are done in UTC.
+		$now                   = (int) time();
+		$tickets               = $collection->all();
+		$tickets_on_sale       = array();
         $has_ended_ticket      = false;
         $next_sale_start_ts    = 0;
         $next_sale_start_label = '';
-        foreach ( $tickets as $index => $ticket_obj ) {
-            $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : array() );
-
-            $sale_state = $this->get_ticket_sale_state( $ticket, $now );
+        foreach ( Event_Offering_Resolver::resolve_for_event( $event_id, $now ) as $offering ) {
+            $sale_state = (string) $offering['sale_state'];
             if ( 'upcoming' === $sale_state ) {
+                $ticket     = is_array( $offering['canonical_ticket'] ?? null ) ? $offering['canonical_ticket'] : array();
                 $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
                 $start_ts   = $sale_start !== '' ? strtotime( $sale_start . ' UTC' ) : false;
                 if ( $start_ts && ( 0 === $next_sale_start_ts || $start_ts < $next_sale_start_ts ) ) {
@@ -799,8 +772,9 @@ WC()->cart->remove_cart_item( $cart_item_key );
                 $has_ended_ticket = true;
                 continue;
             }
-
-            $tickets_on_sale[ $index ] = $ticket_obj;
+            if ( ! empty( $offering['visible'] ) ) {
+                $tickets_on_sale[] = $offering;
+            }
         }
 
         ob_start();
@@ -859,73 +833,28 @@ WC()->cart->remove_cart_item( $cart_item_key );
         echo '<thead><tr><th>Ticket</th><th>Price</th><th>Status</th><th>Qty</th></tr></thead>';
         echo '<tbody>';
 
-        foreach ( $tickets_on_sale as $index => $ticket_obj ) {
-            $ticket = method_exists( $ticket_obj, 'to_array' ) ? $ticket_obj->to_array() : ( is_array( $ticket_obj ) ? $ticket_obj : array() );
-            $key    = (string) $index;
-
-            $product_id = $this->get_mapped_product_id( $map, $index );
-if ( $product_id <= 0 ) {
-                continue;
-            }
-            $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
-            if ( ! $product ) {
-                continue;
-            }
-
-            $name          = isset( $ticket['name'] ) ? esc_html( $ticket['name'] ) : $product->get_name();
-            $resolved      = Price_Resolver::resolve_ticket_price( $ticket );
-            $price_raw     = $resolved['price'];
+        foreach ( $tickets_on_sale as $offering ) {
+            $key           = (string) $offering['ticket_index'];
+            $name          = esc_html( (string) $offering['name'] );
+            $resolved      = $offering;
+            $price_raw     = (string) $offering['price'];
             $price_display = $price_raw !== '' && is_numeric( $price_raw ) ? '$' . number_format( (float) $price_raw, 2, '.', '' ) : esc_html( (string) $price_raw );
-            $description   = isset( $ticket['description'] ) ? esc_html( $ticket['description'] ) : '';
-            $attendance_mode = Ticket::normalizeAttendanceMode(
-                isset( $ticket['attendance_mode'] ) ? (string) $ticket['attendance_mode'] : '',
-                Ticket::ATTENDANCE_MODE_VIRTUAL
-            );
+            $description   = esc_html( (string) $offering['description'] );
+            $attendance_mode = (string) $offering['attendance_mode'];
             $attendance_label = Ticket::ATTENDANCE_MODE_VIRTUAL === $attendance_mode
                 ? __( 'Virtual Access', 'oras-tickets' )
                 : __( 'On-site Access', 'oras-tickets' );
-
-            $sale_start = isset( $ticket['sale_start'] ) ? (string) $ticket['sale_start'] : '';
-            $sale_end   = isset( $ticket['sale_end'] ) ? (string) $ticket['sale_end'] : '';
-
-            // Ticket definition stores sale window in UTC strings.
-            $start_ts = $sale_start !== '' ? strtotime( $sale_start . ' UTC' ) : false;
-            $end_ts   = $sale_end !== '' ? strtotime( $sale_end . ' UTC' ) : false;
-
-            $status          = 'On sale';
-            $status_class    = 'oras-status--on-sale';
-            $disabled        = false;
-            $disabled_reason = '';
-            if ( $start_ts && $now < $start_ts ) {
-                $status          = 'Not on sale yet';
-                $status_class    = 'oras-status--not-yet';
-                $disabled        = true;
-                $disabled_reason = 'Not on sale yet';
-            } elseif ( $end_ts && $now > $end_ts ) {
-                $status          = 'Sales ended';
-                $status_class    = 'oras-status--ended';
-                $disabled        = true;
-                $disabled_reason = 'Sales ended';
-            }
-
-            $manages = ( method_exists( $product, 'managing_stock' ) && $product->managing_stock() );
-            if ( $manages ) {
-                $max = method_exists( $product, 'get_stock_quantity' ) ? max( 0, (int) $product->get_stock_quantity() ) : 0;
-            } else {
-                $max = 10;
-            }
-
-            if ( $manages && $max <= 0 ) {
-                $status          = 'Sold out';
-                $status_class    = 'oras-status--sold-out';
-                $disabled        = true;
-                $disabled_reason = 'Sold out';
-            }
+            $status          = (string) $offering['availability_label'];
+            $status_class    = 'sold_out' === (string) $offering['availability'] ? 'oras-status--sold-out' : 'oras-status--on-sale';
+            $disabled        = empty( $offering['selectable'] );
+            $disabled_reason = $disabled ? $status : '';
+            $manages         = ! empty( $offering['managing_stock'] );
+            $max             = (int) $offering['max_quantity'];
 
             $stock_note = '';
             if ( $status_class === 'oras-status--on-sale' ) {
                 if ( $manages ) {
-                    $stock_qty = (int) $max;
+                    $stock_qty = (int) ( $offering['stock_quantity'] ?? 0 );
                     if ( $stock_qty > 0 ) {
                         $stock_note = '• ' . $stock_qty . ' left';
                     }
@@ -934,7 +863,7 @@ if ( $product_id <= 0 ) {
                 }
             }
 
-            echo '<tr>';
+            echo '<tr data-oras-ticket-key="' . esc_attr( (string) $offering['ticket_key'] ) . '" data-oras-product-id="' . esc_attr( (string) $offering['product_id'] ) . '">';
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo '<td><strong>' . $name . '</strong>';
             if ( $description !== '' ) {

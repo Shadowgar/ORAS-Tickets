@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Domain\Event_Offering_Resolver;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -19,24 +21,43 @@ final class Source_Resolver {
 		if ( $target_event_id <= 0 ) {
 			return self::review( 'The target event is invalid.' );
 		}
-		$product_id     = (int) ( $evidence['product_id'] ?? 0 );
+		$product_id      = (int) ( $evidence['product_id'] ?? 0 );
 		$source_event_id = (int) ( $evidence['source_event_id'] ?? 0 );
-		$matches        = array();
-		foreach ( is_array( $config['options'] ?? null ) ? $config['options'] : array() as $option ) {
-			if ( ! is_array( $option ) || ! in_array( $product_id, array_map( 'intval', (array) ( $option['source_product_ids'] ?? array() ) ), true ) ) {
-				continue;
+		$matches         = array();
+		if ( $source_event_id === $target_event_id ) {
+			$canonical = Event_Offering_Resolver::access_option_for_product( $target_event_id, $config, $product_id );
+			if ( null !== $canonical ) {
+				$matches[] = $canonical;
 			}
-			$source_event_ids = array_values( array_filter( array_map( 'intval', (array) ( $option['source_event_ids'] ?? array() ) ) ) );
-			if ( ( empty( $source_event_ids ) && $source_event_id === $target_event_id ) || in_array( $source_event_id, $source_event_ids, true ) ) {
-				$matches[] = $option;
+		} else {
+			foreach ( is_array( $config['entitlements'] ?? null ) ? $config['entitlements'] : array() as $entitlement ) {
+				if ( ! is_array( $entitlement ) || $product_id !== (int) ( $entitlement['source_product_id'] ?? 0 ) || $source_event_id !== (int) ( $entitlement['source_event_id'] ?? 0 ) ) {
+					continue;
+				}
+				$entitlement['option_uuid']           = Event_Offering_Resolver::option_uuid( $target_event_id, 'entitlement:' . (string) $entitlement['entitlement_uuid'] );
+				$entitlement['available_for_new']     = false;
+				$entitlement['existing_access_valid'] = true;
+				$entitlement['label']                 = sanitize_text_field( (string) ( $evidence['item_label'] ?? 'Cross-event entitlement' ) );
+				$matches[] = $entitlement;
+			}
+		}
+		if ( empty( $matches ) ) {
+			foreach ( is_array( $config['options'] ?? null ) ? $config['options'] : array() as $legacy ) {
+				if ( ! is_array( $legacy ) || ! in_array( $product_id, array_map( 'intval', (array) ( $legacy['source_product_ids'] ?? array() ) ), true ) ) {
+					continue;
+				}
+				$events = array_values( array_filter( array_map( 'intval', (array) ( $legacy['source_event_ids'] ?? array() ) ) ) );
+				if ( ( empty( $events ) && $source_event_id === $target_event_id ) || in_array( $source_event_id, $events, true ) ) {
+					$matches[] = $legacy;
+				}
 			}
 		}
 		if ( 1 !== count( $matches ) ) {
 			return self::review( 0 === count( $matches ) ? 'Source product or event is not explicitly mapped.' : 'Source product has conflicting mappings.' );
 		}
 		$option         = $matches[0];
-		$classification = (string) ( $option['classification'] ?? 'unclassified' );
-		$validity       = (string) ( $option['validity_type'] ?? 'unclassified' );
+		$classification = (string) ( $option['classification'] ?? 'individual' );
+		$validity       = (string) ( $option['validity_type'] ?? 'full_event' );
 		$eligibility    = Eligibility::evaluate( $evidence, $option );
 		$valid_local_date = sanitize_text_field( (string) ( $option['valid_local_date'] ?? '' ) );
 		$resolution       = 'supported';

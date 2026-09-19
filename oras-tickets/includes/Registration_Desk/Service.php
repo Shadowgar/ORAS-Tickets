@@ -2,6 +2,9 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Domain\Event_Offering_Resolver;
+use ORAS\Tickets\Support\DbLock;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -57,6 +60,13 @@ final class Service {
 
 	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
 	public function create_walk_in( array $payload, array $context ) {
+		if ( ! Event_Offering_Resolver::has_canonical_tickets( (int) $context['event_id'] ) ) {
+			$rsvp = get_post_meta( (int) $context['event_id'], '_oras_rsvp_v1', true );
+			if ( is_array( $rsvp ) && ! empty( $rsvp['enabled'] ) ) {
+				return $this->create_rsvp_walk_in( $payload, $context );
+			}
+		}
+
 		return $this->create_manual_registration( 'walk_in', $payload, $context, false );
 	}
 
@@ -88,11 +98,20 @@ final class Service {
 		if ( 'active' !== (string) $registration['status'] ) {
 			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration is not active. Request administrator review.', array( 'status' => 409 ) );
 		}
+		if ( 'rsvp_waitlist' === (string) $registration['source_type'] ) {
+			return new \WP_Error( 'oras_desk_rsvp_waitlisted', 'This person is on the RSVP waitlist and has not been admitted.', array( 'status' => 409 ) );
+		}
 		$config = Config::get_event_config( (int) $context['event_id'] );
 		if ( empty( $config['enabled'] ) || (int) $config['revision'] !== (int) $context['config_revision'] ) {
 			return new \WP_Error( 'oras_desk_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 409 ) );
 		}
-		$option = Config::option( $config, (string) $registration['option_uuid'] );
+		$option = Event_Offering_Resolver::find_access_option( (int) $context['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
+		if ( null === $option && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
+			$option = array(
+				'existing_access_valid' => true,
+				'max_attendees'         => 1,
+			);
+		}
 		if ( null === $option || empty( $option['existing_access_valid'] ) ) {
 			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration option no longer grants access.', array( 'status' => 409 ) );
 		}
@@ -447,7 +466,7 @@ final class Service {
 			return new \WP_Error( 'oras_desk_registration_missing', 'Registration was not found for the active event.', array( 'status' => 404 ) );
 		}
 		$config = Config::get_event_config( (int) $context['event_id'] );
-		$option = Config::option( $config, sanitize_text_field( (string) ( $payload['option_uuid'] ?? '' ) ) );
+		$option = Event_Offering_Resolver::find_desk_offering( (int) $context['event_id'], $config, sanitize_text_field( (string) ( $payload['option_uuid'] ?? '' ) ) );
 		if ( null === $option ) {
 			return new \WP_Error( 'oras_desk_option_invalid', 'Choose a configured registration option.', array( 'status' => 400 ) );
 		}
@@ -511,6 +530,129 @@ final class Service {
 	}
 
 	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
+	private function create_rsvp_walk_in( array $payload, array $context ) {
+		$binding = $this->binding( 'create_rsvp_walk_in', $payload, $context );
+		if ( $binding instanceof \WP_Error ) {
+			return $binding;
+		}
+		$replay = $this->replay_or_conflict( $binding );
+		if ( null !== $replay ) {
+			return $replay;
+		}
+		$event_id = (int) $context['event_id'];
+		$option   = array(
+			'option_uuid'     => Event_Offering_Resolver::option_uuid( $event_id, 'rsvp' ),
+			'label'           => 'RSVP — On-site',
+			'description'     => 'Accountless event RSVP recorded at the Registration Desk.',
+			'price'           => '0.00',
+			'attendance_mode' => 'onsite',
+			'classification'  => 'individual',
+			'validity_type'   => 'full_event',
+			'max_attendees'   => 1,
+		);
+		$validated = $this->validate_manual_payload( $payload, $option, $event_id, true );
+		if ( $validated instanceof \WP_Error ) {
+			return $validated;
+		}
+		$validated['payment_assertion'] = 'rsvp';
+		$duplicates = $this->registrations->duplicate_candidates( $event_id, (string) $validated['email'], (string) $validated['phone'] );
+		if ( ! empty( $duplicates ) && empty( $payload['duplicate_acknowledged'] ) ) {
+			return new \WP_Error(
+				'oras_desk_possible_duplicate',
+				'An RSVP with the same email or phone may already exist. Review it before continuing; records will not be merged.',
+				array(
+					'status'     => 409,
+					'candidates' => array_map(
+						static fn( array $row ): array => array(
+							'registration_uuid' => (string) $row['registration_uuid'],
+							'contact_name'      => (string) $row['source_contact_name'],
+							'source_type'       => (string) $row['source_type'],
+						),
+						$duplicates
+					),
+				)
+			);
+		}
+
+		$result = DbLock::forEvent(
+			$event_id,
+			function () use ( $event_id, $validated, $context, $binding, $duplicates ) {
+				$state = RSVP_Capacity::state( $event_id );
+				if ( empty( $state['enabled'] ) || 'open' !== (string) $state['window_state'] ) {
+					return new \WP_Error( 'oras_desk_rsvp_closed', 'RSVP registration is not open for this event.', array( 'status' => 409 ) );
+				}
+				if ( 'refuse' === (string) $state['decision'] ) {
+					return new \WP_Error( 'oras_desk_rsvp_full', 'This event is full and no RSVP waitlist is available.', array( 'status' => 409 ) );
+				}
+				$waitlisted = 'waitlist' === (string) $state['decision'];
+
+				return Store::transaction(
+					function () use ( $event_id, $validated, $context, $binding, $duplicates, $state, $waitlisted ) {
+						$record                        = $validated;
+						$record['source_type']         = $waitlisted ? 'rsvp_waitlist' : 'rsvp_walk_in';
+						$record['event_id']            = $event_id;
+						$record['config_revision']     = (int) $context['config_revision'];
+						$record['evidence']['rsvp']    = $state;
+						$registration = $this->registrations->create_manual( $record );
+						if ( $registration instanceof \WP_Error ) {
+							return $registration;
+						}
+						$arrival  = $validated['arrivals'][0];
+						$attendee = $this->attendees->confirm_slot( (int) $registration['id'], 'individual-1', (string) $arrival['first_name'], (string) $arrival['last_name'] );
+						if ( $attendee instanceof \WP_Error ) {
+							return $attendee;
+						}
+						$attendance = null;
+						if ( ! $waitlisted ) {
+							$attendance = $this->attendance->check_in( $event_id, (int) $attendee['id'], (string) $validated['attendance_local_date'], (int) $context['actor_user_id'], (string) $context['station_uuid'], (string) $context['operator_label'] );
+							if ( $attendance instanceof \WP_Error ) {
+								return $attendance;
+							}
+							unset( $attendance['_was_created'] );
+						}
+						$response = array(
+							'result'              => $waitlisted ? 'rsvp_waitlisted' : 'rsvp_registered_and_checked_in',
+							'admitted'            => ! $waitlisted,
+							'message'             => $waitlisted ? 'The person was added to the RSVP waitlist and was not admitted.' : 'The RSVP was recorded and the person was checked in.',
+							'registration'        => $registration,
+							'attendees'           => array( $attendee ),
+							'attendance'          => null === $attendance ? array() : array( $attendance ),
+							'possible_duplicates' => count( $duplicates ),
+						);
+						$result_json  = wp_json_encode( $response );
+						$changes_json = wp_json_encode( array( 'rsvp_decision' => (string) $state['decision'] ) );
+						$audit = $this->audits->append(
+							array_merge(
+								$binding,
+								array(
+									'registration_uuid' => (string) $registration['registration_uuid'],
+									'attendee_uuid'     => (string) $attendee['attendee_uuid'],
+									'attendance_id'     => is_array( $attendance ) ? (int) $attendance['id'] : null,
+									'result_status'     => 'success',
+									'result_code'       => $waitlisted ? 'rsvp_waitlisted' : 'rsvp_registered_and_checked_in',
+									'result_json'       => is_string( $result_json ) ? $result_json : '{}',
+									'changes_json'      => is_string( $changes_json ) ? $changes_json : '{}',
+								)
+							)
+						);
+						if ( $audit instanceof \WP_Error ) {
+							return $audit;
+						}
+
+						return array(
+							'replayed'           => false,
+							'historical_result'  => $response,
+							'current_attendance' => $attendance,
+						);
+					}
+				);
+			}
+		);
+
+		return $result;
+	}
+
+	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
 	private function create_manual_registration( string $source_type, array $payload, array $context, bool $administrator_override ) {
 		$binding = $this->binding( 'create_' . $source_type, $payload, $context );
 		if ( $binding instanceof \WP_Error ) {
@@ -521,9 +663,12 @@ final class Service {
 			return $replay;
 		}
 		$config = Config::get_event_config( (int) $context['event_id'] );
-		$option = Config::option( $config, sanitize_text_field( (string) ( $payload['option_uuid'] ?? '' ) ) );
-		if ( null === $option || ( ! $administrator_override && empty( $option['available_for_new'] ) ) ) {
+		$option = Event_Offering_Resolver::find_desk_offering( (int) $context['event_id'], $config, sanitize_text_field( (string) ( $payload['option_uuid'] ?? '' ) ) );
+		if ( null === $option || empty( $option['available_for_new'] ) ) {
 			return new \WP_Error( 'oras_desk_option_invalid', 'Choose an available registration option.', array( 'status' => 400 ) );
+		}
+		if ( ! hash_equals( (string) $option['offering_fingerprint'], sanitize_text_field( (string) ( $payload['offering_fingerprint'] ?? '' ) ) ) ) {
+			return new \WP_Error( 'oras_desk_offering_changed', 'That registration option changed. Return to ticket selection and review the current details.', array( 'status' => 409 ) );
 		}
 		$validated = $this->validate_manual_payload( $payload, $option, (int) $context['event_id'], $administrator_override );
 		if ( $validated instanceof \WP_Error ) {
@@ -691,7 +836,20 @@ final class Service {
 			'payment_assertion'     => $payment,
 			'attendance_local_date' => $attendance_date,
 			'arrivals'              => $arrivals,
-			'evidence'              => array( 'mailing_address' => $address ),
+			'evidence'              => array(
+				'mailing_address' => $address,
+				'offering'        => array(
+					'option_uuid'     => (string) $option['option_uuid'],
+					'ticket_key'      => (string) ( $option['ticket_key'] ?? '' ),
+					'product_id'      => absint( $option['product_id'] ?? 0 ),
+					'label'           => sanitize_text_field( (string) ( $option['label'] ?? '' ) ),
+					'description'     => sanitize_text_field( (string) ( $option['description'] ?? '' ) ),
+					'price'           => sanitize_text_field( (string) ( $option['price'] ?? '' ) ),
+					'phase_key'       => sanitize_key( (string) ( $option['phase_key'] ?? '' ) ),
+					'phase_label'     => sanitize_text_field( (string) ( $option['phase_label'] ?? '' ) ),
+					'attendance_mode' => sanitize_key( (string) ( $option['attendance_mode'] ?? '' ) ),
+				),
+			),
 		);
 	}
 
@@ -704,6 +862,7 @@ final class Service {
 				'paid_check'   => 'Paid—Check (volunteer statement)',
 				'unpaid'       => 'Unpaid admission',
 				'complimentary' => 'Complimentary / speaker registration',
+				'rsvp'          => 'Accountless desk RSVP',
 				default        => new \WP_Error( 'oras_desk_payment_statement_missing', 'Desk registration payment statement is missing.', array( 'status' => 409 ) ),
 			};
 		}

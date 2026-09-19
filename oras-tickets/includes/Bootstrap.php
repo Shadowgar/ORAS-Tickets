@@ -12,6 +12,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.p
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Audit_Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/RSVP_Capacity.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Config.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Station_Session.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Catalog.php';
@@ -40,6 +41,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Domain/Annual_Pass_Validity.php'; // N
 require_once ORAS_TICKETS_DIR . 'includes/Storage/Manual_Observer_Pass_Store.php'; // NOSONAR include: internal manual pass registry
 require_once ORAS_TICKETS_DIR . 'includes/Storage/Legacy_Membership_Store.php'; // NOSONAR include: internal legacy membership registry
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Pricing/Price_Resolver.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Event_Offering_Resolver.php'; // NOSONAR include: shared public and desk ticket choices
 // Admin metabox for Phase 1.2
 // Admin metabox is kept in repo but no longer auto-initialized; using native ET editor + provider.
 require_once ORAS_TICKETS_DIR . 'includes/Admin/Tickets_Metabox.php'; // NOSONAR legacy include
