@@ -104,6 +104,15 @@ final class Rest_Controller {
 		);
 		register_rest_route(
 			'oras-tickets/v1',
+			'/registration-desk/membership-offerings',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'membership_offerings' ),
+				'permission_callback' => array( $this, 'permission_use' ),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
 			'/registration-desk/members',
 			array(
 				'methods'             => 'GET',
@@ -125,6 +134,15 @@ final class Rest_Controller {
 					'callback'            => array( $this, 'record_membership' ),
 					'permission_callback' => array( $this, 'permission_admit' ),
 				),
+			)
+		);
+		register_rest_route(
+			'oras-tickets/v1',
+			'/registration-desk/memberships/(?P<activation_uuid>[0-9a-f-]{36})/correct',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'correct_membership' ),
+				'permission_callback' => array( $this, 'permission_manage' ),
 			)
 		);
 		register_rest_route(
@@ -441,6 +459,16 @@ final class Rest_Controller {
 	}
 
 	/** @return \WP_REST_Response|\WP_Error */
+	public function membership_offerings( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+
+		return $this->response( array( 'items' => Config::get_membership_offerings() ) );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
 	public function memberships( \WP_REST_Request $request ) {
 		$context = $this->context( $request );
 		if ( $context instanceof \WP_Error ) {
@@ -467,6 +495,25 @@ final class Rest_Controller {
 				'payment_method' => sanitize_key( (string) $request->get_param( 'payment_method' ) ),
 			),
 			$context
+		);
+
+		return $result instanceof \WP_Error ? $result : $this->response( $result );
+	}
+
+	/** @return \WP_REST_Response|\WP_Error */
+	public function correct_membership( \WP_REST_Request $request ) {
+		$context = $this->context( $request );
+		if ( $context instanceof \WP_Error ) {
+			return $context;
+		}
+		$result = $this->membership_credit->correct_contact(
+			sanitize_text_field( (string) $request['activation_uuid'] ),
+			array(
+				'first_name' => sanitize_text_field( (string) $request->get_param( 'first_name' ) ),
+				'last_name'  => sanitize_text_field( (string) $request->get_param( 'last_name' ) ),
+				'email'      => sanitize_email( (string) $request->get_param( 'email' ) ),
+				'phone'      => sanitize_text_field( (string) $request->get_param( 'phone' ) ),
+			)
 		);
 
 		return $result instanceof \WP_Error ? $result : $this->response( $result );

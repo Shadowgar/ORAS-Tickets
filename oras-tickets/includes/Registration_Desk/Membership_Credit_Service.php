@@ -126,6 +126,33 @@ final class Membership_Credit_Service {
 		return $result instanceof \WP_Error ? $result : $this->public_record( $result );
 	}
 
+	/** @param array<string,mixed> $payload @return array<string,mixed>|\WP_Error */
+	public function correct_contact( string $activation_uuid, array $payload ) {
+		$row = $this->store->find_activation( $activation_uuid );
+		if ( ! $row || 'pending' !== (string) $row['status'] ) {
+			return new \WP_Error( 'oras_desk_membership_not_pending', 'Only a pending membership activation can be corrected.', array( 'status' => 409 ) );
+		}
+		$first_name = sanitize_text_field( (string) ( $payload['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( (string) ( $payload['last_name'] ?? '' ) );
+		$email      = sanitize_email( (string) ( $payload['email'] ?? '' ) );
+		if ( '' === $first_name || '' === $last_name || ! is_email( $email ) ) {
+			return new \WP_Error( 'oras_desk_membership_invalid', 'Enter a first name, last name, and valid email address.', array( 'status' => 400 ) );
+		}
+		$changes = array(
+			'first_name'       => $first_name,
+			'last_name'        => $last_name,
+			'email'            => $email,
+			'normalized_email' => strtolower( $email ),
+			'phone'            => sanitize_text_field( (string) ( $payload['phone'] ?? '' ) ),
+		);
+		if ( ! hash_equals( (string) $row['normalized_email'], strtolower( $email ) ) ) {
+			$changes['email_status'] = 'not_sent';
+		}
+		$updated = $this->store->update( $activation_uuid, $changes );
+
+		return $updated instanceof \WP_Error ? $updated : $this->public_record( $updated );
+	}
+
 	/** @return array<string,mixed>|\WP_Error */
 	public function cancel( string $activation_uuid, int $actor_user_id, string $reason ) {
 		$row = $this->store->find_activation( $activation_uuid );
@@ -255,6 +282,7 @@ final class Membership_Credit_Service {
 			'first_name'      => (string) $row['first_name'],
 			'last_name'       => (string) $row['last_name'],
 			'email'           => (string) $row['email'],
+			'phone'           => (string) $row['phone'],
 			'level_id'        => (int) $row['level_id'],
 			'level_name'      => (string) $row['level_name'],
 			'payment_method'  => (string) $row['payment_method'],

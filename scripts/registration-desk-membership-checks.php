@@ -1,4 +1,4 @@
-<?php
+<?php // phpcs:disable WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid, Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound -- Standalone PMPro and WordPress test doubles retain upstream signatures.
 
 declare(strict_types=1);
 
@@ -128,6 +128,7 @@ foreach ( array( 'wp_insert_user(', 'pmpro_changeMembershipLevel(', 'wc_create_o
 }
 oras_membership_assert( false !== strpos( $source, "'pmpro_check_discount_code'" ), 'Credit is bound to the purchaser email during checkout validation' );
 oras_membership_assert( false !== strpos( $source, "'pmpro_after_checkout'" ), 'Successful PMPro checkout marks the activation redeemed' );
+oras_membership_assert( false !== strpos( $source, 'function correct_contact' ), 'Manager service supports pending contact correction without replacing the credit' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $lookup_source = (string) file_get_contents( $base . 'Member_Lookup_Service.php' );

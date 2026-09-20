@@ -4,6 +4,7 @@
 	const config = window.ORASRegistrationDesk || {};
 	const root = document.getElementById('oras-registration-desk-root');
 	const storageKey = 'orasRegistrationDeskStationV2';
+	const draftLifetime = 12 * 60 * 60 * 1000;
 	const state = {
 		station: null,
 		operatorLabel: '',
@@ -11,6 +12,7 @@
 		view: 'home',
 		searchQuery: '',
 		wizard: null,
+		membershipWizard: null,
 		pendingRequest: '',
 		pendingPayload: null,
 		pendingPayment: '',
@@ -87,12 +89,19 @@
 	function loadStation() {
 		try {
 			state.station = JSON.parse(window.localStorage.getItem(storageKey) || 'null');
-			if (state.station?.failed_request) {
-				state.pendingRequest = state.station.failed_request.request || '';
-				state.pendingPayload = state.station.failed_request.payload || null;
-				state.pendingPayment = state.station.failed_request.payment || '';
-				state.failureCount = Number(state.station.failed_request.failures || 0);
-				state.wizard = state.station.failed_request.wizard || null;
+			const legacy = state.station?.failed_request ? {...state.station.failed_request, kind: 'walk-in', draft_expires_at: Date.now() + draftLifetime, event_id: state.station.event_id} : null;
+			const draft = state.station?.draft || legacy;
+			if (draft && Number(draft.draft_expires_at || 0) > Date.now() && Number(draft.event_id || 0) === Number(state.station.event_id || 0)) {
+				state.pendingRequest = draft.request || '';
+				state.pendingPayload = draft.payload || null;
+				state.pendingPayment = draft.payment || '';
+				state.failureCount = Number(draft.failures || 0);
+				if (draft.kind === 'membership') state.membershipWizard = draft.membership_wizard || null;
+				else state.wizard = draft.wizard || null;
+			} else if (state.station?.draft || state.station?.failed_request) {
+				delete state.station.draft;
+				delete state.station.failed_request;
+				window.localStorage.setItem(storageKey, JSON.stringify(state.station));
 			}
 		} catch (error) {
 			state.station = null;
@@ -109,21 +118,43 @@
 		state.pendingPayload = null;
 		state.pendingPayment = '';
 		state.failureCount = 0;
-		if (state.station?.failed_request) {
+		state.membershipWizard = null;
+		if (state.station?.failed_request || state.station?.draft) {
 			delete state.station.failed_request;
+			delete state.station.draft;
 			saveStation(state.station);
 		}
 	}
 
-	function persistPending() {
-		if (!state.station || !state.pendingRequest || !state.pendingPayload) return;
-		state.station.failed_request = {request: state.pendingRequest, payload: state.pendingPayload, payment: state.pendingPayment, failures: state.failureCount, wizard: state.wizard};
+	function persistDraft(kind = 'walk-in') {
+		if (!state.station) return;
+		state.station.draft = {
+			kind,
+			event_id: Number(state.station.event_id),
+			request: state.pendingRequest,
+			payload: state.pendingPayload,
+			payment: state.pendingPayment,
+			failures: state.failureCount,
+			wizard: kind === 'walk-in' ? state.wizard : null,
+			membership_wizard: kind === 'membership' ? state.membershipWizard : null,
+			draft_expires_at: Date.now() + draftLifetime,
+		};
+		delete state.station.failed_request;
 		saveStation(state.station);
+	}
+
+	function persistPending() {
+		persistDraft('walk-in');
+	}
+
+	function hasUnsavedDraft() {
+		return Boolean(state.wizard || state.membershipWizard || state.pendingPayload || state.station?.draft);
 	}
 
 	function clearStation() {
 		state.station = null;
 		state.wizard = null;
+		state.membershipWizard = null;
 		resetPending();
 		window.localStorage.removeItem(storageKey);
 	}
@@ -190,6 +221,14 @@
 		return 'We could not finish that step. Please try again or ask a manager for help.';
 	}
 
+	function showConnectionLost(container, retry, paymentHandled = false) {
+		resetViewport();
+		container.innerHTML = `<section class="desk-centered desk-connection-lost"><span class="desk-large-icon">${icon('help')}</span><h1>CONNECTION LOST</h1><p>We can’t reach the Registration Desk right now.</p><p>Your information is still here.</p><p>Please wait for the connection to return, then try again.</p>${paymentHandled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}<div class="desk-actions"><button type="button" class="desk-primary" id="desk-connection-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-connection-manager">MANAGER HELP</button></div></section>`;
+		container.querySelector('#desk-connection-retry').addEventListener('click', retry);
+		container.querySelector('#desk-connection-manager').addEventListener('click', () => state.station.manager_token ? showManagerArea() : showManagerHelp());
+		focusMain();
+	}
+
 	function formatDateValue(value) {
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return String(value || '');
 		const [year, month, day] = value.split('-').map(Number);
@@ -244,18 +283,12 @@
 	}
 
 	function screenActions(backLabel = 'Back', includeStartOver = true) {
-		return `<div class="desk-screen-actions"><button type="button" class="desk-link-button" id="desk-screen-back">${icon('back')} ${escapeHtml(backLabel)}</button>${includeStartOver ? '<button type="button" class="desk-link-button" id="desk-start-over">Cancel / Start Over</button>' : ''}</div>`;
+		return `<div class="desk-screen-actions"><button type="button" class="desk-link-button" id="desk-screen-back">${icon('back')} ${escapeHtml(backLabel)}</button>${includeStartOver ? '<button type="button" class="desk-link-button desk-start-over" id="desk-start-over">HOME / START OVER</button>' : ''}</div>`;
 	}
 
 	function bindScreenActions(backHandler = showHome) {
 		main().querySelector('#desk-screen-back')?.addEventListener('click', () => backHandler());
-		main().querySelector('#desk-start-over')?.addEventListener('click', () => {
-			if (window.confirm('Cancel this task and return to the home screen?')) {
-				state.wizard = null;
-				resetPending();
-				showHome();
-			}
-		});
+		main().querySelector('#desk-start-over')?.addEventListener('click', requestHome);
 	}
 
 	function renderSetup(message = '') {
@@ -309,7 +342,8 @@
 			<div class="desk-user-block"><span><strong>${escapeHtml(station.operator_label)}</strong></span><button id="desk-change-volunteer" class="desk-header-button" type="button">Change</button></div>
 			<button id="desk-change-event" class="desk-header-button" type="button">CHANGE EVENT</button>
 			<a class="desk-header-button desk-logout" id="desk-logout" href="${escapeHtml(station.logout_url)}">Log out</a>
-		</header><main id="desk-main" class="desk-main" tabindex="-1"></main>`;
+			</header><aside id="desk-manager-status" class="desk-manager-status" hidden><strong>MANAGER MODE</strong><button type="button" id="desk-exit-manager-mode">EXIT MANAGER MODE</button></aside><main id="desk-main" class="desk-main" tabindex="-1"></main>`;
+		refreshManagerStatus();
 		root.querySelector('#desk-brand-home').addEventListener('click', () => requestHome());
 		root.querySelector('#desk-change-volunteer').addEventListener('click', () => {
 			if (window.confirm('Change the volunteer name for this station?')) {
@@ -318,7 +352,7 @@
 			}
 		});
 		root.querySelector('#desk-change-event').addEventListener('click', async () => {
-			const warning = state.wizard || state.pendingPayload ? 'Changing events will clear the unfinished work on this screen. Change event?' : 'Change the event for this station?';
+			const warning = hasUnsavedDraft() ? 'Changing events will discard the unfinished information for this event. Change event?' : 'Change the event for this station?';
 			if (!window.confirm(warning)) return;
 			state.operatorLabel = state.station.operator_label;
 			clearStation();
@@ -337,9 +371,54 @@
 	}
 
 	function requestHome() {
-		if (state.pendingPayload && !window.confirm('This registration is not saved. Payment may already have been handled. Return home and discard it?')) return;
-		if (state.pendingPayload) resetPending();
-		showHome();
+		if (!hasUnsavedDraft()) return showHome();
+		resetViewport();
+		main().innerHTML = `<section class="desk-centered desk-start-over-prompt"><span class="desk-large-icon">${icon('help')}</span><h1>START OVER?</h1><p>You have information entered that has not been saved.</p>${state.wizard?.payment_handled || state.membershipWizard?.payment_handled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}<div class="desk-actions"><button type="button" class="desk-primary" id="desk-keep-working">KEEP WORKING</button><button type="button" class="desk-danger" id="desk-discard-draft">DISCARD &amp; RETURN HOME</button></div></section>`;
+		main().querySelector('#desk-keep-working').addEventListener('click', restoreDraft);
+		main().querySelector('#desk-discard-draft').addEventListener('click', () => { state.wizard = null; resetPending(); showHome(); });
+	}
+
+	function refreshManagerStatus() {
+		const banner = document.getElementById('desk-manager-status');
+		if (!banner) return;
+		banner.hidden = !state.station?.manager_token;
+		const exit = banner.querySelector('#desk-exit-manager-mode');
+		if (exit) exit.onclick = exitManagerMode;
+	}
+
+	function exitManagerMode() {
+		if (!state.station) return;
+		delete state.station.manager_token;
+		saveStation(state.station);
+		refreshManagerStatus();
+		showHome('Manager Mode closed.');
+	}
+
+	async function restoreDraft() {
+		const draft = state.station?.draft;
+		if (!draft) return showHome();
+		if (draft.kind === 'membership' && state.membershipWizard) {
+			await startMembershipWizard(false);
+		} else if (state.wizard) {
+			state.view = state.wizard.administrator ? 'complimentary' : 'walk-in';
+			main().innerHTML = '<section class="desk-centered"><h1>RESTORING YOUR INFORMATION…</h1></section>';
+			try {
+				const response = await api('/offerings');
+				state.station.options = Array.isArray(response.items) ? response.items : [];
+				saveStation(state.station);
+				const step = state.wizard.payment_handled && ['type', 'contact', 'attendees', 'review', 'handoff'].includes(state.wizard.step) ? 'payment' : state.wizard.step;
+				showWalkInStep(step || 'type');
+			} catch (error) {
+				if (error.code === 'network_error') return showConnectionLost(main(), restoreDraft, Boolean(state.wizard.payment_handled));
+				main().innerHTML = `${screenActions('Back to Home', false)}${notice(friendlyError(error), 'error')}`;
+				bindScreenActions(requestHome);
+			}
+		} else {
+			resetPending();
+			return showHome();
+		}
+		const section = main().querySelector('section');
+		section?.insertAdjacentHTML('afterbegin', notice('Your unfinished information was restored.', 'success'));
 	}
 
 	function main() {
@@ -357,22 +436,27 @@
 	async function showHome(message = '') {
 		resetViewport();
 		state.view = 'home';
-		state.wizard = null;
-		if (!state.pendingPayload) resetPending();
+		if (!state.station?.draft) {
+			state.wizard = null;
+			state.membershipWizard = null;
+			if (!state.pendingPayload) resetPending();
+		}
 		main().innerHTML = `<section class="desk-home">
 				${message ? notice(message, 'success') : ''}
+				${state.station?.draft ? `<div class="desk-recovery-card"><h2>UNFINISHED INFORMATION IS SAVED</h2><p>Continue the same ${state.station.draft.kind === 'membership' ? 'membership' : 'registration'} before starting another one.</p><button type="button" class="desk-primary desk-wide" id="desk-resume-draft">KEEP WORKING</button></div>` : ''}
 				<div class="desk-home-heading"><p class="desk-eyebrow">Welcome, ${escapeHtml(state.station.operator_label)}</p><h1>WHAT DO YOU NEED TO DO?</h1></div>
 				<div class="desk-task-grid">
 					<button type="button" class="desk-task-card desk-task-find" id="desk-home-find"><span class="desk-task-icon">${icon('search')}</span><strong>FIND A REGISTRATION</strong><small>Someone is standing here and you need to find them.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
 					<button type="button" class="desk-task-card desk-task-walkin" id="desk-home-walkin"><span class="desk-task-icon">${icon('family')}</span><strong>REGISTER A WALK-IN</strong><small>Use this for someone registering here today.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
 				</div>
-				<div class="desk-home-secondary"><button type="button" class="desk-help-button" id="desk-home-members">${icon('person')} ORAS MEMBERSHIP</button><button type="button" class="desk-help-button" id="desk-home-stats">${icon('calendar')} EVENT STATS</button><button type="button" class="desk-help-button" id="desk-home-help">${icon('manager')} MANAGER HELP</button></div>
+				<div class="desk-home-secondary"><button type="button" class="desk-help-button desk-membership-home" id="desk-home-members">${icon('person')}<span><strong>ORAS MEMBERSHIP</strong><small>Look up a member or record a membership paid here.</small></span></button><button type="button" class="desk-help-button" id="desk-home-stats">${icon('calendar')} EVENT STATS</button><button type="button" class="desk-help-button" id="desk-home-help">${icon('manager')} MANAGER HELP</button></div>
 			</section>`;
 		main().querySelector('#desk-home-find').addEventListener('click', () => showEventRoster(true));
-		main().querySelector('#desk-home-walkin').addEventListener('click', () => startWalkInWizard(false));
-		main().querySelector('#desk-home-members').addEventListener('click', () => showMemberLookup());
+		main().querySelector('#desk-home-walkin').addEventListener('click', () => state.station?.draft ? restoreDraft() : startWalkInWizard(false));
+		main().querySelector('#desk-home-members').addEventListener('click', () => state.station?.draft ? restoreDraft() : showMembershipMenu());
 		main().querySelector('#desk-home-stats').addEventListener('click', () => showEventStats());
 		main().querySelector('#desk-home-help').addEventListener('click', () => state.station.manager_token ? showManagerArea() : showManagerHelp());
+		main().querySelector('#desk-resume-draft')?.addEventListener('click', restoreDraft);
 		focusMain();
 	}
 
@@ -398,6 +482,7 @@
 			const data = await api('/manager/unlock', {method: 'POST', body: JSON.stringify({pin: new FormData(form).get('pin')})});
 			state.station.manager_token = data.manager_token;
 			saveStation(state.station);
+			refreshManagerStatus();
 			if (state.managerDestination === 'recovery') showMissingRegistration();
 			else showManagerArea();
 		} catch (error) {
@@ -407,17 +492,31 @@
 		}
 	}
 
+	function showMembershipMenu() {
+		resetViewport();
+		state.view = 'membership-menu';
+		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-membership-menu"><p class="desk-eyebrow">Organization membership — not event registration</p><h1>ORAS MEMBERSHIP</h1><p class="desk-lede">What do you need to do?</p><div class="desk-option-grid desk-option-grid-two"><button type="button" class="desk-option-card" id="desk-membership-lookup">${icon('search')}<strong>LOOK UP MEMBER</strong><span>Find a current, expired, or pending member.</span></button><button type="button" class="desk-option-card" id="desk-membership-record">${icon('person')}<strong>RECORD MEMBERSHIP PAYMENT</strong><span>Cash or check paid here today.</span></button></div></section>`;
+		bindScreenActions(showHome);
+		main().querySelector('#desk-membership-lookup').addEventListener('click', showMemberLookup);
+		main().querySelector('#desk-membership-record').addEventListener('click', () => startMembershipWizard(true));
+		focusMain();
+	}
+
 	function showMemberLookup() {
 		state.view = 'members';
-		main().innerHTML = `${screenActions('Back to Home')}<section class="desk-kiosk-panel"><p class="desk-eyebrow">Organization membership — not the event roster</p><h1>ORAS MEMBERSHIP LOOKUP</h1><p class="desk-lede">Type a member name or email address.</p><form id="desk-member-form" class="desk-search-form"><label class="desk-sr-only" for="desk-member-query">Name or email</label><div class="desk-search-box">${icon('search')}<input id="desk-member-query" name="q" minlength="2" placeholder="Member name or email" required autofocus></div><button type="submit" class="desk-primary">SEARCH</button></form><div id="desk-member-results" class="desk-results"></div></section>`;
-		bindScreenActions(showHome);
+		main().innerHTML = `${screenActions('Back to Membership', false)}<section class="desk-kiosk-panel"><p class="desk-eyebrow">Organization membership — not the event roster</p><h1>LOOK UP MEMBER</h1><p class="desk-lede">Type a member name or email address.</p><form id="desk-member-form" class="desk-search-form"><label class="desk-sr-only" for="desk-member-query">Name or email</label><div class="desk-search-box">${icon('search')}<input id="desk-member-query" name="q" minlength="2" placeholder="Member name or email" required autofocus></div><button type="submit" class="desk-primary">SEARCH</button></form><div id="desk-member-results" class="desk-results"></div></section>`;
+		bindScreenActions(showMembershipMenu);
 		main().querySelector('#desk-member-form').addEventListener('submit', async (event) => {
 			event.preventDefault();
 			const target = main().querySelector('#desk-member-results');
 			target.innerHTML = '<div class="desk-loading desk-loading-small">Searching…</div>';
 			try {
 				const data = await api(`/members?q=${encodeURIComponent(new FormData(event.currentTarget).get('q'))}`);
-				target.innerHTML = data.items.length ? data.items.map((item) => `<article class="desk-result-card desk-member-card"><div class="desk-result-main"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.level_name || 'Membership')}</span><small>Status: ${escapeHtml(item.status)}</small>${item.expiration ? `<small>Expiration: ${escapeHtml(formatDateValue(item.expiration))}</small>` : ''}</div></article>`).join('') : '<div class="desk-no-results"><h2>NOT FOUND</h2><p>No matching membership was found.</p></div>';
+				target.innerHTML = data.items.length ? data.items.map((item) => {
+					const status = String(item.status || '').toUpperCase();
+					const statusLabel = status === 'CURRENT' ? '✓ CURRENT' : status === 'PENDING' || status === 'PENDING ONLINE ACTIVATION' ? '⚠ PENDING ONLINE ACTIVATION' : status === 'EXPIRED' ? '✕ EXPIRED' : status;
+					return `<article class="desk-result-card desk-member-card"><div class="desk-result-main"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.level_name || 'Membership')}</span><small><strong>${escapeHtml(statusLabel)}</strong></small>${item.expiration ? `<small>Expires: ${escapeHtml(formatDateValue(item.expiration))}</small>` : ''}</div></article>`;
+				}).join('') : '<div class="desk-no-results"><h2>NOT FOUND</h2><p>No matching membership was found.</p></div>';
 			} catch (error) {
 				target.innerHTML = notice(friendlyError(error), 'error');
 			}
@@ -447,6 +546,7 @@
 			state.roster.offset = Number(data.next_offset || state.roster.items.length);
 			renderEventRoster(Boolean(data.has_more));
 		} catch (error) {
+			if (error.code === 'network_error') return showConnectionLost(main(), () => showEventRoster(false));
 			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>FIND REGISTRATION</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
 			bindScreenActions(showHome);
 			main().querySelector('#desk-roster-retry').addEventListener('click', () => showEventRoster(false));
@@ -485,7 +585,7 @@
 	}
 
 	function renderRosterRow(item) {
-		const status = item.checked_in_today ? '✓ Here today' : item.rsvp_status === 'waitlist' ? 'Waitlisted — not admitted' : item.rsvp_status ? 'Confirmed — not here today' : 'Not checked in today';
+		const status = item.checked_in_today ? '✓ HERE TODAY' : item.rsvp_status === 'waitlist' ? '⚠ WAITLISTED — NOT ADMITTED' : item.rsvp_status ? '✓ CONFIRMED — NOT HERE TODAY' : '✕ NOT CHECKED IN TODAY';
 		const action = item.detail_kind === 'public_rsvp' ? `data-roster-rsvp="${Number(item.rsvp_user_id)}"` : `data-roster-registration="${escapeHtml(item.registration_uuid)}"`;
 		return `<button type="button" class="desk-roster-row ${item.checked_in_today ? 'is-checked-in' : ''}" ${action}><span><strong>${escapeHtml(item.name || 'Unnamed registration')}</strong><small>${escapeHtml(item.phone || 'Phone not recorded')}</small></span><span><strong>${escapeHtml(item.registration_type)}</strong>${item.attendees?.length ? `<small>${escapeHtml(item.attendees.join(' · '))}</small>` : ''}</span><span class="desk-roster-state">${escapeHtml(status)}</span>${icon('arrow')}</button>`;
 	}
@@ -499,7 +599,7 @@
 
 	function showPublicRsvp(item) {
 		if (!item) return showEventRoster(false);
-		main().innerHTML = `${screenActions('Back to Event Roster', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? 'Waitlist — not admitted' : 'Admitted RSVP'}</span></div></section><div id="desk-detail-message"></div><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>Confirm that this admitted website RSVP is here now.</p><button type="button" class="desk-primary desk-wide" id="desk-rsvp-checkin">CHECK IN THIS PERSON</button>'}</section>`;
+		main().innerHTML = `${screenActions('Back to Find Registration', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? '⚠ WAITLISTED — NOT ADMITTED' : '✓ CONFIRMED'}</span></div></section><div id="desk-detail-message"></div><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('⚠ This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>Confirm that this admitted website RSVP is here now.</p><button type="button" class="desk-primary desk-wide" id="desk-rsvp-checkin">CHECK IN THIS PERSON</button>'}</section>`;
 		bindScreenActions(() => renderEventRoster(false));
 		main().querySelector('#desk-rsvp-checkin')?.addEventListener('click', async (event) => {
 			event.currentTarget.disabled = true;
@@ -796,7 +896,9 @@
 			main().querySelector('#desk-offerings-home').addEventListener('click', showHome);
 			return;
 		}
-		state.wizard = {administrator, step: 'type', data: {first_name: '', last_name: '', email: '', phone: '', address_1: '', address_2: '', city: '', state: '', postcode: '', option_uuid: '', offering_fingerprint: '', valid_local_date: '', source_type: 'complimentary'}, additional_attendees: [], payment: ''};
+		state.pendingRequest = uuid();
+		state.wizard = {administrator, step: 'type', data: {first_name: '', last_name: '', email: '', phone: '', address_1: '', address_2: '', city: '', state: '', postcode: '', option_uuid: '', offering_fingerprint: '', valid_local_date: '', source_type: 'complimentary'}, additional_attendees: [], payment: '', payment_handled: false};
+		persistDraft('walk-in');
 		showWalkInStep('type');
 	}
 
@@ -821,6 +923,7 @@
 		resetViewport();
 		if (!state.wizard) return startWalkInWizard(false);
 		state.wizard.step = step;
+		persistDraft('walk-in');
 		if (step === 'type') return showWizardType();
 		if (step === 'contact') return showWizardContact();
 		if (step === 'attendees') return showWizardAttendees();
@@ -857,6 +960,10 @@
 			const option = optionFor(state.wizard.data.option_uuid);
 			showWalkInStep(option.classification === 'family' ? 'attendees' : 'review');
 		});
+		main().querySelector('#desk-contact-form').addEventListener('input', (event) => {
+			Object.assign(state.wizard.data, Object.fromEntries(new FormData(event.currentTarget).entries()));
+			persistDraft('walk-in');
+		});
 	}
 
 	function showWizardAttendees() {
@@ -865,7 +972,11 @@
 		wizardFrame(`<div class="desk-wizard-heading"><h1>WHO ELSE IS ATTENDING?</h1><p>Names are optional. Add the people who are here if you know them.</p></div><form id="desk-family-form" class="desk-form"><div id="desk-family-members" class="desk-family-list"></div><button type="button" class="desk-secondary desk-wide" id="desk-add-family">+ ADD ANOTHER PERSON</button><p class="desk-help">The primary contact is already included. This registration allows up to ${maximum} people total.</p><button type="submit" class="desk-primary desk-wide">CONTINUE ${icon('arrow')}</button></form>`, () => showWalkInStep('contact'));
 		const container = main().querySelector('#desk-family-members');
 		state.wizard.additional_attendees.forEach((attendee) => addWizardFamilyRow(container, maximum, attendee));
-		main().querySelector('#desk-add-family').addEventListener('click', () => addWizardFamilyRow(container, maximum));
+		main().querySelector('#desk-add-family').addEventListener('click', () => { addWizardFamilyRow(container, maximum); persistDraft('walk-in'); });
+		container.addEventListener('input', () => {
+			state.wizard.additional_attendees = [...container.querySelectorAll('.desk-family-row')].map((row) => ({first_name: row.querySelector('[data-first]').value, last_name: row.querySelector('[data-last]').value}));
+			persistDraft('walk-in');
+		});
 		main().querySelector('#desk-family-form').addEventListener('submit', (event) => {
 			event.preventDefault();
 			state.wizard.additional_attendees = [...container.querySelectorAll('.desk-family-row')].map((row) => ({first_name: row.querySelector('[data-first]').value, last_name: row.querySelector('[data-last]').value}));
@@ -878,7 +989,11 @@
 		const row = document.createElement('div');
 		row.className = 'desk-family-row';
 		row.innerHTML = `<span class="desk-family-number">${container.children.length + 2}</span><div class="desk-field"><label>First name — optional</label><input data-first value="${escapeHtml(attendee.first_name || '')}"></div><div class="desk-field"><label>Last name — optional</label><input data-last value="${escapeHtml(attendee.last_name || '')}"></div><button type="button" class="desk-remove-button">Remove</button>`;
-		row.querySelector('button').addEventListener('click', () => row.remove());
+		row.querySelector('button').addEventListener('click', () => {
+			row.remove();
+			state.wizard.additional_attendees = [...container.querySelectorAll('.desk-family-row')].map((item) => ({first_name: item.querySelector('[data-first]').value, last_name: item.querySelector('[data-last]').value}));
+			persistDraft('walk-in');
+		});
 		container.appendChild(row);
 	}
 
@@ -893,11 +1008,15 @@
 
 	function showWizardHandoff() {
 		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>PAYMENT IS HANDLED IN ALFAPOS</h1><p><strong>Before taking payment, ask whether they are buying anything else today.</strong></p><p>Add the registration and any other items — such as pizza, T-shirts, merchandise, or door-prize tickets — in AlfaPOS and take ONE payment.</p><p>Return here when the sale is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-handoff-done">THE ALFAPOS SALE IS FINISHED ${icon('arrow')}</button>`, () => showWalkInStep('review'));
-		main().querySelector('#desk-handoff-done').addEventListener('click', () => showWalkInStep('payment'));
+		main().querySelector('#desk-handoff-done').addEventListener('click', () => {
+			state.wizard.payment_handled = true;
+			persistDraft('walk-in');
+			showWalkInStep('payment');
+		});
 	}
 
 	function showWizardPayment() {
-		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Operational statement only</p><h1>HOW WAS THE REGISTRATION PAID?</h1><p>The sale stays in AlfaPOS.</p></div><div class="desk-payment-grid"><button type="button" data-payment="paid_card">${icon('card')}<strong>CARD</strong></button><button type="button" data-payment="paid_cash">${icon('cash')}<strong>CASH</strong></button><button type="button" data-payment="paid_check">${icon('check')}<strong>CHECK</strong></button><button type="button" data-payment="unpaid" class="desk-unpaid-choice">${icon('help')}<strong>UNPAID</strong></button></div><div id="desk-payment-message"></div><button type="button" class="desk-primary desk-wide" id="desk-complete-registration" ${state.wizard.payment ? '' : 'disabled'}>COMPLETE REGISTRATION &amp; CHECK IN TODAY ${icon('arrow')}</button>`, () => showWalkInStep('handoff'));
+		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Operational statement only</p><h1>HOW WAS THE REGISTRATION PAID?</h1><p>The sale stays in AlfaPOS.</p>${state.wizard.payment_handled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}</div><div class="desk-payment-grid"><button type="button" data-payment="paid_card">${icon('card')}<strong>CARD</strong></button><button type="button" data-payment="paid_cash">${icon('cash')}<strong>CASH</strong></button><button type="button" data-payment="paid_check">${icon('check')}<strong>CHECK</strong></button><button type="button" data-payment="unpaid" class="desk-unpaid-choice">${icon('help')}<strong>UNPAID</strong></button></div><div id="desk-payment-message"></div><button type="button" class="desk-primary desk-wide" id="desk-complete-registration" ${state.wizard.payment ? '' : 'disabled'}>COMPLETE REGISTRATION &amp; CHECK IN TODAY ${icon('arrow')}</button>`, () => showWalkInStep('handoff'));
 		main().querySelectorAll('[data-payment]').forEach((button) => button.addEventListener('click', () => selectWizardPayment(button.dataset.payment)));
 		main().querySelector('#desk-complete-registration').addEventListener('click', () => {
 			if (state.wizard.payment === 'unpaid') return showUnpaidWarning();
@@ -907,6 +1026,7 @@
 
 	function selectWizardPayment(payment) {
 		state.wizard.payment = payment;
+		persistDraft('walk-in');
 		main().querySelectorAll('[data-payment]').forEach((button) => button.classList.toggle('is-selected', button.dataset.payment === payment));
 		main().querySelector('#desk-complete-registration').disabled = false;
 		main().querySelector('#desk-payment-message').innerHTML = payment === 'unpaid' ? notice('This registration will be checked in without a recorded payment.', 'warning') : notice(`${payment.replace('paid_', '').toUpperCase()} selected. Complete the registration when ready.`, 'success');
@@ -951,7 +1071,7 @@
 			const outcome = result.historical_result?.result || '';
 			resetPending();
 			if (outcome === 'rsvp_waitlisted') showWaitlistSuccess(name);
-			else showSuccess({kind: administrator ? 'manager' : 'walk-in', name, count, type: option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
+			else showSuccess({kind: option.kind === 'rsvp' ? 'rsvp' : administrator ? 'manager' : 'walk-in', name, count, type: option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
 		} catch (error) {
 			main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 			if (error.code === 'oras_desk_possible_duplicate') {
@@ -984,13 +1104,16 @@
 		resetViewport();
 		state.view = 'success';
 		state.wizard = null;
-		main().innerHTML = `<section class="desk-success-screen desk-waitlist-screen"><span class="desk-large-icon">${icon('calendar')}</span><p class="desk-eyebrow">RSVP waitlist</p><h1>ADDED TO THE WAITLIST</h1><p class="desk-success-name">${escapeHtml(name)}</p><p><strong>This person was not admitted or checked in.</strong></p><p>The event is currently full. Their accountless RSVP was saved to the waitlist.</p><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">REGISTER ANOTHER</button></div></section>`;
+		main().innerHTML = `<section class="desk-success-screen desk-waitlist-screen"><span class="desk-large-icon">${icon('calendar')}</span><p class="desk-eyebrow">RSVP waitlist</p><h1>ADDED TO WAITLIST</h1><p class="desk-success-name">${escapeHtml(name)}</p><p><strong>⚠ This person does not have a confirmed spot yet.</strong></p><p>The event is currently full. Their accountless RSVP was saved to the waitlist and they were not checked in.</p><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">REGISTER ANOTHER</button></div></section>`;
 		main().querySelector('#desk-success-home').addEventListener('click', showHome);
 		main().querySelector('#desk-success-another').addEventListener('click', () => startWalkInWizard(false));
 		focusMain();
 	}
 
 	function showPaymentRecovery(container, error, payment, acknowledge) {
+		if (error.code === 'network_error') {
+			return showConnectionLost(container, () => saveManual(payment, false, acknowledge), payment !== 'unpaid');
+		}
 		const repeated = state.failureCount >= 2;
 		container.innerHTML = `<div class="desk-recovery-card"><span class="desk-large-icon">${icon('help')}</span><h2>${repeated ? 'WE STILL COULDN’T SAVE THIS REGISTRATION.' : 'WE COULDN’T SAVE THIS REGISTRATION YET.'}</h2><p>Your information ${repeated ? 'is safe' : 'has not been lost'}.</p>${payment !== 'unpaid' ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}${repeated ? '<p>Please ask a manager for help.</p>' : ''}<div class="desk-actions"><button type="button" id="desk-payment-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-payment-manager">MANAGER HELP</button>${repeated ? '<button type="button" class="desk-danger" id="desk-payment-abandon">RETURN HOME ONLY AFTER CONFIRMATION</button>' : ''}</div></div>`;
 		container.querySelector('#desk-payment-retry').addEventListener('click', () => saveManual(payment, false, acknowledge));
@@ -1015,12 +1138,13 @@
 		resetViewport();
 		state.view = 'success';
 		const isWalkIn = details.kind === 'walk-in' || details.kind === 'manager';
+		const isRsvp = details.kind === 'rsvp';
 		const time = formatLocalTime(details.when);
 		const payment = {paid_card: 'Paid by card recorded', paid_cash: 'Paid by cash recorded', paid_check: 'Paid by check recorded', unpaid: 'Unpaid recorded', complimentary: 'Manager registration'}[details.payment] || '';
 		state.wizard = null;
-		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">All set</p><h1>${isWalkIn ? 'REGISTRATION COMPLETE' : 'CHECK-IN COMPLETE'}</h1><p class="desk-success-name">${escapeHtml(details.name)}</p><p>${isWalkIn ? 'The registration was saved and ' : ''}${Number(details.count || 1)} ${Number(details.count || 1) === 1 ? 'person was' : 'people were'} checked in for today.</p><div class="desk-success-summary"><span><strong>Registration</strong>${escapeHtml(details.type || '')}</span><span><strong>Event</strong>${escapeHtml(state.station.event_title)}</span><span><strong>Checked in</strong>${escapeHtml(state.station.friendly_date || formatDateValue(state.station.local_date))}${time ? ` at ${escapeHtml(time)}` : ''}</span>${payment ? `<span><strong>Statement</strong>${escapeHtml(payment)}</span>` : ''}<span><strong>Volunteer</strong>${escapeHtml(state.station.operator_label)}</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">${isWalkIn ? 'REGISTER ANOTHER' : 'FIND ANOTHER REGISTRATION'}</button></div></section>`;
+		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">All set</p><h1>${isRsvp ? 'RSVP CONFIRMED' : isWalkIn ? 'REGISTRATION COMPLETE' : 'CHECK-IN COMPLETE'}</h1><p class="desk-success-name">${escapeHtml(details.name)}</p><div class="desk-success-statements">${isWalkIn ? '<p>✓ Registered</p>' : isRsvp ? '<p>✓ RSVP recorded</p>' : ''}<p>✓ Checked in today</p></div><p>${isWalkIn ? 'The registration was saved and ' : ''}${Number(details.count || 1)} ${Number(details.count || 1) === 1 ? 'person was' : 'people were'} checked in for today.</p><div class="desk-success-summary"><span><strong>Registration</strong>${escapeHtml(details.type || '')}</span><span><strong>Event</strong>${escapeHtml(state.station.event_title)}</span><span><strong>Checked in</strong>${escapeHtml(state.station.friendly_date || formatDateValue(state.station.local_date))}${time ? ` at ${escapeHtml(time)}` : ''}</span>${payment ? `<span><strong>Statement</strong>${escapeHtml(payment)}</span>` : ''}<span><strong>Volunteer</strong>${escapeHtml(state.station.operator_label)}</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">${isWalkIn || isRsvp ? 'REGISTER ANOTHER' : 'FIND ANOTHER REGISTRATION'}</button></div></section>`;
 		main().querySelector('#desk-success-home').addEventListener('click', () => showHome());
-		main().querySelector('#desk-success-another').addEventListener('click', () => isWalkIn ? startWalkInWizard(false) : showEventRoster(true));
+		main().querySelector('#desk-success-another').addEventListener('click', () => isWalkIn || isRsvp ? startWalkInWizard(false) : showEventRoster(true));
 		focusMain();
 	}
 
@@ -1032,16 +1156,10 @@
 		try {
 			const data = await api('/dashboard');
 			const summary = data.summary || {};
-			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area"><div class="desk-manager-banner"><strong>MANAGER MODE</strong><button type="button" id="desk-exit-manager">EXIT MANAGER MODE</button></div><div class="desk-wizard-heading"><h1>MANAGER TOOLS</h1><p>Corrections and recovery actions are audited.</p></div>${messageText ? notice(messageText, 'success') : ''}<div id="desk-sync-message"></div>${state.pendingPayload ? '<div class="desk-recovery-card"><h2>UNSAVED REGISTRATION NEEDS HELP</h2><p>The original request and payment warning are still available.</p><button type="button" id="desk-resume-failed">RESUME SAME REQUEST</button></div>' : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-manager-recovery">${icon('search')}<strong>FIND MISSING REGISTRATION</strong><span>Search and synchronize a paid website registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-comp">${icon('person')}<strong>COMPLIMENTARY / SPEAKER</strong><span>Create an approved nonfinancial registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-membership">${icon('family')}<strong>RECORD MEMBERSHIP</strong><span>Cash or check paid at this event.</span></button><button type="button" class="desk-manager-card" id="desk-manager-pending">${icon('calendar')}<strong>PENDING MEMBERSHIP ACTIVATIONS</strong><span>Resend, copy, or cancel unused credits.</span></button><button type="button" class="desk-manager-card" id="desk-sync-registrations">${icon('search')}<strong>SYNC WEBSITE REGISTRATIONS</strong><span>Refresh website registration search.</span></button></div><section class="desk-manager-summary"><div><strong>${Number(summary.checked_in_today || 0)}</strong><span>Checked in today</span></div><div><strong>${Number(summary.active_registrations || 0)}</strong><span>Active registrations</span></div><div><strong>${Number(summary.reversed_today || 0)}</strong><span>Reversals today</span></div></section>${data.recent?.length ? `<section class="desk-recent"><h2>Recent operational activity</h2><div class="desk-recent-list">${renderRecent(data.recent.slice(0, 8))}</div></section>` : ''}</section>`;
+			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area"><div class="desk-wizard-heading"><h1>MANAGER TOOLS</h1><p>Corrections and recovery actions are audited.</p></div>${messageText ? notice(messageText, 'success') : ''}<div id="desk-sync-message"></div>${state.pendingPayload ? '<div class="desk-recovery-card"><h2>UNSAVED REGISTRATION NEEDS HELP</h2><p>The original request and payment warning are still available.</p><button type="button" id="desk-resume-failed">RESUME SAME REQUEST</button></div>' : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-manager-recovery">${icon('search')}<strong>FIND MISSING REGISTRATION</strong><span>Search and synchronize a paid website registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-comp">${icon('person')}<strong>COMPLIMENTARY / SPEAKER</strong><span>Create an approved nonfinancial registration.</span></button><button type="button" class="desk-manager-card" id="desk-manager-pending">${icon('calendar')}<strong>PENDING MEMBERSHIP ACTIVATIONS</strong><span>Correct, resend, copy, or cancel unused credits.</span></button><button type="button" class="desk-manager-card" id="desk-sync-registrations">${icon('search')}<strong>SYNC WEBSITE REGISTRATIONS</strong><span>Refresh website registration search.</span></button></div><section class="desk-manager-summary"><div><strong>${Number(summary.checked_in_today || 0)}</strong><span>Checked in today</span></div><div><strong>${Number(summary.active_registrations || 0)}</strong><span>Active registrations</span></div><div><strong>${Number(summary.reversed_today || 0)}</strong><span>Reversals today</span></div></section>${data.recent?.length ? `<section class="desk-recent"><h2>Recent operational activity</h2><div class="desk-recent-list">${renderRecent(data.recent.slice(0, 8))}</div></section>` : ''}</section>`;
 			bindScreenActions(requestHome);
-			main().querySelector('#desk-exit-manager').addEventListener('click', () => {
-				delete state.station.manager_token;
-				saveStation(state.station);
-				showHome('Manager Mode closed.');
-			});
 			main().querySelector('#desk-manager-comp').addEventListener('click', () => startWalkInWizard(true));
 			main().querySelector('#desk-manager-recovery').addEventListener('click', showMissingRegistration);
-			main().querySelector('#desk-manager-membership').addEventListener('click', () => showMembershipForm());
 			main().querySelector('#desk-manager-pending').addEventListener('click', () => showPendingMemberships());
 			main().querySelector('#desk-resume-failed')?.addEventListener('click', () => {
 				if (!state.wizard) return;
@@ -1082,63 +1200,138 @@
 		}
 	}
 
-	function showMembershipForm() {
-		const levels = state.station.membership_levels || [];
-		main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-wizard"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><div class="desk-wizard-heading"><p class="desk-eyebrow">Cash or check only</p><h1>RECORD MEMBERSHIP</h1><p>Receive the payment, place it in the event bag, and record the membership product in AlfaPOS before saving here.</p></div>${levels.length ? `<form id="desk-membership-form" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" required></div><div class="desk-field"><label>Last name</label><input name="last_name" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel"></div><div class="desk-field desk-field-wide"><label>Membership level</label><select name="level_id" required><option value="">Choose a level</option>${levels.map((level) => `<option value="${Number(level.level_id)}">${escapeHtml(level.display_name)} — ${escapeHtml(level.price)}</option>`).join('')}</select></div></div><h2>HOW DID THEY PAY?</h2><div class="desk-membership-payment-grid"><label class="desk-membership-payment-choice"><input type="radio" name="payment_method" value="cash" required><span>${icon('cash')}<strong>CASH</strong></span></label><label class="desk-membership-payment-choice"><input type="radio" name="payment_method" value="check" required><span>${icon('check')}<strong>CHECK</strong></span></label></div><p class="desk-alfapos-confirmation">PAYMENT RECORDED IN ALFAPOS</p><div id="desk-membership-message"></div><button type="submit" class="desk-primary desk-wide">RECORD MEMBERSHIP &amp; SEND EMAIL</button></form>` : notice('No membership levels are configured. An administrator must add exact PMPro level mappings in Registration Desk settings.', 'warning')}</section>`;
-		bindScreenActions(showManagerArea);
-		main().querySelector('#desk-membership-form')?.addEventListener('submit', recordMembership);
-		main().querySelectorAll('.desk-membership-payment-choice input').forEach((input) => input.addEventListener('change', () => {
-			main().querySelectorAll('.desk-membership-payment-choice').forEach((choice) => choice.classList.toggle('is-selected', choice.contains(input)));
-			main().querySelectorAll('.desk-membership-payment-choice strong').forEach((label) => { label.textContent = label.closest('label').classList.contains('is-selected') ? `✓ ${label.textContent.replace(/^✓ /, '')}` : label.textContent.replace(/^✓ /, ''); });
-		}));
+	async function startMembershipWizard(reset = true) {
+		resetViewport();
+		state.view = 'membership';
+		if (reset) {
+			resetPending();
+			state.membershipWizard = {step: 'details', request_uuid: uuid(), data: {first_name: '', last_name: '', email: '', phone: '', level_id: ''}, payment_method: '', payment_handled: false};
+		}
+		main().innerHTML = '<section class="desk-centered"><h1>LOADING CURRENT MEMBERSHIP OPTIONS…</h1></section>';
+		try {
+			const response = await api('/membership-offerings');
+			state.station.membership_levels = Array.isArray(response.items) ? response.items : [];
+			saveStation(state.station);
+			showMembershipStep(state.membershipWizard?.step || 'details');
+		} catch (error) {
+			if (error.code === 'network_error') return showConnectionLost(main(), () => startMembershipWizard(false), Boolean(state.membershipWizard?.payment_handled));
+			main().innerHTML = `${screenActions('Back to Membership', false)}${notice(friendlyError(error), 'error')}`;
+			bindScreenActions(showMembershipMenu);
+		}
+	}
+
+	function selectedMembershipLevel() {
+		return (state.station.membership_levels || []).find((level) => Number(level.level_id) === Number(state.membershipWizard?.data.level_id)) || {};
+	}
+
+	function membershipProgress(step) {
+		const steps = ['details', 'payment', 'handoff', 'review'];
+		const current = Math.max(0, steps.indexOf(step));
+		return `<div class="desk-progress" aria-label="Step ${current + 1} of ${steps.length}"><strong>STEP ${current + 1} OF ${steps.length}</strong><div class="desk-progress-track">${steps.map((item, index) => `<span class="${index <= current ? 'is-complete' : ''}"></span>`).join('')}</div></div>`;
+	}
+
+	function showMembershipStep(step) {
+		if (!state.membershipWizard) return startMembershipWizard(true);
+		state.membershipWizard.step = step;
+		persistDraft('membership');
+		if (step === 'details') return showMembershipDetails();
+		if (step === 'payment') return showMembershipPayment();
+		if (step === 'handoff') return showMembershipHandoff();
+		return showMembershipReview();
+	}
+
+	function membershipFrame(content, backHandler) {
+		main().innerHTML = `${screenActions('Back')}<section class="desk-wizard">${membershipProgress(state.membershipWizard.step)}${content}</section>`;
+		bindScreenActions(backHandler);
 		focusMain();
 	}
 
-	async function recordMembership(event) {
-		event.preventDefault();
-		const form = event.currentTarget;
-		const payload = Object.fromEntries(new FormData(form).entries());
-		const requestId = uuid();
-		form.querySelector('button[type="submit"]').disabled = true;
+	function showMembershipDetails() {
+		const data = state.membershipWizard.data;
+		const levels = state.station.membership_levels || [];
+		membershipFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Cash or check membership</p><h1>RECORD MEMBERSHIP PAYMENT</h1><p>Enter the member's information, then choose a current membership level.</p></div>${levels.length ? `<form id="desk-membership-details" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" autocomplete="given-name" value="${escapeHtml(data.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" autocomplete="family-name" value="${escapeHtml(data.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" autocomplete="email" value="${escapeHtml(data.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" autocomplete="tel" value="${escapeHtml(data.phone)}"></div></div><fieldset class="desk-membership-levels"><legend>CHOOSE MEMBERSHIP</legend>${levels.map((level) => `<label class="desk-membership-level ${Number(data.level_id) === Number(level.level_id) ? 'is-selected' : ''}"><input type="radio" name="level_id" value="${Number(level.level_id)}" ${Number(data.level_id) === Number(level.level_id) ? 'checked' : ''} required><span><strong>${escapeHtml(level.display_name)}</strong><small>$${Number(level.price || 0).toFixed(2)} · ${escapeHtml(level.period_label || 'Membership')}</small></span></label>`).join('')}</fieldset><button type="submit" class="desk-primary desk-wide">CONTINUE ${icon('arrow')}</button></form>` : notice('No membership levels are enabled for event sales. Please ask a manager for help.', 'warning')}`, requestHome);
+		const form = main().querySelector('#desk-membership-details');
+		form?.addEventListener('input', () => {
+			Object.assign(state.membershipWizard.data, Object.fromEntries(new FormData(form).entries()));
+			persistDraft('membership');
+			form.querySelectorAll('.desk-membership-level').forEach((choice) => choice.classList.toggle('is-selected', choice.querySelector('input').checked));
+		});
+		form?.addEventListener('submit', (event) => {
+			event.preventDefault();
+			Object.assign(state.membershipWizard.data, Object.fromEntries(new FormData(form).entries()));
+			showMembershipStep('payment');
+		});
+	}
+
+	function showMembershipPayment() {
+		membershipFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Membership payment</p><h1>HOW DID THEY PAY?</h1><p>Choose the same payment method you will record in AlfaPOS.</p></div><div class="desk-membership-payment-grid"><button type="button" data-membership-payment="cash" class="desk-membership-payment-choice ${state.membershipWizard.payment_method === 'cash' ? 'is-selected' : ''}">${icon('cash')}<strong>${state.membershipWizard.payment_method === 'cash' ? '✓ ' : ''}CASH</strong></button><button type="button" data-membership-payment="check" class="desk-membership-payment-choice ${state.membershipWizard.payment_method === 'check' ? 'is-selected' : ''}">${icon('check')}<strong>${state.membershipWizard.payment_method === 'check' ? '✓ ' : ''}CHECK</strong></button></div><button type="button" class="desk-primary desk-wide" id="desk-membership-payment-next" ${state.membershipWizard.payment_method ? '' : 'disabled'}>CONTINUE ${icon('arrow')}</button>`, () => showMembershipStep('details'));
+		main().querySelectorAll('[data-membership-payment]').forEach((button) => button.addEventListener('click', () => {
+			state.membershipWizard.payment_method = button.dataset.membershipPayment;
+			persistDraft('membership');
+			showMembershipStep('payment');
+		}));
+		main().querySelector('#desk-membership-payment-next').addEventListener('click', () => showMembershipStep('handoff'));
+	}
+
+	function showMembershipHandoff() {
+		membershipFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>RECORD THE PAYMENT IN ALFAPOS</h1><p>Put the cash/check in the event payment bag.</p><p>Record this membership in AlfaPOS using the same payment method.</p><p>Return here when AlfaPOS is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-membership-handoff-done">PAYMENT RECORDED IN ALFAPOS ${icon('arrow')}</button>`, () => showMembershipStep('payment'));
+		main().querySelector('#desk-membership-handoff-done').addEventListener('click', () => {
+			state.membershipWizard.payment_handled = true;
+			showMembershipStep('review');
+		});
+	}
+
+	function showMembershipReview() {
+		const data = state.membershipWizard.data;
+		const level = selectedMembershipLevel();
+		membershipFrame(`<div class="desk-wizard-heading"><h1>REVIEW MEMBERSHIP</h1><p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p></div><section class="desk-review-card"><dl><dt>Name</dt><dd>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</dd><dt>Email</dt><dd>${escapeHtml(data.email)}</dd><dt>Phone</dt><dd>${escapeHtml(data.phone || 'Not provided')}</dd><dt>Membership</dt><dd>${escapeHtml(level.display_name || 'Membership')}<small>$${Number(level.price || 0).toFixed(2)} · ${escapeHtml(level.period_label || '')}</small></dd><dt>Payment</dt><dd>${escapeHtml(state.membershipWizard.payment_method.toUpperCase())} — recorded in AlfaPOS</dd></dl></section><div id="desk-membership-message"></div><button type="button" class="desk-primary desk-wide" id="desk-membership-submit">RECORD MEMBERSHIP &amp; SEND EMAIL</button>`, () => showMembershipStep('handoff'));
+		main().querySelector('#desk-membership-submit').addEventListener('click', recordMembership);
+	}
+
+	async function recordMembership() {
+		const button = main().querySelector('#desk-membership-submit');
+		if (button) button.disabled = true;
+		const payload = {...state.membershipWizard.data, payment_method: state.membershipWizard.payment_method};
+		persistDraft('membership');
 		try {
-			const result = await api('/memberships', {method: 'POST', body: JSON.stringify(payload)}, requestId);
+			const result = await api('/memberships', {method: 'POST', body: JSON.stringify(payload)}, state.membershipWizard.request_uuid);
+			resetPending();
 			showMembershipComplete(result);
 		} catch (error) {
-			form.querySelector('button[type="submit"]').disabled = false;
 			const activation = error.data?.activation;
-			if (activation) return showMembershipComplete(activation, true);
-			form.querySelector('#desk-membership-message').innerHTML = notice(friendlyError(error), 'error');
+			if (activation) {
+				resetPending();
+				return showMembershipComplete(activation, true);
+			}
+			if (error.code === 'network_error') return showConnectionLost(main(), () => { showMembershipStep('review'); recordMembership(); }, true);
+			if (button) button.disabled = false;
+			main().querySelector('#desk-membership-message').innerHTML = notice(friendlyError(error), 'error');
 		}
 	}
 
 	function showMembershipComplete(record, emailFailed = false) {
-		main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>MEMBERSHIP PAYMENT RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Activation email</strong>${emailFailed ? 'Could not be sent' : `Sent to ${escapeHtml(record.email)}`}</span><span><strong>Membership Credit Code</strong><code id="desk-membership-code">${escapeHtml(record.credit_code)}</code></span><span><strong>Status</strong>WAITING FOR ONLINE REGISTRATION</span></div>${emailFailed ? notice('Membership was recorded, but the email could not be sent. The pending activation and same code are safe.', 'warning') : ''}<div class="desk-success-actions"><button type="button" id="desk-membership-resend">${emailFailed ? 'TRY EMAIL AGAIN' : 'RESEND EMAIL'}</button><button type="button" class="desk-secondary" id="desk-membership-copy">COPY CODE</button><button type="button" class="desk-primary" id="desk-membership-done">DONE</button></div><div id="desk-membership-action-message"></div></section>`;
-		bindScreenActions(showManagerArea);
-		main().querySelector('#desk-membership-done').addEventListener('click', () => showManagerArea());
-		main().querySelector('#desk-membership-copy').addEventListener('click', async () => {
-			await navigator.clipboard.writeText(record.credit_code);
-			main().querySelector('#desk-membership-action-message').innerHTML = notice('Code copied.', 'success');
-		});
-		main().querySelector('#desk-membership-resend').addEventListener('click', async () => {
-			try {
-				const updated = await api(`/memberships/${record.activation_uuid}/resend`, {method: 'POST', body: '{}'});
-				showMembershipComplete(updated, false);
-			} catch (error) {
-				main().querySelector('#desk-membership-action-message').innerHTML = notice(friendlyError(error), 'error');
-			}
-		});
+		resetViewport();
+		state.view = 'success';
+		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>MEMBERSHIP RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-statements"><p>✓ Membership payment recorded</p><p>${emailFailed ? '⚠ Activation email needs manager help' : '✓ Activation email sent'}</p></div><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Status</strong>PENDING ONLINE ACTIVATION</span></div>${emailFailed ? notice('The membership is safely recorded, but the email could not be sent. Ask a manager to recover the existing activation.', 'warning') : ''}<div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-membership-done">DONE — RETURN HOME</button>${emailFailed ? '<button type="button" class="desk-secondary" id="desk-membership-manager">MANAGER HELP</button>' : ''}</div></section>`;
+		main().querySelector('#desk-membership-done').addEventListener('click', showHome);
+		main().querySelector('#desk-membership-manager')?.addEventListener('click', () => state.station.manager_token ? showPendingMemberships() : showManagerHelp());
 		focusMain();
 	}
 
-	async function showPendingMemberships() {
+	async function showPendingMemberships(messageText = '') {
 		main().innerHTML = '<div class="desk-loading">Loading membership activations…</div>';
 		try {
 			const data = await api('/memberships');
-			main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-kiosk-panel"><div class="desk-manager-banner"><strong>MANAGER MODE</strong></div><h1>PENDING MEMBERSHIP ACTIVATIONS</h1><div class="desk-results">${data.items.length ? data.items.map((item) => `<article class="desk-result-card"><div class="desk-result-main"><strong>${escapeHtml(item.first_name)} ${escapeHtml(item.last_name)}</strong><span>${escapeHtml(item.level_name)} · ${escapeHtml(item.status)}</span><small>${escapeHtml(item.email)} · Email ${escapeHtml(item.email_status)}</small><code>${escapeHtml(item.credit_code)}</code></div>${item.status === 'pending' ? `<div class="desk-actions"><button type="button" data-resend-membership="${escapeHtml(item.activation_uuid)}">RESEND</button><button type="button" class="desk-danger" data-cancel-membership="${escapeHtml(item.activation_uuid)}">CANCEL UNUSED CODE</button></div>` : ''}</article>`).join('') : '<p>No membership activations were recorded at this event.</p>'}</div></section>`;
+			main().innerHTML = `${screenActions('Back to Manager', false)}<section class="desk-kiosk-panel"><h1>PENDING MEMBERSHIP ACTIVATIONS</h1>${messageText ? notice(messageText, 'success') : ''}<div id="desk-pending-membership-message"></div><div class="desk-results">${data.items.length ? data.items.map((item) => `<article class="desk-result-card"><div class="desk-result-main"><strong>${escapeHtml(item.first_name)} ${escapeHtml(item.last_name)}</strong><span>${escapeHtml(item.level_name)} · ${escapeHtml(item.status)}</span><small>${escapeHtml(item.email)} · ${escapeHtml(item.phone || 'Phone not recorded')} · Email ${escapeHtml(item.email_status)}</small><code>${escapeHtml(item.credit_code)}</code></div>${item.status === 'pending' ? `<div class="desk-actions"><button type="button" class="desk-secondary" data-edit-membership="${escapeHtml(item.activation_uuid)}">EDIT CONTACT</button><button type="button" data-resend-membership="${escapeHtml(item.activation_uuid)}">RESEND EMAIL</button><button type="button" class="desk-secondary" data-copy-membership="${escapeHtml(item.credit_code)}">COPY EXISTING CODE</button><button type="button" class="desk-danger" data-cancel-membership="${escapeHtml(item.activation_uuid)}">CANCEL UNUSED CODE</button></div>` : ''}</article>`).join('') : '<p>No membership activations were recorded at this event.</p>'}</div></section>`;
 			bindScreenActions(showManagerArea);
+			main().querySelectorAll('[data-edit-membership]').forEach((button) => button.addEventListener('click', () => showMembershipCorrection(data.items.find((item) => item.activation_uuid === button.dataset.editMembership))));
 			main().querySelectorAll('[data-resend-membership]').forEach((button) => button.addEventListener('click', async () => {
 				await api(`/memberships/${button.dataset.resendMembership}/resend`, {method: 'POST', body: '{}'});
-				showPendingMemberships();
+				showPendingMemberships('The existing activation email was sent again.');
+			}));
+			main().querySelectorAll('[data-copy-membership]').forEach((button) => button.addEventListener('click', async () => {
+				await navigator.clipboard.writeText(button.dataset.copyMembership);
+				main().querySelector('#desk-pending-membership-message').innerHTML = notice('The existing code was copied. No new code was created.', 'success');
 			}));
 			main().querySelectorAll('[data-cancel-membership]').forEach((button) => button.addEventListener('click', async () => {
 				if (!window.confirm('Cancel this unused membership credit?')) return;
@@ -1150,6 +1343,24 @@
 			main().innerHTML = `${screenActions('Back to Manager', false)}${notice(friendlyError(error), 'error')}`;
 			bindScreenActions(showManagerArea);
 		}
+	}
+
+	function showMembershipCorrection(record) {
+		if (!record || record.status !== 'pending') return showPendingMemberships();
+		main().innerHTML = `${screenActions('Back to Pending Activations', false)}<section class="desk-kiosk-panel"><h1>CORRECT MEMBERSHIP CONTACT</h1><p>Update contact information before the credit is used. This keeps the existing activation and code.</p><form id="desk-membership-correction" class="desk-form desk-large-form"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" value="${escapeHtml(record.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" value="${escapeHtml(record.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" value="${escapeHtml(record.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" value="${escapeHtml(record.phone || '')}"></div></div><div id="desk-membership-correction-message"></div><button type="submit" class="desk-primary desk-wide">SAVE CONTACT CORRECTION</button></form></section>`;
+		bindScreenActions(showPendingMemberships);
+		main().querySelector('#desk-membership-correction').addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const form = event.currentTarget;
+			form.querySelector('button').disabled = true;
+			try {
+				await api(`/memberships/${record.activation_uuid}/correct`, {method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))});
+				showPendingMemberships('Contact information corrected. Resend the existing activation email if needed.');
+			} catch (error) {
+				form.querySelector('button').disabled = false;
+				form.querySelector('#desk-membership-correction-message').innerHTML = notice(friendlyError(error), 'error');
+			}
+		});
 	}
 
 	function renderCorrectionForm(editor) {
@@ -1190,7 +1401,7 @@
 	loadStation();
 	if (state.station?.station_token) {
 		renderShell();
-		if (state.pendingPayload && state.wizard) showRestoredFailure();
+		if (state.station.draft && (state.wizard || state.membershipWizard)) restoreDraft();
 		else showHome();
 	} else {
 		renderSetup();

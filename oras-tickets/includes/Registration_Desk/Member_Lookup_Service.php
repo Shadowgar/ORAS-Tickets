@@ -31,10 +31,20 @@ final class Member_Lookup_Service {
 				continue;
 			}
 			$seen_emails[ $email ] = true;
+			$operational_status = (string) ( $row['operational_status'] ?? '' );
+			if ( in_array( $operational_status, array( 'active', 'expiring_soon' ), true ) ) {
+				$status = 'CURRENT';
+			} elseif ( in_array( $operational_status, array( 'pending_activation', 'redeemed_offline' ), true ) ) {
+				$status = 'PENDING ONLINE ACTIVATION';
+			} elseif ( in_array( $operational_status, array( 'expired', 'credit_expired' ), true ) ) {
+				$status = 'EXPIRED';
+			} else {
+				$status = strtoupper( str_replace( '_', ' ', '' !== $operational_status ? $operational_status : 'not_found' ) );
+			}
 			$results[] = array(
 				'name'       => $name,
 				'level_name' => (string) ( $row['level_name'] ?? '' ),
-				'status'     => strtoupper( str_replace( '_', ' ', (string) ( $row['operational_status'] ?? 'not_found' ) ) ),
+				'status'     => $status,
 				'expiration' => (string) ( $row['end_date'] ?? '' ),
 			);
 		}

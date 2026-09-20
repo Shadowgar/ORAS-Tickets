@@ -109,6 +109,8 @@ oras_operation_assert( false !== strpos( $service_code, "'friendly_date' => wp_d
 $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/offerings' ), 'Walk-in choices have a current-offerings route' );
+oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/membership-offerings' ), 'Membership choices have a current canonical-offerings route' );
+oras_operation_assert( false !== strpos( $rest_code, '/memberships/(?P<activation_uuid>[0-9a-f-]{36})/correct' ), 'Pending membership correction has a dedicated manager route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/manager/recovery' ), 'Missing-registration recovery has a manager-only route' );
 oras_operation_assert(
@@ -148,11 +150,19 @@ oras_operation_assert( false !== strpos( $desk_js, "#desk-home-find').addEventLi
 oras_operation_assert( false !== strpos( $desk_js, '<h1>FIND REGISTRATION</h1>' ), 'Unified registration browser uses the simple Find Registration title' );
 oras_operation_assert( false !== strpos( $desk_js, 'SEARCH THIS EVENT' ), 'Unified registration browser makes search optional and event scoped' );
 oras_operation_assert( false !== strpos( $desk_js, 'ORAS MEMBERSHIP' ), 'Organization membership remains conceptually separate from the event roster' );
+oras_operation_assert( false !== strpos( $desk_js, 'Look up a member or record a membership paid here.' ), 'Membership home action explains both normal volunteer choices' );
+oras_operation_assert( false !== strpos( $desk_js, 'LOOK UP MEMBER' ) && false !== strpos( $desk_js, 'RECORD MEMBERSHIP PAYMENT' ), 'Normal volunteer membership menu separates lookup from recording' );
+oras_operation_assert( false !== strpos( $desk_js, 'HOW DID THEY PAY?' ) && false !== strpos( $desk_js, 'PAYMENT RECORDED IN ALFAPOS' ), 'Volunteer membership wizard uses explicit cash or check AlfaPOS handoff' );
+oras_operation_assert( false !== strpos( $desk_js, 'MEMBERSHIP RECORDED' ) && false !== strpos( $desk_js, 'Activation email sent' ), 'Membership completion is unmistakable' );
 oras_operation_assert( false !== strpos( $desk_js, 'EVENT STATS' ), 'Volunteer home exposes shared event statistics' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/manager/unlock'" ), 'Manager Help performs PIN unlock inside the kiosk' );
 oras_operation_assert( false !== strpos( $desk_js, 'RECORD MEMBERSHIP' ), 'Manager area exposes the offline membership workflow' );
 oras_operation_assert( false !== strpos( $desk_js, 'Before taking payment, ask whether they are buying anything else today.' ), 'AlfaPOS handoff is a dedicated instruction step' );
 oras_operation_assert( false !== strpos( $desk_js, 'failureCount' ), 'Save recovery tracks repeated failure without discarding request identity' );
+oras_operation_assert( false !== strpos( $desk_js, 'draft_expires_at' ) && false !== strpos( $desk_js, 'restoreDraft' ), 'Walk-in and membership drafts are retained for a bounded session window' );
+oras_operation_assert( false !== strpos( $desk_js, 'START OVER?' ) && false !== strpos( $desk_js, 'DISCARD &amp; RETURN HOME' ), 'Unsafe home navigation requires an explicit discard choice' );
+oras_operation_assert( false !== strpos( $desk_js, 'CONNECTION LOST' ) && false !== strpos( $desk_js, 'Your information is still here.' ), 'Unreachable requests use the approved plain-language retained-data state' );
+oras_operation_assert( false !== strpos( $desk_js, 'desk-manager-status' ) && false !== strpos( $desk_js, 'EXIT MANAGER MODE' ), 'Manager Mode has a persistent shell indicator and exit control' );
 oras_operation_assert( false !== strpos( $desk_js, 'RETURN HOME ONLY AFTER CONFIRMATION' ), 'Second save failure offers only confirmed abandonment' );
 oras_operation_assert( false === strpos( $desk_js, 'desk-today-count' ), 'Volunteer home does not contain count clutter' );
 oras_operation_assert( false !== strpos( $desk_js, 'THEY SAY THEY ALREADY REGISTERED' ), 'Failed volunteer search offers the approved recovery choice' );
@@ -166,6 +176,8 @@ oras_operation_assert( false !== strpos( $desk_js, 'desk-manager-family-members'
 oras_operation_assert( false !== strpos( $desk_js, 'const options = (data.items || []).filter' ), 'Manual recovery consumes the current-offerings response contract' );
 oras_operation_assert( false !== strpos( $desk_js, 'function resetViewport()' ) && substr_count( $desk_js, 'resetViewport();' ) >= 8, 'Major kiosk screen transitions reset inherited scroll position' );
 oras_operation_assert( false !== strpos( $desk_js, "['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']" ), 'RSVP filters use approved volunteer wording' );
+oras_operation_assert( false !== strpos( $desk_js, '✓ Registered' ) && false !== strpos( $desk_js, '✓ Checked in today' ), 'Registration success uses words and icons rather than color alone' );
+oras_operation_assert( false !== strpos( $desk_js, 'RSVP CONFIRMED' ) && false !== strpos( $desk_js, 'ADDED TO WAITLIST' ), 'RSVP success states clearly distinguish admission from waitlisting' );
 foreach ( array( 'Historical label ignored by desk', 'needs_review', 'source revoked', 'projection incomplete', 'stale configuration', 'raw REST status', 'raw UUID', 'raw SQL error' ) as $internal_phrase ) {
 	oras_operation_assert( false === strpos( $desk_js, $internal_phrase ), "Volunteer UI omits internal phrase: {$internal_phrase}" );
 }

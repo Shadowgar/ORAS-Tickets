@@ -1,4 +1,4 @@
-<?php
+<?php // phpcs:disable WordPress.Files.FileName.InvalidClassFileName, Universal.Files.SeparateFunctionsFromOO.Mixed -- Guarded integration fixtures intentionally share one executable.
 /**
  * Disposable WordPress/WooCommerce/TEC integration checks for Registration Desk M1A.
  *
@@ -14,6 +14,9 @@ use ORAS\Tickets\Registration_Desk\Config;
 use ORAS\Tickets\Registration_Desk\Coverage_Store;
 use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
 use ORAS\Tickets\Registration_Desk\Manager_Access;
+use ORAS\Tickets\Registration_Desk\Membership_Credit_Service;
+use ORAS\Tickets\Registration_Desk\Membership_Offering_Resolver;
+use ORAS\Tickets\Registration_Desk\Offline_Membership_Store;
 use ORAS\Tickets\Registration_Desk\Projection_Service;
 use ORAS\Tickets\Registration_Desk\Recovery_Service;
 use ORAS\Tickets\Registration_Desk\Registration_Store;
@@ -23,6 +26,56 @@ use ORAS\Tickets\Registration_Desk\Station_Session;
 
 if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 	exit( 1 );
+}
+
+if ( ! function_exists( 'pmpro_getLevel' ) ) {
+	/** Disposable PMPro level fixture for the guarded integration runtime. */
+	function pmpro_getLevel( int $level_id ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- Matches PMPro's public API.
+		$levels = get_option( 'oras_registration_desk_test_pmpro_levels', array() );
+
+		return is_array( $levels ) && isset( $levels[ $level_id ] ) ? (object) $levels[ $level_id ] : false;
+	}
+}
+if ( ! function_exists( 'pmpro_getAllLevels' ) ) {
+	/** @return array<int,object> */
+	function pmpro_getAllLevels( bool $include_hidden = false, bool $use_cache = true ): array { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid, Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- Matches PMPro's public API.
+		unset( $include_hidden, $use_cache );
+		$levels = get_option( 'oras_registration_desk_test_pmpro_levels', array() );
+
+		return array_map( static fn( array $level ): object => (object) $level, is_array( $levels ) ? array_values( $levels ) : array() );
+	}
+}
+if ( ! function_exists( 'pmpro_url' ) ) {
+	/** Disposable PMPro URL fixture. */
+	function pmpro_url( string $page, string $query = '' ): string {
+		return home_url( '/membership-account/membership-' . sanitize_key( $page ) . '/' . $query );
+	}
+}
+if ( ! class_exists( 'PMPro_Discount_Code' ) ) {
+	/** Minimal disposable PMPro credit model used only by the guarded test database. */
+	// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps -- Matches PMPro's public API.
+	class PMPro_Discount_Code {
+		public int $id = 0;
+		public string $code = '';
+		public string $starts = '';
+		public string $expires = '';
+		public int $uses = 0;
+		/** @var array<int,array<string,mixed>> */
+		public array $levels = array();
+
+		public function __construct( int $id = 0 ) {
+			$this->id = $id;
+		}
+
+		public function save(): object {
+			if ( $this->id <= 0 ) {
+				$this->id = absint( get_option( 'oras_registration_desk_test_pmpro_credit_id', 1000 ) ) + 1;
+				update_option( 'oras_registration_desk_test_pmpro_credit_id', $this->id, false );
+			}
+
+			return $this;
+		}
+	}
 }
 
 /** Fail without leaking fixture secrets. */
@@ -1048,6 +1101,157 @@ function oras_desk_integration_paid_not_found_recovery( array $context ): array 
 	return $order_ids;
 }
 
+/** @param array<string,mixed> $context @return array<string,mixed> */
+function oras_desk_integration_membership_workflow( array $context ): array {
+	global $wpdb;
+	$level = array(
+		'id'                => 701,
+		'name'              => 'Fixture Annual Membership',
+		'initial_payment'   => '35.00',
+		'billing_amount'    => '35.00',
+		'cycle_number'      => 1,
+		'cycle_period'      => 'Year',
+		'billing_limit'     => 0,
+		'trial_amount'      => '0.00',
+		'trial_limit'       => 0,
+		'expiration_number' => 0,
+		'expiration_period' => '',
+	);
+	$disabled = array_merge(
+		$level,
+		array(
+			'id'   => 702,
+			'name' => 'Not Offered at Events',
+		)
+	);
+	update_option(
+		'oras_registration_desk_test_pmpro_levels',
+		array(
+			701 => $level,
+			702 => $disabled,
+		),
+		false
+	);
+	update_option(
+		Config::MEMBERSHIP_MAPPINGS_OPTION,
+		Config::normalize_membership_mappings(
+			array(
+				array(
+					'level_id'           => 701,
+					'event_sale_enabled' => true,
+				),
+			)
+		),
+		false
+	);
+	$offerings = Config::get_membership_offerings();
+	oras_desk_integration_same( count( $offerings ), 1, 'desk exposes only administrator-enabled canonical membership levels' );
+	oras_desk_integration_same( $offerings[0]['display_name'], 'Fixture Annual Membership', 'membership name is resolved from canonical PMPro data' );
+	oras_desk_integration_same( $offerings[0]['price'], '35.00', 'membership reference price is resolved from canonical PMPro data' );
+	oras_desk_integration_true( null === Config::membership_mapping( 702 ), 'disabled membership level is unavailable for a new event sale' );
+
+	$level['name'] = 'Renamed Fixture Membership';
+	$level['initial_payment'] = '42.00';
+	update_option(
+		'oras_registration_desk_test_pmpro_levels',
+		array(
+			701 => $level,
+			702 => $disabled,
+		),
+		false
+	);
+	$renamed = Membership_Offering_Resolver::resolve( 701 );
+	oras_desk_integration_same( $renamed['display_name'], 'Renamed Fixture Membership', 'canonical membership rename reaches the desk without reconfiguration' );
+	oras_desk_integration_same( $renamed['price'], '42.00', 'canonical membership price change reaches the desk without reconfiguration' );
+
+	$service = new Membership_Credit_Service();
+	$config = Config::get_event_config( (int) $context['event_id'] );
+	$token = Station_Session::issue( (int) $context['desk_id'], (int) $context['event_id'], (int) $config['revision'], 'Membership Volunteer' );
+	$users_before = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
+	$cash_context = oras_desk_integration_context( (int) $context['desk_id'], (int) $context['event_id'], $config, $token, wp_generate_uuid4() );
+	$cash = $service->create(
+		array(
+			'first_name'     => 'Cash',
+			'last_name'      => 'Member',
+			'email'          => 'cash-member-' . $context['run'] . '@example.test',
+			'phone'          => '814-555-0171',
+			'level_id'       => 701,
+			'payment_method' => 'cash',
+		),
+		$cash_context
+	);
+	oras_desk_integration_true( is_array( $cash ) && 'sent' === $cash['email_status'], 'volunteer cash membership creates one pending activation and sends its email' );
+	$cash_replay = $service->create(
+		array(
+			'first_name'     => 'Cash',
+			'last_name'      => 'Member',
+			'email'          => 'cash-member-' . $context['run'] . '@example.test',
+			'phone'          => '814-555-0171',
+			'level_id'       => 701,
+			'payment_method' => 'cash',
+		),
+		$cash_context
+	);
+	oras_desk_integration_same( $cash_replay['activation_uuid'], $cash['activation_uuid'], 'membership retry reuses the original pending activation' );
+	oras_desk_integration_same( $cash_replay['credit_code'], $cash['credit_code'], 'membership retry never creates a second credit code' );
+	wp_set_current_user( (int) $context['desk_id'] );
+	$request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/memberships' );
+	$request->set_header( 'X-ORAS-Desk-Station', $token );
+	$request->set_header( 'X-ORAS-Desk-Request', (string) $cash_context['request_uuid'] );
+	$request->set_body_params(
+		array(
+			'first_name'     => 'Cash',
+			'last_name'      => 'Member',
+			'email'          => 'cash-member-' . $context['run'] . '@example.test',
+			'phone'          => '814-555-0171',
+			'level_id'       => 701,
+			'payment_method' => 'cash',
+		)
+	);
+	$response = rest_do_request( $request );
+	oras_desk_integration_true( 200 === $response->get_status() && $cash['activation_uuid'] === ( $response->get_data()['activation_uuid'] ?? '' ), 'normal desk volunteer may record a legitimate membership through REST' );
+	wp_set_current_user( (int) $context['member_id'] );
+	$denied = rest_do_request( $request );
+	oras_desk_integration_true( in_array( $denied->get_status(), array( 401, 403 ), true ), 'ordinary website member cannot use the desk membership mutation' );
+	wp_set_current_user( (int) $context['desk_id'] );
+
+	$check_context = oras_desk_integration_context( (int) $context['desk_id'], (int) $context['event_id'], $config, $token, wp_generate_uuid4() );
+	$check = $service->create(
+		array(
+			'first_name'     => 'Check',
+			'last_name'      => 'Member',
+			'email'          => 'check-member-' . $context['run'] . '@example.test',
+			'phone'          => '814-555-0172',
+			'level_id'       => 701,
+			'payment_method' => 'check',
+		),
+		$check_context
+	);
+	oras_desk_integration_true( is_array( $check ) && 'check' === $check['payment_method'], 'volunteer check membership uses the same pending activation workflow' );
+	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), $users_before, 'membership recording creates no WordPress attendee account' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
+
+	$corrected = $service->correct_contact(
+		(string) $cash['activation_uuid'],
+		array(
+			'first_name' => 'Cash',
+			'last_name'  => 'Corrected',
+			'email'      => 'cash-corrected-' . $context['run'] . '@example.test',
+			'phone'      => '814-555-0199',
+		)
+	);
+	oras_desk_integration_true( is_array( $corrected ) && $corrected['credit_code'] === $cash['credit_code'], 'manager contact correction preserves the existing activation credit' );
+	$resent = $service->resend( (string) $cash['activation_uuid'] );
+	oras_desk_integration_true( is_array( $resent ) && $resent['credit_code'] === $cash['credit_code'], 'manager resend preserves the existing one-time credit' );
+	$rows = ( new Offline_Membership_Store() )->for_event( (int) $context['event_id'] );
+	oras_desk_integration_same( count( $rows ), 2, 'cash, check, and retries produce exactly two pending membership records' );
+
+	return array(
+		'cash_activation'  => (string) $cash['activation_uuid'],
+		'check_activation' => (string) $check['activation_uuid'],
+		'level_id'         => 701,
+	);
+}
+
 /** Prepare fixtures and run all single-connection checks. */
 function oras_desk_integration_prepare(): void {
 	global $wpdb;
@@ -1596,6 +1800,7 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_canonical_offerings_and_rsvp( $context );
 	oras_desk_integration_event_roster( $context );
 	$context['order_ids'] = array_merge( $context['order_ids'], oras_desk_integration_paid_not_found_recovery( $context ) );
+	$context['membership_fixture'] = oras_desk_integration_membership_workflow( $context );
 	$context['baseline']              = oras_desk_integration_protected_snapshot( $context );
 	$context['prepare_http_baseline'] = oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:prepare' ) );
 	update_option( 'oras_registration_desk_integration_context', $context, false );

@@ -309,6 +309,30 @@ button.desk-danger {
 	color: #7c2d12;
 }
 
+.desk-manager-status {
+	position: sticky;
+	top: 96px;
+	z-index: 29;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 1rem;
+	min-height: 56px;
+	padding: 0.4rem max(1rem, env(safe-area-inset-right)) 0.4rem max(1rem, env(safe-area-inset-left));
+	background: #7c2d12;
+	color: #fff;
+	box-shadow: 0 3px 10px rgb(5 34 56 / 20%);
+	letter-spacing: 0.08em;
+}
+
+.desk-manager-status button {
+	min-height: 44px;
+	border: 2px solid #fff;
+	background: #fff;
+	color: #7c2d12;
+	padding-block: 0.35rem;
+}
+
 .desk-stats-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -415,7 +439,7 @@ button.desk-danger {
 
 .desk-task-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: clamp(1rem, 2.5vw, 1.6rem);
 	width: min(920px, 100%);
 	margin: 0 auto;
@@ -506,6 +530,21 @@ button.desk-danger {
 	padding: 0.65rem 1rem;
 }
 
+.desk-membership-home span,
+.desk-membership-home strong,
+.desk-membership-home small {
+	display: block;
+}
+
+.desk-membership-home {
+	text-align: left;
+}
+
+.desk-membership-home small {
+	max-width: 32ch;
+	font-weight: 600;
+}
+
 .desk-today-count {
 	border: 1px solid #cfe4d9;
 	background: #edf8f2;
@@ -583,7 +622,7 @@ button.desk-link-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.2rem;
-	min-height: 46px;
+	min-height: 56px;
 	border: 1px solid var(--desk-line);
 	background: rgb(255 255 255 / 90%);
 	color: var(--desk-ink);
@@ -1311,6 +1350,104 @@ button.desk-link-button {
 	gap: 1rem;
 }
 
+.desk-membership-payment-grid > button {
+	display: grid;
+	min-height: 128px;
+	place-items: center;
+	align-content: center;
+	gap: 0.45rem;
+	border: 3px solid var(--desk-line);
+	background: #fff;
+	color: var(--desk-blue-dark);
+	font-size: 1.15rem;
+	box-shadow: var(--desk-shadow);
+}
+
+.desk-membership-payment-grid > button.is-selected {
+	border-color: var(--desk-green);
+	background: #eaf8f1;
+	color: var(--desk-green-dark);
+}
+
+.desk-membership-levels {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 0.8rem;
+	margin: 1.2rem 0;
+	border: 0;
+	padding: 0;
+}
+
+.desk-membership-levels legend {
+	width: 100%;
+	margin-bottom: 0.7rem;
+	font-weight: 900;
+	text-align: center;
+}
+
+.desk-membership-level {
+	position: relative;
+	display: grid;
+	min-height: 104px;
+	place-items: center;
+	border: 3px solid var(--desk-line);
+	border-radius: 14px;
+	background: #fff;
+	padding: 1rem;
+	cursor: pointer;
+	text-align: center;
+}
+
+.desk-membership-level input {
+	position: absolute;
+	opacity: 0;
+}
+
+.desk-membership-level strong,
+.desk-membership-level small {
+	display: block;
+}
+
+.desk-membership-level small {
+	margin-top: 0.35rem;
+	color: var(--desk-muted);
+}
+
+.desk-membership-level.is-selected,
+.desk-membership-level:has(input:checked) {
+	border-color: var(--desk-green);
+	background: #eaf8f1;
+}
+
+.desk-membership-level:has(input:focus-visible) {
+	outline: 4px solid rgb(231 173 58 / 75%);
+	outline-offset: 3px;
+}
+
+.desk-success-statements {
+	display: grid;
+	gap: 0.35rem;
+	margin: 0.7rem 0;
+	color: var(--desk-green-dark);
+	font-size: 1.15rem;
+	font-weight: 900;
+}
+
+.desk-success-statements p {
+	margin: 0;
+}
+
+.desk-connection-lost,
+.desk-start-over-prompt {
+	max-width: 760px;
+	margin: 2rem auto;
+	border: 3px solid var(--desk-gold);
+	border-radius: 18px;
+	background: #fff8e6;
+	padding: clamp(1.25rem, 4vw, 2.5rem);
+	box-shadow: var(--desk-shadow);
+}
+
 .desk-membership-payment-choice {
 	position: relative;
 	display: block;
@@ -1684,6 +1821,10 @@ button.desk-link-button {
 
 	.desk-main {
 		min-height: calc(100vh - 135px);
+	}
+
+	.desk-manager-status {
+		position: static;
 	}
 
 	.desk-task-grid,
