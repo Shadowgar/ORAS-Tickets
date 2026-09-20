@@ -243,42 +243,24 @@ final class Service {
 		if ( ! $registration || (int) $registration['event_id'] !== (int) $context['event_id'] ) {
 			return new \WP_Error( 'oras_desk_registration_missing', 'Registration was not found for the active event.', array( 'status' => 404 ) );
 		}
-		if ( 'active' !== (string) $registration['status'] ) {
-			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration is not active. Request administrator review.', array( 'status' => 409 ) );
-		}
-		if ( 'rsvp_waitlist' === (string) $registration['source_type'] ) {
-			return new \WP_Error( 'oras_desk_rsvp_waitlisted', 'This person is on the RSVP waitlist and has not been admitted.', array( 'status' => 409 ) );
-		}
 		$config = Config::get_event_config( (int) $context['event_id'] );
 		if ( empty( $config['enabled'] ) || (int) $config['revision'] !== (int) $context['config_revision'] ) {
 			return new \WP_Error( 'oras_desk_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 409 ) );
-		}
-		$option = Event_Offering_Resolver::find_access_option( (int) $context['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
-		if ( null === $option && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist', 'rsvp_website' ), true ) ) {
-			$option = array(
-				'existing_access_valid' => true,
-				'max_attendees'         => 1,
-			);
-		}
-		if ( null === $option || empty( $option['existing_access_valid'] ) ) {
-			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration option no longer grants access.', array( 'status' => 409 ) );
 		}
 		$local_date = sanitize_text_field( (string) ( $payload['attendance_local_date'] ?? '' ) );
 		$today      = wp_date( 'Y-m-d', null, wp_timezone() );
 		if ( $local_date !== $today ) {
 			return new \WP_Error( 'oras_desk_date_changed', 'The site-local date changed. Review the check-in before trying again.', array( 'status' => 409 ) );
 		}
-		$range = $this->event_range( (int) $context['event_id'] );
-		if ( $range instanceof \WP_Error || ! self::date_is_within_event( $local_date, $range['start'], $range['end'] ) ) {
-			return $range instanceof \WP_Error ? $range : new \WP_Error( 'oras_desk_wrong_date', 'This registration is not valid for today.', array( 'status' => 409 ) );
+		$admission = $this->current_admission( $registration, $config, $today );
+		if ( empty( $admission['check_in_allowed'] ) ) {
+			return $this->admission_error( $admission );
 		}
-		if ( 'one_day' === (string) $registration['validity_type'] && $local_date !== (string) $registration['valid_local_date'] ) {
-			return new \WP_Error( 'oras_desk_wrong_date', 'This one-day registration is not valid for today.', array( 'status' => 409 ) );
+		if ( ! empty( $admission['requires_explicit_unpaid'] ) && empty( $payload['explicit_unpaid'] ) ) {
+			return new \WP_Error( 'oras_desk_unpaid_confirmation_required', 'Payment is not confirmed. Choose the explicit unpaid admission action to continue.', array( 'status' => 409 ) );
 		}
-		$payment_label = $this->registration_payment_label( $registration, $config, ! empty( $payload['explicit_unpaid'] ) );
-		if ( $payment_label instanceof \WP_Error ) {
-			return $payment_label;
-		}
+		$option        = is_array( $admission['_option'] ?? null ) ? $admission['_option'] : array();
+		$payment_label = (string) ( $admission['_source_label'] ?? $admission['payment_label'] ?? '' );
 		$arrivals = is_array( $payload['arrivals'] ?? null ) ? $payload['arrivals'] : array();
 		$maximum  = max( 1, min( 20, (int) ( $option['max_attendees'] ?? 1 ) ) );
 		if ( empty( $arrivals ) || count( $arrivals ) > $maximum || ( 'individual' === (string) $registration['classification'] && 1 !== count( $arrivals ) ) ) {
@@ -374,24 +356,65 @@ final class Service {
 		}
 		unset( $attendee );
 		$config    = Config::get_event_config( $event_id );
-		$admission = array(
-			'allowed'                  => true,
-			'requires_explicit_unpaid' => false,
-			'payment_label'            => '',
-			'message'                  => '',
-		);
-		$payment = $this->registration_payment_label( $registration, $config, false );
-		if ( $payment instanceof \WP_Error ) {
-			if ( 'oras_desk_unpaid_confirmation_required' === $payment->get_error_code() ) {
-				$admission['requires_explicit_unpaid'] = true;
-				$admission['payment_label']            = 'Payment not confirmed';
-				$admission['message']                  = $payment->get_error_message();
+		$admission = $this->current_admission( $registration, $config, $today );
+		$maximum   = max( 1, min( 20, (int) ( $admission['_option']['max_attendees'] ?? 1 ) ) );
+		$selectable_attendees = 0;
+		$checked_attendees    = 0;
+		$blocked_attendees    = 0;
+		foreach ( $attendees as &$attendee ) {
+			$current = (string) ( $attendee['current_attendance']['state'] ?? '' );
+			if ( 'checked_in' === $current ) {
+				$attendee['admission'] = array(
+					'state'             => 'already_checked_in',
+					'selection_allowed' => false,
+					'status_label'      => 'CHECKED IN TODAY',
+				);
+				++$checked_attendees;
+			} elseif ( 'reversed' === $current ) {
+				$attendee['admission'] = array(
+					'state'             => 'manager_review_required',
+					'selection_allowed' => false,
+					'status_label'      => 'MANAGER HELP NEEDED',
+				);
+				++$blocked_attendees;
+			} elseif ( ! empty( $admission['selection_allowed'] ) ) {
+				$attendee['admission'] = array(
+					'state'             => 'eligible',
+					'selection_allowed' => true,
+					'status_label'      => 'READY TO CHECK IN',
+				);
+				++$selectable_attendees;
 			} else {
-				$admission['allowed'] = false;
-				$admission['message'] = $payment->get_error_message();
+				$attendee['admission'] = array(
+					'state'             => (string) $admission['state'],
+					'selection_allowed' => false,
+					'status_label'      => (string) $admission['status_label'],
+				);
+				++$blocked_attendees;
 			}
-		} else {
-			$admission['payment_label'] = $payment;
+		}
+		unset( $attendee );
+		if ( ! empty( $admission['selection_allowed'] ) ) {
+			$can_add = count( $attendees ) < $maximum;
+			$admission['selection_allowed'] = $selectable_attendees > 0 || $can_add;
+			$admission['check_in_allowed']  = $admission['selection_allowed'];
+			$admission['allowed']           = $admission['check_in_allowed'];
+			if ( ! $admission['check_in_allowed'] ) {
+				if ( $checked_attendees > 0 && 0 === $blocked_attendees ) {
+					$admission['state']        = 'already_checked_in';
+					$admission['status_label'] = 'CHECKED IN TODAY';
+					$admission['message']      = 'Everyone on this registration is already checked in today.';
+					$admission['manager_help'] = false;
+				} else {
+					$admission = $this->blocked_admission(
+						'manager_review_required',
+						'MANAGER HELP NEEDED',
+						'This registration needs manager help before anyone can be checked in.',
+						'oras_desk_attendance_reversed',
+						$admission['_diagnostics'] ?? array()
+					);
+				}
+			}
 		}
 
 		return array(
@@ -1094,6 +1117,211 @@ final class Service {
 				'status'     => 409,
 				'candidates' => $candidates,
 			)
+		);
+	}
+
+	/** @param array<string,mixed> $registration @param array<string,mixed> $config @return array<string,mixed> */
+	private function current_admission( array $registration, array $config, string $local_date ): array {
+		$source_type = (string) $registration['source_type'];
+		$diagnostics = array(
+			'operational_registration' => 'active' === (string) $registration['status'] ? 'Active' : 'Manager review required',
+			'canonical_source_status'   => 'Not applicable',
+			'event_entitlement'         => 'Not yet confirmed',
+			'ticket_mapping'            => 'Not yet confirmed',
+			'selected_event'            => sprintf( 'Event %d', (int) $registration['event_id'] ),
+			'date_validity'             => 'Not yet confirmed',
+			'source_lifecycle'          => 'Not applicable',
+			'source_quantity'           => 'Not applicable',
+			'historical_mapping'        => 'No ambiguity detected',
+		);
+		if ( 'active' !== (string) $registration['status'] ) {
+			$state = 'revoked' === (string) $registration['status'] ? 'revoked' : 'manager_review_required';
+			return $this->blocked_admission(
+				$state,
+				'revoked' === $state ? 'REGISTRATION NOT VALID' : 'MANAGER HELP NEEDED',
+				'revoked' === $state ? 'This registration was cancelled, refunded, or revoked.' : 'This registration needs manager review before check-in.',
+				'oras_desk_registration_inactive',
+				$diagnostics
+			);
+		}
+		if ( 'rsvp_waitlist' === $source_type ) {
+			$diagnostics['canonical_source_status'] = 'Waitlisted';
+			$diagnostics['event_entitlement']       = 'No confirmed RSVP spot';
+			return $this->blocked_admission(
+				'waitlisted',
+				'WAITLISTED — NOT ADMITTED',
+				'This person is currently waitlisted and does not have a confirmed spot.',
+				'oras_desk_rsvp_waitlisted',
+				$diagnostics,
+				false
+			);
+		}
+
+		$option = Event_Offering_Resolver::find_access_option( (int) $registration['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
+		if ( null === $option && in_array( $source_type, array( 'rsvp_walk_in', 'rsvp_website' ), true ) ) {
+			$option = array(
+				'existing_access_valid' => true,
+				'max_attendees'         => 1,
+			);
+		}
+		if ( null === $option || empty( $option['existing_access_valid'] ) ) {
+			$diagnostics['ticket_mapping']     = 'No current access mapping';
+			$diagnostics['event_entitlement']  = 'Not confirmed for the selected event';
+			$diagnostics['historical_mapping'] = 'The stored option no longer has one safe current mapping';
+			return $this->blocked_admission(
+				'manager_review_required',
+				'MANAGER HELP NEEDED',
+				'This registration type needs manager review.',
+				'oras_desk_registration_inactive',
+				$diagnostics
+			);
+		}
+		$diagnostics['ticket_mapping'] = 'Current option mapping confirmed';
+
+		$range = $this->event_range( (int) $registration['event_id'] );
+		if ( $range instanceof \WP_Error ) {
+			$diagnostics['date_validity'] = 'Event dates are unavailable';
+			return $this->blocked_admission(
+				'manager_review_required',
+				'MANAGER HELP NEEDED',
+				'The event dates need manager review before check-in.',
+				'oras_desk_event_dates_unavailable',
+				$diagnostics
+			);
+		}
+		if ( ! self::date_is_within_event( $local_date, $range['start'], $range['end'] ) || ( 'one_day' === (string) $registration['validity_type'] && $local_date !== (string) $registration['valid_local_date'] ) ) {
+			$diagnostics['date_validity'] = sprintf( 'Not valid on %s', $local_date );
+			return $this->blocked_admission(
+				'wrong_day',
+				'VALID FOR ANOTHER DAY',
+				'This registration is valid for a different day.',
+				'oras_desk_wrong_date',
+				$diagnostics,
+				false
+			);
+		}
+		$diagnostics['date_validity'] = sprintf( 'Valid on %s', $local_date );
+
+		if ( 'rsvp_website' === $source_type ) {
+			if ( ! preg_match( '/^rsvp-user:(\d+)$/', (string) $registration['source_key'], $matches ) || ! class_exists( \ORAS\Tickets\Frontend\Event_RSVP::class ) ) {
+				$diagnostics['canonical_source_status'] = 'Website RSVP could not be resolved';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website RSVP needs manager review.', 'oras_desk_source_review', $diagnostics );
+			}
+			$rsvp_status = (string) \ORAS\Tickets\Frontend\Event_RSVP::get_user_status( (int) $registration['event_id'], (int) $matches[1] );
+			$diagnostics['canonical_source_status'] = 'waitlist' === $rsvp_status ? 'Waitlisted' : ( 'yes' === $rsvp_status ? 'Confirmed' : 'Not confirmed' );
+			if ( 'waitlist' === $rsvp_status ) {
+				$diagnostics['event_entitlement'] = 'No confirmed RSVP spot';
+				return $this->blocked_admission( 'waitlisted', 'WAITLISTED — NOT ADMITTED', 'This person is currently waitlisted and does not have a confirmed spot.', 'oras_desk_rsvp_waitlisted', $diagnostics, false );
+			}
+			if ( 'yes' !== $rsvp_status ) {
+				$diagnostics['event_entitlement'] = 'No current confirmed RSVP';
+				return $this->blocked_admission( 'not_valid', 'REGISTRATION NOT VALID', 'This RSVP is no longer confirmed for the event.', 'oras_desk_rsvp_not_admitted', $diagnostics );
+			}
+			$diagnostics['event_entitlement'] = 'Confirmed for the selected event';
+		}
+
+		$payment_label = '';
+		$requires_unpaid = false;
+		if ( 'online' === $source_type ) {
+			if ( empty( $registration['source_order_id'] ) || empty( $registration['source_order_item_id'] ) ) {
+				$diagnostics['canonical_source_status'] = 'Website source unavailable';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website registration needs manager review.', 'oras_desk_source_review', $diagnostics );
+			}
+			$evidence = $this->source_adapter->load( (int) $registration['source_order_id'], (int) $registration['source_order_item_id'] );
+			if ( $evidence instanceof \WP_Error ) {
+				$diagnostics['canonical_source_status'] = 'Website source unavailable';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website registration needs manager review.', 'oras_desk_source_review', $diagnostics );
+			}
+			$status = sanitize_key( (string) ( $evidence['order_status'] ?? '' ) );
+			$diagnostics['canonical_source_status'] = '' !== $status ? ucwords( str_replace( '-', ' ', $status ) ) : 'Unknown';
+			$diagnostics['source_lifecycle']        = (int) ( $evidence['refunded_quantity'] ?? 0 ) > 0 ? 'Refund recorded' : 'No refund recorded';
+			$source_unit = (int) ( $registration['source_unit_number'] ?? 0 );
+			$quantity    = (int) ( $evidence['quantity'] ?? 0 );
+			$diagnostics['source_quantity'] = sprintf( 'Unit %d of %d', $source_unit, $quantity );
+			if ( (int) ( $evidence['order_id'] ?? 0 ) !== (int) $registration['source_order_id'] || (int) ( $evidence['order_item_id'] ?? 0 ) !== (int) $registration['source_order_item_id'] ) {
+				$diagnostics['historical_mapping'] = 'Stored and current source identities differ';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website registration needs manager review.', 'oras_desk_source_changed', $diagnostics );
+			}
+			if ( $source_unit <= 0 || $source_unit > $quantity ) {
+				$diagnostics['historical_mapping'] = 'The stored source unit is no longer present';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website registration needs manager review.', 'oras_desk_source_unit_invalid', $diagnostics );
+			}
+			$resolution = Source_Resolver::resolve( $evidence, (int) $registration['event_id'], $config );
+			if ( 'supported' !== (string) $resolution['resolution'] ) {
+				$diagnostics['ticket_mapping']     = 'Current mapping needs review';
+				$diagnostics['historical_mapping'] = '' !== (string) $resolution['reason'] ? (string) $resolution['reason'] : 'Current source metadata is ambiguous';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This registration type needs manager review.', 'oras_desk_source_review', $diagnostics );
+			}
+			$diagnostics['event_entitlement'] = 'Confirmed for the selected event';
+			if ( ! hash_equals( (string) $registration['option_uuid'], (string) $resolution['option_uuid'] ) || (string) $registration['classification'] !== (string) $resolution['classification'] || (string) $registration['validity_type'] !== (string) $resolution['validity_type'] ) {
+				$diagnostics['ticket_mapping']     = 'Stored option differs from the current mapping';
+				$diagnostics['historical_mapping'] = 'The canonical option or coverage metadata changed';
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This registration type needs manager review.', 'oras_desk_source_option_changed', $diagnostics );
+			}
+			$payment_label = (string) $resolution['payment_label'];
+			if ( 'revoked' === (string) $resolution['eligibility'] ) {
+				return $this->blocked_admission( 'revoked', 'REGISTRATION NOT VALID', 'This registration was cancelled or refunded.', 'oras_desk_not_eligible', $diagnostics );
+			}
+			if ( 'review_required' === (string) $resolution['eligibility'] ) {
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This registration type needs manager review.', 'oras_desk_not_eligible', $diagnostics );
+			}
+			if ( ! in_array( (string) $resolution['eligibility'], array( 'eligible', 'explicit_unpaid_required' ), true ) ) {
+				return $this->blocked_admission( 'not_valid', 'REGISTRATION NOT VALID', 'This website registration is not currently valid for check-in.', 'oras_desk_not_eligible', $diagnostics );
+			}
+			$requires_unpaid = 'explicit_unpaid_required' === (string) $resolution['eligibility'];
+		} else {
+			$payment = $this->registration_payment_label( $registration, $config, false );
+			if ( $payment instanceof \WP_Error ) {
+				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This registration needs manager review before check-in.', $payment->get_error_code(), $diagnostics );
+			}
+			$payment_label = $payment;
+			if ( ! str_starts_with( $source_type, 'rsvp_' ) ) {
+				$diagnostics['event_entitlement'] = 'Current option grants access to the selected event';
+			}
+		}
+
+		return array(
+			'state'                    => 'eligible',
+			'status_label'             => 'REGISTRATION VALID',
+			'message'                  => 'This registration can be checked in now.',
+			'selection_allowed'        => true,
+			'check_in_allowed'         => true,
+			'allowed'                  => true,
+			'manager_help'             => false,
+			'requires_explicit_unpaid' => $requires_unpaid,
+			'payment_label'            => $requires_unpaid ? 'Payment not confirmed' : ( 'online' === $source_type ? 'Website registration confirmed' : $payment_label ),
+			'_source_label'            => $payment_label,
+			'_error_code'              => '',
+			'_option'                  => $option,
+			'_diagnostics'             => $diagnostics,
+		);
+	}
+
+	/** @param array<string,string> $diagnostics @return array<string,mixed> */
+	private function blocked_admission( string $state, string $status_label, string $message, string $error_code, array $diagnostics, bool $manager_help = true ): array {
+		return array(
+			'state'                    => $state,
+			'status_label'             => $status_label,
+			'message'                  => $message,
+			'selection_allowed'        => false,
+			'check_in_allowed'         => false,
+			'allowed'                  => false,
+			'manager_help'             => $manager_help,
+			'requires_explicit_unpaid' => false,
+			'payment_label'            => '',
+			'_source_label'            => '',
+			'_error_code'              => $error_code,
+			'_option'                  => array(),
+			'_diagnostics'             => $diagnostics,
+		);
+	}
+
+	/** @param array<string,mixed> $admission */
+	private function admission_error( array $admission ): \WP_Error {
+		return new \WP_Error(
+			(string) ( $admission['_error_code'] ?? 'oras_desk_not_eligible' ),
+			(string) ( $admission['message'] ?? 'This registration cannot be checked in right now.' ),
+			array( 'status' => 409 )
 		);
 	}
 
