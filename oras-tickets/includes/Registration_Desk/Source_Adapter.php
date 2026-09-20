@@ -193,14 +193,15 @@ final class Source_Adapter {
 
 	/** @param array<int,string> $haystacks */
 	private function matches_any( string $query, array $haystacks ): bool {
-		$digits = preg_replace( '/\D+/', '', $query ) ?? '';
+		$digits      = preg_replace( '/\D+/', '', $query ) ?? '';
+		$phone_query = 1 === preg_match( '/^[\d\s()+.\-]+$/', $query );
 		foreach ( $haystacks as $haystack ) {
 			$normalized = strtolower( sanitize_text_field( $haystack ) );
 			if ( '' !== $normalized && str_contains( $normalized, $query ) ) {
 				return true;
 			}
 			$haystack_digits = preg_replace( '/\D+/', '', $normalized ) ?? '';
-			if ( strlen( $digits ) >= 4 && '' !== $haystack_digits && str_contains( $haystack_digits, $digits ) ) {
+			if ( $phone_query && strlen( $digits ) >= 4 && '' !== $haystack_digits && str_contains( $haystack_digits, $digits ) ) {
 				return true;
 			}
 		}
