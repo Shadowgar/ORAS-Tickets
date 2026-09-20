@@ -365,13 +365,11 @@
 				<div class="desk-task-grid">
 					<button type="button" class="desk-task-card desk-task-find" id="desk-home-find"><span class="desk-task-icon">${icon('search')}</span><strong>FIND A REGISTRATION</strong><small>Someone is standing here and you need to find them.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
 					<button type="button" class="desk-task-card desk-task-walkin" id="desk-home-walkin"><span class="desk-task-icon">${icon('family')}</span><strong>REGISTER A WALK-IN</strong><small>Use this for someone registering here today.</small><span class="desk-task-next">Start ${icon('arrow')}</span></button>
-					<button type="button" class="desk-task-card desk-task-roster" id="desk-home-roster"><span class="desk-task-icon">${icon('calendar')}</span><strong>EVENT ROSTER</strong><small>See everyone registered for this event.</small><span class="desk-task-next">Browse ${icon('arrow')}</span></button>
 				</div>
 				<div class="desk-home-secondary"><button type="button" class="desk-help-button" id="desk-home-members">${icon('person')} ORAS MEMBERSHIP</button><button type="button" class="desk-help-button" id="desk-home-stats">${icon('calendar')} EVENT STATS</button><button type="button" class="desk-help-button" id="desk-home-help">${icon('manager')} MANAGER HELP</button></div>
 			</section>`;
-		main().querySelector('#desk-home-find').addEventListener('click', () => showSearch());
+		main().querySelector('#desk-home-find').addEventListener('click', () => showEventRoster(true));
 		main().querySelector('#desk-home-walkin').addEventListener('click', () => startWalkInWizard(false));
-		main().querySelector('#desk-home-roster').addEventListener('click', () => showEventRoster(true));
 		main().querySelector('#desk-home-members').addEventListener('click', () => showMemberLookup());
 		main().querySelector('#desk-home-stats').addEventListener('click', () => showEventStats());
 		main().querySelector('#desk-home-help').addEventListener('click', () => state.station.manager_token ? showManagerArea() : showManagerHelp());
@@ -449,14 +447,14 @@
 			state.roster.offset = Number(data.next_offset || state.roster.items.length);
 			renderEventRoster(Boolean(data.has_more));
 		} catch (error) {
-			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>EVENT ROSTER</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
+			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>FIND REGISTRATION</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
 			bindScreenActions(showHome);
 			main().querySelector('#desk-roster-retry').addEventListener('click', () => showEventRoster(false));
 		}
 	}
 
 	function rosterStatusChoices() {
-		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'CHECKED IN TODAY'], ['walk_ins', 'WALK-INS']];
+		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'HERE TODAY'], ['walk_ins', 'WALK-INS']];
 	}
 
 	function selectedRosterTypeLabel() {
@@ -466,13 +464,17 @@
 	function renderEventRoster(hasMore) {
 		const types = state.roster.registration_types;
 		const typeControls = types.length <= 4 ? `<div class="desk-roster-types"><button type="button" data-roster-type="" class="${state.roster.option_uuid ? '' : 'is-selected'}">ALL TYPES</button>${types.map((type) => `<button type="button" data-roster-type="${escapeHtml(type.option_uuid)}" class="${state.roster.option_uuid === type.option_uuid ? 'is-selected' : ''}">${escapeHtml(type.label)}</button>`).join('')}</div>` : `<div class="desk-roster-type-summary"><span>Showing:</span><strong>${escapeHtml(selectedRosterTypeLabel())}</strong><div><button type="button" id="desk-change-type">CHANGE TYPE</button>${state.roster.option_uuid ? '<button type="button" class="desk-secondary" id="desk-clear-type">SHOW ALL TYPES</button>' : ''}</div></div>`;
-		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-roster"><div class="desk-roster-heading"><p class="desk-eyebrow">Selected event</p><h1>EVENT ROSTER</h1><p>Everyone registered for ${escapeHtml(state.station.event_title)} appears here.</p></div><form id="desk-roster-search" class="desk-search-form"><label class="desk-sr-only" for="desk-roster-query">SEARCH THIS ROSTER</label><div class="desk-search-box">${icon('search')}<input id="desk-roster-query" name="q" autocomplete="off" placeholder="SEARCH THIS ROSTER" value="${escapeHtml(state.roster.q)}"></div><button type="submit">SEARCH</button></form><div class="desk-roster-reset"><button type="button" class="desk-secondary" id="desk-show-everyone">SHOW EVERYONE</button></div><fieldset class="desk-roster-filter"><legend>SHOW:</legend><div class="desk-roster-status">${rosterStatusChoices().map(([value, label]) => `<button type="button" data-roster-status="${value}" class="${state.roster.status === value ? 'is-selected' : ''}">${state.roster.status === value ? '✓ ' : ''}${label}</button>`).join('')}</div></fieldset>${types.length ? `<section class="desk-type-filter"><h2>REGISTRATION TYPE</h2>${typeControls}</section>` : ''}<div class="desk-roster-results">${state.roster.items.length ? state.roster.items.map(renderRosterRow).join('') : '<div class="desk-no-results"><h2>NO PEOPLE MATCH THESE CHOICES</h2><p>Tap Show Everyone to return to the complete roster.</p></div>'}</div>${hasMore ? '<button type="button" class="desk-primary desk-wide desk-show-more" id="desk-roster-more">SHOW MORE PEOPLE</button>' : ''}<dialog class="desk-type-picker" id="desk-type-picker"><form method="dialog"><h2>CHOOSE REGISTRATION TYPE</h2><button value="">ALL TYPES</button>${types.map((type) => `<button value="${escapeHtml(type.option_uuid)}">${escapeHtml(type.label)}</button>`).join('')}<button value="cancel" class="desk-secondary">CANCEL</button></form></dialog></section>`;
+		const emptyState = state.roster.q ? `<div class="desk-no-results"><h2>WE COULDN’T FIND THEIR REGISTRATION.</h2><p>Check the spelling or try a different email or phone number.</p><div class="desk-actions"><button type="button" class="desk-secondary desk-touch-centered" id="desk-search-again">SEARCH AGAIN</button><button type="button" class="desk-touch-centered" id="desk-search-recovery">THEY SAY THEY ALREADY REGISTERED</button><button type="button" class="desk-touch-centered" id="desk-search-walkin">REGISTER AS WALK-IN</button></div></div>` : '<div class="desk-no-results"><h2>NO PEOPLE MATCH THESE CHOICES</h2><p>Tap Show Everyone to return to the complete roster.</p></div>';
+		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-roster"><div class="desk-roster-heading"><p class="desk-eyebrow">Selected event</p><h1>FIND REGISTRATION</h1><p>Search or browse everyone registered for ${escapeHtml(state.station.event_title)}.</p></div><form id="desk-roster-search" class="desk-search-form"><label class="desk-sr-only" for="desk-roster-query">SEARCH THIS EVENT</label><div class="desk-search-box">${icon('search')}<input id="desk-roster-query" name="q" autocomplete="off" placeholder="Name, email, or phone" value="${escapeHtml(state.roster.q)}"></div><button type="submit">SEARCH THIS EVENT</button></form><div class="desk-roster-reset"><button type="button" class="desk-secondary" id="desk-show-everyone">SHOW EVERYONE</button></div><fieldset class="desk-roster-filter"><legend>SHOW:</legend><div class="desk-roster-status">${rosterStatusChoices().map(([value, label]) => `<button type="button" data-roster-status="${value}" class="${state.roster.status === value ? 'is-selected' : ''}">${state.roster.status === value ? '✓ ' : ''}${label}</button>`).join('')}</div></fieldset>${types.length ? `<section class="desk-type-filter"><h2>REGISTRATION TYPE</h2>${typeControls}</section>` : ''}<div class="desk-roster-results">${state.roster.items.length ? state.roster.items.map(renderRosterRow).join('') : emptyState}</div>${hasMore ? '<button type="button" class="desk-primary desk-wide desk-show-more" id="desk-roster-more">SHOW MORE PEOPLE</button>' : ''}<dialog class="desk-type-picker" id="desk-type-picker"><form method="dialog"><h2>CHOOSE REGISTRATION TYPE</h2><button value="">ALL TYPES</button>${types.map((type) => `<button value="${escapeHtml(type.option_uuid)}">${escapeHtml(type.label)}</button>`).join('')}<button value="cancel" class="desk-secondary">CANCEL</button></form></dialog></section>`;
 		bindScreenActions(showHome);
 		main().querySelector('#desk-roster-search').addEventListener('submit', (event) => { event.preventDefault(); state.roster.q = String(new FormData(event.currentTarget).get('q') || '').trim(); refreshRoster(); });
 		main().querySelector('#desk-show-everyone').addEventListener('click', () => { state.roster.q = ''; state.roster.status = 'everyone'; state.roster.option_uuid = ''; refreshRoster(); });
 		main().querySelectorAll('[data-roster-status]').forEach((button) => button.addEventListener('click', () => { state.roster.status = button.dataset.rosterStatus; refreshRoster(); }));
 		main().querySelectorAll('[data-roster-type]').forEach((button) => button.addEventListener('click', () => { state.roster.option_uuid = button.dataset.rosterType; refreshRoster(); }));
 		main().querySelector('#desk-roster-more')?.addEventListener('click', () => loadEventRoster(false));
+		main().querySelector('#desk-search-again')?.addEventListener('click', () => { main().querySelector('#desk-roster-query').focus(); main().querySelector('#desk-roster-query').select(); });
+		main().querySelector('#desk-search-recovery')?.addEventListener('click', showRecoveryProofPrompt);
+		main().querySelector('#desk-search-walkin')?.addEventListener('click', () => startWalkInWizard(false));
 		main().querySelectorAll('[data-roster-registration]').forEach((button) => button.addEventListener('click', () => showRegistration(button.dataset.rosterRegistration, 'roster')));
 		main().querySelectorAll('[data-roster-rsvp]').forEach((button) => button.addEventListener('click', () => showPublicRsvp(state.roster.items.find((item) => String(item.rsvp_user_id) === button.dataset.rosterRsvp))));
 		const picker = main().querySelector('#desk-type-picker');
@@ -539,50 +541,12 @@
 		return rows.length ? `<section class="desk-stats-breakdown"><h2>${escapeHtml(title)}</h2>${rows.map(([label, value]) => `<div><span>${escapeHtml(label.replaceAll('_', ' '))}</span><strong>${Number(value)}</strong></div>`).join('')}</section>` : '';
 	}
 
-	function showSearch() {
-		state.view = 'search';
-		main().innerHTML = `${screenActions('Back to Home')}<section class="desk-kiosk-panel desk-search-panel">
-			<p class="desk-eyebrow">Find someone who already signed up</p><h1>FIND A REGISTRATION</h1><p class="desk-lede">Type the person’s name, email, or phone number.</p>
-			<form id="desk-search-form" class="desk-search-form"><label class="desk-sr-only" for="desk-search">Name, email, or phone number</label><div class="desk-search-box">${icon('search')}<input id="desk-search" name="q" minlength="2" autocomplete="off" placeholder="Name, email, or phone number" value="${escapeHtml(state.searchQuery)}" required autofocus></div><button type="submit" class="desk-primary">SEARCH</button></form>
-			<p class="desk-example">Examples: John Smith · john@example.com · 814-555-1234</p><div id="desk-search-message"></div><div id="desk-search-results" class="desk-results"></div>
-		</section>`;
-		bindScreenActions(showHome);
-		main().querySelector('#desk-search-form').addEventListener('submit', searchRegistrations);
-		focusMain();
-	}
-
-	async function searchRegistrations(event) {
-		event.preventDefault();
-		const query = String(new FormData(event.currentTarget).get('q') || '').trim();
-		state.searchQuery = query;
-		const results = main().querySelector('#desk-search-results');
-		const message = main().querySelector('#desk-search-message');
-		results.innerHTML = '<div class="desk-loading desk-loading-small">Searching…</div>';
-		message.innerHTML = '';
-		try {
-			const data = await api(`/registrations?q=${encodeURIComponent(query)}`);
-			if (!data.coverage_complete) message.innerHTML = notice('We may not have all website registrations loaded yet. Please ask a manager for help.', 'warning');
-			if (!data.items.length) {
-				results.innerHTML = `<div class="desk-no-results"><span class="desk-large-icon">${icon('search')}</span><h2>WE COULDN’T FIND THEIR REGISTRATION.</h2><p>Check the spelling or try a different email or phone number.</p><div class="desk-actions"><button type="button" class="desk-secondary desk-touch-centered" id="desk-search-again">SEARCH AGAIN</button><button type="button" class="desk-touch-centered" id="desk-search-recovery">THEY SAY THEY ALREADY REGISTERED</button><button type="button" class="desk-touch-centered" id="desk-search-walkin">REGISTER AS WALK-IN</button></div></div>`;
-				results.querySelector('#desk-search-again').addEventListener('click', () => { main().querySelector('#desk-search').focus(); main().querySelector('#desk-search').select(); });
-				results.querySelector('#desk-search-recovery').addEventListener('click', showRecoveryProofPrompt);
-				results.querySelector('#desk-search-walkin').addEventListener('click', () => startWalkInWizard(false));
-				return;
-			}
-			results.innerHTML = `<h2 class="desk-results-title">Search results</h2>${data.items.map((item) => renderSearchResult(item)).join('')}`;
-			results.querySelectorAll('[data-registration]').forEach((button) => button.addEventListener('click', () => showRegistration(button.dataset.registration)));
-		} catch (error) {
-			results.innerHTML = `${notice(friendlyError(error), 'error')}<button type="button" class="desk-secondary" id="desk-search-retry">TRY AGAIN</button>`;
-			results.querySelector('#desk-search-retry').addEventListener('click', () => event.currentTarget.requestSubmit());
-		}
-	}
-
 	function showRecoveryProofPrompt() {
 		state.view = 'recovery-proof';
 		main().innerHTML = `${screenActions('Back to Search', false)}<section class="desk-centered desk-recovery-proof"><span class="desk-large-icon desk-gold-icon">${icon('help')}</span><p class="desk-eyebrow">Registration recovery</p><h1>DO THEY HAVE PROOF OF REGISTRATION OR PAYMENT?</h1><p>Ask for an order number, confirmation email, receipt, or other clear proof. A manager can search the website order records without changing payment or creating an order.</p><div class="desk-actions"><button type="button" class="desk-primary desk-touch-centered" id="desk-recovery-manager">GET MANAGER HELP</button><button type="button" class="desk-secondary desk-touch-centered" id="desk-recovery-back">GO BACK</button></div></section>`;
-		bindScreenActions(showSearch);
+		bindScreenActions(() => showEventRoster(false));
 		main().querySelector('#desk-recovery-manager').addEventListener('click', () => state.station.manager_token ? showMissingRegistration() : showManagerHelp('recovery'));
-		main().querySelector('#desk-recovery-back').addEventListener('click', showSearch);
+		main().querySelector('#desk-recovery-back').addEventListener('click', () => showEventRoster(false));
 		focusMain();
 	}
 
@@ -703,13 +667,7 @@
 		}
 	}
 
-	function renderSearchResult(item) {
-		const option = optionFor(item.option_uuid);
-		const date = item.validity_type === 'one_day' && item.valid_local_date ? formatDateValue(item.valid_local_date) : 'Full event';
-		return `<article class="desk-result-card"><div class="desk-result-main"><strong>${escapeHtml(item.contact_name || 'Registration')}</strong><span>${escapeHtml(registrationType(option, item))}</span><small>${escapeHtml(date)} · ${escapeHtml(sourceLabel(item.source_type))}</small><small>${escapeHtml(item.contact_email)} · ${escapeHtml(item.contact_phone)}</small></div><button type="button" data-registration="${escapeHtml(item.registration_uuid)}">OPEN REGISTRATION ${icon('arrow')}</button></article>`;
-	}
-
-	async function showRegistration(registrationUuid, returnTo = 'search') {
+	async function showRegistration(registrationUuid, returnTo = 'roster') {
 		state.view = 'registration';
 		state.detailReturn = returnTo;
 		main().innerHTML = '<div class="desk-loading">Opening registration…</div>';
@@ -724,8 +682,8 @@
 			const allowed = data.admission?.allowed !== false;
 			const canAddAttendee = registration.classification === 'family' && existing.length < maximum;
 			const everyoneCheckedIn = existing.length > 0 && existing.every((attendee) => attendee.current_attendance?.state === 'checked_in');
-			const back = state.detailReturn === 'roster' ? () => renderEventRoster(false) : state.detailReturn === 'recovery' ? showMissingRegistration : showSearch;
-			const backLabel = state.detailReturn === 'roster' ? 'Back to Event Roster' : state.detailReturn === 'recovery' ? 'Back to Missing Registration' : 'Back to Search';
+			const back = state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false);
+			const backLabel = state.detailReturn === 'recovery' ? 'Back to Missing Registration' : 'Back to Find Registration';
 			main().innerHTML = `${screenActions(backLabel)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
 				<div id="desk-detail-message">${allowed ? '' : notice('This registration cannot be checked in. Please ask a manager for help.', 'error')}</div>
 				<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2>${everyoneCheckedIn ? '<div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div>' : `<p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form>`}</section>
@@ -746,8 +704,8 @@
 			main().querySelector('#desk-correction-form')?.addEventListener('submit', (event) => saveCorrection(event, registration));
 			focusMain();
 		} catch (error) {
-			main().innerHTML = `${screenActions('Back to Search')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
-			bindScreenActions(state.detailReturn === 'roster' ? () => renderEventRoster(false) : state.detailReturn === 'recovery' ? showMissingRegistration : showSearch);
+			main().innerHTML = `${screenActions('Back to Find Registration')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
+			bindScreenActions(state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false));
 		}
 	}
 
@@ -1062,7 +1020,7 @@
 		state.wizard = null;
 		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">All set</p><h1>${isWalkIn ? 'REGISTRATION COMPLETE' : 'CHECK-IN COMPLETE'}</h1><p class="desk-success-name">${escapeHtml(details.name)}</p><p>${isWalkIn ? 'The registration was saved and ' : ''}${Number(details.count || 1)} ${Number(details.count || 1) === 1 ? 'person was' : 'people were'} checked in for today.</p><div class="desk-success-summary"><span><strong>Registration</strong>${escapeHtml(details.type || '')}</span><span><strong>Event</strong>${escapeHtml(state.station.event_title)}</span><span><strong>Checked in</strong>${escapeHtml(state.station.friendly_date || formatDateValue(state.station.local_date))}${time ? ` at ${escapeHtml(time)}` : ''}</span>${payment ? `<span><strong>Statement</strong>${escapeHtml(payment)}</span>` : ''}<span><strong>Volunteer</strong>${escapeHtml(state.station.operator_label)}</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">${isWalkIn ? 'REGISTER ANOTHER' : 'FIND ANOTHER REGISTRATION'}</button></div></section>`;
 		main().querySelector('#desk-success-home').addEventListener('click', () => showHome());
-		main().querySelector('#desk-success-another').addEventListener('click', () => isWalkIn ? startWalkInWizard(false) : showSearch());
+		main().querySelector('#desk-success-another').addEventListener('click', () => isWalkIn ? startWalkInWizard(false) : showEventRoster(true));
 		focusMain();
 	}
 

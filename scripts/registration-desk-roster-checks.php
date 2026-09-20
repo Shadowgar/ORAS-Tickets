@@ -76,8 +76,10 @@ oras_roster_assert( false !== strpos( $service, 'rsvp_waitlist' ), 'Roster suppo
 oras_roster_assert( false !== strpos( $rest, '/registration-desk/roster' ), 'REST controller exposes the station-bound roster route' );
 oras_roster_assert( false !== strpos( $rest, 'manager_detail' ) && false !== strpos( $rest, 'is_manager_request' ), 'Manager roster fields require server-side manager validation' );
 oras_roster_assert( false !== strpos( $rest, 'Event_Offering_Resolver::desk_offerings' ), 'Roster type filters reuse canonical event offerings' );
-oras_roster_assert( false !== strpos( $desk, 'EVENT ROSTER' ), 'Volunteer home exposes Event Roster' );
-oras_roster_assert( false !== strpos( $desk, 'SEARCH THIS ROSTER' ), 'Roster search is optional and visible above the roster' );
+oras_roster_assert( false === strpos( $desk, 'id="desk-home-roster"' ), 'Volunteer home removes the duplicate Event Roster button' );
+oras_roster_assert( false !== strpos( $desk, "#desk-home-find').addEventListener('click', () => showEventRoster(true)" ), 'Find Registration is the one roster and search entry point' );
+oras_roster_assert( false !== strpos( $desk, 'SEARCH THIS EVENT' ), 'Find Registration search is optional and visible above the roster' );
+oras_roster_assert( false !== strpos( $desk, 'THEY SAY THEY ALREADY REGISTERED' ), 'Searched roster no-results retain paid-registration recovery' );
 oras_roster_assert( false !== strpos( $desk, 'SHOW EVERYONE' ), 'Roster has an explicit Show Everyone reset' );
 oras_roster_assert( false !== strpos( $desk, 'SHOW MORE PEOPLE' ), 'Roster uses kiosk-style incremental pagination' );
 oras_roster_assert( false !== strpos( $desk, 'CHOOSE REGISTRATION TYPE' ), 'Many registration types use a large picker' );

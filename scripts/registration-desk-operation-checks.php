@@ -139,7 +139,10 @@ oras_operation_assert( false !== strpos( $desk_js, 'formatLocalTime' ), 'Volunte
 oras_operation_assert( false !== strpos( $desk_js, 'showManagerArea' ), 'Manager functions are separated from normal volunteer tasks' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/events'" ), 'Volunteer chooses from the server event catalog after entering a name' );
 oras_operation_assert( false !== strpos( $desk_js, 'CHANGE EVENT' ), 'Compact header exposes event switching' );
-oras_operation_assert( false !== strpos( $desk_js, 'EVENT ROSTER' ), 'Volunteer home exposes the selected-event roster' );
+oras_operation_assert( false === strpos( $desk_js, 'id="desk-home-roster"' ), 'Volunteer home omits the duplicate Event Roster action' );
+oras_operation_assert( false !== strpos( $desk_js, "#desk-home-find').addEventListener('click', () => showEventRoster(true)" ), 'Find Registration opens the populated event roster directly' );
+oras_operation_assert( false !== strpos( $desk_js, '<h1>FIND REGISTRATION</h1>' ), 'Unified registration browser uses the simple Find Registration title' );
+oras_operation_assert( false !== strpos( $desk_js, 'SEARCH THIS EVENT' ), 'Unified registration browser makes search optional and event scoped' );
 oras_operation_assert( false !== strpos( $desk_js, 'ORAS MEMBERSHIP' ), 'Organization membership remains conceptually separate from the event roster' );
 oras_operation_assert( false !== strpos( $desk_js, 'EVENT STATS' ), 'Volunteer home exposes shared event statistics' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/manager/unlock'" ), 'Manager Help performs PIN unlock inside the kiosk' );
