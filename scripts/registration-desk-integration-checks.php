@@ -1717,13 +1717,12 @@ function oras_desk_integration_prepare(): void {
 	$western_date = wp_date( 'Y-m-d', null, wp_timezone() );
 	$timezone_event_id = oras_desk_integration_event( $run, 'site-timezone-boundary', $western_date, $western_date );
 	update_post_meta( $timezone_event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
-	$western_catalog = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
-	oras_desk_integration_true( in_array( $timezone_event_id, $western_catalog, true ), 'site-local western date keeps an event ending today in the kiosk catalog' );
+	$timezone_row = Event_Catalog::find_any( $timezone_event_id );
+	oras_desk_integration_true( is_array( $timezone_row ) && Event_Catalog::is_available_on( $timezone_row, $western_date ), 'site-local western date keeps an event ending today eligible for the kiosk catalog' );
 	update_option( 'timezone_string', 'Pacific/Kiritimati', false );
 	$eastern_date = wp_date( 'Y-m-d', null, wp_timezone() );
 	oras_desk_integration_true( $eastern_date > $western_date, 'timezone fixture crosses a site-local calendar-date boundary' );
-	$eastern_catalog = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
-	oras_desk_integration_true( ! in_array( $timezone_event_id, $eastern_catalog, true ), 'site timezone controls whether the event end date has passed' );
+	oras_desk_integration_true( ! Event_Catalog::is_available_on( $timezone_row, $eastern_date ), 'site timezone controls whether the event end date has passed' );
 	update_option( 'timezone_string', $original_timezone, false );
 	update_post_meta(
 		$offering_event_id,
