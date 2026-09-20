@@ -152,6 +152,9 @@ oras_access_assert( $expired_result instanceof WP_Error && 'oras_desk_station_ex
 
 oras_access_assert( $catalog_class::overlaps_year( '2025-12-30', '2026-01-02', 2026 ), 'Event crossing New Year overlaps the current year' );
 oras_access_assert( ! $catalog_class::overlaps_year( '2025-01-01', '2025-12-31', 2026 ), 'Prior-year event does not overlap the current year' );
+oras_access_assert( ! $catalog_class::is_available_on( array( 'end_date' => '2026-09-19' ), '2026-09-20' ), 'Past one-day event is excluded from the live kiosk catalog' );
+oras_access_assert( $catalog_class::is_available_on( array( 'end_date' => '2026-09-21' ), '2026-09-20' ), 'Currently running multi-day event remains in the live kiosk catalog' );
+oras_access_assert( $catalog_class::is_available_on( array( 'end_date' => '2026-09-25' ), '2026-09-20' ), 'Future current-year event remains in the live kiosk catalog' );
 $ordered = $catalog_class::sort_rows(
 	array(
 		array(
@@ -214,6 +217,7 @@ oras_access_assert( file_exists( $plugin_dir . 'assets/registration-desk/oras-ma
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $rest_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Rest_Controller.php' );
 oras_access_assert( false !== strpos( $rest_code, '/registration-desk/events' ), 'Volunteer startup exposes the eligible event catalog' );
+oras_access_assert( false !== strpos( $rest_code, 'oras_desk_station_event_ended' ), 'Open stations receive a distinct event-ended server state across midnight' );
 oras_access_assert( false !== strpos( $rest_code, "get_param( 'event_id' )" ), 'Station creation binds the explicitly selected event' );
 oras_access_assert( false !== strpos( $rest_code, "'friendly_date'" ), 'Station bootstrap supplies a friendly site-local date' );
 oras_access_assert( false !== strpos( $rest_code, 'html_entity_decode( wp_logout_url' ), 'Station bootstrap supplies a usable single-escaped logout URL' );

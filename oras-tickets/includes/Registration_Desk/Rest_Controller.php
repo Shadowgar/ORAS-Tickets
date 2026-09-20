@@ -798,7 +798,12 @@ final class Rest_Controller {
 		if ( (int) ( $station['config_revision'] ?? -1 ) !== (int) $config['revision'] ) {
 			return new \WP_Error( 'oras_desk_station_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 401 ) );
 		}
-		if ( null === Event_Catalog::find( $event_id ) ) {
+		$event = Event_Catalog::find_any( $event_id );
+		$today = wp_date( 'Y-m-d', null, wp_timezone() );
+		if ( is_array( $event ) && ! Event_Catalog::is_available_on( $event, $today ) ) {
+			return new \WP_Error( 'oras_desk_station_event_ended', 'This event has ended. Choose the event you are working today.', array( 'status' => 409 ) );
+		}
+		if ( null === $event || ! Event_Catalog::overlaps_year( (string) $event['start_date'], (string) $event['end_date'], (int) substr( $today, 0, 4 ) ) ) {
 			return new \WP_Error( 'oras_desk_station_event_changed', 'That event is no longer available. Choose an event again.', array( 'status' => 401 ) );
 		}
 
@@ -820,7 +825,7 @@ final class Rest_Controller {
 	/** @param array<string,mixed> $config @return array<int,array<string,mixed>> */
 	private function current_offerings( int $event_id, array $config ): array {
 		if ( Event_Offering_Resolver::has_canonical_tickets( $event_id ) ) {
-			return Event_Offering_Resolver::desk_offerings( $event_id, $config );
+			return $this->apply_desk_admission_state( Event_Offering_Resolver::desk_offerings( $event_id, $config ), $event_id );
 		}
 		$rsvp = RSVP_Capacity::state( $event_id );
 		if ( empty( $rsvp['enabled'] ) ) {
@@ -869,9 +874,37 @@ final class Rest_Controller {
 			)
 		);
 
-		return array(
-			$option,
-		);
+		return $this->apply_desk_admission_state( array( $option ), $event_id );
+	}
+
+	/**
+	 * Keep public sale availability canonical while preventing the desk from
+	 * starting a walk-in that cannot be admitted on the station's local date.
+	 *
+	 * @param array<int,array<string,mixed>> $offerings Current canonical offerings.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function apply_desk_admission_state( array $offerings, int $event_id ): array {
+		$event = Event_Catalog::find_any( $event_id );
+		$today = wp_date( 'Y-m-d', null, wp_timezone() );
+		$event_admitting_today = is_array( $event )
+			&& Service::date_is_within_event( $today, (string) $event['start_date'], (string) $event['end_date'] );
+
+		foreach ( $offerings as &$offering ) {
+			$valid_today = $event_admitting_today;
+			if ( $valid_today && 'one_day' === (string) ( $offering['validity_type'] ?? '' ) ) {
+				$valid_today = $today === (string) ( $offering['valid_local_date'] ?? '' );
+			}
+			$offering['desk_admission_state'] = $valid_today ? 'admitting_today' : 'not_admitting_today';
+			if ( ! $valid_today ) {
+				$offering['selectable']         = false;
+				$offering['available_for_new']  = false;
+				$offering['availability_label']    = __( 'Not admitting today', 'oras-tickets' );
+			}
+		}
+		unset( $offering );
+
+		return $offerings;
 	}
 
 	/** @return array<string,mixed> */

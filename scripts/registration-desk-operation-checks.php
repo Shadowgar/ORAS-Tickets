@@ -110,6 +110,8 @@ oras_operation_assert( false !== strpos( $service_code, "'friendly_date' => wp_d
 $rest_code = (string) file_get_contents( $base . 'Rest_Controller.php' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station' ), 'Station bootstrap has a dedicated route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/offerings' ), 'Walk-in choices have a current-offerings route' );
+oras_operation_assert( false !== strpos( $rest_code, 'apply_desk_admission_state' ), 'Desk offerings apply the current event admission date without changing canonical public sale state' );
+oras_operation_assert( false !== strpos( $rest_code, "'availability_label']    = __( 'Not admitting today'" ), 'Out-of-date desk offerings explain that the event is not admitting today' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/membership-offerings' ), 'Membership choices have a current canonical-offerings route' );
 oras_operation_assert( false !== strpos( $rest_code, '/memberships/(?P<activation_uuid>[0-9a-f-]{36})/correct' ), 'Pending membership correction has a dedicated manager route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
@@ -146,6 +148,9 @@ oras_operation_assert( false !== strpos( $desk_js, 'formatLocalTime' ), 'Volunte
 oras_operation_assert( false !== strpos( $desk_js, 'showManagerArea' ), 'Manager functions are separated from normal volunteer tasks' );
 oras_operation_assert( false !== strpos( $desk_js, "api('/events'" ), 'Volunteer chooses from the server event catalog after entering a name' );
 oras_operation_assert( false !== strpos( $desk_js, 'CHANGE EVENT' ), 'Compact header exposes event switching' );
+oras_operation_assert( false !== strpos( $desk_js, 'THIS EVENT HAS ENDED' ) && false !== strpos( $desk_js, 'Please choose the event you are working today.' ), 'Expired open station receives the required full-screen event-ended state' );
+oras_operation_assert( false !== strpos( $desk_js, 'chooseEventAfterEnd' ) && false !== strpos( $desk_js, 'hasUnsavedDraft()' ), 'Choosing another event after midnight explicitly resolves an unfinished draft' );
+oras_operation_assert( false !== strpos( $desk_js, "payload.code === 'oras_desk_station_event_ended'" ), 'The browser preserves the ended station draft until the volunteer chooses an event' );
 oras_operation_assert( false === strpos( $desk_js, 'id="desk-home-roster"' ), 'Volunteer home omits the duplicate Event Roster action' );
 oras_operation_assert( false !== strpos( $desk_js, "#desk-home-find').addEventListener('click', () => showEventRoster(true)" ), 'Find Registration opens the populated event roster directly' );
 oras_operation_assert( false !== strpos( $desk_js, '<h1>FIND REGISTRATION</h1>' ), 'Unified registration browser uses the simple Find Registration title' );
@@ -160,6 +165,11 @@ oras_operation_assert( false !== strpos( $desk_js, "api('/manager/unlock'" ), 'M
 oras_operation_assert( false !== strpos( $desk_js, 'RECORD MEMBERSHIP' ), 'Manager area exposes the offline membership workflow' );
 oras_operation_assert( false !== strpos( $desk_js, 'Before taking payment, ask whether they are buying anything else today.' ), 'AlfaPOS handoff is a dedicated instruction step' );
 oras_operation_assert( false !== strpos( $desk_js, 'failureCount' ), 'Save recovery tracks repeated failure without discarding request identity' );
+oras_operation_assert( false !== strpos( $desk_js, 'finalizing: false' ) && false !== strpos( $desk_js, 'if (state.finalizing) return;' ), 'Walk-in finalization has an in-flight double-submission guard' );
+oras_operation_assert( false !== strpos( $desk_js, 'function showPaymentRecovery(error, payment, acknowledge)' ), 'Finalization recovery owns the complete kiosk screen rather than a nested message slot' );
+oras_operation_assert( false !== strpos( $desk_js, "state.view = 'recovery';" ) && false !== strpos( $desk_js, 'main().innerHTML = `<section class="desk-centered desk-finalization-recovery">' ), 'Finalization failure replaces the active submit screen' );
+oras_operation_assert( false !== strpos( $desk_js, 'if (state.failureCount > 0 && state.pendingPayload && state.pendingRequest) return showRestoredFailure();' ), 'Refreshing the same failed request restores its recovery state and failure count' );
+oras_operation_assert( false === strpos( $desk_js, 'showPaymentRecovery(message,' ), 'Recovery is never rendered beneath the still-actionable payment form' );
 oras_operation_assert( false !== strpos( $desk_js, 'draft_expires_at' ) && false !== strpos( $desk_js, 'restoreDraft' ), 'Walk-in and membership drafts are retained for a bounded session window' );
 oras_operation_assert( false !== strpos( $desk_js, 'START OVER?' ) && false !== strpos( $desk_js, 'DISCARD &amp; RETURN HOME' ), 'Unsafe home navigation requires an explicit discard choice' );
 oras_operation_assert( false !== strpos( $desk_js, 'CONNECTION LOST' ) && false !== strpos( $desk_js, 'Your information is still here.' ), 'Unreachable requests use the approved plain-language retained-data state' );

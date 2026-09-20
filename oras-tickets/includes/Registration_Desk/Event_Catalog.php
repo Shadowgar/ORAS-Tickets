@@ -28,7 +28,7 @@ final class Event_Catalog {
 		foreach ( $posts as $post ) {
 			$event_id = absint( $post instanceof \WP_Post ? $post->ID : $post );
 			$row      = self::eligible_row( $event_id, $year );
-			if ( null !== $row ) {
+			if ( null !== $row && self::is_available_on( $row, $today ) ) {
 				$rows[] = $row;
 			}
 		}
@@ -39,8 +39,14 @@ final class Event_Catalog {
 	/** @return array<string,mixed>|null */
 	public static function find( int $event_id ): ?array {
 		$today = wp_date( 'Y-m-d', null, wp_timezone() );
+		$row   = self::eligible_row( $event_id, (int) substr( $today, 0, 4 ) );
 
-		return self::eligible_row( $event_id, (int) substr( $today, 0, 4 ) );
+		return null !== $row && self::is_available_on( $row, $today ) ? $row : null;
+	}
+
+	/** Return a qualifying event even after it ends, for reporting and stale-station diagnosis. */
+	public static function find_any( int $event_id ): ?array {
+		return self::eligible_row( $event_id, null );
 	}
 
 	public static function display_title( string $title ): string {
@@ -48,7 +54,7 @@ final class Event_Catalog {
 	}
 
 	/** @return array<string,mixed>|null */
-	private static function eligible_row( int $event_id, int $year ): ?array {
+	private static function eligible_row( int $event_id, ?int $year ): ?array {
 		$post = get_post( $event_id );
 		if ( ! $post instanceof \WP_Post || 'tribe_events' !== $post->post_type || 'publish' !== $post->post_status ) {
 			return null;
@@ -58,7 +64,7 @@ final class Event_Catalog {
 		if ( '' === $end ) {
 			$end = $start;
 		}
-		if ( ! self::overlaps_year( $start, $end, $year ) ) {
+		if ( null !== $year && ! self::overlaps_year( $start, $end, $year ) ) {
 			return null;
 		}
 		$tickets = ! Ticket_Collection::load_for_event( $event_id )->is_empty();
@@ -85,6 +91,15 @@ final class Event_Catalog {
 		}
 
 		return $end_date >= sprintf( '%04d-01-01', $year ) && $start_date <= sprintf( '%04d-12-31', $year );
+	}
+
+	/** @param array<string,mixed> $row */
+	public static function is_available_on( array $row, string $local_date ): bool {
+		$end_date = (string) ( $row['end_date'] ?? '' );
+
+		return 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $local_date )
+			&& 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $end_date )
+			&& $end_date >= $local_date;
 	}
 
 	/** @param array<int,array<string,mixed>> $rows @return array<int,array<string,mixed>> */

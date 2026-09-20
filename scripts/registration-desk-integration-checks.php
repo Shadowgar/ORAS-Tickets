@@ -12,6 +12,7 @@ use ORAS\Tickets\Registration_Desk\Attendance_Store;
 use ORAS\Tickets\Registration_Desk\Audit_Store;
 use ORAS\Tickets\Registration_Desk\Config;
 use ORAS\Tickets\Registration_Desk\Coverage_Store;
+use ORAS\Tickets\Registration_Desk\Event_Catalog;
 use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
 use ORAS\Tickets\Registration_Desk\Manager_Access;
 use ORAS\Tickets\Registration_Desk\Membership_Credit_Service;
@@ -23,6 +24,7 @@ use ORAS\Tickets\Registration_Desk\Registration_Store;
 use ORAS\Tickets\Registration_Desk\Schema;
 use ORAS\Tickets\Registration_Desk\Service;
 use ORAS\Tickets\Registration_Desk\Station_Session;
+use ORAS\Tickets\Reporting\Board_Report_Service;
 
 if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 	exit( 1 );
@@ -411,6 +413,234 @@ function oras_desk_integration_context( int $user_id, int $event_id, array $conf
 		'operator_label'  => (string) $station['operator_label'],
 		'request_uuid'    => $request_uuid,
 	);
+}
+
+/** Submit a walk-in through the registered REST route used by the kiosk. */
+function oras_desk_integration_rest_walk_in( string $station_token, string $request_uuid, array $payload ): WP_REST_Response {
+	$request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/registrations/walk-in' );
+	$request->set_header( 'X-ORAS-Desk-Station', $station_token );
+	$request->set_header( 'X-ORAS-Desk-Request', $request_uuid );
+	$request->set_body_params( $payload );
+
+	return rest_do_request( $request );
+}
+
+/** Fetch the desk presentation of current offerings through REST. */
+function oras_desk_integration_rest_offerings( string $station_token ): WP_REST_Response {
+	$request = new WP_REST_Request( 'GET', '/oras-tickets/v1/registration-desk/offerings' );
+	$request->set_header( 'X-ORAS-Desk-Station', $station_token );
+
+	return rest_do_request( $request );
+}
+
+/** Assert one successful nonfinancial registration result from the real REST route. */
+function oras_desk_integration_assert_walk_in_success( WP_REST_Response $response, string $payment, int $arrival_count, string $message ): array {
+	$data = $response->get_data();
+	oras_desk_integration_same( $response->get_status(), 200, $message . ' returns HTTP 200' );
+	oras_desk_integration_same( $data['historical_result']['registration']['payment_assertion'] ?? '', $payment, $message . ' records the selected operational payment assertion' );
+	oras_desk_integration_same( count( $data['historical_result']['attendees'] ?? array() ), $arrival_count, $message . ' creates the expected attendee slots' );
+	oras_desk_integration_same( count( $data['historical_result']['attendance'] ?? array() ), $arrival_count, $message . ' checks in the expected arrivals today' );
+
+	return $data;
+}
+
+/** Count all transaction-owned rows for one request after a failed finalization. */
+function oras_desk_integration_walk_in_request_counts( int $event_id, string $request_uuid, string $email ): array {
+	global $wpdb;
+	$tables = Schema::table_names();
+	$registration_ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$tables['registrations']} WHERE event_id = %d AND source_email = %s", $event_id, $email ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	if ( empty( $registration_ids ) ) {
+		$attendees = 0;
+		$attendance = 0;
+	} else {
+		$id_sql = implode( ',', array_map( 'absint', $registration_ids ) );
+		$attendees = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['attendees']} WHERE registration_id IN ({$id_sql})" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are query-derived integers.
+		$attendance = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['attendance']} WHERE attendee_id IN (SELECT id FROM {$tables['attendees']} WHERE registration_id IN ({$id_sql}))" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are query-derived integers.
+	}
+
+	return array(
+		'registrations' => count( $registration_ids ),
+		'attendees'     => $attendees,
+		'attendance'    => $attendance,
+		'audit'         => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tables['audit']} WHERE request_uuid = %s", $request_uuid ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	);
+}
+
+/** Exercise the full kiosk REST finalization contract, rollback, and replay behavior. */
+function oras_desk_integration_walk_in_rest_contract( array $context ): void {
+	global $wpdb;
+	wp_set_current_user( (int) $context['desk_id'] );
+	$event_id = (int) $context['event_id'];
+	$config   = Config::get_event_config( $event_id );
+	$token    = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'REST Walk-In' );
+	$offerings_response = oras_desk_integration_rest_offerings( $token );
+	oras_desk_integration_same( $offerings_response->get_status(), 200, 'walk-in REST contract loads current offerings through the kiosk endpoint' );
+	$offering = $offerings_response->get_data()['items'][0] ?? array();
+	oras_desk_integration_same( $offering['desk_admission_state'] ?? '', 'admitting_today', 'current event offering is explicitly admitting today' );
+
+	$payload_for = static function ( string $suffix, string $payment, array $selected, array $attendees = array() ) use ( $context ): array {
+		return array(
+			'first_name'             => 'REST',
+			'last_name'              => $suffix,
+			'email'                  => 'rest-' . strtolower( $suffix ) . '-' . $context['run'] . '@example.test',
+			'phone'                  => '814-555-' . str_pad( (string) ( hexdec( substr( md5( $suffix ), 0, 4 ) ) % 10000 ), 4, '0', STR_PAD_LEFT ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_md5 -- Stable synthetic phone suffix only.
+			'address_1'              => '',
+			'address_2'              => '',
+			'city'                   => '',
+			'state'                  => '',
+			'postcode'               => '',
+			'option_uuid'            => (string) $selected['option_uuid'],
+			'offering_fingerprint'   => (string) $selected['offering_fingerprint'],
+			'valid_local_date'       => 'one_day' === (string) ( $selected['validity_type'] ?? '' ) ? (string) $selected['valid_local_date'] : '',
+			'payment_assertion'      => $payment,
+			'additional_attendees'   => $attendees,
+			'duplicate_acknowledged' => false,
+		);
+	};
+
+	$card_request = wp_generate_uuid4();
+	$card_payload = $payload_for( 'Card', 'paid_card', $offering );
+	$card = oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $token, $card_request, $card_payload ), 'paid_card', 1, 'individual Card walk-in through REST' );
+	$card_replay = oras_desk_integration_rest_walk_in( $token, $card_request, $card_payload );
+	oras_desk_integration_same( $card_replay->get_status(), 200, 'lost successful response retry returns HTTP 200' );
+	oras_desk_integration_same( $card_replay->get_data()['replayed'] ?? false, true, 'lost successful response retry reuses the recorded result' );
+	oras_desk_integration_same(
+		oras_desk_integration_walk_in_request_counts( $event_id, $card_request, (string) $card_payload['email'] ),
+		array(
+			'registrations' => 1,
+			'attendees'     => 1,
+			'attendance'    => 1,
+			'audit'         => 1,
+		),
+		'same-request retry creates exactly one operational row set'
+	);
+
+	foreach ( array(
+		'Cash'   => 'paid_cash',
+		'Check'  => 'paid_check',
+		'Unpaid' => 'unpaid',
+	) as $suffix => $payment ) {
+		oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $token, wp_generate_uuid4(), $payload_for( $suffix, $payment, $offering ) ), $payment, 1, 'individual ' . $suffix . ' walk-in through REST' );
+	}
+
+	$ticketed_event = (int) $context['synthetic_ticketed_a']['event_id'];
+	$ticketed_config = Config::get_event_config( $ticketed_event );
+	$ticketed_token = Station_Session::issue( (int) $context['desk_id'], $ticketed_event, (int) $ticketed_config['revision'], 'REST Coverage' );
+	$ticketed_response = oras_desk_integration_rest_offerings( $ticketed_token );
+	oras_desk_integration_same( $ticketed_response->get_status(), 200, 'family and one-day REST fixture loads current canonical offerings' );
+	$ticketed = $ticketed_response->get_data()['items'] ?? array();
+	$by_key = array_column( $ticketed, null, 'ticket_key' );
+	$family_payload = $payload_for(
+		'Family',
+		'paid_card',
+		$by_key['synthetic-a-2'],
+		array(
+			array(
+				'first_name' => 'Family',
+				'last_name'  => 'Two',
+			),
+			array(
+				'first_name' => 'Family',
+				'last_name'  => 'Three',
+			),
+		)
+	);
+	oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $family_payload ), 'paid_card', 3, 'family selected-arrivals walk-in through REST' );
+	$day_payload = $payload_for( 'OneDay', 'paid_cash', $by_key['synthetic-a-4'] );
+	oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $day_payload ), 'paid_cash', 1, 'one-day valid-today walk-in through REST' );
+
+	$past_event = (int) $context['walk_in_past']['event_id'];
+	$past_config = Config::get_event_config( $past_event );
+	$past_token = Station_Session::issue( (int) $context['desk_id'], $past_event, (int) $past_config['revision'], 'REST Past Event' );
+	$past_response = oras_desk_integration_rest_offerings( $past_token );
+	oras_desk_integration_same( $past_response->get_status(), 409, 'station held open after the event end date is blocked through REST' );
+	oras_desk_integration_same( $past_response->get_data()['code'] ?? '', 'oras_desk_station_event_ended', 'station held across midnight is forced to choose another event' );
+	$canonical_past = Event_Offering_Resolver::desk_offerings( $past_event, $past_config )[0];
+	$past_context = oras_desk_integration_context( (int) $context['desk_id'], $past_event, $past_config, $past_token, wp_generate_uuid4() );
+	$wrong_date = ( new Service() )->create_walk_in( $payload_for( 'WrongDate', 'paid_card', $canonical_past ), $past_context );
+	oras_desk_integration_error( $wrong_date, 'oras_desk_wrong_date', 'final service validation remains authoritative behind the station-ended guard' );
+
+	$catalog_ids = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
+	oras_desk_integration_true( ! in_array( $past_event, $catalog_ids, true ), 'past one-day event is excluded from the real station event picker catalog' );
+	oras_desk_integration_true( in_array( (int) $context['catalog_fixture']['running_event_id'], $catalog_ids, true ), 'currently running multi-day event remains in the station event picker' );
+	oras_desk_integration_true( in_array( (int) $context['catalog_fixture']['future_event_id'], $catalog_ids, true ), 'future current-year event remains in the station event picker' );
+	$board_event_ids = array_map( static fn( WP_Post $event ): int => (int) $event->ID, ( new Board_Report_Service() )->get_events() );
+	oras_desk_integration_true( in_array( $past_event, $board_event_ids, true ), 'past event remains available in Board Reports' );
+
+	$stale_offering = $by_key['synthetic-a-1'];
+	$ticket_config = get_post_meta( $ticketed_event, '_oras_tickets_v1', true );
+	$ticket_config['tickets']['synthetic-a-1']['name'] = 'Changed after review';
+	update_post_meta( $ticketed_event, '_oras_tickets_v1', $ticket_config );
+	$offering_changed = oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $payload_for( 'OfferingChanged', 'paid_card', $stale_offering ) );
+	oras_desk_integration_same( $offering_changed->get_status(), 409, 'offering changed before submit returns HTTP 409 through REST' );
+	oras_desk_integration_same( $offering_changed->get_data()['code'] ?? '', 'oras_desk_offering_changed', 'offering fingerprint drift is not weakened by the kiosk fix' );
+	$ticket_config['tickets']['synthetic-a-1']['name'] = 'General Admission';
+	update_post_meta( $ticketed_event, '_oras_tickets_v1', $ticket_config );
+
+	wp_set_current_user( (int) $context['admin_id'] );
+	$config_changed = Config::save_event_config(
+		$ticketed_event,
+		array(
+			'enabled'      => (bool) $ticketed_config['enabled'],
+			'ticket_rules' => $ticketed_config['ticket_rules'],
+			'entitlements' => $ticketed_config['entitlements'],
+		),
+		(int) $ticketed_config['revision']
+	);
+	oras_desk_integration_true( is_array( $config_changed ), 'config-change fixture advances the canonical station revision' );
+	wp_set_current_user( (int) $context['desk_id'] );
+	$config_rejected = oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $payload_for( 'ConfigChanged', 'paid_card', $stale_offering ) );
+	oras_desk_integration_same( $config_rejected->get_status(), 401, 'config changed before submit invalidates the station through REST' );
+	oras_desk_integration_same( $config_rejected->get_data()['code'] ?? '', 'oras_desk_station_config_changed', 'stale config revision is rejected before mutation' );
+
+	$tables = Schema::table_names();
+	$faults = array(
+		'registration' => array(
+			'table' => $tables['registrations'],
+			'code'  => 'oras_desk_registration_create_failed',
+		),
+		'attendee'     => array(
+			'table' => $tables['attendees'],
+			'code'  => 'oras_desk_attendee_create_failed',
+		),
+		'attendance'   => array(
+			'table' => $tables['attendance'],
+			'code'  => 'oras_desk_attendance_create_failed',
+		),
+		'audit'        => array(
+			'table' => $tables['audit'],
+			'code'  => 'oras_desk_audit_persist_failed',
+		),
+	);
+	foreach ( $faults as $fault => $definition ) {
+		$request_uuid = wp_generate_uuid4();
+		$fault_payload = $payload_for( 'Fault' . ucfirst( $fault ), 'paid_card', $offering );
+		$trigger_name = $wpdb->prefix . 'oras_walkin_' . $fault;
+		$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed disposable trigger name.
+		$condition = 'audit' === $fault ? "IF NEW.request_uuid = '" . esc_sql( $request_uuid ) . "' THEN " : '';
+		$end_condition = 'audit' === $fault ? ' END IF;' : '';
+		$created = $wpdb->query( "CREATE TRIGGER {$trigger_name} BEFORE INSERT ON {$definition['table']} FOR EACH ROW BEGIN {$condition}SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'synthetic walk-in {$fault} failure';{$end_condition} END" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed disposable fixture identifiers.
+		oras_desk_integration_same( $created, true, 'forced ' . $fault . ' failure trigger is installed in the disposable database' );
+		$prior_suppression = $wpdb->suppress_errors( true );
+		$fault_response = oras_desk_integration_rest_walk_in( $token, $request_uuid, $fault_payload );
+		$wpdb->suppress_errors( $prior_suppression );
+		$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed disposable trigger name.
+		oras_desk_integration_same( $fault_response->get_status(), 500, 'forced ' . $fault . ' failure returns HTTP 500 through REST' );
+		oras_desk_integration_same( $fault_response->get_data()['code'] ?? '', $definition['code'], 'forced ' . $fault . ' failure returns its exact persistence code' );
+		oras_desk_integration_same(
+			oras_desk_integration_walk_in_request_counts( $event_id, $request_uuid, (string) $fault_payload['email'] ),
+			array(
+				'registrations' => 0,
+				'attendees'     => 0,
+				'attendance'    => 0,
+				'audit'         => 0,
+			),
+			'forced ' . $fault . ' failure rolls back every operational row'
+		);
+		$retry = oras_desk_integration_rest_walk_in( $token, $request_uuid, $fault_payload );
+		oras_desk_integration_assert_walk_in_success( $retry, 'paid_card', 1, 'same request succeeds after forced ' . $fault . ' fault is removed' );
+	}
+	unset( $card );
 }
 
 /** Exercise listener-only discovery and deterministic administrator recovery. */
@@ -1447,6 +1677,54 @@ function oras_desk_integration_prepare(): void {
 		'attendance_mode' => 'onsite',
 		'hide_sold_out'   => false,
 	);
+	$walk_in_past_id      = oras_desk_integration_event( $run, 'walk-in-past', $yesterday, $yesterday );
+	$walk_in_past_product = oras_desk_integration_product( $run, 'walk-in-past-ticket' );
+	update_post_meta(
+		$walk_in_past_id,
+		'_oras_tickets_v1',
+		array(
+			'schema'  => 1,
+			'tickets' => array( 'walk-in-past' => $canonical_ticket( 'walk-in-past', 'Past Canonical Ticket', '20.00' ) ),
+		)
+	);
+	update_post_meta( $walk_in_past_id, '_oras_tickets_woo_map_v1', array( 0 => $walk_in_past_product ) );
+	$walk_in_past_config = Config::save_event_config(
+		$walk_in_past_id,
+		array(
+			'enabled'      => true,
+			'ticket_rules' => array(
+				array(
+					'ticket_key'     => 'walk-in-past',
+					'classification' => 'individual',
+					'validity_type'  => 'full_event',
+					'max_attendees'  => 1,
+				),
+			),
+			'entitlements' => array(),
+		),
+		0
+	);
+	if ( is_wp_error( $walk_in_past_config ) ) {
+		oras_desk_integration_fail( 'past canonical walk-in fixture configuration failed.' );
+	}
+	$running_event_id = oras_desk_integration_event( $run, 'running-multi-day', $yesterday, wp_date( 'Y-m-d', time() + DAY_IN_SECONDS, wp_timezone() ) );
+	$future_event_id  = oras_desk_integration_event( $run, 'future-current-year', wp_date( 'Y-m-d', time() + ( 5 * DAY_IN_SECONDS ), wp_timezone() ), wp_date( 'Y-m-d', time() + ( 5 * DAY_IN_SECONDS ), wp_timezone() ) );
+	update_post_meta( $running_event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
+	update_post_meta( $future_event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
+
+	$original_timezone = (string) get_option( 'timezone_string', '' );
+	update_option( 'timezone_string', 'Pacific/Pago_Pago', false );
+	$western_date = wp_date( 'Y-m-d', null, wp_timezone() );
+	$timezone_event_id = oras_desk_integration_event( $run, 'site-timezone-boundary', $western_date, $western_date );
+	update_post_meta( $timezone_event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
+	$western_catalog = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
+	oras_desk_integration_true( in_array( $timezone_event_id, $western_catalog, true ), 'site-local western date keeps an event ending today in the kiosk catalog' );
+	update_option( 'timezone_string', 'Pacific/Kiritimati', false );
+	$eastern_date = wp_date( 'Y-m-d', null, wp_timezone() );
+	oras_desk_integration_true( $eastern_date > $western_date, 'timezone fixture crosses a site-local calendar-date boundary' );
+	$eastern_catalog = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
+	oras_desk_integration_true( ! in_array( $timezone_event_id, $eastern_catalog, true ), 'site timezone controls whether the event end date has passed' );
+	update_option( 'timezone_string', $original_timezone, false );
 	update_post_meta(
 		$offering_event_id,
 		'_oras_tickets_v1',
@@ -1845,7 +2123,7 @@ function oras_desk_integration_prepare(): void {
 		'desk_id'              => (int) $desk_id,
 		'member_id'            => (int) $member_id,
 		'user_ids'             => array( (int) $admin_id, (int) $desk_id, (int) $member_id ),
-		'product_ids'          => array_merge( array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap ), $synthetic_a_products, $synthetic_b_products ),
+		'product_ids'          => array_merge( array( $product_individual, $product_family, $product_day, $product_ambiguous, $product_unknown, $product_remap, $walk_in_past_product ), $synthetic_a_products, $synthetic_b_products ),
 		'order_ids'            => array_values( array_map( static fn( $source ) => $source['order_id'], $orders ) ),
 		'orders'               => $orders,
 		'projected'            => array_map( static fn( $result ) => $result['registrations'][0]['registration_uuid'], $projected ),
@@ -1877,6 +2155,15 @@ function oras_desk_integration_prepare(): void {
 		'synthetic_ticketed_b' => array(
 			'event_id'    => $synthetic_b_id,
 			'product_ids' => $synthetic_b_products,
+		),
+		'walk_in_past'         => array(
+			'event_id'   => $walk_in_past_id,
+			'product_id' => $walk_in_past_product,
+		),
+		'catalog_fixture'      => array(
+			'running_event_id'  => $running_event_id,
+			'future_event_id'   => $future_event_id,
+			'timezone_event_id' => $timezone_event_id,
 		),
 	);
 	oras_desk_integration_canonical_offerings_and_rsvp( $context );
@@ -1911,6 +2198,7 @@ function oras_desk_integration_prepare(): void {
 	$context['prepare_http_baseline'] = oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:prepare' ) );
 	update_option( 'oras_registration_desk_integration_context', $context, false );
 	oras_desk_integration_pass( 'protected commerce, account, integration, and transport baseline captured after fixture-only mutations' );
+	oras_desk_integration_walk_in_rest_contract( $context );
 
 	$config = Config::get_event_config( $event_id );
 	$desk_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );

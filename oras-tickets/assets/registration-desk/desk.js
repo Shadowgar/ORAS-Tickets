@@ -17,6 +17,7 @@
 		pendingPayload: null,
 		pendingPayment: '',
 		failureCount: 0,
+		finalizing: false,
 		roster: {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []},
 		detailReturn: 'search',
 		managerDestination: 'manager',
@@ -78,7 +79,9 @@
 
 		const payload = await response.json().catch(() => ({}));
 		if (!response.ok) {
-			if (String(payload.code || '').startsWith('oras_desk_station_')) {
+			if (payload.code === 'oras_desk_station_event_ended') {
+				window.setTimeout(showEventEnded, 0);
+			} else if (String(payload.code || '').startsWith('oras_desk_station_')) {
 				clearStation();
 			}
 			throw new DeskError(payload.message || 'The request could not be completed.', payload.code, payload.data);
@@ -118,6 +121,7 @@
 		state.pendingPayload = null;
 		state.pendingPayment = '';
 		state.failureCount = 0;
+		state.finalizing = false;
 		state.membershipWizard = null;
 		if (state.station?.failed_request || state.station?.draft) {
 			delete state.station.failed_request;
@@ -195,6 +199,7 @@
 		if (['oras_desk_wrong_date', 'oras_desk_date_changed'].includes(code)) {
 			return 'This registration cannot be checked in for today. Please ask a manager for help.';
 		}
+		if (code === 'oras_desk_station_event_ended') return 'This event has ended. Choose the event you are working today.';
 		if (code === 'oras_desk_search_short') {
 			return 'Type at least two letters or numbers to search.';
 		}
@@ -371,6 +376,36 @@
 		});
 	}
 
+	function showEventEnded() {
+		if (!state.station || !main()) return;
+		resetViewport();
+		state.finalizing = false;
+		state.view = 'event-ended';
+		const paymentWarning = state.wizard?.payment_handled || state.membershipWizard?.payment_handled
+			? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>'
+			: '';
+		main().innerHTML = `<section class="desk-centered desk-event-ended"><span class="desk-large-icon">${icon('calendar')}</span><h1>THIS EVENT HAS ENDED</h1><p>Please choose the event you are working today.</p>${hasUnsavedDraft() ? '<p>Your unfinished information is still saved for this event.</p>' : ''}${paymentWarning}<button type="button" class="desk-primary" id="desk-ended-choose-event">CHOOSE EVENT</button></section>`;
+		main().querySelector('#desk-ended-choose-event').addEventListener('click', chooseEventAfterEnd);
+		focusMain();
+	}
+
+	async function chooseEventAfterEnd() {
+		if (hasUnsavedDraft()) {
+			const paymentWarning = state.wizard?.payment_handled || state.membershipWizard?.payment_handled ? ' Payment may already have been handled; do not charge the person again.' : '';
+			if (!window.confirm(`Choosing another event will discard the unfinished information for this ended event.${paymentWarning} Choose another event?`)) return;
+		}
+		state.operatorLabel = state.station?.operator_label || state.operatorLabel;
+		clearStation();
+		root.innerHTML = '<div class="desk-setup-backdrop"><main class="desk-setup-card"><h1>LOADING CURRENT EVENTS…</h1></main></div>';
+		try {
+			const data = await api('/events');
+			state.events = Array.isArray(data.items) ? data.items : [];
+			renderEventPicker();
+		} catch (error) {
+			renderSetup(friendlyError(error));
+		}
+	}
+
 	function requestHome() {
 		if (!hasUnsavedDraft()) return showHome();
 		resetViewport();
@@ -407,6 +442,7 @@
 				const response = await api('/offerings');
 				state.station.options = Array.isArray(response.items) ? response.items : [];
 				saveStation(state.station);
+				if (state.failureCount > 0 && state.pendingPayload && state.pendingRequest) return showRestoredFailure();
 				const step = state.wizard.payment_handled && ['type', 'contact', 'attendees', 'review', 'handoff'].includes(state.wizard.step) ? 'payment' : state.wizard.step;
 				showWalkInStep(step || 'type');
 			} catch (error) {
@@ -1071,6 +1107,8 @@
 	}
 
 	async function saveManual(payment, administrator, acknowledge = false) {
+		if (state.finalizing) return;
+		state.finalizing = true;
 		if (!state.pendingPayload) state.pendingPayload = buildManualPayload();
 		if (!state.pendingRequest) state.pendingRequest = uuid();
 		state.pendingPayment = payment;
@@ -1092,19 +1130,22 @@
 			if (outcome === 'rsvp_waitlisted') showWaitlistSuccess(name);
 			else showSuccess({kind: option.kind === 'rsvp' ? 'rsvp' : administrator ? 'manager' : 'walk-in', name, count, type: option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
 		} catch (error) {
-			main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
+			state.finalizing = false;
 			if (error.code === 'oras_desk_possible_duplicate') {
+				main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 				const candidates = Array.isArray(error.data?.candidates) ? error.data.candidates : [];
 				message.innerHTML = `<div class="desk-confirm-card desk-duplicate-card"><h2>POSSIBLE MATCH FOUND</h2><p>Another registration uses the same email or phone. Nothing will be merged.</p>${candidates.map((candidate) => `<div class="desk-duplicate-name"><strong>${escapeHtml(candidate.contact_name || 'Existing registration')}</strong><span>${escapeHtml(sourceLabel(candidate.source_type))}</span></div>`).join('')}<p><strong>If payment was handled in AlfaPOS, do not collect it again.</strong></p><div class="desk-actions"><button type="button" id="desk-continue-duplicate">KEEP SEPARATE AND RETRY</button><button type="button" class="desk-secondary" id="desk-duplicate-manager">ASK A MANAGER</button></div></div>`;
 				message.querySelector('#desk-continue-duplicate').addEventListener('click', () => saveManual(payment, administrator, true));
 				message.querySelector('#desk-duplicate-manager').addEventListener('click', () => { message.innerHTML = notice('Please ask a manager to review the possible match. Keep this screen open.', 'warning'); });
 			} else if (pendingOption.kind === 'rsvp') {
+				main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 				showRsvpRefusal(message, error);
 			} else if (!administrator) {
 				state.failureCount += 1;
 				persistPending();
-				showPaymentRecovery(message, error, payment, acknowledge);
+				showPaymentRecovery(error, payment, acknowledge);
 			} else {
+				main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 				message.innerHTML = `${notice(friendlyError(error), 'error')}<button type="button" id="desk-save-retry">RETRY</button>`;
 				message.querySelector('#desk-save-retry').addEventListener('click', () => saveManual(payment, administrator, acknowledge));
 			}
@@ -1129,28 +1170,27 @@
 		focusMain();
 	}
 
-	function showPaymentRecovery(container, error, payment, acknowledge) {
+	function showPaymentRecovery(error, payment, acknowledge) {
+		state.view = 'recovery';
 		if (error.code === 'network_error') {
-			return showConnectionLost(container, () => saveManual(payment, false, acknowledge), payment !== 'unpaid');
+			return showConnectionLost(main(), () => saveManual(payment, false, acknowledge), payment !== 'unpaid');
 		}
 		const repeated = state.failureCount >= 2;
-		container.innerHTML = `<div class="desk-recovery-card"><span class="desk-large-icon">${icon('help')}</span><h2>${repeated ? 'WE STILL COULDN’T SAVE THIS REGISTRATION.' : 'WE COULDN’T SAVE THIS REGISTRATION YET.'}</h2><p>Your information ${repeated ? 'is safe' : 'has not been lost'}.</p>${payment !== 'unpaid' ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}${repeated ? '<p>Please ask a manager for help.</p>' : ''}<div class="desk-actions"><button type="button" id="desk-payment-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-payment-manager">MANAGER HELP</button>${repeated ? '<button type="button" class="desk-danger" id="desk-payment-abandon">RETURN HOME ONLY AFTER CONFIRMATION</button>' : ''}</div></div>`;
-		container.querySelector('#desk-payment-retry').addEventListener('click', () => saveManual(payment, false, acknowledge));
-		container.querySelector('#desk-payment-manager').addEventListener('click', () => showManagerHelp());
-		container.querySelector('#desk-payment-abandon')?.addEventListener('click', () => {
+		main().innerHTML = `<section class="desk-centered desk-finalization-recovery"><div class="desk-recovery-card"><span class="desk-large-icon">${icon('help')}</span><h2>${repeated ? 'WE STILL COULDN’T SAVE THIS REGISTRATION.' : 'WE COULDN’T SAVE THIS REGISTRATION YET.'}</h2><p>Your information ${repeated ? 'is safe' : 'has not been lost'}.</p>${payment !== 'unpaid' ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}${repeated ? '<p>Please ask a manager for help.</p>' : ''}<div class="desk-actions"><button type="button" id="desk-payment-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-payment-manager">MANAGER HELP</button>${repeated ? '<button type="button" class="desk-danger" id="desk-payment-abandon">RETURN HOME ONLY AFTER CONFIRMATION</button>' : ''}</div></div></section>`;
+		main().querySelector('#desk-payment-retry').addEventListener('click', () => saveManual(payment, false, acknowledge));
+		main().querySelector('#desk-payment-manager').addEventListener('click', () => showManagerHelp());
+		main().querySelector('#desk-payment-abandon')?.addEventListener('click', () => {
 			if (window.confirm('Return home and discard this unsaved registration? Payment may already have been handled.')) {
 				state.wizard = null;
 				resetPending();
 				showHome();
 			}
 		});
+		focusMain();
 	}
 
 	function showRestoredFailure() {
-		state.view = 'recovery';
-		main().innerHTML = '<section class="desk-centered"><div id="desk-payment-message"></div></section>';
-		showPaymentRecovery(main().querySelector('#desk-payment-message'), new DeskError(''), state.pendingPayment, Boolean(state.pendingPayload?.duplicate_acknowledged));
-		focusMain();
+		showPaymentRecovery(new DeskError(''), state.pendingPayment, Boolean(state.pendingPayload?.duplicate_acknowledged));
 	}
 
 	function showSuccess(details) {
@@ -1182,8 +1222,7 @@
 			main().querySelector('#desk-manager-pending').addEventListener('click', () => showPendingMemberships());
 			main().querySelector('#desk-resume-failed')?.addEventListener('click', () => {
 				if (!state.wizard) return;
-				showWalkInStep('payment');
-				window.setTimeout(() => showPaymentRecovery(main().querySelector('#desk-payment-message'), new DeskError(''), state.pendingPayment, Boolean(state.pendingPayload?.duplicate_acknowledged)), 0);
+				showRestoredFailure();
 			});
 			main().querySelector('#desk-sync-registrations').addEventListener('click', syncWebsiteRegistrations);
 			focusMain();
