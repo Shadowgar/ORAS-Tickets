@@ -1942,23 +1942,24 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_same( Config::get_active_event_id(), $event_id, 'active-event failure leaves the prior active event visible after rollback' );
 
 	$orders = array(
-		'concurrent'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
-		'atomic'          => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Atomic' ),
-		'completed'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
-		'on_hold'         => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
-		'cancelled'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
-		'stale_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'StaleCancelled' ),
-		'late_cancelled'  => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'LateCancelled' ),
-		'refunded'        => oras_desk_integration_order( $product_individual, $event_id, 1, 'refunded', $run, 'Refunded' ),
-		'family'          => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
-		'one_day'         => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
-		'ambiguous'       => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
-		'unclassified'    => oras_desk_integration_order( $product_unknown, $event_id, 1, 'completed', $run, 'Unknown' ),
-		'cross_event'     => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
-		'partial'         => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
-		'past'            => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
-		'quantity'        => oras_desk_integration_order( $product_individual, $event_id, 2, 'processing', $run, 'Quantity' ),
-		'remap'           => oras_desk_integration_order( $product_remap, $event_id, 1, 'processing', $run, 'Remap' ),
+		'concurrent'         => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
+		'atomic'             => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Atomic' ),
+		'completed'          => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
+		'on_hold'            => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
+		'cancelled'          => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
+		'stale_cancelled'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'StaleCancelled' ),
+		'late_cancelled'     => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'LateCancelled' ),
+		'refunded'           => oras_desk_integration_order( $product_individual, $event_id, 1, 'refunded', $run, 'Refunded' ),
+		'family'             => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
+		'one_day'            => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
+		'ambiguous'          => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
+		'unclassified'       => oras_desk_integration_order( $product_unknown, $event_id, 1, 'completed', $run, 'Unknown' ),
+		'cross_event'        => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
+		'partial'            => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
+		'past'               => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
+		'walk_in_past_board' => oras_desk_integration_order( $walk_in_past_product, $walk_in_past_id, 1, 'completed', $run, 'PastBoard' ),
+		'quantity'           => oras_desk_integration_order( $product_individual, $event_id, 2, 'processing', $run, 'Quantity' ),
+		'remap'              => oras_desk_integration_order( $product_remap, $event_id, 1, 'processing', $run, 'Remap' ),
 	);
 	$refund = wc_create_refund(
 		array(
@@ -1985,8 +1986,9 @@ function oras_desk_integration_prepare(): void {
 	$projector = new Projection_Service();
 	$projected = array();
 	foreach ( $orders as $key => $source ) {
-		$target_config = 'past' === $key ? Config::get_event_config( $past_id ) : $config;
-		$target_event  = 'past' === $key ? $past_id : $event_id;
+		$is_walk_in_past = 'walk_in_past_board' === $key;
+		$target_config = 'past' === $key ? Config::get_event_config( $past_id ) : ( $is_walk_in_past ? $walk_in_past_config : $config );
+		$target_event  = 'past' === $key ? $past_id : ( $is_walk_in_past ? $walk_in_past_id : $event_id );
 		$result = $projector->reconcile_source( $target_event, $source['order_id'], $source['item_id'], $target_config );
 		if ( is_wp_error( $result ) ) {
 			oras_desk_integration_fail( 'projection failed for ' . $key . ': ' . $result->get_error_code() );
