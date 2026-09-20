@@ -18,10 +18,18 @@ final class Event_Catalog {
 			array(
 				'post_type'      => 'tribe_events',
 				'post_status'    => 'publish',
-				'posts_per_page' => 500,
+				'posts_per_page' => -1,
 				'orderby'        => 'meta_value',
 				'meta_key'       => '_EventStartDate',
 				'order'          => 'ASC',
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Kiosk correctness requires filtering by the canonical TEC end date.
+					array(
+						'key'     => '_EventEndDate',
+						'value'   => $today,
+						'compare' => '>=',
+						'type'    => 'DATE',
+					),
+				),
 			)
 		);
 		$rows = array();
