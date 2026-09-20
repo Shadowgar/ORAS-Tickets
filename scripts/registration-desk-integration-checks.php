@@ -1124,20 +1124,55 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			'name' => 'Not Offered at Events',
 		)
 	);
-	update_option(
-		'oras_registration_desk_test_pmpro_levels',
-		array(
-			701 => $level,
-			702 => $disabled,
-		),
-		false
-	);
+	if ( defined( 'PMPRO_VERSION' ) ) {
+		$level_table = $wpdb->prefix . 'pmpro_membership_levels';
+		$insert_level = static function ( array $values ) use ( $wpdb, $level_table ): int {
+			$written = $wpdb->insert(
+				$level_table,
+				array(
+					'name'              => (string) $values['name'],
+					'description'       => 'Guarded Registration Desk fixture',
+					'confirmation'      => '',
+					'initial_payment'   => (string) $values['initial_payment'],
+					'billing_amount'    => (string) $values['billing_amount'],
+					'cycle_number'      => (int) $values['cycle_number'],
+					'cycle_period'      => (string) $values['cycle_period'],
+					'billing_limit'     => (int) $values['billing_limit'],
+					'trial_amount'      => (string) $values['trial_amount'],
+					'trial_limit'       => (int) $values['trial_limit'],
+					'allow_signups'     => 1,
+					'expiration_number' => (int) $values['expiration_number'],
+					'expiration_period' => (string) $values['expiration_period'],
+				)
+			);
+			if ( false === $written ) {
+				oras_desk_integration_fail( 'synthetic PMPro membership level creation failed.' );
+			}
+
+			return (int) $wpdb->insert_id;
+		};
+		$level_id = $insert_level( $level );
+		$disabled_id = $insert_level( $disabled );
+	} else {
+		$level_id = 701;
+		$disabled_id = 702;
+		$level['id'] = $level_id;
+		$disabled['id'] = $disabled_id;
+		update_option(
+			'oras_registration_desk_test_pmpro_levels',
+			array(
+				$level_id    => $level,
+				$disabled_id => $disabled,
+			),
+			false
+		);
+	}
 	update_option(
 		Config::MEMBERSHIP_MAPPINGS_OPTION,
 		Config::normalize_membership_mappings(
 			array(
 				array(
-					'level_id'           => 701,
+					'level_id'           => $level_id,
 					'event_sale_enabled' => true,
 				),
 			)
@@ -1148,19 +1183,32 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	oras_desk_integration_same( count( $offerings ), 1, 'desk exposes only administrator-enabled canonical membership levels' );
 	oras_desk_integration_same( $offerings[0]['display_name'], 'Fixture Annual Membership', 'membership name is resolved from canonical PMPro data' );
 	oras_desk_integration_same( $offerings[0]['price'], '35.00', 'membership reference price is resolved from canonical PMPro data' );
-	oras_desk_integration_true( null === Config::membership_mapping( 702 ), 'disabled membership level is unavailable for a new event sale' );
+	oras_desk_integration_true( null === Config::membership_mapping( $disabled_id ), 'disabled membership level is unavailable for a new event sale' );
 
 	$level['name'] = 'Renamed Fixture Membership';
 	$level['initial_payment'] = '42.00';
-	update_option(
-		'oras_registration_desk_test_pmpro_levels',
-		array(
-			701 => $level,
-			702 => $disabled,
-		),
-		false
-	);
-	$renamed = Membership_Offering_Resolver::resolve( 701 );
+	if ( defined( 'PMPRO_VERSION' ) ) {
+		$wpdb->update(
+			$wpdb->prefix . 'pmpro_membership_levels',
+			array(
+				'name'            => $level['name'],
+				'initial_payment' => $level['initial_payment'],
+			),
+			array( 'id' => $level_id )
+		);
+		wp_cache_flush();
+	} else {
+		$level['id'] = $level_id;
+		update_option(
+			'oras_registration_desk_test_pmpro_levels',
+			array(
+				$level_id    => $level,
+				$disabled_id => $disabled,
+			),
+			false
+		);
+	}
+	$renamed = Membership_Offering_Resolver::resolve( $level_id );
 	oras_desk_integration_same( $renamed['display_name'], 'Renamed Fixture Membership', 'canonical membership rename reaches the desk without reconfiguration' );
 	oras_desk_integration_same( $renamed['price'], '42.00', 'canonical membership price change reaches the desk without reconfiguration' );
 
@@ -1175,7 +1223,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			'last_name'      => 'Member',
 			'email'          => 'cash-member-' . $context['run'] . '@example.test',
 			'phone'          => '814-555-0171',
-			'level_id'       => 701,
+			'level_id'       => $level_id,
 			'payment_method' => 'cash',
 		),
 		$cash_context
@@ -1187,7 +1235,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			'last_name'      => 'Member',
 			'email'          => 'cash-member-' . $context['run'] . '@example.test',
 			'phone'          => '814-555-0171',
-			'level_id'       => 701,
+			'level_id'       => $level_id,
 			'payment_method' => 'cash',
 		),
 		$cash_context
@@ -1204,7 +1252,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			'last_name'      => 'Member',
 			'email'          => 'cash-member-' . $context['run'] . '@example.test',
 			'phone'          => '814-555-0171',
-			'level_id'       => 701,
+			'level_id'       => $level_id,
 			'payment_method' => 'cash',
 		)
 	);
@@ -1222,7 +1270,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			'last_name'      => 'Member',
 			'email'          => 'check-member-' . $context['run'] . '@example.test',
 			'phone'          => '814-555-0172',
-			'level_id'       => 701,
+			'level_id'       => $level_id,
 			'payment_method' => 'check',
 		),
 		$check_context
@@ -1248,7 +1296,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	return array(
 		'cash_activation'  => (string) $cash['activation_uuid'],
 		'check_activation' => (string) $check['activation_uuid'],
-		'level_id'         => 701,
+		'level_id'         => $level_id,
 	);
 }
 
