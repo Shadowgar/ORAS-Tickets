@@ -164,6 +164,7 @@ oras_operation_assert( false !== strpos( $desk_js, 'START OVER?' ) && false !== 
 oras_operation_assert( false !== strpos( $desk_js, 'CONNECTION LOST' ) && false !== strpos( $desk_js, 'Your information is still here.' ), 'Unreachable requests use the approved plain-language retained-data state' );
 oras_operation_assert( false !== strpos( $desk_js, 'desk-manager-status' ) && false !== strpos( $desk_js, 'EXIT MANAGER MODE' ), 'Manager Mode has a persistent shell indicator and exit control' );
 oras_operation_assert( false !== strpos( $desk_js, 'RETURN HOME ONLY AFTER CONFIRMATION' ), 'Second save failure offers only confirmed abandonment' );
+oras_operation_assert( false === strpos( $desk_js, ".addEventListener('click', showHome)" ), 'Home actions do not pass browser click events into volunteer status messages' );
 oras_operation_assert( false === strpos( $desk_js, 'desk-today-count' ), 'Volunteer home does not contain count clutter' );
 oras_operation_assert( false !== strpos( $desk_js, 'THEY SAY THEY ALREADY REGISTERED' ), 'Failed volunteer search offers the approved recovery choice' );
 oras_operation_assert( false !== strpos( $desk_js, 'DO THEY HAVE PROOF OF REGISTRATION OR PAYMENT?' ), 'Recovery explains acceptable proof in plain language' );

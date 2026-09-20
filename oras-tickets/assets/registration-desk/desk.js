@@ -893,7 +893,7 @@
 		} catch (error) {
 			main().innerHTML = `<section class="desk-centered">${notice(friendlyError(error), 'error')}<button type="button" id="desk-offerings-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-offerings-home">RETURN HOME</button></section>`;
 			main().querySelector('#desk-offerings-retry').addEventListener('click', () => startWalkInWizard(administrator));
-			main().querySelector('#desk-offerings-home').addEventListener('click', showHome);
+			main().querySelector('#desk-offerings-home').addEventListener('click', () => showHome());
 			return;
 		}
 		state.pendingRequest = uuid();
@@ -1097,7 +1097,7 @@
 		const full = error.code === 'oras_desk_rsvp_full';
 		container.innerHTML = `<div class="desk-confirm-card desk-rsvp-refusal"><span class="desk-large-icon">${icon('help')}</span><h2>${full ? 'EVENT IS FULL' : 'RSVP NOT AVAILABLE'}</h2><p>${escapeHtml(friendlyError(error))}</p><p><strong>This person was not registered or checked in.</strong></p><div class="desk-actions"><button type="button" class="desk-secondary" id="desk-rsvp-review">REVIEW CURRENT OPTIONS</button><button type="button" class="desk-secondary" id="desk-rsvp-home">RETURN HOME</button></div></div>`;
 		container.querySelector('#desk-rsvp-review').addEventListener('click', () => startWalkInWizard(false));
-		container.querySelector('#desk-rsvp-home').addEventListener('click', showHome);
+		container.querySelector('#desk-rsvp-home').addEventListener('click', () => showHome());
 	}
 
 	function showWaitlistSuccess(name) {
@@ -1105,7 +1105,7 @@
 		state.view = 'success';
 		state.wizard = null;
 		main().innerHTML = `<section class="desk-success-screen desk-waitlist-screen"><span class="desk-large-icon">${icon('calendar')}</span><p class="desk-eyebrow">RSVP waitlist</p><h1>ADDED TO WAITLIST</h1><p class="desk-success-name">${escapeHtml(name)}</p><p><strong>⚠ This person does not have a confirmed spot yet.</strong></p><p>The event is currently full. Their accountless RSVP was saved to the waitlist and they were not checked in.</p><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">REGISTER ANOTHER</button></div></section>`;
-		main().querySelector('#desk-success-home').addEventListener('click', showHome);
+		main().querySelector('#desk-success-home').addEventListener('click', () => showHome());
 		main().querySelector('#desk-success-another').addEventListener('click', () => startWalkInWizard(false));
 		focusMain();
 	}
@@ -1313,7 +1313,7 @@
 		resetViewport();
 		state.view = 'success';
 		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>MEMBERSHIP RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-statements"><p>✓ Membership payment recorded</p><p>${emailFailed ? '⚠ Activation email needs manager help' : '✓ Activation email sent'}</p></div><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Status</strong>PENDING ONLINE ACTIVATION</span></div>${emailFailed ? notice('The membership is safely recorded, but the email could not be sent. Ask a manager to recover the existing activation.', 'warning') : ''}<div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-membership-done">DONE — RETURN HOME</button>${emailFailed ? '<button type="button" class="desk-secondary" id="desk-membership-manager">MANAGER HELP</button>' : ''}</div></section>`;
-		main().querySelector('#desk-membership-done').addEventListener('click', showHome);
+		main().querySelector('#desk-membership-done').addEventListener('click', () => showHome());
 		main().querySelector('#desk-membership-manager')?.addEventListener('click', () => state.station.manager_token ? showPendingMemberships() : showManagerHelp());
 		focusMain();
 	}
