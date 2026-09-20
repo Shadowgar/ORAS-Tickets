@@ -595,20 +595,24 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 	$tables = Schema::table_names();
 	$faults = array(
 		'registration' => array(
-			'table' => $tables['registrations'],
-			'code'  => 'oras_desk_registration_create_failed',
+			'table'  => $tables['registrations'],
+			'code'   => 'oras_desk_registration_create_failed',
+			'status' => 500,
 		),
 		'attendee'     => array(
-			'table' => $tables['attendees'],
-			'code'  => 'oras_desk_attendee_create_failed',
+			'table'  => $tables['attendees'],
+			'code'   => 'oras_desk_attendee_create_failed',
+			'status' => 409,
 		),
 		'attendance'   => array(
-			'table' => $tables['attendance'],
-			'code'  => 'oras_desk_attendance_create_failed',
+			'table'  => $tables['attendance'],
+			'code'   => 'oras_desk_attendance_create_failed',
+			'status' => 500,
 		),
 		'audit'        => array(
-			'table' => $tables['audit'],
-			'code'  => 'oras_desk_audit_persist_failed',
+			'table'  => $tables['audit'],
+			'code'   => 'oras_desk_audit_persist_failed',
+			'status' => 500,
 		),
 	);
 	foreach ( $faults as $fault => $definition ) {
@@ -624,7 +628,7 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 		$fault_response = oras_desk_integration_rest_walk_in( $token, $request_uuid, $fault_payload );
 		$wpdb->suppress_errors( $prior_suppression );
 		$wpdb->query( "DROP TRIGGER IF EXISTS {$trigger_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed disposable trigger name.
-		oras_desk_integration_same( $fault_response->get_status(), 500, 'forced ' . $fault . ' failure returns HTTP 500 through REST' );
+		oras_desk_integration_same( $fault_response->get_status(), $definition['status'], 'forced ' . $fault . ' failure returns its declared HTTP status through REST' );
 		oras_desk_integration_same( $fault_response->get_data()['code'] ?? '', $definition['code'], 'forced ' . $fault . ' failure returns its exact persistence code' );
 		oras_desk_integration_same(
 			oras_desk_integration_walk_in_request_counts( $event_id, $request_uuid, (string) $fault_payload['email'] ),
