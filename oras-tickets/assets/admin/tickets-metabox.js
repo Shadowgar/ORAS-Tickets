@@ -548,6 +548,24 @@
 		setRowExpanded(row, !!expand);
 		updateCardHeader(row);
 		initPhaseToggles(row);
+		initIncludedEventSelects(row);
+	}
+
+	function initIncludedEventSelects(scope) {
+		if (!window.jQuery || typeof window.jQuery.fn.selectWoo !== 'function') {
+			return;
+		}
+		toArray(scope.querySelectorAll('select.oras-included-events')).forEach(function (select) {
+			var field = window.jQuery(select);
+			if (field.data('select2')) {
+				return;
+			}
+			field.selectWoo({
+				width: '100%',
+				closeOnSelect: false,
+				placeholder: select.getAttribute('data-placeholder') || 'Add included event'
+			});
+		});
 	}
 
 	function activateTicketInnerTab(row, panelSelector) {

@@ -452,7 +452,7 @@ final class Service {
 		if ( $local_date !== $today ) {
 			return new \WP_Error( 'oras_desk_date_changed', 'The site-local date changed. Review the check-in before trying again.', array( 'status' => 409 ) );
 		}
-		if ( 'online' !== $registration['source_type'] ) {
+		if ( ! self::is_website_source( (string) $registration['source_type'] ) ) {
 			return new \WP_Error( 'oras_desk_source_review', 'This registration does not have a supported website source.', array( 'status' => 409 ) );
 		}
 		$admission = $this->current_admission( $registration, $config, $today );
@@ -1114,6 +1114,10 @@ final class Service {
 			'source_lifecycle'         => 'Not applicable',
 			'source_quantity'          => 'Not applicable',
 			'historical_mapping'       => 'No ambiguity detected',
+			'access_origin'            => 'Direct registration',
+			'source_event'             => 'Not applicable',
+			'source_ticket'            => 'Not applicable',
+			'grants_access_to'         => $event_title,
 		);
 		if ( 'active' !== (string) $registration['status'] ) {
 			$state = 'revoked' === (string) $registration['status'] ? 'revoked' : 'manager_review_required';
@@ -1138,7 +1142,16 @@ final class Service {
 			);
 		}
 
-		$option = Event_Offering_Resolver::find_access_option( (int) $registration['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
+			$option = Event_Offering_Resolver::find_access_option( (int) $registration['event_id'], $config, (string) $registration['option_uuid'] ) ?? Config::option( $config, (string) $registration['option_uuid'] );
+		if ( null === $option && self::is_website_source( $source_type ) ) {
+			$stored_evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
+			if ( is_array( $stored_evidence ) ) {
+				$stored_resolution = Source_Resolver::resolve( $stored_evidence, (int) $registration['event_id'], $config );
+				if ( 'supported' === (string) $stored_resolution['resolution'] ) {
+					$option = $stored_resolution['option'];
+				}
+			}
+		}
 		if ( null === $option && in_array( $source_type, array( 'rsvp_walk_in', 'rsvp_website' ), true ) ) {
 			$option = array(
 				'existing_access_valid' => true,
@@ -1203,7 +1216,7 @@ final class Service {
 
 		$payment_label = '';
 		$requires_unpaid = false;
-		if ( 'online' === $source_type ) {
+		if ( self::is_website_source( $source_type ) ) {
 			if ( empty( $registration['source_order_id'] ) || empty( $registration['source_order_item_id'] ) ) {
 				$diagnostics['canonical_source_status'] = 'Website source unavailable';
 				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This website registration needs manager review.', 'oras_desk_source_review', $diagnostics );
@@ -1234,6 +1247,17 @@ final class Service {
 				return $this->blocked_admission( 'manager_review_required', 'MANAGER HELP NEEDED', 'This registration type needs manager review.', 'oras_desk_source_review', $diagnostics );
 			}
 			$diagnostics['event_entitlement'] = 'Confirmed for the selected event';
+			if ( 'included_event' === (string) ( $resolution['source_kind'] ?? '' ) ) {
+				$target = is_array( $resolution['target_event'] ?? null ) ? $resolution['target_event'] : array();
+				$diagnostics['access_origin']    = 'Included with another event';
+				$diagnostics['source_event']     = trim( (string) ( $resolution['source_event_title'] ?? '' ) . ( '' !== (string) ( $resolution['source_event_date'] ?? '' ) ? ' — ' . (string) $resolution['source_event_date'] : '' ) );
+				$diagnostics['source_ticket']    = (string) ( $resolution['source_ticket_name'] ?? '' );
+				$diagnostics['grants_access_to'] = trim( (string) ( $target['title'] ?? $event_title ) . ( '' !== (string) ( $target['date'] ?? '' ) ? ' — ' . (string) $target['date'] : '' ) );
+				$diagnostics['ticket_mapping']   = 'Included-event order snapshot confirmed';
+			} elseif ( 'legacy_cross_event' === (string) ( $resolution['source_kind'] ?? '' ) ) {
+				$diagnostics['access_origin']  = 'Legacy cross-event access';
+				$diagnostics['ticket_mapping'] = 'Legacy explicit mapping confirmed';
+			}
 			if ( ! hash_equals( (string) $registration['option_uuid'], (string) $resolution['option_uuid'] ) || (string) $registration['classification'] !== (string) $resolution['classification'] || (string) $registration['validity_type'] !== (string) $resolution['validity_type'] ) {
 				$diagnostics['ticket_mapping']     = 'Stored option differs from the current mapping';
 				$diagnostics['historical_mapping'] = 'The canonical option or coverage metadata changed';
@@ -1270,7 +1294,7 @@ final class Service {
 			'allowed'                  => true,
 			'manager_help'             => false,
 			'requires_explicit_unpaid' => $requires_unpaid,
-			'payment_label'            => $requires_unpaid ? 'Payment not confirmed' : ( 'online' === $source_type ? 'Website registration confirmed' : $payment_label ),
+			'payment_label'            => $requires_unpaid ? 'Payment not confirmed' : ( self::is_website_source( $source_type ) ? 'Website registration confirmed' : $payment_label ),
 			'maximum_attendees'        => max( 1, min( 20, (int) ( $option['max_attendees'] ?? 1 ) ) ),
 			'_source_label'            => $payment_label,
 			'_error_code'              => '',
@@ -1310,7 +1334,7 @@ final class Service {
 
 	/** @param array<string,mixed> $registration @param array<string,mixed> $config @return string|\WP_Error */
 	private function registration_payment_label( array $registration, array $config, bool $explicit_unpaid ) {
-		if ( 'online' !== (string) $registration['source_type'] ) {
+		if ( ! self::is_website_source( (string) $registration['source_type'] ) ) {
 			return match ( (string) $registration['payment_assertion'] ) {
 				'paid_card'    => 'Paid—Card (volunteer statement)',
 				'paid_cash'    => 'Paid—Cash (volunteer statement)',
@@ -1322,6 +1346,7 @@ final class Service {
 				default        => new \WP_Error( 'oras_desk_payment_statement_missing', 'Desk registration payment statement is missing.', array( 'status' => 409 ) ),
 			};
 		}
+
 		if ( empty( $registration['source_order_id'] ) || empty( $registration['source_order_item_id'] ) ) {
 			return new \WP_Error( 'oras_desk_source_review', 'Website registration source is unavailable.', array( 'status' => 409 ) );
 		}
@@ -1345,6 +1370,10 @@ final class Service {
 		}
 
 		return (string) $resolution['payment_label'];
+	}
+
+	private static function is_website_source( string $source_type ): bool {
+		return in_array( $source_type, array( 'online', 'online_included' ), true );
 	}
 
 	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */

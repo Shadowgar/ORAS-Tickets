@@ -2,6 +2,7 @@
 
 namespace ORAS\Tickets\Commerce\Woo;
 
+use ORAS\Tickets\Domain\Included_Event_Access;
 use ORAS\Tickets\Domain\Pricing\Price_Resolver;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
@@ -100,6 +101,10 @@ final class Product_Sync { // NOSONAR legacy WP class naming
         $item->add_meta_data( '_oras_ticket_currency', get_woocommerce_currency(), true );
         $item->add_meta_data( '_oras_ticket_attendance_mode', $attendance_mode, true );
         $item->add_meta_data( '_oras_ticket_schema', '1', true );
+		if ( empty( $ticket_data['name'] ) ) {
+			$ticket_data['name'] = $ticket_name;
+		}
+		$item->add_meta_data( Included_Event_Access::ORDER_ITEM_META_KEY, Included_Event_Access::snapshot( $event_id, $ticket_data ), true );
 
         if ( isset( $values[ Event_Questions::CART_ITEM_KEY ] ) && is_array( $values[ Event_Questions::CART_ITEM_KEY ] ) ) {
             $answers = $values[ Event_Questions::CART_ITEM_KEY ];

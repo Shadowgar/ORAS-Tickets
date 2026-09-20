@@ -46,7 +46,8 @@ function oras_source_assert( bool $condition, string $message ): void {
 }
 
 $includes = dirname( __DIR__ ) . '/oras-tickets/includes/';
-foreach ( array( 'Domain/Meta.php', 'Domain/Ticket.php', 'Domain/Ticket_Collection.php', 'Domain/Pricing/Price_Resolver.php', 'Domain/Event_Offering_Resolver.php' ) as $file ) {
+foreach ( array( 'Domain/Meta.php', 'Domain/Ticket.php', 'Domain/Ticket_Collection.php', 'Domain/Pricing/Price_Resolver.php', 'Domain/Included_Event_Access.php', 'Domain/Event_Offering_Resolver.php' ) as $file ) {
+	oras_source_assert( file_exists( $includes . $file ), "{$file} exists" );
 	require_once $includes . $file;
 }
 $base = $includes . 'Registration_Desk/';
@@ -171,6 +172,60 @@ oras_source_assert( 'supported' === $one_day['resolution'], 'Explicitly configur
 oras_source_assert( '2026-10-08' === $one_day['valid_local_date'], 'One-day source retains its configured date' );
 $cross_event = $resolver::resolve( array_merge( $base_evidence, array( 'source_event_id' => 456 ) ), 123, $config );
 oras_source_assert( 'supported' === $cross_event['resolution'], 'Explicit cross-event mapping grants target-event access' );
+$included_snapshot = array(
+	'schema'          => 1,
+	'primary_event'   => array(
+		'event_id' => 456,
+		'title'    => 'Synthetic Event A',
+		'date'     => 'October 7, 2026',
+	),
+	'ticket'          => array(
+		'ticket_key' => 'bundle',
+		'name'       => 'Synthetic Bundle',
+	),
+	'included_events' => array(
+		array(
+			'event_id' => 123,
+			'title'    => 'Synthetic Event B',
+			'date'     => 'October 8, 2026',
+		),
+	),
+);
+$included = $resolver::resolve(
+	array_merge(
+		$base_evidence,
+		array(
+			'source_event_id' => 456,
+			'event_access'    => $included_snapshot,
+		)
+	),
+	123,
+	$config
+);
+oras_source_assert( 'supported' === $included['resolution'] && 'included_event' === $included['source_kind'], 'Order snapshot grants direct included-event access before legacy mappings' );
+oras_source_assert( 'Synthetic Event A' === $included['source_event_title'] && 'Synthetic Bundle' === $included['source_ticket_name'], 'Included-event diagnostics preserve snapshotted source context' );
+$included_unrelated = $resolver::resolve(
+	array_merge(
+		$base_evidence,
+		array(
+			'source_event_id' => 456,
+			'event_access'    => $included_snapshot,
+		)
+	),
+	789,
+	array(
+		'ticket_rules' => array(),
+		'entitlements' => array(),
+		'options'      => array(),
+	)
+);
+oras_source_assert( 'review_required' === $included_unrelated['resolution'], 'Included-event snapshot does not grant an unrelated event' );
+$direct_wins = $resolver::resolve(
+	array_merge( $base_evidence, array( 'event_access' => $included_snapshot ) ),
+	123,
+	$config
+);
+oras_source_assert( 'direct' === $direct_wins['source_kind'], 'Direct primary-event evidence has deterministic precedence over snapshot metadata' );
 $unmapped_cross_event = $resolver::resolve( array_merge( $base_evidence, array( 'source_event_id' => 789 ) ), 123, $config );
 oras_source_assert( 'review_required' === $unmapped_cross_event['resolution'], 'Unconfigured cross-event access is never inferred' );
 $ambiguous = $resolver::resolve(

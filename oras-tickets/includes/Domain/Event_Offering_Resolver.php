@@ -33,6 +33,7 @@ final class Event_Offering_Resolver {
 			$stock      = self::stock_state( $product );
 			$resolved   = Price_Resolver::resolve_ticket_price( $ticket, $now );
 			$hide_sold  = ! empty( $ticket['hide_sold_out'] );
+			$included_event_ids = Included_Event_Access::normalize_ids( $ticket['included_event_ids'] ?? array(), $event_id );
 			$visible    = $stock['product_exists'] && 'on_sale' === $sale_state && ( 'sold_out' !== $stock['availability'] || ! $hide_sold );
 			$selectable = $visible && 'available' === $stock['availability'];
 
@@ -62,6 +63,8 @@ final class Event_Offering_Resolver {
 				'visible'            => $visible,
 				'selectable'         => $selectable,
 				'available_for_new'  => $selectable,
+				'included_event_ids' => $included_event_ids,
+				'included_events'    => Included_Event_Access::describe_events( $included_event_ids, $event_id ),
 				'canonical_ticket'   => $ticket,
 			);
 			$offering['offering_fingerprint'] = self::fingerprint( $offering );
@@ -170,15 +173,16 @@ final class Event_Offering_Resolver {
 	/** @param array<string,mixed> $offering */
 	private static function fingerprint( array $offering ): string {
 		$fields = array(
-			'ticket_key'      => (string) $offering['ticket_key'],
-			'product_id'      => (int) $offering['product_id'],
-			'name'            => (string) $offering['name'],
-			'description'     => (string) $offering['description'],
-			'price'           => (string) $offering['price'],
-			'phase_key'       => (string) ( $offering['phase_key'] ?? '' ),
-			'attendance_mode' => (string) $offering['attendance_mode'],
-			'sale_state'      => (string) $offering['sale_state'],
-			'availability'    => (string) $offering['availability'],
+			'ticket_key'         => (string) $offering['ticket_key'],
+			'product_id'         => (int) $offering['product_id'],
+			'name'               => (string) $offering['name'],
+			'description'        => (string) $offering['description'],
+			'price'              => (string) $offering['price'],
+			'phase_key'          => (string) ( $offering['phase_key'] ?? '' ),
+			'attendance_mode'    => (string) $offering['attendance_mode'],
+			'included_event_ids' => array_map( 'intval', (array) ( $offering['included_event_ids'] ?? array() ) ),
+			'sale_state'         => (string) $offering['sale_state'],
+			'availability'       => (string) $offering['availability'],
 		);
 
 		return hash( 'sha256', (string) wp_json_encode( $fields ) );

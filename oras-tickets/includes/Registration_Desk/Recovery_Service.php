@@ -114,6 +114,9 @@ final class Recovery_Service {
 			'event_access'       => $valid ? 'valid' : ( $review ? 'review' : 'not_valid' ),
 			'access_label'       => $valid ? 'Valid for this event' : ( $review ? 'Manager review needed' : 'Not valid for this event' ),
 			'cross_event'        => $valid && (int) $evidence['source_event_id'] !== $event_id,
+			'access_origin'      => 'included_event' === (string) ( $resolution['source_kind'] ?? '' ) ? 'Included with another event' : ( 'legacy_cross_event' === (string) ( $resolution['source_kind'] ?? '' ) ? 'Legacy cross-event access' : 'Direct website registration' ),
+			'source_event'       => sanitize_text_field( trim( (string) ( $resolution['source_event_title'] ?? '' ) . ( '' !== (string) ( $resolution['source_event_date'] ?? '' ) ? ' — ' . (string) $resolution['source_event_date'] : '' ) ) ),
+			'source_ticket'      => sanitize_text_field( (string) ( $resolution['source_ticket_name'] ?? $evidence['item_label'] ) ),
 			'projected'          => is_array( $projected ),
 			'registration_uuid'  => is_array( $projected ) ? (string) $projected['registration_uuid'] : '',
 		);

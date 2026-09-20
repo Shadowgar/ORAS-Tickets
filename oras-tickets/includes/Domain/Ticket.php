@@ -105,7 +105,14 @@ final class Ticket {
      */
     public int $product_id; // NOSONAR legacy payload naming
 
-    /**
+	/**
+	 * Direct additional TEC event IDs granted by this ticket.
+	 *
+	 * @var array<int,int>
+	 */
+	public array $included_event_ids; // NOSONAR canonical payload naming
+
+	/**
      * Build ticket object from raw data.
      *
      * @param array<string,mixed> $data Raw ticket payload.
@@ -137,6 +144,7 @@ final class Ticket {
         $this->sku           = (string) ( $data['sku'] ?? '' );
         $this->hide_sold_out = (bool) ( $data['hide_sold_out'] ?? false );
         $this->product_id    = (int) ( $data['product_id'] ?? 0 );
+		$this->included_event_ids = Included_Event_Access::normalize_ids( $data['included_event_ids'] ?? array() );
     }
 
     /**
@@ -146,18 +154,20 @@ final class Ticket {
      */
     public function to_array(): array {
         return array(
-            'ticket_key'    => $this->ticket_key,
-            'name'          => $this->name,
-            'price'         => $this->price,
-            'price_phases'  => $this->price_phases,
-            'capacity'      => $this->capacity,
-            'sale_start'    => $this->sale_start,
-            'sale_end'      => $this->sale_end,
-            'description'   => $this->description,
-            'attendance_mode' => $this->attendanceMode,
-            'sku'           => $this->sku,
-            'hide_sold_out' => $this->hide_sold_out,
-            'product_id'    => $this->product_id,
+			'ticket_key'         => $this->ticket_key,
+			'name'               => $this->name,
+			'price'              => $this->price,
+			'price_phases'       => $this->price_phases,
+			'capacity'           => $this->capacity,
+			'sale_start'         => $this->sale_start,
+			'sale_end'           => $this->sale_end,
+			'description'        => $this->description,
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+			'attendance_mode'    => $this->attendanceMode,
+			'sku'                => $this->sku,
+			'hide_sold_out'      => $this->hide_sold_out,
+			'product_id'         => $this->product_id,
+			'included_event_ids' => $this->included_event_ids,
         );
     }
 

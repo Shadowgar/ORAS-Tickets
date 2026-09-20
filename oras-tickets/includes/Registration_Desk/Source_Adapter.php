@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Domain\Included_Event_Access;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -215,6 +217,8 @@ final class Source_Adapter {
 		$quantity = max( 1, (int) $item->get_quantity() );
 		$refunded = method_exists( $order, 'get_qty_refunded_for_item' ) ? abs( (int) $order->get_qty_refunded_for_item( $item_id ) ) : 0;
 
+		$event_access = Included_Event_Access::normalize_snapshot( $item->get_meta( Included_Event_Access::ORDER_ITEM_META_KEY, true ) );
+
 		return array(
 			'order_id'          => (int) $order->get_id(),
 			'order_number'      => (string) $order->get_order_number(),
@@ -229,6 +233,7 @@ final class Source_Adapter {
 			'phone'             => (string) $order->get_billing_phone(),
 			'ticket_index'      => (string) $item->get_meta( '_oras_ticket_index', true ),
 			'item_label'        => (string) $item->get_meta( '_oras_ticket_name', true ),
+			'event_access'      => $event_access,
 		);
 	}
 }

@@ -6,9 +6,14 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
 $GLOBALS['oras_offering_meta']     = array();
 $GLOBALS['oras_offering_products'] = array();
+$GLOBALS['oras_offering_events']   = array();
 
 function sanitize_key( mixed $value ): string {
 	return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $value ) ?? '' );
+}
+function sanitize_text_field( mixed $value ): string {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone WordPress-function test double.
+	return trim( strip_tags( (string) $value ) );
 }
 function absint( mixed $value ): int {
 	return abs( (int) $value );
@@ -22,6 +27,19 @@ function get_post_meta( int $post_id, string $key, bool $single = false ): mixed
 }
 function wc_get_product( int $product_id ): mixed {
 	return $GLOBALS['oras_offering_products'][ $product_id ] ?? null;
+}
+function get_the_title( int $post_id ): string {
+	return (string) ( $GLOBALS['oras_offering_events'][ $post_id ]['title'] ?? '' );
+}
+function tribe_get_start_date( int $post_id, bool $display_time = false, string $format = '' ): string {
+	unset( $display_time, $format );
+
+	return (string) ( $GLOBALS['oras_offering_events'][ $post_id ]['date'] ?? '' );
+}
+function tribe_get_end_date( int $post_id, bool $display_time = false, string $format = '' ): string {
+	unset( $display_time, $format );
+
+	return (string) ( $GLOBALS['oras_offering_events'][ $post_id ]['end_date'] ?? '' );
 }
 
 final class Oras_Offering_Test_Product {
@@ -64,6 +82,10 @@ require_once $plugin_root . 'Domain/Ticket.php';
 require_once $plugin_root . 'Domain/Ticket_Collection.php';
 require_once $plugin_root . 'Domain/Pricing/Price_Resolver.php';
 
+$included_access_file = $plugin_root . 'Domain/Included_Event_Access.php';
+oras_offering_assert( file_exists( $included_access_file ), 'Canonical included-event access value object exists' );
+require_once $included_access_file;
+
 $resolver_file = $plugin_root . 'Domain/Event_Offering_Resolver.php';
 oras_offering_assert( file_exists( $resolver_file ), 'Shared event offering resolver exists' );
 require_once $resolver_file;
@@ -73,27 +95,42 @@ oras_offering_assert( file_exists( $capacity_file ), 'Shared RSVP capacity polic
 require_once $capacity_file;
 
 use ORAS\Tickets\Domain\Event_Offering_Resolver;
+use ORAS\Tickets\Domain\Included_Event_Access;
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Registration_Desk\RSVP_Capacity;
 
 $now = strtotime( '2026-09-19 12:00:00 UTC' );
 $GLOBALS['oras_offering_products'][101] = new Oras_Offering_Test_Product( 101, 'Woo fallback', true, 8 );
 $GLOBALS['oras_offering_products'][102] = new Oras_Offering_Test_Product( 102, 'Other fallback', false, 0 );
 $GLOBALS['oras_offering_products'][201] = new Oras_Offering_Test_Product( 201, 'Unrelated fallback', false, 0 );
+$GLOBALS['oras_offering_events'][22] = array(
+	'title' => 'Synthetic Event B',
+	'date'  => 'October 8, 2026',
+);
+$GLOBALS['oras_offering_events'][33] = array(
+	'title' => 'Synthetic Event C',
+	'date'  => 'October 9, 2026',
+);
+
+$default_ticket = new Ticket( array() );
+oras_offering_assert( array() === $default_ticket->included_event_ids, 'New ticket defaults to no included events' );
+oras_offering_assert( array( 22, 33 ) === Included_Event_Access::normalize_ids( array( '22', 22, 11, 0, 33 ), 11 ), 'Included event IDs reject the primary event and normalize duplicates' );
 
 $ticket = static function ( string $key, string $name, string $price, array $extra = array() ): array {
 	return array_merge(
 		array(
-			'ticket_key'      => $key,
-			'name'            => $name,
-			'price'           => $price,
-			'price_phases'    => array(),
-			'capacity'        => 0,
-			'sale_start'      => '',
-			'sale_end'        => '',
-			'description'     => 'Canonical description',
-			'attendance_mode' => 'onsite',
-			'hide_sold_out'   => false,
+			'ticket_key'         => $key,
+			'name'               => $name,
+			'price'              => $price,
+			'price_phases'       => array(),
+			'capacity'           => 0,
+			'sale_start'         => '',
+			'sale_end'           => '',
+			'description'        => 'Canonical description',
+			'attendance_mode'    => 'onsite',
+			'hide_sold_out'      => false,
+			'included_event_ids' => array(),
 		),
 		$extra
 	);
@@ -107,7 +144,8 @@ $GLOBALS['oras_offering_meta'][11][ Meta::META_KEY_TICKETS ] = array(
 			'Canonical Individual',
 			'50.00',
 			array(
-				'price_phases' => array(
+				'included_event_ids' => array( 22, 33, 22, 11 ),
+				'price_phases'       => array(
 					array(
 						'key'   => 'early',
 						'label' => 'Early',
@@ -133,6 +171,8 @@ oras_offering_assert( 'alpha-ticket' === $resolved[0]['ticket_key'] && 101 === $
 oras_offering_assert( 'Canonical Individual' === $resolved[0]['name'] && 'Canonical description' === $resolved[0]['description'], 'Canonical display fields are retained' );
 oras_offering_assert( '35.00' === $resolved[0]['price'] && 'early' === $resolved[0]['phase_key'], 'Current effective pricing phase is resolved' );
 oras_offering_assert( 'onsite' === $resolved[0]['attendance_mode'], 'Canonical attendance mode is retained' );
+oras_offering_assert( array( 22, 33 ) === $resolved[0]['included_event_ids'], 'Canonical offering retains normalized included-event identity and excludes its primary event' );
+oras_offering_assert( array( 'Synthetic Event B', 'Synthetic Event C' ) === array_column( $resolved[0]['included_events'], 'title' ), 'Canonical offering resolves current included-event display context without raw IDs' );
 oras_offering_assert( true === $resolved[0]['visible'] && true === $resolved[0]['selectable'], 'On-sale in-stock ticket is available' );
 
 $config = array(

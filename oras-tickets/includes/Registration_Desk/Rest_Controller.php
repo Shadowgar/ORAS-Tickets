@@ -581,7 +581,7 @@ final class Rest_Controller {
 		$raw_registration = $result['registration'];
 		$is_manager = $this->is_manager_request( $request );
 		$admission_diagnostics = is_array( $result['admission']['_diagnostics'] ?? null ) ? $result['admission']['_diagnostics'] : array();
-		if ( $is_manager && 'online' !== (string) $raw_registration['source_type'] ) {
+		if ( $is_manager && ! in_array( (string) $raw_registration['source_type'], array( 'online', 'online_included' ), true ) ) {
 			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
 			$address  = is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array();
 			$name     = preg_split( '/\s+/', trim( (string) $raw_registration['source_contact_name'] ), 2 );

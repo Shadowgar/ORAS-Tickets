@@ -168,7 +168,7 @@ final class Registration_Store extends Store {
 	public function correct_manual( string $uuid, int $expected_version, array $changes ) {
 		global $wpdb;
 		$current = $this->find_by_uuid( $uuid );
-		if ( ! $current || 'online' === (string) $current['source_type'] ) {
+		if ( ! $current || in_array( (string) $current['source_type'], array( 'online', 'online_included' ), true ) ) {
 			return new \WP_Error( 'oras_desk_correction_forbidden', 'Only desk-created registration details can be corrected here.', array( 'status' => 409 ) );
 		}
 		$first_name = sanitize_text_field( (string) ( $changes['first_name'] ?? '' ) );
@@ -216,6 +216,7 @@ final class Registration_Store extends Store {
 		$status   = in_array( $resolution['eligibility'], array( 'eligible', 'explicit_unpaid_required' ), true ) && 'supported' === $resolution['resolution'] ? 'active' : ( 'revoked' === $resolution['eligibility'] ? 'revoked' : 'needs_review' );
 		$evidence_json = wp_json_encode( $evidence );
 		$data = array(
+			'source_type'           => in_array( (string) ( $resolution['source_kind'] ?? '' ), array( 'included_event', 'legacy_cross_event' ), true ) ? 'online_included' : 'online',
 			'source_status'         => sanitize_key( (string) ( $evidence['order_status'] ?? '' ) ),
 			'source_contact_name'   => sanitize_text_field( (string) ( $evidence['contact_name'] ?? '' ) ),
 			'source_email'          => sanitize_email( (string) ( $evidence['email'] ?? '' ) ),
@@ -256,7 +257,7 @@ final class Registration_Store extends Store {
 				'registration_uuid'    => $uuid,
 				'event_id'             => $event_id,
 				'option_uuid'          => '' !== (string) $resolution['option_uuid'] ? (string) $resolution['option_uuid'] : '00000000-0000-4000-8000-000000000000',
-				'source_type'          => 'online',
+				'source_type'          => (string) $data['source_type'],
 				'source_key'           => $source_key,
 				'source_order_id'      => (int) $evidence['order_id'],
 				'source_order_item_id' => (int) $evidence['order_item_id'],

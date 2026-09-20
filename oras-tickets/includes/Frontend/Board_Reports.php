@@ -1377,9 +1377,12 @@ final class Board_Reports {
 			__( 'Unique attendees', 'oras-tickets' )      => (int) $total['unique_attendees'],
 			__( 'Attendance instances', 'oras-tickets' )  => (int) $total['attendance_instances'],
 			__( 'No-show registrations', 'oras-tickets' ) => (int) $total['no_show_registrations'],
-			__( 'Website registrations', 'oras-tickets' ) => (int) $total['website_registrations'],
+			__( 'Direct website registrations', 'oras-tickets' ) => (int) $total['direct_website_registrations'],
+			__( 'Included with another event', 'oras-tickets' ) => (int) $total['included_event_registrations'],
 			__( 'Walk-in registrations', 'oras-tickets' ) => (int) $total['walk_in_registrations'],
 			__( 'Complimentary registrations', 'oras-tickets' ) => (int) $total['complimentary_registrations'],
+			__( 'RSVP registrations', 'oras-tickets' )    => (int) $total['rsvp_registrations'],
+			__( 'Manager Verified registrations', 'oras-tickets' ) => (int) $total['manager_verified_registrations'],
 			__( 'Family registrations', 'oras-tickets' )  => (int) $total['family_registrations'],
 			__( 'Actual family attendees', 'oras-tickets' ) => (int) $total['family_attendees_attended'],
 		);

@@ -127,6 +127,16 @@ final class Ticket_Collection { // NOSONAR legacy WP class naming
                 continue;
             }
 
+			$existing_ticket = isset( $existing_tickets[ $index ] ) && is_array( $existing_tickets[ $index ] ) ? $existing_tickets[ $index ] : array();
+			if ( ! array_key_exists( 'ticket_key', $ticket ) && isset( $existing_ticket['ticket_key'] ) ) {
+				$ticket['ticket_key'] = $existing_ticket['ticket_key'];
+			}
+			if ( ! array_key_exists( 'included_event_ids', $ticket ) && isset( $existing_ticket['included_event_ids'] ) ) {
+				$ticket['included_event_ids'] = Included_Event_Access::normalize_ids( $existing_ticket['included_event_ids'], $event_id );
+			} else {
+				$ticket['included_event_ids'] = Included_Event_Access::normalize_ids( $ticket['included_event_ids'] ?? array(), $event_id );
+			}
+
             // Preserve phases only when caller omitted the field entirely.
             if ( ! array_key_exists( 'price_phases', $ticket ) || null === $ticket['price_phases'] ) {
                 if (

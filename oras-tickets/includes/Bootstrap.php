@@ -39,6 +39,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Rest_Controller.php'
 require_once ORAS_TICKETS_DIR . 'includes/Event_Questions.php'; // NOSONAR include: event-specific question definitions and answers
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Meta.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket.php'; // NOSONAR legacy include
+require_once ORAS_TICKETS_DIR . 'includes/Domain/Included_Event_Access.php'; // NOSONAR include: canonical bundled event access
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Ticket_Collection.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Domain/Annual_Pass_Validity.php'; // NOSONAR include: shared Annual pass policy
 require_once ORAS_TICKETS_DIR . 'includes/Storage/Manual_Observer_Pass_Store.php'; // NOSONAR include: internal manual pass registry

@@ -869,7 +869,22 @@ WC()->cart->remove_cart_item( $cart_item_key );
             if ( $description !== '' ) {
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 echo '<div class="oras-ticket-desc">' . $description . '</div>';
-            }
+			}
+			$included_events = is_array( $offering['included_events'] ?? null ) ? $offering['included_events'] : array();
+			if ( ! empty( $included_events ) ) {
+				echo '<div class="oras-ticket-included-events"><strong>' . esc_html__( 'Includes admission to:', 'oras-tickets' ) . '</strong><ul>';
+				foreach ( $included_events as $included_event ) {
+					if ( ! is_array( $included_event ) || '' === (string) ( $included_event['title'] ?? '' ) ) {
+						continue;
+					}
+					$included_label = (string) $included_event['title'];
+					if ( '' !== (string) ( $included_event['date'] ?? '' ) ) {
+						$included_label .= ' — ' . (string) $included_event['date'];
+					}
+					echo '<li><span aria-hidden="true">✓</span> ' . esc_html( $included_label ) . '</li>';
+				}
+				echo '</ul></div>';
+			}
             echo '<div class="oras-ticket-mode">' . esc_html( $attendance_label ) . '</div>';
             if ( ! empty( $resolved['phase_label'] ) && is_string( $resolved['phase_label'] ) ) {
                 $phase_label = (string) $resolved['phase_label'];

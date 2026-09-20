@@ -21,7 +21,7 @@ final class Event_Stats_Service {
 		foreach ( is_array( $registrations ) ? $registrations : array() as &$registration ) {
 			$evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
 			$snapshot = is_array( $evidence['offering'] ?? null ) ? sanitize_text_field( (string) ( $evidence['offering']['label'] ?? '' ) ) : '';
-			if ( '' === $snapshot && 'online' === (string) $registration['source_type'] && is_array( $evidence ) ) {
+			if ( '' === $snapshot && in_array( (string) $registration['source_type'], array( 'online', 'online_included' ), true ) && is_array( $evidence ) ) {
 				$snapshot = sanitize_text_field( (string) ( $evidence['item_label'] ?? '' ) );
 			}
 			if ( '' === $snapshot && in_array( (string) $registration['source_type'], array( 'rsvp_walk_in', 'rsvp_waitlist' ), true ) ) {
@@ -55,143 +55,151 @@ final class Event_Stats_Service {
 	 */
 	public static function summarize_rows( array $registrations, array $attendees, array $attendance, array $memberships, string $today, string $now_utc ): array {
 		$registrations_by_id = array();
-		$source_counts = array(
-			'website'          => 0,
-			'walk_in'          => 0,
-			'complimentary'    => 0,
-			'rsvp'             => 0,
-			'manager_verified' => 0,
-		);
-		$classification = array();
-		$validity = array();
-		$pass_types = array();
-		$payment = array(
-			'card'   => 0,
-			'cash'   => 0,
-			'check'  => 0,
-			'unpaid' => 0,
-		);
-		$new_walk_ins = 0;
-		foreach ( $registrations as $registration ) {
-			$id = (int) $registration['id'];
-			$registrations_by_id[ $id ] = $registration;
-			$source = self::source_key( (string) ( $registration['source_type'] ?? '' ) );
-			++$source_counts[ $source ];
-			self::increment( $classification, (string) ( $registration['classification'] ?? 'unclassified' ) );
-			self::increment( $validity, (string) ( $registration['validity_type'] ?? 'unclassified' ) );
-			self::increment( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
-			$assertion = (string) ( $registration['payment_assertion'] ?? '' );
-			if ( 'walk_in' === (string) ( $registration['source_type'] ?? '' ) && isset( $payment[ $assertion ] ) ) {
-				++$payment[ $assertion ];
+			$source_counts = array(
+				'website'          => 0,
+				'included_event'   => 0,
+				'walk_in'          => 0,
+				'complimentary'    => 0,
+				'rsvp'             => 0,
+				'manager_verified' => 0,
+			);
+			$classification = array();
+			$validity = array();
+			$pass_types = array();
+			$payment = array(
+				'card'   => 0,
+				'cash'   => 0,
+				'check'  => 0,
+				'unpaid' => 0,
+			);
+			$new_walk_ins = 0;
+			foreach ( $registrations as $registration ) {
+				$id = (int) $registration['id'];
+				$registrations_by_id[ $id ] = $registration;
+				$source = self::source_key( (string) ( $registration['source_type'] ?? '' ) );
+				++$source_counts[ $source ];
+				self::increment( $classification, (string) ( $registration['classification'] ?? 'unclassified' ) );
+				self::increment( $validity, (string) ( $registration['validity_type'] ?? 'unclassified' ) );
+				self::increment( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
+				$assertion = (string) ( $registration['payment_assertion'] ?? '' );
+				if ( 'walk_in' === (string) ( $registration['source_type'] ?? '' ) && isset( $payment[ $assertion ] ) ) {
+					++$payment[ $assertion ];
+				}
+				if ( in_array( (string) ( $registration['source_type'] ?? '' ), array( 'walk_in', 'rsvp_walk_in' ), true ) && $today === (string) ( $registration['created_local_date'] ?? '' ) ) {
+					++$new_walk_ins;
+				}
 			}
-			if ( in_array( (string) ( $registration['source_type'] ?? '' ), array( 'walk_in', 'rsvp_walk_in' ), true ) && $today === (string) ( $registration['created_local_date'] ?? '' ) ) {
-				++$new_walk_ins;
-			}
-		}
 
-		$attendees_by_id = array();
-		foreach ( $attendees as $attendee ) {
-			$attendees_by_id[ (int) $attendee['id'] ] = (int) $attendee['registration_id'];
-		}
-		$today_people = array();
-		$today_source = array(
-			'website'          => array(),
-			'walk_in'          => array(),
-			'complimentary'    => array(),
-			'rsvp'             => array(),
-			'manager_verified' => array(),
-		);
-		$attended_people = array();
-		$attended_registrations = array();
-		$attendance_by_day = array();
-		$family_people = array();
-		foreach ( $attendance as $instance ) {
-			$attendee_id = (int) $instance['attendee_id'];
-			$registration_id = $attendees_by_id[ $attendee_id ] ?? 0;
-			if ( ! isset( $registrations_by_id[ $registration_id ] ) ) {
-				continue;
+			$attendees_by_id = array();
+			foreach ( $attendees as $attendee ) {
+				$attendees_by_id[ (int) $attendee['id'] ] = (int) $attendee['registration_id'];
 			}
-			$date = (string) $instance['attendance_local_date'];
-			$attended_people[ $attendee_id ] = true;
-			$attended_registrations[ $registration_id ] = true;
-			self::increment( $attendance_by_day, $date );
-			$registration = $registrations_by_id[ $registration_id ];
-			if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
-				$family_people[ $attendee_id ] = true;
+			$today_people = array();
+			$today_source = array(
+				'website'          => array(),
+				'included_event'   => array(),
+				'walk_in'          => array(),
+				'complimentary'    => array(),
+				'rsvp'             => array(),
+				'manager_verified' => array(),
+			);
+			$attended_people = array();
+			$attended_registrations = array();
+			$attendance_by_day = array();
+			$family_people = array();
+			foreach ( $attendance as $instance ) {
+				$attendee_id = (int) $instance['attendee_id'];
+				$registration_id = $attendees_by_id[ $attendee_id ] ?? 0;
+				if ( ! isset( $registrations_by_id[ $registration_id ] ) ) {
+					continue;
+				}
+				$date = (string) $instance['attendance_local_date'];
+				$attended_people[ $attendee_id ] = true;
+				$attended_registrations[ $registration_id ] = true;
+				self::increment( $attendance_by_day, $date );
+				$registration = $registrations_by_id[ $registration_id ];
+				if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
+					$family_people[ $attendee_id ] = true;
+				}
+				if ( $date === $today ) {
+					$today_people[ $attendee_id ] = true;
+					$today_source[ self::source_key( (string) ( $registration['source_type'] ?? '' ) ) ][ $attendee_id ] = true;
+				}
 			}
-			if ( $date === $today ) {
-				$today_people[ $attendee_id ] = true;
-				$today_source[ self::source_key( (string) ( $registration['source_type'] ?? '' ) ) ][ $attendee_id ] = true;
-			}
-		}
-		ksort( $attendance_by_day );
+			ksort( $attendance_by_day );
 
-		$today_pass_types = array();
-		foreach ( $today_people as $attendee_id => $_present ) {
-			$registration_id = $attendees_by_id[ $attendee_id ] ?? 0;
-			self::increment( $today_pass_types, (string) ( $registrations_by_id[ $registration_id ]['option_label'] ?? 'Other' ) );
-		}
+			$today_pass_types = array();
+			foreach ( $today_people as $attendee_id => $_present ) {
+				$registration_id = $attendees_by_id[ $attendee_id ] ?? 0;
+				self::increment( $today_pass_types, (string) ( $registrations_by_id[ $registration_id ]['option_label'] ?? 'Other' ) );
+			}
 
-		$membership_summary = array(
-			'total'     => count( $memberships ),
-			'cash'      => 0,
-			'check'     => 0,
-			'pending'   => 0,
-			'redeemed'  => 0,
-			'expired'   => 0,
-			'cancelled' => 0,
-			'levels'    => array(),
-		);
-		foreach ( $memberships as $membership ) {
-			$method = (string) ( $membership['payment_method'] ?? '' );
-			if ( isset( $membership_summary[ $method ] ) ) {
-				++$membership_summary[ $method ];
+			$membership_summary = array(
+				'total'     => count( $memberships ),
+				'cash'      => 0,
+				'check'     => 0,
+				'pending'   => 0,
+				'redeemed'  => 0,
+				'expired'   => 0,
+				'cancelled' => 0,
+				'levels'    => array(),
+			);
+			foreach ( $memberships as $membership ) {
+				$method = (string) ( $membership['payment_method'] ?? '' );
+				if ( isset( $membership_summary[ $method ] ) ) {
+					++$membership_summary[ $method ];
+				}
+				$status = (string) ( $membership['status'] ?? 'pending' );
+				if ( 'pending' === $status && (string) ( $membership['expires_at_utc'] ?? '' ) < $now_utc ) {
+					$status = 'expired';
+				}
+				if ( isset( $membership_summary[ $status ] ) ) {
+					++$membership_summary[ $status ];
+				}
+				self::increment( $membership_summary['levels'], (string) ( $membership['level_name'] ?? 'Other' ) );
 			}
-			$status = (string) ( $membership['status'] ?? 'pending' );
-			if ( 'pending' === $status && (string) ( $membership['expires_at_utc'] ?? '' ) < $now_utc ) {
-				$status = 'expired';
-			}
-			if ( isset( $membership_summary[ $status ] ) ) {
-				++$membership_summary[ $status ];
-			}
-			self::increment( $membership_summary['levels'], (string) ( $membership['level_name'] ?? 'Other' ) );
-		}
 
-		return array(
-			'today'       => array(
-				'actual_people'             => count( $today_people ),
-				'website_people'            => count( $today_source['website'] ),
-				'walk_in_people'            => count( $today_source['walk_in'] ),
-				'complimentary_people'      => count( $today_source['complimentary'] ),
-				'rsvp_people'               => count( $today_source['rsvp'] ),
-				'manager_verified_people'   => count( $today_source['manager_verified'] ),
-				'new_walk_in_registrations' => $new_walk_ins,
-				'pass_types'                => $today_pass_types,
-			),
-			'event_total' => array(
-				'active_registrations'           => count( $registrations ),
-				'website_registrations'          => $source_counts['website'],
-				'walk_in_registrations'          => $source_counts['walk_in'],
-				'complimentary_registrations'    => $source_counts['complimentary'],
-				'rsvp_registrations'             => $source_counts['rsvp'],
-				'manager_verified_registrations' => $source_counts['manager_verified'],
-				'people_registered'              => count( $attendees ),
-				'unique_attendees'               => count( $attended_people ),
-				'attendance_instances'           => count( $attendance ),
-				'attendance_by_day'              => $attendance_by_day,
-				'pass_types'                     => $pass_types,
-				'classifications'                => $classification,
-				'validity'                       => $validity,
-				'family_registrations'           => (int) ( $classification['family'] ?? 0 ),
-				'family_attendees_attended'      => count( $family_people ),
-				'no_show_registrations'          => count( $registrations ) - count( $attended_registrations ),
-				'payment_assertions'             => $payment,
-			),
-			'memberships' => $membership_summary,
-		);
+			return array(
+				'today'       => array(
+					'actual_people'             => count( $today_people ),
+					'website_people'            => count( $today_source['website'] ),
+					'included_event_people'     => count( $today_source['included_event'] ),
+					'walk_in_people'            => count( $today_source['walk_in'] ),
+					'complimentary_people'      => count( $today_source['complimentary'] ),
+					'rsvp_people'               => count( $today_source['rsvp'] ),
+					'manager_verified_people'   => count( $today_source['manager_verified'] ),
+					'new_walk_in_registrations' => $new_walk_ins,
+					'pass_types'                => $today_pass_types,
+				),
+				'event_total' => array(
+					'active_registrations'           => count( $registrations ),
+					'website_registrations'          => $source_counts['website'],
+					'direct_website_registrations'   => $source_counts['website'],
+					'included_event_registrations'   => $source_counts['included_event'],
+					'walk_in_registrations'          => $source_counts['walk_in'],
+					'complimentary_registrations'    => $source_counts['complimentary'],
+					'rsvp_registrations'             => $source_counts['rsvp'],
+					'manager_verified_registrations' => $source_counts['manager_verified'],
+					'people_registered'              => count( $attendees ),
+					'unique_attendees'               => count( $attended_people ),
+					'attendance_instances'           => count( $attendance ),
+					'attendance_by_day'              => $attendance_by_day,
+					'pass_types'                     => $pass_types,
+					'classifications'                => $classification,
+					'validity'                       => $validity,
+					'family_registrations'           => (int) ( $classification['family'] ?? 0 ),
+					'family_attendees_attended'      => count( $family_people ),
+					'no_show_registrations'          => count( $registrations ) - count( $attended_registrations ),
+					'payment_assertions'             => $payment,
+				),
+				'memberships' => $membership_summary,
+			);
 	}
 
 	private static function source_key( string $source ): string {
+		if ( 'online_included' === $source ) {
+			return 'included_event';
+		}
 		if ( 'online' === $source ) {
 			return 'website';
 		}

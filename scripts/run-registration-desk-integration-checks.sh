@@ -39,6 +39,7 @@ readonly RMDIR_BIN='/usr/bin/rmdir'
 readonly CURL_BIN='/usr/bin/curl'
 readonly CMP_BIN='/usr/bin/cmp'
 readonly SLEEP_BIN='/usr/bin/sleep'
+readonly IP_BIN='/usr/sbin/ip'
 
 RUNNER_PATH="$($REALPATH_BIN -e "${BASH_SOURCE[0]}")"
 ROOT_DIR="$($REALPATH_BIN "${RUNNER_PATH%/*}/..")"
@@ -327,6 +328,36 @@ verify_mounted_code_identity() {
 	printf 'Verified mounted feature code: commit=%s digest=%s\n' "$head" "$host_digest"
 }
 
+verify_local_http_url() {
+	local parsed host port
+	parsed="$(
+		"$PHP_BIN" -r '
+			$url = $argv[1];
+			if (!preg_match("#^http://([^/:]+):([1-9][0-9]*)$#D", $url, $matches)) {
+				exit(1);
+			}
+			$host = strtolower($matches[1]);
+			$port = (int) $matches[2];
+			$parts = array_map("intval", explode(".", $host));
+			$private = count($parts) === 4
+				&& filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+				&& ($parts[0] === 10
+					|| ($parts[0] === 172 && $parts[1] >= 16 && $parts[1] <= 31)
+					|| ($parts[0] === 192 && $parts[1] === 168));
+			if ($port > 65535 || !in_array($host, array("localhost", "127.0.0.1"), true) && !$private) {
+				exit(1);
+			}
+			echo $host . "|" . $port;
+		' "$EXPECTED_URL"
+	)" || fail 'designated test URL is not a loopback or private LAN HTTP endpoint.'
+	host="${parsed%%|*}"
+	port="${parsed#*|}"
+	if [[ "$host" != 'localhost' && "$host" != '127.0.0.1' ]]; then
+		"$IP_BIN" route get "$host" >/dev/null 2>&1 || fail 'designated private LAN test URL is not locally routable.'
+	fi
+	printf '%s' "$port"
+}
+
 verify_runtime_identity() {
 	local cli_id wordpress_id db_id dev_db_id test_volume dev_volume identity published_port url_port
 	cli_id="$(verify_container tests-cli)"
@@ -343,8 +374,7 @@ verify_runtime_identity() {
 
 	identity="$(wp_safe eval 'echo wp_json_encode(array("db"=>DB_NAME,"host"=>DB_HOST,"home"=>get_option("home"),"siteurl"=>get_option("siteurl"),"registration_guard"=>defined("ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE")&&ORAS_REGISTRATION_DESK_TEST_GUARD_ACTIVE,"qbo_guard"=>defined("ORAS_QBO_HTTP_BLOCK_ACTIVE")&&ORAS_QBO_HTTP_BLOCK_ACTIVE,"oras_plugin_loaded"=>defined("ORAS_TICKETS_FILE")||class_exists("ORAS\\Tickets\\Bootstrap",false)));' 2>/dev/null | /usr/bin/grep -E '^\{.*\}$' | /usr/bin/tail -1)"
 	EXPECTED_URL="$("$PHP_BIN" -r '$v=json_decode($argv[1],true);if(!is_array($v)||($v["db"]??"")!==$argv[2]||($v["host"]??"")!==$argv[3]||empty($v["registration_guard"])||empty($v["qbo_guard"])||!empty($v["oras_plugin_loaded"])||($v["home"]??"")!==($v["siteurl"]??"")){exit(1);}echo $v["home"];' "$identity" "$EXPECTED_DATABASE" "$EXPECTED_DATABASE_HOST")" || fail 'WordPress database, pre-marker plugin barrier, or transport guard identity is unsafe.'
-	[[ "$EXPECTED_URL" =~ ^http://localhost:([1-9][0-9]*)$ ]] || fail 'designated test URL is not a local HTTP endpoint.'
-	url_port="${BASH_REMATCH[1]}"
+	url_port="$(verify_local_http_url)"
 	published_port="$(docker_cmd port "$wordpress_id" 80/tcp | /usr/bin/tail -1)"
 	[[ "$published_port" == *":$url_port" ]] || fail 'designated test URL does not match the published test container port.'
 }
@@ -758,6 +788,7 @@ main() {
 	run_eval_file registration-desk-integration-checks.php baseline
 	run_concurrency
 	run_eval_file registration-desk-integration-checks.php finish
+	run_eval_file included-event-access-integration-checks.php included_event_access
 	run_eval_file core-regression-checks.php regression
 	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');" eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/bootstrap-regression-checks.php
 	printf '%s\n' 'Registration Desk guarded integration checks passed.'

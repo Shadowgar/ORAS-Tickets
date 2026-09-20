@@ -57,6 +57,8 @@ require_text 'oras_plugin_loaded' 'Pre-marker identity proves the ORAS plugin di
 require_text 'verify_test_configuration' 'Runner verifies original test configuration is restored.'
 require_text 'ORAS_SYNC=0' 'Runner verifies WooCommerce compatibility synchronization is disabled.'
 require_text 'verify_restored_options' 'Runner reads back restored test options.'
+require_text 'verify_local_http_url' 'Runner validates loopback or a routable private host before using a LAN test URL.'
+require_text "IP_BIN='/usr/sbin/ip'" 'Runner pins the local-interface discovery executable.'
 reject_text 'wp_env start' 'Runner never starts or reconfigures the ordinary development environment.'
 reject_text 'legacy_hash=' 'Runner does not derive a project from the feature-worktree config path.'
 reject_text '.config/superpowers/worktrees/ORAS-Tickets' 'Runner does not require an obsolete detached worktree.'

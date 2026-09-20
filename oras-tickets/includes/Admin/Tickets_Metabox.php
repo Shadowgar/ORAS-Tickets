@@ -3,6 +3,7 @@
 namespace ORAS\Tickets\Admin;
 
 use ORAS\Tickets\Domain\Meta;
+use ORAS\Tickets\Domain\Included_Event_Access;
 use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Domain\Ticket_Collection;
 use ORAS\Tickets\Support\Logger;
@@ -56,10 +57,16 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
         // Some The Events Calendar admin contexts report non-standard screen bases.
         // Once we've confirmed tribe_events post type, proceed with enqueue.
 
+		$dependencies = array( 'jquery' );
+		if ( function_exists( 'wp_script_is' ) && wp_script_is( 'selectWoo', 'registered' ) ) {
+			wp_enqueue_script( 'selectWoo' );
+			$dependencies[] = 'selectWoo';
+		}
+
         wp_enqueue_script(
             'oras-tickets-metabox',
             ORAS_TICKETS_URL . 'assets/admin/tickets-metabox.js',
-            array(),
+			$dependencies,
             $this->assetVersion( 'assets/admin/tickets-metabox.js' ),
             true
         );
@@ -90,6 +97,7 @@ final class Tickets_Metabox { // NOSONAR legacy WP class naming
 
         $envelope = Ticket_Collection::load_envelope_for_event( $post->ID );
         $tickets  = $envelope['tickets'] ?? array();
+		$included_event_choices = $this->published_event_choices( $post->ID );
 
         // Nonce
         wp_nonce_field( 'oras_tickets_metabox', 'oras_tickets_metabox_nonce' );
@@ -179,6 +187,8 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 $attendance_mode  = $this->get_ticket_attendance_mode( is_array( $data ) ? $data : array() );
                                 $attendance_label = $this->get_ticket_attendance_label( $attendance_mode );
                                 $hide_sold_out  = ! empty( $data['hide_sold_out'] );
+								$ticket_key = sanitize_key( (string) ( $data['ticket_key'] ?? $index ) );
+								$included_event_ids = Included_Event_Access::normalize_ids( $data['included_event_ids'] ?? array(), $post->ID );
                                 $idx            = esc_attr( (string) $index );
                                 $sale_start_val = $sale_start !== '' ? str_replace( ' ', 'T', $sale_start ) : '';
                                 $sale_end_val   = $sale_end !== '' ? str_replace( ' ', 'T', $sale_end ) : '';
@@ -230,6 +240,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                             <div class="panel-wrap oras-ticket-data">
                                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                                     <li class="general_tab"><a href="#oras_ticket_<?php echo $idx; ?>_general">General</a></li>
+													<li class="included_event_access_tab"><a href="#oras_ticket_<?php echo $idx; ?>_included_event_access"><?php echo esc_html__( 'Included event access', 'oras-tickets' ); ?></a></li>
                                                     <li class="inventory_tab"><a href="#oras_ticket_<?php echo $idx; ?>_inventory">Inventory</a></li>
                                                     <li class="sale_window_tab"><a href="#oras_ticket_<?php echo $idx; ?>_sale_window">Sale window</a></li>
                                                     <li class="pricing_tab"><a href="#oras_ticket_<?php echo $idx; ?>_pricing">Pricing</a></li>
@@ -250,9 +261,19 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                             <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ); ?>" <?php selected( Ticket::ATTENDANCE_MODE_ONSITE, $attendance_mode ); ?>><?php echo esc_html__( 'On-site', 'oras-tickets' ); ?></option>
                                                             <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ); ?>" <?php selected( Ticket::ATTENDANCE_MODE_VIRTUAL, $attendance_mode ); ?>><?php echo esc_html__( 'Virtual', 'oras-tickets' ); ?></option>
                                                         </select>
-                                                        <p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
-                                                    </div>
-                                                </div>
+														<p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
+													</div>
+												</div>
+												<div id="oras_ticket_<?php echo $idx; ?>_included_event_access" class="panel woocommerce_options_panel oras-panel-hidden oras-included-event-panel">
+													<h3><?php echo esc_html__( 'Included Event Access', 'oras-tickets' ); ?></h3>
+													<p><?php echo esc_html__( 'Does this ticket also include admission to another event?', 'oras-tickets' ); ?></p>
+													<select class="oras-included-events oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][included_event_ids][]" multiple="multiple" data-placeholder="<?php echo esc_attr__( 'Add included event', 'oras-tickets' ); ?>">
+														<?php foreach ( $included_event_choices as $choice ) : ?>
+															<option value="<?php echo esc_attr( (string) $choice['event_id'] ); ?>" <?php selected( in_array( (int) $choice['event_id'], $included_event_ids, true ) ); ?>><?php echo esc_html( $choice['label'] ); ?></option>
+														<?php endforeach; ?>
+													</select>
+													<p class="description oras-help-text"><?php echo esc_html__( 'Choose only events this ticket directly grants. Changes affect future purchases; existing order snapshots are unchanged.', 'oras-tickets' ); ?></p>
+												</div>
                                                 <div id="oras_ticket_<?php echo $idx; ?>_inventory" class="panel woocommerce_options_panel oras-panel-hidden">
                                                     <span class="oras-field-label"><strong><?php echo esc_html__( 'Stock', 'oras-tickets' ); ?></strong></span><br />
                                                     <input type="number" min="0" class="oras-input-full" name="oras_tickets_tickets[<?php echo $idx; ?>][capacity]" value="<?php echo esc_attr( $capacity ); ?>" />
@@ -376,8 +397,9 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="oras-ticket-actions">
-                                                <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
+                            <div class="oras-ticket-actions">
+								<input type="hidden" name="oras_tickets_tickets[<?php echo $idx; ?>][ticket_key]" value="<?php echo esc_attr( $ticket_key ); ?>" />
+                                <input type="hidden" name="oras_tickets_index[]" value="<?php echo $idx; ?>" />
                                             </div>
                                         </div>
                                 </div>
@@ -488,6 +510,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                             <div class="panel-wrap oras-ticket-data">
                                 <ul class="oras-ticket-data-tabs wc-tabs">
                                     <li class="general_tab"><a href="#oras_ticket___INDEX___general">General</a></li>
+									<li class="included_event_access_tab"><a href="#oras_ticket___INDEX___included_event_access"><?php echo esc_html__( 'Included event access', 'oras-tickets' ); ?></a></li>
                                     <li class="inventory_tab"><a href="#oras_ticket___INDEX___inventory">Inventory</a></li>
                                     <li class="sale_window_tab"><a href="#oras_ticket___INDEX___sale_window">Sale window</a></li>
                                     <li class="pricing_tab"><a href="#oras_ticket___INDEX___pricing">Pricing</a></li>
@@ -509,9 +532,19 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                             <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_ONSITE ); ?>"><?php echo esc_html__( 'On-site', 'oras-tickets' ); ?></option>
                                             <option value="<?php echo esc_attr( Ticket::ATTENDANCE_MODE_VIRTUAL ); ?>"><?php echo esc_html__( 'Virtual', 'oras-tickets' ); ?></option>
                                         </select>
-                                        <p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
-                                    </div>
-                                </div>
+										<p class="description oras-help-text"><?php echo esc_html__( 'Choose whether this ticket grants on-site attendance or virtual access.', 'oras-tickets' ); ?></p>
+									</div>
+								</div>
+								<div id="oras_ticket___INDEX___included_event_access" class="panel woocommerce_options_panel oras-panel-hidden oras-included-event-panel">
+									<h3><?php echo esc_html__( 'Included Event Access', 'oras-tickets' ); ?></h3>
+									<p><?php echo esc_html__( 'Does this ticket also include admission to another event?', 'oras-tickets' ); ?></p>
+									<select class="oras-included-events oras-input-full" name="oras_tickets_tickets[__INDEX__][included_event_ids][]" multiple="multiple" data-placeholder="<?php echo esc_attr__( 'Add included event', 'oras-tickets' ); ?>">
+										<?php foreach ( $included_event_choices as $choice ) : ?>
+											<option value="<?php echo esc_attr( (string) $choice['event_id'] ); ?>"><?php echo esc_html( $choice['label'] ); ?></option>
+										<?php endforeach; ?>
+									</select>
+									<p class="description oras-help-text"><?php echo esc_html__( 'Choose only events this ticket directly grants. Changes affect future purchases; existing order snapshots are unchanged.', 'oras-tickets' ); ?></p>
+								</div>
                                 <div id="oras_ticket___INDEX___inventory" class="panel woocommerce_options_panel oras-panel-hidden">
                                     <span class="oras-field-label"><strong><?php echo esc_html__( 'Stock', 'oras-tickets' ); ?></strong></span><br />
                                     <input type="number" min="0" class="oras-input-full" name="oras_tickets_tickets[__INDEX__][capacity]" value="0" />
@@ -585,6 +618,7 @@ if ( $start_dt instanceof \DateTimeInterface ) {
                                 </div>
                             </div>
                             <div class="oras-ticket-actions">
+								<input type="hidden" name="oras_tickets_tickets[__INDEX__][ticket_key]" value="" />
                                 <input type="hidden" name="oras_tickets_index[]" value="__INDEX__" />
                             </div>
                             </div>
@@ -654,7 +688,54 @@ if ( $start_dt instanceof \DateTimeInterface ) {
             'remaining'    => $remaining,
             'is_unlimited' => false,
         );
-    }
+	}
+
+	/** @return array<int,array{event_id:int,label:string}> */
+	private function published_event_choices( int $primary_event_id ): array {
+		$ids = get_posts(
+			array(
+				'post_type'      => Meta::EVENT_POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $primary_event_id ),
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
+		$choices = array();
+		foreach ( is_array( $ids ) ? $ids : array() as $event_id ) {
+			$event = Included_Event_Access::describe_event( (int) $event_id );
+			if ( '' === $event['title'] ) {
+				continue;
+			}
+			$choices[] = array(
+				'event_id' => (int) $event['event_id'],
+				'label'    => '' !== $event['date'] ? $event['title'] . ' — ' . $event['date'] : $event['title'],
+			);
+		}
+
+		return $choices;
+	}
+
+	/** @return array<int,int> */
+	private function sanitize_included_event_ids( mixed $value, int $primary_event_id ): array {
+		$ids = array();
+		foreach ( Included_Event_Access::normalize_ids( $value, $primary_event_id ) as $event_id ) {
+			if ( Meta::EVENT_POST_TYPE !== get_post_type( $event_id ) || 'publish' !== get_post_status( $event_id ) ) {
+				continue;
+			}
+			$ids[] = $event_id;
+		}
+
+		return $ids;
+	}
+
+	private function sanitize_ticket_key( array $fields, array $existing_ticket, string $fallback_key = '' ): string {
+		$key = sanitize_key( (string) ( $fields['ticket_key'] ?? ( $existing_ticket['ticket_key'] ?? $fallback_key ) ) );
+
+		return '' !== $key ? $key : Ticket_Collection::generate_ticket_key();
+	}
 
     /**
      * Check if an event has TEC recurrence metadata.
@@ -785,9 +866,11 @@ $sale_end   = $tmp;
                 $existing_ticket  = isset( $existing_tickets[ $idx ] ) && is_array( $existing_tickets[ $idx ] ) ? $existing_tickets[ $idx ] : array();
                 $attendance_mode = $this->sanitize_ticket_attendance_mode( $fields, $existing_ticket );
                 $hide_sold_out   = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
+				$ticket_key         = $this->sanitize_ticket_key( $fields, $existing_ticket, $idx );
+				$included_event_ids = $this->sanitize_included_event_ids( $fields['included_event_ids'] ?? array(), $post_id );
 
                 // Skip empty-default rows: name empty, description empty, sale dates empty, hide_sold_out false, capacity <=0, price <=0
-                if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 ) {
+				if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 && empty( $included_event_ids ) ) {
                     continue;
                 }
 
@@ -838,17 +921,19 @@ $sale_end   = $tmp;
                     }
                 }
 
-                $ticket_row = array(
-                    'name'             => $name,
-                    'price'            => $price,
-                    'capacity'         => $capacity,
-                    'initial_capacity' => $initial_capacity,
-                    'sale_start'       => $sale_start,
-                    'sale_end'         => $sale_end,
-                    'description'      => $description,
-                    'attendance_mode'  => $attendance_mode,
-                    'hide_sold_out'    => $hide_sold_out,
-                );
+				$ticket_row = array(
+					'ticket_key'         => $ticket_key,
+					'name'               => $name,
+					'price'              => $price,
+					'capacity'           => $capacity,
+					'initial_capacity'   => $initial_capacity,
+					'sale_start'         => $sale_start,
+					'sale_end'           => $sale_end,
+					'description'        => $description,
+					'attendance_mode'    => $attendance_mode,
+					'hide_sold_out'      => $hide_sold_out,
+					'included_event_ids' => $included_event_ids,
+				);
 
                 if ( is_array( $price_phases_raw ) ) {
                     $ticket_row['price_phases'] = $price_phases_clean;
@@ -909,9 +994,11 @@ $sale_end   = $tmp;
                 $existing_ticket  = isset( $existing_tickets[ $position ] ) && is_array( $existing_tickets[ $position ] ) ? $existing_tickets[ $position ] : array();
                 $attendance_mode = $this->sanitize_ticket_attendance_mode( $fields, $existing_ticket );
                 $hide_sold_out   = isset( $fields['hide_sold_out'] ) && ( $fields['hide_sold_out'] === '1' || $fields['hide_sold_out'] === 1 );
+				$ticket_key         = $this->sanitize_ticket_key( $fields, $existing_ticket, (string) $position );
+				$included_event_ids = $this->sanitize_included_event_ids( $fields['included_event_ids'] ?? array(), $post_id );
 
                 // Skip empty-default rows
-                if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 ) {
+				if ( $name === '' && $description === '' && $sale_start === '' && $sale_end === '' && ! $hide_sold_out && $capacity <= 0 && $price_float <= 0.0 && empty( $included_event_ids ) ) {
                     continue;
                 }
 
@@ -962,17 +1049,19 @@ $sale_end   = $tmp;
                     }
                 }
 
-                $ticket_row = array(
-                    'name'             => $name,
-                    'price'            => $price,
-                    'capacity'         => $capacity,
-                    'initial_capacity' => $initial_capacity,
-                    'sale_start'       => $sale_start,
-                    'sale_end'         => $sale_end,
-                    'description'      => $description,
-                    'attendance_mode'  => $attendance_mode,
-                    'hide_sold_out'    => $hide_sold_out,
-                );
+				$ticket_row = array(
+					'ticket_key'         => $ticket_key,
+					'name'               => $name,
+					'price'              => $price,
+					'capacity'           => $capacity,
+					'initial_capacity'   => $initial_capacity,
+					'sale_start'         => $sale_start,
+					'sale_end'           => $sale_end,
+					'description'        => $description,
+					'attendance_mode'    => $attendance_mode,
+					'hide_sold_out'      => $hide_sold_out,
+					'included_event_ids' => $included_event_ids,
+				);
 
                 if ( is_array( $price_phases_raw ) ) {
                     $ticket_row['price_phases'] = $price_phases_clean;

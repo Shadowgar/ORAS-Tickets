@@ -111,7 +111,7 @@ final class Admin_Settings {
 			$rsvp = get_post_meta( $event_id, '_oras_rsvp_v1', true );
 			echo '<p>' . esc_html( is_array( $rsvp ) && ! empty( $rsvp['enabled'] ) ? __( 'This RSVP-only event will use its canonical RSVP capacity and waitlist settings.', 'oras-tickets' ) : __( 'This event has no canonical ticket or RSVP offerings.', 'oras-tickets' ) ) . '</p>';
 		}
-		echo '<h3>' . esc_html__( 'Cross-event entitlements', 'oras-tickets' ) . '</h3><p class="description">' . esc_html__( 'These mappings admit existing purchasers only. They never create walk-in products for this event.', 'oras-tickets' ) . '</p>';
+		echo '<h3>' . esc_html__( 'Legacy Cross-Event Access', 'oras-tickets' ) . '</h3><p class="description">' . esc_html__( 'Use this only for older purchases that granted access to another event before included-event access was stored with the ticket. These mappings admit existing purchasers only and never create walk-in products.', 'oras-tickets' ) . '</p>';
 		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'Source event and product', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Coverage at this event', 'oras-tickets' ) . '</th></tr></thead><tbody>';
 		$entitlements   = $config['entitlements'];
 		$entitlements[] = array();

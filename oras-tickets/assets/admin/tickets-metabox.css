@@ -347,3 +347,16 @@
 		align-items: stretch;
 	}
 }
+.oras-included-event-panel h3 {
+	margin-top: 0;
+	text-transform: uppercase;
+}
+
+.oras-included-event-panel .select2-container,
+.oras-included-event-panel .selectWoo-container {
+	max-width: 720px;
+}
+
+.oras-included-event-panel select[multiple] {
+	min-height: 10rem;
+}
