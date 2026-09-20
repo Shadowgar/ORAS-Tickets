@@ -72,7 +72,7 @@ final class Board_Report_Service {
 			array(
 				'post_type'      => 'tribe_events',
 				'post_status'    => array( 'publish', 'future', 'draft', 'private' ),
-				'posts_per_page' => 250,
+				'posts_per_page' => -1,
 				'orderby'        => 'date',
 				'order'          => 'DESC',
 			)
