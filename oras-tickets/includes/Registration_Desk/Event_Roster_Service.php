@@ -46,6 +46,35 @@ final class Event_Roster_Service {
 		};
 	}
 
+	/** @param array<string,mixed> $registration */
+	public static function volunteer_label( array $registration ): string {
+		$label = self::historical_label( $registration );
+		$internal_phrases = array(
+			'historical label ignored',
+			'needs_review',
+			'projection incomplete',
+			'source revoked',
+			'stale configuration',
+			'option uuid mismatch',
+			'source unit mismatch',
+			'internal request id',
+		);
+		$normalized = strtolower( $label );
+		foreach ( $internal_phrases as $phrase ) {
+			if ( str_contains( $normalized, $phrase ) ) {
+				return match ( (string) ( $registration['source_type'] ?? '' ) ) {
+					'rsvp_walk_in', 'rsvp_website' => __( 'Event RSVP', 'oras-tickets' ),
+					'rsvp_waitlist'                => __( 'RSVP Waitlist', 'oras-tickets' ),
+					'complimentary', 'speaker'     => __( 'Complimentary', 'oras-tickets' ),
+					'manager_verified_manual'       => __( 'Manager Verified', 'oras-tickets' ),
+					default                         => __( 'Event registration', 'oras-tickets' ),
+				};
+			}
+		}
+
+		return $label;
+	}
+
 	/** @param array<string,mixed> $raw_filters @return array<string,mixed> */
 	public function get( int $event_id, array $raw_filters ): array {
 		$filters   = self::normalize_filters( $raw_filters );
@@ -177,7 +206,7 @@ final class Event_Roster_Service {
 			'registration_uuid' => (string) $row['registration_uuid'],
 			'name'              => (string) $row['source_contact_name'],
 			'phone'             => self::display_phone( (string) $row['source_phone'] ),
-			'registration_type' => self::historical_label( $row ),
+			'registration_type' => self::volunteer_label( $row ),
 			'source_type'       => (string) $row['source_type'],
 			'rsvp_status'       => 'rsvp_waitlist' === (string) $row['source_type'] ? 'waitlist' : ( str_starts_with( (string) $row['source_type'], 'rsvp_' ) ? 'admitted' : '' ),
 			'checked_in_today'  => 1 === (int) $row['checked_in_today'],

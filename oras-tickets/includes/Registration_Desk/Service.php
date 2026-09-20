@@ -357,7 +357,7 @@ final class Service {
 		unset( $attendee );
 		$config    = Config::get_event_config( $event_id );
 		$admission = $this->current_admission( $registration, $config, $today );
-		$maximum   = max( 1, min( 20, (int) ( $admission['_option']['max_attendees'] ?? 1 ) ) );
+		$maximum   = max( 1, min( 20, (int) ( $admission['maximum_attendees'] ?? 1 ) ) );
 		$selectable_attendees = 0;
 		$checked_attendees    = 0;
 		$blocked_attendees    = 0;
@@ -447,50 +447,26 @@ final class Service {
 		if ( empty( $config['enabled'] ) || (int) $config['revision'] !== (int) $context['config_revision'] ) {
 			return new \WP_Error( 'oras_desk_config_changed', 'Registration Desk settings changed. Set up this station again.', array( 'status' => 409 ) );
 		}
-		if ( 'active' !== (string) $registration['status'] ) {
-			return new \WP_Error( 'oras_desk_registration_inactive', 'This registration is not active. Request administrator review.', array( 'status' => 409 ) );
-		}
 		$local_date = sanitize_text_field( (string) ( $payload['attendance_local_date'] ?? '' ) );
 		$today      = wp_date( 'Y-m-d', null, wp_timezone() );
 		if ( $local_date !== $today ) {
 			return new \WP_Error( 'oras_desk_date_changed', 'The site-local date changed. Review the check-in before trying again.', array( 'status' => 409 ) );
 		}
-		$range = $this->event_range( (int) $context['event_id'] );
-		if ( $range instanceof \WP_Error || ! self::date_is_within_event( $local_date, $range['start'], $range['end'] ) ) {
-			return $range instanceof \WP_Error ? $range : new \WP_Error( 'oras_desk_wrong_date', 'This registration is not valid for today.', array( 'status' => 409 ) );
-		}
-		if ( 'online' !== $registration['source_type'] || empty( $registration['source_order_id'] ) || empty( $registration['source_order_item_id'] ) ) {
+		if ( 'online' !== $registration['source_type'] ) {
 			return new \WP_Error( 'oras_desk_source_review', 'This registration does not have a supported website source.', array( 'status' => 409 ) );
 		}
-		$evidence = $this->source_adapter->load( (int) $registration['source_order_id'], (int) $registration['source_order_item_id'] );
-		if ( $evidence instanceof \WP_Error ) {
-			return new \WP_Error( 'oras_desk_source_review', 'Website registration source is unavailable. Retry or request review.', array( 'status' => 409 ) );
+		$admission = $this->current_admission( $registration, $config, $today );
+		if ( empty( $admission['check_in_allowed'] ) ) {
+			return $this->admission_error( $admission );
 		}
-		$source_unit = (int) ( $registration['source_unit_number'] ?? 0 );
-		if (
-			(int) ( $evidence['order_id'] ?? 0 ) !== (int) $registration['source_order_id']
-			|| (int) ( $evidence['order_item_id'] ?? 0 ) !== (int) $registration['source_order_item_id']
-			|| (int) ( $evidence['source_event_id'] ?? 0 ) !== (int) $registration['event_id']
-		) {
-			return new \WP_Error( 'oras_desk_source_changed', 'Website registration source identity changed. Request administrator review.', array( 'status' => 409 ) );
-		}
-		if ( $source_unit <= 0 || $source_unit > (int) ( $evidence['quantity'] ?? 0 ) ) {
-			return new \WP_Error( 'oras_desk_source_unit_invalid', 'This registration unit is no longer present in the website order.', array( 'status' => 409 ) );
-		}
-		$resolution = Source_Resolver::resolve( $evidence, (int) $context['event_id'], $config );
-		if ( 'supported' !== $resolution['resolution'] || 'individual' !== $resolution['classification'] || 'full_event' !== $resolution['validity_type'] ) {
+		if ( 'individual' !== (string) $registration['classification'] || 'full_event' !== (string) $registration['validity_type'] ) {
 			return new \WP_Error( 'oras_desk_source_review', 'Website registration classification requires review.', array( 'status' => 409 ) );
 		}
-		if ( ! hash_equals( (string) $registration['option_uuid'], (string) $resolution['option_uuid'] ) ) {
-			return new \WP_Error( 'oras_desk_source_option_changed', 'Website registration option mapping changed. Request administrator review.', array( 'status' => 409 ) );
-		}
 		$explicit_unpaid = ! empty( $payload['explicit_unpaid'] );
-		if ( 'explicit_unpaid_required' === $resolution['eligibility'] && ! $explicit_unpaid ) {
+		if ( ! empty( $admission['requires_explicit_unpaid'] ) && ! $explicit_unpaid ) {
 			return new \WP_Error( 'oras_desk_unpaid_confirmation_required', 'Payment is not confirmed. Choose the explicit unpaid admission action to continue.', array( 'status' => 409 ) );
 		}
-		if ( ! in_array( $resolution['eligibility'], array( 'eligible', 'explicit_unpaid_required' ), true ) ) {
-			return new \WP_Error( 'oras_desk_not_eligible', $resolution['payment_label'], array( 'status' => 409 ) );
-		}
+		$payment_label = (string) ( $admission['_source_label'] ?? $admission['payment_label'] ?? '' );
 		$first_name = sanitize_text_field( (string) ( $payload['first_name'] ?? '' ) );
 		$last_name  = sanitize_text_field( (string) ( $payload['last_name'] ?? '' ) );
 		if ( '' === $first_name || '' === $last_name ) {
@@ -498,7 +474,7 @@ final class Service {
 		}
 
 		$result = Store::transaction(
-			function () use ( $registration, $first_name, $last_name, $local_date, $context, $binding, $explicit_unpaid, $resolution ) {
+			function () use ( $registration, $first_name, $last_name, $local_date, $context, $binding, $explicit_unpaid, $payment_label ) {
 				$attendee = $this->attendees->confirm_individual( (int) $registration['id'], $first_name, $last_name );
 				if ( $attendee instanceof \WP_Error ) {
 					return $attendee;
@@ -526,7 +502,7 @@ final class Service {
 					'registration_uuid' => (string) $registration['registration_uuid'],
 					'attendee_uuid'     => (string) $attendee['attendee_uuid'],
 					'attendance'        => $attendance,
-					'payment_label'     => (string) $resolution['payment_label'],
+					'payment_label'     => $payment_label,
 					'explicit_unpaid'   => $explicit_unpaid,
 				);
 				$audit = $this->audits->append( $this->audit_record( $binding, $registration, $attendee, $attendance, $code, $response, array( 'explicit_unpaid' => $explicit_unpaid ) ) );
@@ -1123,12 +1099,17 @@ final class Service {
 	/** @param array<string,mixed> $registration @param array<string,mixed> $config @return array<string,mixed> */
 	private function current_admission( array $registration, array $config, string $local_date ): array {
 		$source_type = (string) $registration['source_type'];
+		$event_title = sanitize_text_field( (string) get_the_title( (int) $registration['event_id'] ) );
 		$diagnostics = array(
-			'operational_registration' => 'active' === (string) $registration['status'] ? 'Active' : 'Manager review required',
+			'operational_registration' => match ( (string) $registration['status'] ) {
+				'active'  => 'Active',
+				'revoked' => 'Revoked',
+				default   => 'Manager review required',
+			},
 			'canonical_source_status'   => 'Not applicable',
 			'event_entitlement'         => 'Not yet confirmed',
 			'ticket_mapping'            => 'Not yet confirmed',
-			'selected_event'            => sprintf( 'Event %d', (int) $registration['event_id'] ),
+			'selected_event'            => sprintf( '%s (event %d)', '' !== $event_title ? $event_title : 'Selected event', (int) $registration['event_id'] ),
 			'date_validity'             => 'Not yet confirmed',
 			'source_lifecycle'          => 'Not applicable',
 			'source_quantity'           => 'Not applicable',
@@ -1290,6 +1271,7 @@ final class Service {
 			'manager_help'             => false,
 			'requires_explicit_unpaid' => $requires_unpaid,
 			'payment_label'            => $requires_unpaid ? 'Payment not confirmed' : ( 'online' === $source_type ? 'Website registration confirmed' : $payment_label ),
+			'maximum_attendees'        => max( 1, min( 20, (int) ( $option['max_attendees'] ?? 1 ) ) ),
 			'_source_label'            => $payment_label,
 			'_error_code'              => '',
 			'_option'                  => $option,
@@ -1309,6 +1291,7 @@ final class Service {
 			'manager_help'             => $manager_help,
 			'requires_explicit_unpaid' => false,
 			'payment_label'            => '',
+			'maximum_attendees'        => 0,
 			'_source_label'            => '',
 			'_error_code'              => $error_code,
 			'_option'                  => array(),

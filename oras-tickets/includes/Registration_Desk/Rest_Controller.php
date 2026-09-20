@@ -580,6 +580,7 @@ final class Rest_Controller {
 		}
 		$raw_registration = $result['registration'];
 		$is_manager = $this->is_manager_request( $request );
+		$admission_diagnostics = is_array( $result['admission']['_diagnostics'] ?? null ) ? $result['admission']['_diagnostics'] : array();
 		if ( $is_manager && 'online' !== (string) $raw_registration['source_type'] ) {
 			$evidence = json_decode( (string) $raw_registration['source_evidence'], true );
 			$address  = is_array( $evidence['mailing_address'] ?? null ) ? $evidence['mailing_address'] : array();
@@ -614,9 +615,11 @@ final class Rest_Controller {
 				'registration_type'    => Event_Roster_Service::historical_label( $raw_registration ),
 				'payment_assertion'    => (string) $raw_registration['payment_assertion'],
 				'created_at_utc'       => (string) $raw_registration['created_at_utc'],
+				'admission_diagnostics' => $admission_diagnostics,
 				'audit_history'        => ( new Audit_Store() )->for_registration( (string) $raw_registration['registration_uuid'] ),
 			);
 		}
+		unset( $result['admission']['_diagnostics'], $result['admission']['_error_code'], $result['admission']['_option'], $result['admission']['_source_label'] );
 		$result['registration'] = $this->public_registration( $result['registration'] );
 
 		return $this->response( $result );
@@ -919,7 +922,7 @@ final class Rest_Controller {
 			'validity_type'     => (string) $row['validity_type'],
 			'valid_local_date'  => (string) $row['valid_local_date'],
 			'payment_assertion' => (string) $row['payment_assertion'],
-			'registration_type' => Event_Roster_Service::historical_label( $row ),
+			'registration_type' => Event_Roster_Service::volunteer_label( $row ),
 			'record_version'    => (int) $row['record_version'],
 		);
 	}

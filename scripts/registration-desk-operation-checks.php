@@ -100,6 +100,7 @@ $attendance_store_code = (string) file_get_contents( $base . 'Attendance_Store.p
 oras_operation_assert( false !== strpos( $attendee_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Attendee confirmation converges concurrent inserts atomically' );
 oras_operation_assert( false !== strpos( $attendance_store_code, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)' ), 'Daily attendance converges concurrent inserts atomically' );
 oras_operation_assert( false !== strpos( $service_code, 'source_adapter->load' ), 'Check-in revalidates the Woo source immediately' );
+oras_operation_assert( substr_count( $service_code, 'current_admission(' ) >= 4, 'Detail and both final check-in paths share one authoritative admission resolver' );
 oras_operation_assert( false !== strpos( $service_code, 'explicit_unpaid_required' ), 'On-hold admission requires explicit unpaid intent' );
 oras_operation_assert( false !== strpos( $service_code, 'expected_record_version' ), 'Reversal binds the expected attendance version' );
 oras_operation_assert( false !== strpos( $service_code, 'current_attendance' ), 'Replay response includes current attendance state' );
@@ -186,6 +187,7 @@ oras_operation_assert( false !== strpos( $desk_js, '✓ REGISTRATION VALID' ), '
 oras_operation_assert( false !== strpos( $desk_js, '⚠ MANAGER HELP NEEDED' ) && false !== strpos( $desk_js, 'GET MANAGER HELP' ), 'Blocked detail replaces attendance controls with a clear manager-help state' );
 oras_operation_assert( false !== strpos( $desk_js, 'admission.check_in_allowed' ) && false !== strpos( $desk_js, 'admission.selection_allowed' ), 'Detail controls consume the normalized server admission result' );
 oras_operation_assert( false !== strpos( $desk_js, 'await showRegistration(registration.registration_uuid, state.detailReturn)' ), 'Final stale-admission rejection reloads authoritative registration detail' );
+oras_operation_assert( false !== strpos( $desk_js, 'await showEventRoster(false)' ), 'Stale website RSVP rejection returns to the authoritative roster state' );
 oras_operation_assert( false !== strpos( $desk_js, 'Operational registration' ) && false !== strpos( $desk_js, 'Canonical source status' ) && false !== strpos( $desk_js, 'Date validity' ), 'Manager detail renders readable admission diagnostics' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.

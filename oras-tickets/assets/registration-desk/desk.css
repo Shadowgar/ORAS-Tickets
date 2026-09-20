@@ -988,8 +988,39 @@ button.desk-link-button {
 	font-weight: 700;
 }
 
+.desk-admission-status {
+	width: fit-content;
+	margin: 0.8rem auto;
+	border: 2px solid currentcolor;
+	border-radius: 999px;
+	padding: 0.55rem 1rem;
+	font-weight: 900;
+	letter-spacing: 0.02em;
+}
+
+.desk-admission-status.is-positive {
+	background: #edf8f2;
+	color: #17663c;
+}
+
+.desk-admission-status.is-blocked {
+	background: #fff5dc;
+	color: #7a4d00;
+}
+
 .desk-attendance-panel {
 	text-align: center;
+}
+
+.desk-admission-blocked {
+	display: grid;
+	justify-items: center;
+	gap: 0.75rem;
+}
+
+.desk-admission-blocked p {
+	max-width: 42rem;
+	font-size: 1.1rem;
 }
 
 .desk-attendee-list {
@@ -1057,6 +1088,21 @@ button.desk-link-button {
 
 .desk-attendee-card.is-checked-in label {
 	cursor: default;
+}
+
+.desk-attendee-card.is-blocked {
+	border-color: #d5a94f;
+	background: #fff9ea;
+}
+
+.desk-attendee-card.is-blocked label {
+	cursor: default;
+}
+
+.desk-attendee-card.is-blocked .desk-select-box {
+	border-color: #d5a94f;
+	background: #fff5dc;
+	color: #7a4d00;
 }
 
 .desk-new-attendee,

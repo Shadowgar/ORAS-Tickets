@@ -608,8 +608,12 @@
 				const attendance = Array.isArray(result.current_attendance) ? result.current_attendance[0] : result.current_attendance;
 				showSuccess({kind: 'checkin', name: item.name, count: 1, type: item.registration_type, when: attendance?.checked_in_at_utc || ''});
 			} catch (error) {
-				event.currentTarget.disabled = false;
-				main().querySelector('#desk-detail-message').innerHTML = notice(friendlyError(error), 'error');
+				if (['oras_desk_rsvp_waitlisted', 'oras_desk_rsvp_not_admitted', 'oras_desk_wrong_date', 'oras_desk_date_changed'].includes(error.code)) {
+					await showEventRoster(false);
+				} else {
+					event.currentTarget.disabled = false;
+					main().querySelector('#desk-detail-message').innerHTML = notice(friendlyError(error), 'error');
+				}
 			}
 		});
 		focusMain();
@@ -774,25 +778,32 @@
 		try {
 			const data = await api(`/registrations/${encodeURIComponent(registrationUuid)}`);
 			const registration = data.registration;
+			const admission = data.admission || {state: 'manager_review_required', status_label: 'MANAGER HELP NEEDED', message: 'This registration needs manager help before check-in.', selection_allowed: false, check_in_allowed: false, manager_help: true};
 			state.station.local_date = data.local_date || state.station.local_date;
 			saveStation(state.station);
 			const option = optionFor(registration.option_uuid);
-			const maximum = Number(option.max_attendees || 1);
+			const maximum = Number(admission.maximum_attendees || option.max_attendees || 1);
 			const existing = data.attendees || [];
-			const allowed = data.admission?.allowed !== false;
-			const canAddAttendee = registration.classification === 'family' && existing.length < maximum;
-			const everyoneCheckedIn = existing.length > 0 && existing.every((attendee) => attendee.current_attendance?.state === 'checked_in');
+			const canAddAttendee = admission.selection_allowed === true && registration.classification === 'family' && existing.length < maximum;
+			const everyoneCheckedIn = admission.state === 'already_checked_in';
 			const back = state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false);
 			const backLabel = state.detailReturn === 'recovery' ? 'Back to Missing Registration' : 'Back to Find Registration';
-			main().innerHTML = `${screenActions(backLabel)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span><span>Registration: ${allowed ? 'Valid' : 'Needs manager review'}</span><span>${escapeHtml(paymentLabel(registration, data.admission))}</span></div></section>
-				<div id="desk-detail-message">${allowed ? '' : notice('This registration cannot be checked in. Please ask a manager for help.', 'error')}</div>
-				<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2>${everyoneCheckedIn ? '<div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div>' : `<p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form>`}</section>
+			const status = admission.state === 'eligible' ? '✓ REGISTRATION VALID' : everyoneCheckedIn ? '✓ CHECKED IN TODAY' : `⚠ ${admission.status_label || 'MANAGER HELP NEEDED'}`;
+			const attendancePanel = admission.check_in_allowed === true
+				? `<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2><p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form></section>`
+				: everyoneCheckedIn
+					? '<section class="desk-kiosk-panel desk-attendance-panel"><div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div></section>'
+					: `<section class="desk-kiosk-panel desk-attendance-panel desk-admission-blocked"><span class="desk-large-icon desk-gold-icon">${icon('manager')}</span><h2>⚠ MANAGER HELP NEEDED</h2><p>${escapeHtml(admission.message || 'We found this registration, but it cannot be checked in right now.')}</p><div class="desk-actions"><button type="button" class="desk-primary" id="desk-detail-manager">GET MANAGER HELP</button><button type="button" class="desk-secondary" id="desk-detail-back">BACK TO FIND REGISTRATION</button></div></section>`;
+			main().innerHTML = `${screenActions(backLabel)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-admission-status ${admission.state === 'eligible' || everyoneCheckedIn ? 'is-positive' : 'is-blocked'}">${escapeHtml(status)}</div><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span>${admission.check_in_allowed === true ? `<span>${escapeHtml(paymentLabel(registration, admission))}</span>` : ''}</div></section>
+				<div id="desk-detail-message"></div>${attendancePanel}
 				${state.station.manager_token && data.manager_detail ? renderManagerRosterDetail(data.manager_detail) : ''}${state.station.manager_token && data.editable_registration ? `<section class="desk-manager-inline"><details><summary>Manager correction tools</summary>${renderCorrectionForm(data.editable_registration)}</details></section>` : ''}`;
 			bindScreenActions(back);
 			const form = main().querySelector('#desk-checkin-form');
 			main().querySelector('#desk-detail-done')?.addEventListener('click', back);
+			main().querySelector('#desk-detail-manager')?.addEventListener('click', () => state.station.manager_token ? showMissingRegistration() : showManagerHelp('recovery'));
+			main().querySelector('#desk-detail-back')?.addEventListener('click', back);
 			if (!form) { focusMain(); return; }
-			const updateSubmitState = () => { form.querySelector('[type="submit"]').disabled = !allowed || !collectArrivals(form).length; };
+			const updateSubmitState = () => { form.querySelector('[type="submit"]').disabled = admission.check_in_allowed !== true || !collectArrivals(form).length; };
 			const add = (name = {}) => { addArrivalRow(main().querySelector('#desk-arrival-rows'), registration.classification, maximum, name); updateSubmitState(); };
 			main().querySelector('#desk-add-arrival')?.addEventListener('click', () => add());
 			if (!existing.length && registration.classification === 'individual') add(parseName(registration.contact_name));
@@ -811,13 +822,17 @@
 
 	function renderManagerRosterDetail(detail) {
 		const address = Object.values(detail.mailing_address || {}).filter(Boolean).join(', ');
-		return `<section class="desk-manager-inline desk-manager-roster-detail"><div class="desk-manager-banner"><strong>MANAGER DETAIL</strong></div><dl><dt>Full name</dt><dd>${escapeHtml(detail.full_name || 'Not recorded')}</dd><dt>Full phone</dt><dd>${escapeHtml(detail.phone || 'Not recorded')}</dd><dt>Email</dt><dd>${escapeHtml(detail.email || 'Not recorded')}</dd><dt>Mailing address</dt><dd>${escapeHtml(address || 'Not recorded')}</dd><dt>Source</dt><dd>${escapeHtml(sourceLabel(detail.source_type))}</dd><dt>Registration type</dt><dd>${escapeHtml(detail.registration_type)}</dd><dt>Payment assertion</dt><dd>${escapeHtml(detail.payment_assertion || 'Not applicable')}</dd><dt>Created</dt><dd>${escapeHtml(detail.created_at_utc)}</dd><dt>Source reference</dt><dd>${detail.source_order_id ? `Order ${Number(detail.source_order_id)} · Item ${Number(detail.source_order_item_id)}` : 'Desk record'}</dd></dl><details><summary>Corrections and audit history</summary><div class="desk-audit-history">${(detail.audit_history || []).map((entry) => `<p><strong>${escapeHtml(entry.operation)}</strong> · ${escapeHtml(entry.operator_label || 'System')} · ${escapeHtml(entry.created_at_utc)}</p>`).join('') || '<p>No audit entries recorded.</p>'}</div></details></section>`;
+		const diagnostic = detail.admission_diagnostics || {};
+		return `<section class="desk-manager-inline desk-manager-roster-detail"><div class="desk-manager-banner"><strong>MANAGER DETAIL</strong></div><dl><dt>Full name</dt><dd>${escapeHtml(detail.full_name || 'Not recorded')}</dd><dt>Full phone</dt><dd>${escapeHtml(detail.phone || 'Not recorded')}</dd><dt>Email</dt><dd>${escapeHtml(detail.email || 'Not recorded')}</dd><dt>Mailing address</dt><dd>${escapeHtml(address || 'Not recorded')}</dd><dt>Source</dt><dd>${escapeHtml(sourceLabel(detail.source_type))}</dd><dt>Registration type</dt><dd>${escapeHtml(detail.registration_type)}</dd><dt>Payment assertion</dt><dd>${escapeHtml(detail.payment_assertion || 'Not applicable')}</dd><dt>Created</dt><dd>${escapeHtml(detail.created_at_utc)}</dd><dt>Source reference</dt><dd>${detail.source_order_id ? `Order ${Number(detail.source_order_id)} · Item ${Number(detail.source_order_item_id)}` : 'Desk record'}</dd></dl><details open><summary>Current admission diagnostic</summary><dl><dt>Operational registration</dt><dd>${escapeHtml(diagnostic.operational_registration || 'Not available')}</dd><dt>Canonical source status</dt><dd>${escapeHtml(diagnostic.canonical_source_status || 'Not applicable')}</dd><dt>Current event entitlement</dt><dd>${escapeHtml(diagnostic.event_entitlement || 'Not available')}</dd><dt>Current ticket mapping</dt><dd>${escapeHtml(diagnostic.ticket_mapping || 'Not available')}</dd><dt>Selected event</dt><dd>${escapeHtml(diagnostic.selected_event || 'Not available')}</dd><dt>Date validity</dt><dd>${escapeHtml(diagnostic.date_validity || 'Not available')}</dd><dt>Cancellation or refund</dt><dd>${escapeHtml(diagnostic.source_lifecycle || 'Not applicable')}</dd><dt>Quantity and unit</dt><dd>${escapeHtml(diagnostic.source_quantity || 'Not applicable')}</dd><dt>Historical mapping</dt><dd>${escapeHtml(diagnostic.historical_mapping || 'No ambiguity detected')}</dd></dl></details><details><summary>Corrections and audit history</summary><div class="desk-audit-history">${(detail.audit_history || []).map((entry) => `<p><strong>${escapeHtml(entry.operation)}</strong> · ${escapeHtml(entry.operator_label || 'System')} · ${escapeHtml(entry.created_at_utc)}</p>`).join('') || '<p>No audit entries recorded.</p>'}</div></details></section>`;
 	}
 
 	function renderExistingAttendee(attendee) {
 		const attendance = attendee.current_attendance;
 		const checkedIn = attendance?.state === 'checked_in';
-		return `<div class="desk-attendee-card ${checkedIn ? 'is-checked-in' : ''}"><label><input type="checkbox" name="selected" value="${escapeHtml(attendee.slot_key)}" ${checkedIn ? 'disabled' : ''}><span class="desk-select-box">${checkedIn ? icon('check') : ''}</span><span><strong>${escapeHtml(attendee.display_name || 'Unnamed attendee')}</strong><small>${checkedIn ? `✓ CHECKED IN TODAY${formatLocalTime(attendance.checked_in_at_utc) ? ` at ${escapeHtml(formatLocalTime(attendance.checked_in_at_utc))}` : ''}` : 'Tap to select this person'}</small></span></label><input type="hidden" data-first value="${escapeHtml(attendee.first_name)}"><input type="hidden" data-last value="${escapeHtml(attendee.last_name)}">${state.station.manager_token && checkedIn ? `<button type="button" class="desk-danger desk-manager-action" data-reverse-attendee="${escapeHtml(attendee.attendee_uuid)}" data-version="${Number(attendance.record_version)}">Reverse check-in</button>` : ''}</div>`;
+		const selectable = attendee.admission?.selection_allowed === true;
+		const blocked = !checkedIn && !selectable;
+		const helper = checkedIn ? `✓ CHECKED IN TODAY${formatLocalTime(attendance.checked_in_at_utc) ? ` at ${escapeHtml(formatLocalTime(attendance.checked_in_at_utc))}` : ''}` : blocked ? '⚠ MANAGER HELP NEEDED' : 'Tap to select this person';
+		return `<div class="desk-attendee-card ${checkedIn ? 'is-checked-in' : ''} ${blocked ? 'is-blocked' : ''}"><label><input type="checkbox" name="selected" value="${escapeHtml(attendee.slot_key)}" ${selectable ? '' : 'disabled'}><span class="desk-select-box">${checkedIn ? icon('check') : blocked ? icon('help') : ''}</span><span><strong>${escapeHtml(attendee.display_name || 'Unnamed attendee')}</strong><small>${helper}</small></span></label><input type="hidden" data-first value="${escapeHtml(attendee.first_name)}"><input type="hidden" data-last value="${escapeHtml(attendee.last_name)}">${state.station.manager_token && checkedIn ? `<button type="button" class="desk-danger desk-manager-action" data-reverse-attendee="${escapeHtml(attendee.attendee_uuid)}" data-version="${Number(attendance.record_version)}">Reverse check-in</button>` : ''}</div>`;
 	}
 
 	function addArrivalRow(container, classification, maximum, name = {}) {
@@ -876,6 +891,9 @@
 			} else if (error.code === 'network_error') {
 				message.innerHTML = `${notice('We could not confirm whether the check-in was saved. Tap Retry; the same check-in will not be counted twice.', 'warning')}<button type="button" id="desk-checkin-retry">RETRY</button>`;
 				message.querySelector('#desk-checkin-retry').addEventListener('click', () => performCheckIn(form, registration, explicitUnpaid, option));
+			} else if (['oras_desk_registration_inactive', 'oras_desk_not_eligible', 'oras_desk_source_changed', 'oras_desk_source_option_changed', 'oras_desk_source_unit_invalid', 'oras_desk_source_review', 'oras_desk_attendance_reversed', 'oras_desk_wrong_date', 'oras_desk_date_changed', 'oras_desk_rsvp_waitlisted', 'oras_desk_rsvp_not_admitted', 'oras_desk_event_dates_unavailable'].includes(error.code)) {
+				resetPending();
+				await showRegistration(registration.registration_uuid, state.detailReturn);
 			} else {
 				message.innerHTML = notice(friendlyError(error), 'error');
 			}
