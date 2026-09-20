@@ -182,6 +182,11 @@ oras_operation_assert( false !== strpos( $desk_js, 'RSVP CONFIRMED' ) && false !
 foreach ( array( 'Historical label ignored by desk', 'needs_review', 'source revoked', 'projection incomplete', 'stale configuration', 'raw REST status', 'raw UUID', 'raw SQL error' ) as $internal_phrase ) {
 	oras_operation_assert( false === strpos( $desk_js, $internal_phrase ), "Volunteer UI omits internal phrase: {$internal_phrase}" );
 }
+oras_operation_assert( false !== strpos( $desk_js, '✓ REGISTRATION VALID' ), 'Eligible detail exposes one unambiguous registration-valid state' );
+oras_operation_assert( false !== strpos( $desk_js, '⚠ MANAGER HELP NEEDED' ) && false !== strpos( $desk_js, 'GET MANAGER HELP' ), 'Blocked detail replaces attendance controls with a clear manager-help state' );
+oras_operation_assert( false !== strpos( $desk_js, 'admission.check_in_allowed' ) && false !== strpos( $desk_js, 'admission.selection_allowed' ), 'Detail controls consume the normalized server admission result' );
+oras_operation_assert( false !== strpos( $desk_js, 'await showRegistration(registration.registration_uuid, state.detailReturn)' ), 'Final stale-admission rejection reloads authoritative registration detail' );
+oras_operation_assert( false !== strpos( $desk_js, 'Operational registration' ) && false !== strpos( $desk_js, 'Canonical source status' ) && false !== strpos( $desk_js, 'Date validity' ), 'Manager detail renders readable admission diagnostics' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $desk_css = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.css' );

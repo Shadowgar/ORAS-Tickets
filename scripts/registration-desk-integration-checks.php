@@ -702,6 +702,9 @@ function oras_desk_integration_canonical_offerings_and_rsvp( array $context ): v
 	oras_desk_integration_same( \ORAS\Tickets\Registration_Desk\RSVP_Capacity::state( $rsvp_cases['available'] )['effective_count'], 2, 'desk RSVP contributes to the same effective capacity' );
 	$desk_waitlist = $create( $rsvp_cases['available'], 'DeskFull' );
 	oras_desk_integration_true( is_array( $desk_waitlist ) && 'rsvp_waitlisted' === $desk_waitlist['historical_result']['result'] && empty( $desk_waitlist['historical_result']['attendance'] ), 'shared capacity prevents a second desk RSVP from overbooking' );
+	$desk_waitlist_detail = $service->detail( $rsvp_cases['available'], (string) $desk_waitlist['historical_result']['registration']['registration_uuid'] );
+	oras_desk_integration_same( $desk_waitlist_detail['admission']['state'] ?? '', 'waitlisted', 'desk RSVP waitlist detail has one authoritative waitlisted state' );
+	oras_desk_integration_same( $desk_waitlist_detail['admission']['check_in_allowed'] ?? null, false, 'waitlisted RSVP detail never offers check-in' );
 	$waitlisted = $create( $rsvp_cases['waitlist'], 'Waitlisted' );
 	oras_desk_integration_true( is_array( $waitlisted ) && 'rsvp_waitlisted' === $waitlisted['historical_result']['result'] && empty( $waitlisted['historical_result']['attendance'] ), 'full RSVP-only event uses its enabled waitlist without check-in' );
 	$refused = $create( $rsvp_cases['full'], 'Refused' );
@@ -963,6 +966,8 @@ function oras_desk_integration_event_roster( array $context ): void {
 	oras_desk_integration_same( $manager_data['manager_detail']['mailing_address']['address_1'] ?? '', '100 Test Lane', 'manager roster detail includes collected mailing address' );
 	oras_desk_integration_same( $manager_data['manager_detail']['source_type'] ?? '', 'complimentary', 'manager roster detail includes registration source' );
 	oras_desk_integration_true( isset( $manager_data['manager_detail']['audit_history'] ), 'manager roster detail includes correction and audit history' );
+	oras_desk_integration_true( isset( $manager_data['manager_detail']['admission_diagnostics']['operational_registration'] ), 'manager roster detail includes readable current admission diagnostics' );
+	oras_desk_integration_true( ! isset( $manager_data['admission']['_diagnostics'] ) && ! isset( $manager_data['admission']['_error_code'] ) && ! isset( $manager_data['admission']['_option'] ), 'registration detail API never exposes internal admission fields to the browser' );
 }
 
 /**
@@ -1667,6 +1672,8 @@ function oras_desk_integration_prepare(): void {
 		'on_hold'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
 		'cancelled'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
 		'stale_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'StaleCancelled' ),
+		'late_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'LateCancelled' ),
+		'refunded'     => oras_desk_integration_order( $product_individual, $event_id, 1, 'refunded', $run, 'Refunded' ),
 		'family'       => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
 		'one_day'      => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
 		'ambiguous'    => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
@@ -1736,6 +1743,14 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_true( count( $service->search( $event_id, 'Concurrent' ) ) >= 1, 'event-scoped operational search finds the supported registration' );
 	oras_desk_integration_same( count( $service->search( $event_id, 'Zznoresult' ) ), 0, 'alphabetic search with no match does not become a wildcard phone search' );
 	oras_desk_integration_error( $service->detail( $other_id, $concurrent_row['registration_uuid'] ), 'oras_desk_registration_missing', 'object access cannot cross the active event boundary' );
+	$valid_detail = $service->detail( $event_id, (string) $concurrent_row['registration_uuid'] );
+	oras_desk_integration_same( $valid_detail['admission']['state'] ?? '', 'eligible', 'valid live source and active desk record have one eligible detail state' );
+	oras_desk_integration_true( true === ( $valid_detail['admission']['selection_allowed'] ?? false ) && true === ( $valid_detail['admission']['check_in_allowed'] ?? false ), 'eligible detail permits both attendee selection and check-in' );
+	$refunded_detail = $service->detail( $event_id, (string) $projected['refunded']['registrations'][0]['registration_uuid'] );
+	oras_desk_integration_same( $refunded_detail['admission']['state'] ?? '', 'revoked', 'refunded live source cannot appear registration-valid' );
+	$past_detail = $service->detail( $past_id, (string) $projected['past']['registrations'][0]['registration_uuid'] );
+	oras_desk_integration_same( $past_detail['admission']['state'] ?? '', 'wrong_day', 'registration detail identifies an event that is not valid today' );
+	oras_desk_integration_same( $past_detail['admission']['check_in_allowed'] ?? null, false, 'wrong-day detail does not offer check-in' );
 
 	$cancel_order = wc_get_order( $orders['cancelled']['order_id'] );
 	$cancel_order->set_status( 'cancelled' );
@@ -1813,6 +1828,12 @@ function oras_desk_integration_prepare(): void {
 	$reverse_request = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/registrations/' . wp_generate_uuid4() . '/attendees/' . wp_generate_uuid4() . '/reverse' );
 	$reverse_denied = rest_do_request( $reverse_request );
 	oras_desk_integration_true( 401 === $reverse_denied->get_status() || 403 === $reverse_denied->get_status(), 'desk role cannot invoke the administrator reversal endpoint' );
+	$blocked_detail_request = new WP_REST_Request( 'GET', '/oras-tickets/v1/registration-desk/registrations/' . (string) $stale_registration['registration_uuid'] );
+	$blocked_detail_request->set_header( 'X-ORAS-Desk-Station', $token_one );
+	$blocked_detail_data = rest_do_request( $blocked_detail_request )->get_data();
+	oras_desk_integration_same( $blocked_detail_data['admission']['state'] ?? '', 'revoked', 'volunteer detail API returns the normalized live-invalid state' );
+	oras_desk_integration_true( ! str_contains( wp_json_encode( $blocked_detail_data ), 'Historical label ignored by desk' ), 'volunteer detail API removes known internal historical wording' );
+	oras_desk_integration_true( ! isset( $blocked_detail_data['admission']['_diagnostics'] ) && ! isset( $blocked_detail_data['admission']['_error_code'] ) && ! isset( $blocked_detail_data['admission']['_option'] ), 'volunteer detail API omits manager-only admission internals' );
 
 	$context = array(
 		'run'                  => $run,
@@ -1875,6 +1896,18 @@ function oras_desk_integration_prepare(): void {
 		'attendance_local_date' => $today,
 		'explicit_unpaid'       => false,
 	);
+	$late_uuid = (string) $context['projected']['late_cancelled'];
+	$late_open_detail = $service->detail( $event_id, $late_uuid );
+	oras_desk_integration_same( $late_open_detail['admission']['state'] ?? '', 'eligible', 'registration is eligible when its detail page first opens' );
+	$listener_callbacks = oras_desk_integration_suspend_hook_class( 'woocommerce_order_status_changed', \ORAS\Tickets\Registration_Desk\Source_Change_Listener::class );
+	$late_order = wc_get_order( $orders['late_cancelled']['order_id'] );
+	$late_order->set_status( 'cancelled' );
+	$late_order->save();
+	oras_desk_integration_restore_hook_class( 'woocommerce_order_status_changed', $listener_callbacks );
+	$late_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	oras_desk_integration_error( $service->check_in( $late_uuid, array_merge( $payload, array( 'arrivals' => array( array( 'slot_key' => 'individual-1', 'first_name' => 'Late', 'last_name' => 'Cancellation' ) ) ) ), $late_context ), 'oras_desk_not_eligible', 'final submission revalidates and refuses a source cancelled after detail loaded' );
+	$late_refreshed_detail = $service->detail( $event_id, $late_uuid );
+	oras_desk_integration_same( $late_refreshed_detail['admission']['state'] ?? '', 'revoked', 'detail refresh reflects the authoritative cancellation after final refusal' );
 	$quantity_two_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
 	oras_desk_integration_error( $service->confirm_and_check_in( $context['quantity_unit_two'], $payload, $quantity_two_context ), 'oras_desk_source_unit_invalid', 'source unit above the current quantity is rejected before refresh' );
 	$quantity_one_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
@@ -1968,6 +2001,9 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_true( is_array( $atomic_retry ) && 'checked_in' === $atomic_retry['historical_result']['result'], 'identical request UUID succeeds after the nonduplicate audit fault is removed' );
 	$completed = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
 	oras_desk_integration_true( is_array( $completed ) && 'checked_in' === $completed['historical_result']['result'], 'actual arriving individual is confirmed and checked in' );
+	$checked_detail = $service->detail( $event_id, (string) $context['projected']['completed'] );
+	oras_desk_integration_same( $checked_detail['admission']['state'] ?? '', 'already_checked_in', 'checked-in registration detail has one checked-in state' );
+	oras_desk_integration_same( $checked_detail['admission']['check_in_allowed'] ?? null, false, 'already-checked-in detail offers no duplicate action' );
 	$replay = $service->confirm_and_check_in( $context['projected']['completed'], $payload, $desk_context );
 	oras_desk_integration_true( is_array( $replay ) && true === $replay['replayed'], 'same request and binding returns its recorded result' );
 	$changed_payload = $payload;
@@ -2100,6 +2136,9 @@ function oras_desk_integration_prepare(): void {
 	wp_set_current_user( (int) $desk_id );
 	$remap_token = Station_Session::issue( (int) $desk_id, $event_id, (int) $config_remapped['revision'], 'Remap Check' );
 	$remap_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config_remapped, $remap_token, wp_generate_uuid4() );
+	$remap_detail = $service->detail( $event_id, (string) $context['projected']['remap'] );
+	oras_desk_integration_same( $remap_detail['admission']['state'] ?? '', 'manager_review_required', 'changed option mapping produces only a manager-review detail state' );
+	oras_desk_integration_same( $remap_detail['admission']['selection_allowed'] ?? null, false, 'mapping-review detail has no selectable attendee' );
 	oras_desk_integration_error( $service->confirm_and_check_in( $context['projected']['remap'], $payload, $remap_context ), 'oras_desk_source_option_changed', 'fresh option remap rejects the stored option before projection refresh' );
 	$remap_refresh = $projector->reconcile_source( $event_id, $orders['remap']['order_id'], $orders['remap']['item_id'], $config_remapped );
 	if ( is_wp_error( $remap_refresh ) ) {
