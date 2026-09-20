@@ -154,23 +154,22 @@ final class Config {
 	/** @param array<int,mixed> $raw @return array<int,array<string,mixed>> */
 	public static function normalize_membership_mappings( array $raw ): array {
 		$mappings = array();
+		$seen     = array();
 		foreach ( $raw as $candidate ) {
 			if ( ! is_array( $candidate ) ) {
 				continue;
 			}
 			$level_id = absint( $candidate['level_id'] ?? 0 );
-			$name     = sanitize_text_field( (string) ( $candidate['display_name'] ?? '' ) );
-			$url      = esc_url_raw( (string) ( $candidate['checkout_url'] ?? '' ) );
-			$price    = preg_replace( '/[^0-9.]/', '', (string) ( $candidate['price'] ?? '' ) ) ?? '';
-			if ( $level_id <= 0 || '' === $name || '' === $url || '' === $price || ! is_numeric( $price ) ) {
+			// Rows saved before canonical resolution did not include this flag. Treat
+			// those complete legacy mappings as enabled while discarding their copied facts.
+			$enabled = array_key_exists( 'event_sale_enabled', $candidate ) ? ! empty( $candidate['event_sale_enabled'] ) : isset( $candidate['display_name'], $candidate['price'], $candidate['checkout_url'] );
+			if ( $level_id <= 0 || ! $enabled || isset( $seen[ $level_id ] ) ) {
 				continue;
 			}
+			$seen[ $level_id ] = true;
 			$mappings[] = array(
-				'level_id'     => $level_id,
-				'display_name' => $name,
-				'price'        => number_format( (float) $price, 2, '.', '' ),
-				'checkout_url' => $url,
-				'behavior'     => 'zero_initial_preserve_recurring',
+				'level_id'           => $level_id,
+				'event_sale_enabled' => true,
 			);
 		}
 
@@ -181,11 +180,24 @@ final class Config {
 	public static function membership_mapping( int $level_id ): ?array {
 		foreach ( self::get_membership_mappings() as $mapping ) {
 			if ( $level_id === (int) $mapping['level_id'] ) {
-				return $mapping;
+				return Membership_Offering_Resolver::resolve( $level_id );
 			}
 		}
 
 		return null;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public static function get_membership_offerings(): array {
+		$offerings = array();
+		foreach ( self::get_membership_mappings() as $mapping ) {
+			$offering = Membership_Offering_Resolver::resolve( (int) $mapping['level_id'] );
+			if ( null !== $offering ) {
+				$offerings[] = $offering;
+			}
+		}
+
+		return $offerings;
 	}
 
 	/** @return true|\WP_Error */

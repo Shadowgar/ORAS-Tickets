@@ -13,6 +13,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Audit_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/RSVP_Capacity.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Membership_Offering_Resolver.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Config.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Station_Session.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Event_Catalog.php';

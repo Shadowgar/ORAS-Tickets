@@ -111,6 +111,10 @@ oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/station
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/offerings' ), 'Walk-in choices have a current-offerings route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations' ), 'Search uses operational registrations route' );
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/manager/recovery' ), 'Missing-registration recovery has a manager-only route' );
+oras_operation_assert(
+	1 === preg_match( '#\x27methods\x27\s*=>\s*\x27POST\x27,\s*\x27callback\x27\s*=>\s*array\( \$this, \x27record_membership\x27 \),\s*\x27permission_callback\x27\s*=>\s*array\( \$this, \x27permission_admit\x27 \)#s', $rest_code ),
+	'Normal volunteers may record a paid membership after the external AlfaPOS handoff'
+);
 oras_operation_assert( false !== strpos( $rest_code, '/registration-desk/registrations/manager-verified' ), 'Manager-verified manual registration has a dedicated route' );
 oras_operation_assert( false === strpos( $rest_code, '/orders/(?P<' ), 'No desk route uses an order ID as registration identity' );
 

@@ -123,7 +123,7 @@ final class Rest_Controller {
 				array(
 					'methods'             => 'POST',
 					'callback'            => array( $this, 'record_membership' ),
-					'permission_callback' => array( $this, 'permission_manage' ),
+					'permission_callback' => array( $this, 'permission_admit' ),
 				),
 			)
 		);
@@ -314,7 +314,7 @@ final class Rest_Controller {
 				'config_revision'        => (int) $config['revision'],
 				'operator_label'         => $label,
 				'options'                => $this->current_offerings( $event_id, $config ),
-				'membership_levels'      => Config::get_membership_mappings(),
+				'membership_levels'      => Config::get_membership_offerings(),
 				'local_date'             => wp_date( 'Y-m-d', null, wp_timezone() ),
 				'friendly_date'          => wp_date( 'l, F j, Y', null, wp_timezone() ),
 				'manager_pin_configured' => '' !== (string) get_option( Manager_Access::PIN_HASH_OPTION, '' ),

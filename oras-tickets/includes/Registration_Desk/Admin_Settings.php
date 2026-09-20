@@ -62,13 +62,36 @@ final class Admin_Settings {
 		echo '<input type="hidden" name="event_id" value="' . esc_attr( (string) $event_id ) . '">';
 		echo '<input type="hidden" name="expected_revision" value="' . esc_attr( (string) $config['revision'] ) . '">';
 		echo '<p><label><strong>' . esc_html__( 'New manager PIN', 'oras-tickets' ) . '</strong><br><input type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" name="manager_pin" autocomplete="new-password"> <span class="description">' . esc_html__( 'Leave blank to keep the current PIN.', 'oras-tickets' ) . '</span></label></p>';
-		echo '<h2>' . esc_html__( 'Offline membership activation', 'oras-tickets' ) . '</h2><p class="description">' . esc_html__( 'Map each supported PMPro level to its exact checkout page. Prices and URLs are configuration, never kiosk constants.', 'oras-tickets' ) . '</p>';
-		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'PMPro level ID', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Display name', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Reference price', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Exact checkout URL', 'oras-tickets' ) . '</th></tr></thead><tbody>';
-		$membership_mappings = Config::get_membership_mappings();
-		$membership_mappings[] = array();
-		foreach ( $membership_mappings as $mapping_index => $mapping ) {
+		echo '<h2>' . esc_html__( 'Event-sale memberships', 'oras-tickets' ) . '</h2><p class="description">' . esc_html__( 'Choose which current PMPro levels volunteers may record at the event. Names, prices, renewal terms, and checkout links always come from PMPro.', 'oras-tickets' ) . '</p>';
+		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'Offer at the desk', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Canonical PMPro level', 'oras-tickets' ) . '</th><th>' . esc_html__( 'Current price and term', 'oras-tickets' ) . '</th></tr></thead><tbody>';
+		$enabled_ids = array_map( static fn( array $mapping ): int => (int) $mapping['level_id'], Config::get_membership_mappings() );
+		$membership_offerings = Membership_Offering_Resolver::all();
+		$available_ids = array_map( static fn( array $offering ): int => (int) $offering['level_id'], $membership_offerings );
+		foreach ( $enabled_ids as $missing_id ) {
+			if ( ! in_array( $missing_id, $available_ids, true ) ) {
+				/* translators: %d: missing PMPro membership level ID. */
+				$missing_name = sprintf( __( 'Unavailable PMPro level #%d', 'oras-tickets' ), $missing_id );
+				$membership_offerings[] = array(
+					'level_id'     => $missing_id,
+					'display_name' => $missing_name,
+					'price'        => '',
+					'period_label' => __( 'Not selectable at the desk', 'oras-tickets' ),
+				);
+			}
+		}
+		foreach ( $membership_offerings as $mapping_index => $offering ) {
 			$name = 'membership_levels[' . (int) $mapping_index . ']';
-			echo '<tr><td><input type="number" min="1" name="' . esc_attr( $name . '[level_id]' ) . '" value="' . esc_attr( (string) ( $mapping['level_id'] ?? '' ) ) . '"></td><td><input name="' . esc_attr( $name . '[display_name]' ) . '" value="' . esc_attr( (string) ( $mapping['display_name'] ?? '' ) ) . '"></td><td><input inputmode="decimal" name="' . esc_attr( $name . '[price]' ) . '" value="' . esc_attr( (string) ( $mapping['price'] ?? '' ) ) . '"></td><td><input type="url" class="large-text" name="' . esc_attr( $name . '[checkout_url]' ) . '" value="' . esc_attr( (string) ( $mapping['checkout_url'] ?? '' ) ) . '"></td></tr>';
+			$level_id = (int) $offering['level_id'];
+			echo '<tr><td><input type="hidden" name="' . esc_attr( $name . '[level_id]' ) . '" value="' . esc_attr( (string) $level_id ) . '"><input type="hidden" name="' . esc_attr( $name . '[event_sale_enabled]' ) . '" value="0"><label><input type="checkbox" name="' . esc_attr( $name . '[event_sale_enabled]' ) . '" value="1" ' . checked( in_array( $level_id, $enabled_ids, true ), true, false ) . '> ' . esc_html__( 'Enabled', 'oras-tickets' ) . '</label></td><td><strong>' . esc_html( (string) $offering['display_name'] ) . '</strong><br><code>#' . esc_html( (string) $level_id ) . '</code></td><td>';
+			if ( '' !== (string) $offering['price'] ) {
+				echo esc_html( '$' . number_format( (float) $offering['price'], 2 ) . ' · ' . (string) $offering['period_label'] );
+			} else {
+				echo esc_html( (string) $offering['period_label'] );
+			}
+			echo '</td></tr>';
+		}
+		if ( empty( $membership_offerings ) ) {
+			echo '<tr><td colspan="3">' . esc_html__( 'No PMPro membership levels are currently available.', 'oras-tickets' ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
 		echo '<h2>' . esc_html( get_the_title( $event_id ) ) . '</h2><p><label><input type="checkbox" name="enabled" value="1" ' . checked( ! empty( $config['enabled'] ), true, false ) . '> ' . esc_html__( 'Enable the volunteer desk for this event', 'oras-tickets' ) . '</label></p>';
