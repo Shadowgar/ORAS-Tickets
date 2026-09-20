@@ -560,10 +560,9 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 	$wrong_date = ( new Service() )->create_walk_in( $payload_for( 'WrongDate', 'paid_card', $canonical_past ), $past_context );
 	oras_desk_integration_error( $wrong_date, 'oras_desk_wrong_date', 'final service validation remains authoritative behind the station-ended guard' );
 
-	$catalog_ids = array_map( 'intval', array_column( Event_Catalog::current_year(), 'event_id' ) );
-	oras_desk_integration_true( ! in_array( $past_event, $catalog_ids, true ), 'past one-day event is excluded from the real station event picker catalog' );
-	oras_desk_integration_true( in_array( (int) $context['catalog_fixture']['running_event_id'], $catalog_ids, true ), 'currently running multi-day event remains in the station event picker' );
-	oras_desk_integration_true( in_array( (int) $context['catalog_fixture']['future_event_id'], $catalog_ids, true ), 'future current-year event remains in the station event picker' );
+	oras_desk_integration_true( null === Event_Catalog::find( $past_event ), 'past one-day event is excluded from station event selection' );
+	oras_desk_integration_true( null !== Event_Catalog::find( (int) $context['catalog_fixture']['running_event_id'] ), 'currently running multi-day event remains eligible for station selection' );
+	oras_desk_integration_true( null !== Event_Catalog::find( (int) $context['catalog_fixture']['future_event_id'] ), 'future current-year event remains eligible for station selection' );
 	$board_event_ids = array_map( static fn( WP_Post $event ): int => (int) $event->ID, ( new Board_Report_Service() )->get_events() );
 	oras_desk_integration_true( in_array( $past_event, $board_event_ids, true ), 'past event remains available in Board Reports' );
 
