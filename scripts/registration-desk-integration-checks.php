@@ -1103,7 +1103,7 @@ function oras_desk_integration_paid_not_found_recovery( array $context ): array 
 
 /** @param array<string,mixed> $context @return array<string,mixed> */
 function oras_desk_integration_membership_workflow( array $context ): array {
-	global $wpdb;
+	global $wpdb, $pmpro_levels;
 	$level = array(
 		'id'                => 701,
 		'name'              => 'Fixture Annual Membership',
@@ -1196,6 +1196,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 			),
 			array( 'id' => $level_id )
 		);
+		unset( $pmpro_levels[ $level_id ] );
 		wp_cache_flush();
 	} else {
 		$level['id'] = $level_id;
