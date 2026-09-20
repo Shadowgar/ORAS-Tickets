@@ -1666,23 +1666,23 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_same( Config::get_active_event_id(), $event_id, 'active-event failure leaves the prior active event visible after rollback' );
 
 	$orders = array(
-		'concurrent'   => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
-		'atomic'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Atomic' ),
-		'completed'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
-		'on_hold'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
-		'cancelled'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
+		'concurrent'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Concurrent' ),
+		'atomic'          => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Atomic' ),
+		'completed'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
+		'on_hold'         => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
+		'cancelled'       => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
 		'stale_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'StaleCancelled' ),
-		'late_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'LateCancelled' ),
-		'refunded'     => oras_desk_integration_order( $product_individual, $event_id, 1, 'refunded', $run, 'Refunded' ),
-		'family'       => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
-		'one_day'      => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
-		'ambiguous'    => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
-		'unclassified' => oras_desk_integration_order( $product_unknown, $event_id, 1, 'completed', $run, 'Unknown' ),
-		'cross_event'  => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
-		'partial'      => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
-		'past'         => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
-		'quantity'     => oras_desk_integration_order( $product_individual, $event_id, 2, 'processing', $run, 'Quantity' ),
-		'remap'        => oras_desk_integration_order( $product_remap, $event_id, 1, 'processing', $run, 'Remap' ),
+		'late_cancelled'  => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'LateCancelled' ),
+		'refunded'        => oras_desk_integration_order( $product_individual, $event_id, 1, 'refunded', $run, 'Refunded' ),
+		'family'          => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
+		'one_day'         => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
+		'ambiguous'       => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
+		'unclassified'    => oras_desk_integration_order( $product_unknown, $event_id, 1, 'completed', $run, 'Unknown' ),
+		'cross_event'     => oras_desk_integration_order( $product_individual, $other_id, 1, 'completed', $run, 'CrossEvent' ),
+		'partial'         => oras_desk_integration_order( $product_individual, $event_id, 2, 'completed', $run, 'Partial' ),
+		'past'            => oras_desk_integration_order( $product_individual, $past_id, 1, 'completed', $run, 'Past' ),
+		'quantity'        => oras_desk_integration_order( $product_individual, $event_id, 2, 'processing', $run, 'Quantity' ),
+		'remap'           => oras_desk_integration_order( $product_remap, $event_id, 1, 'processing', $run, 'Remap' ),
 	);
 	$refund = wc_create_refund(
 		array(
@@ -1896,7 +1896,13 @@ function oras_desk_integration_prepare(): void {
 	$late_payload = array(
 		'attendance_local_date' => $today,
 		'explicit_unpaid'       => false,
-		'arrivals'              => array( array( 'slot_key' => 'individual-1', 'first_name' => 'Late', 'last_name' => 'Cancellation' ) ),
+		'arrivals'              => array(
+			array(
+				'slot_key'   => 'individual-1',
+				'first_name' => 'Late',
+				'last_name'  => 'Cancellation',
+			),
+		),
 	);
 	oras_desk_integration_error( $service->check_in( $late_uuid, $late_payload, $late_context ), 'oras_desk_not_eligible', 'final submission revalidates and refuses a source cancelled after detail loaded' );
 	$late_refreshed_detail = $service->detail( $event_id, $late_uuid );

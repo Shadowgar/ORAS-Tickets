@@ -1106,14 +1106,14 @@ final class Service {
 				'revoked' => 'Revoked',
 				default   => 'Manager review required',
 			},
-			'canonical_source_status'   => 'Not applicable',
-			'event_entitlement'         => 'Not yet confirmed',
-			'ticket_mapping'            => 'Not yet confirmed',
-			'selected_event'            => sprintf( '%s (event %d)', '' !== $event_title ? $event_title : 'Selected event', (int) $registration['event_id'] ),
-			'date_validity'             => 'Not yet confirmed',
-			'source_lifecycle'          => 'Not applicable',
-			'source_quantity'           => 'Not applicable',
-			'historical_mapping'        => 'No ambiguity detected',
+			'canonical_source_status'  => 'Not applicable',
+			'event_entitlement'        => 'Not yet confirmed',
+			'ticket_mapping'           => 'Not yet confirmed',
+			'selected_event'           => sprintf( '%s (event %d)', '' !== $event_title ? $event_title : 'Selected event', (int) $registration['event_id'] ),
+			'date_validity'            => 'Not yet confirmed',
+			'source_lifecycle'         => 'Not applicable',
+			'source_quantity'          => 'Not applicable',
+			'historical_mapping'       => 'No ambiguity detected',
 		);
 		if ( 'active' !== (string) $registration['status'] ) {
 			$state = 'revoked' === (string) $registration['status'] ? 'revoked' : 'manager_review_required';
