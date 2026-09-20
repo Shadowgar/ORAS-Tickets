@@ -1883,6 +1883,24 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_event_roster( $context );
 	$context['order_ids'] = array_merge( $context['order_ids'], oras_desk_integration_paid_not_found_recovery( $context ) );
 	$context['membership_fixture'] = oras_desk_integration_membership_workflow( $context );
+	$config = Config::get_event_config( $event_id );
+	$late_uuid = (string) $context['projected']['late_cancelled'];
+	$late_open_detail = $service->detail( $event_id, $late_uuid );
+	oras_desk_integration_same( $late_open_detail['admission']['state'] ?? '', 'eligible', 'registration is eligible when its detail page first opens' );
+	$listener_callbacks = oras_desk_integration_suspend_hook_class( 'woocommerce_order_status_changed', \ORAS\Tickets\Registration_Desk\Source_Change_Listener::class );
+	$late_order = wc_get_order( $orders['late_cancelled']['order_id'] );
+	$late_order->set_status( 'cancelled' );
+	$late_order->save();
+	oras_desk_integration_restore_hook_class( 'woocommerce_order_status_changed', $listener_callbacks );
+	$late_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
+	$late_payload = array(
+		'attendance_local_date' => $today,
+		'explicit_unpaid'       => false,
+		'arrivals'              => array( array( 'slot_key' => 'individual-1', 'first_name' => 'Late', 'last_name' => 'Cancellation' ) ),
+	);
+	oras_desk_integration_error( $service->check_in( $late_uuid, $late_payload, $late_context ), 'oras_desk_not_eligible', 'final submission revalidates and refuses a source cancelled after detail loaded' );
+	$late_refreshed_detail = $service->detail( $event_id, $late_uuid );
+	oras_desk_integration_same( $late_refreshed_detail['admission']['state'] ?? '', 'revoked', 'detail refresh reflects the authoritative cancellation after final refusal' );
 	$context['baseline']              = oras_desk_integration_protected_snapshot( $context );
 	$context['prepare_http_baseline'] = oras_desk_integration_hash( oras_desk_integration_http_evidence( 'phase:prepare' ) );
 	update_option( 'oras_registration_desk_integration_context', $context, false );
@@ -1896,18 +1914,6 @@ function oras_desk_integration_prepare(): void {
 		'attendance_local_date' => $today,
 		'explicit_unpaid'       => false,
 	);
-	$late_uuid = (string) $context['projected']['late_cancelled'];
-	$late_open_detail = $service->detail( $event_id, $late_uuid );
-	oras_desk_integration_same( $late_open_detail['admission']['state'] ?? '', 'eligible', 'registration is eligible when its detail page first opens' );
-	$listener_callbacks = oras_desk_integration_suspend_hook_class( 'woocommerce_order_status_changed', \ORAS\Tickets\Registration_Desk\Source_Change_Listener::class );
-	$late_order = wc_get_order( $orders['late_cancelled']['order_id'] );
-	$late_order->set_status( 'cancelled' );
-	$late_order->save();
-	oras_desk_integration_restore_hook_class( 'woocommerce_order_status_changed', $listener_callbacks );
-	$late_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
-	oras_desk_integration_error( $service->check_in( $late_uuid, array_merge( $payload, array( 'arrivals' => array( array( 'slot_key' => 'individual-1', 'first_name' => 'Late', 'last_name' => 'Cancellation' ) ) ) ), $late_context ), 'oras_desk_not_eligible', 'final submission revalidates and refuses a source cancelled after detail loaded' );
-	$late_refreshed_detail = $service->detail( $event_id, $late_uuid );
-	oras_desk_integration_same( $late_refreshed_detail['admission']['state'] ?? '', 'revoked', 'detail refresh reflects the authoritative cancellation after final refusal' );
 	$quantity_two_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
 	oras_desk_integration_error( $service->confirm_and_check_in( $context['quantity_unit_two'], $payload, $quantity_two_context ), 'oras_desk_source_unit_invalid', 'source unit above the current quantity is rejected before refresh' );
 	$quantity_one_context = oras_desk_integration_context( (int) $desk_id, $event_id, $config, $token_one, wp_generate_uuid4() );
