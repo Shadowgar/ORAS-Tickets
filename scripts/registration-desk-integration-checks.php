@@ -1666,6 +1666,7 @@ function oras_desk_integration_prepare(): void {
 		'completed'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'completed', $run, 'Completed' ),
 		'on_hold'      => oras_desk_integration_order( $product_individual, $event_id, 1, 'on-hold', $run, 'OnHold' ),
 		'cancelled'    => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'Cancelled' ),
+		'stale_cancelled' => oras_desk_integration_order( $product_individual, $event_id, 1, 'processing', $run, 'StaleCancelled' ),
 		'family'       => oras_desk_integration_order( $product_family, $event_id, 1, 'completed', $run, 'Family' ),
 		'one_day'      => oras_desk_integration_order( $product_day, $event_id, 1, 'completed', $run, 'OneDay' ),
 		'ambiguous'    => oras_desk_integration_order( $product_ambiguous, $event_id, 1, 'completed', $run, 'Ambiguous' ),
@@ -1740,6 +1741,17 @@ function oras_desk_integration_prepare(): void {
 	$cancel_order->set_status( 'cancelled' );
 	$cancel_order->save();
 	oras_desk_integration_pass( 'cancellation fixture changed after projection/search and before desk admission' );
+	$listener_callbacks = oras_desk_integration_suspend_hook_class( 'woocommerce_order_status_changed', \ORAS\Tickets\Registration_Desk\Source_Change_Listener::class );
+	$stale_cancel_order = wc_get_order( $orders['stale_cancelled']['order_id'] );
+	$stale_cancel_order->set_status( 'cancelled' );
+	$stale_cancel_order->save();
+	oras_desk_integration_restore_hook_class( 'woocommerce_order_status_changed', $listener_callbacks );
+	$stale_registration = $registration_store->find_by_uuid( (string) $projected['stale_cancelled']['registrations'][0]['registration_uuid'] );
+	oras_desk_integration_same( $stale_registration['status'] ?? '', 'active', 'synthetic contradiction retains an active stored projection after the live source is cancelled' );
+	$stale_detail = $service->detail( $event_id, (string) $stale_registration['registration_uuid'] );
+	oras_desk_integration_same( $stale_detail['admission']['state'] ?? '', 'revoked', 'detail uses live source cancellation as the authoritative admission state' );
+	oras_desk_integration_same( $stale_detail['admission']['selection_allowed'] ?? null, false, 'live-invalid detail does not permit attendee selection' );
+	oras_desk_integration_same( $stale_detail['admission']['check_in_allowed'] ?? null, false, 'live-invalid detail does not offer check-in' );
 
 	$now = gmdate( 'Y-m-d H:i:s' );
 	$source_null_uuid = wp_generate_uuid4();
