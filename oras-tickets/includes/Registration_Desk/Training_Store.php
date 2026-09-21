@@ -68,7 +68,7 @@ final class Training_Store extends Store {
 
 	/**
 	 * @template T
-	 * @param callable(array<string,mixed>,array<string,mixed>):array{state:array<string,mixed>,result:T}|\WP_Error $transition
+	 * @param callable(array<string,mixed>,array<string,mixed>):(array{state:array<string,mixed>,result:T}|\WP_Error) $transition
 	 * @return T|\WP_Error
 	 */
 	public function mutate( string $station_uuid, int $expected_revision, callable $transition ) {
