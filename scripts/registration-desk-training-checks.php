@@ -218,4 +218,122 @@ foreach ( array( 'wc_get_orders', 'wc_get_order', 'WP_Query', 'oras_event_regist
 	oras_training_assert( false === strpos( $service_source, $forbidden ), "Training seeding avoids live order/registration lookup: {$forbidden}" );
 }
 
+$operation_context = array(
+	'training_uuid'          => '33333333-3333-4333-8333-333333333333',
+	'simulated_local_date'   => '2026-10-06',
+	'event_start_date'       => '2026-10-06',
+	'event_end_date'         => '2026-10-11',
+	'config_revision'        => 7,
+	'current_config_revision' => 7,
+	'canonical_offerings'    => $offerings,
+	'occurred_at_utc'        => '2026-09-21 14:00:00',
+);
+$individual = $family = null;
+foreach ( $seed_a['registrations'] as $registration ) {
+	if ( 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' === $registration['option_uuid'] ) {
+		$individual = $registration;
+	}
+	if ( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' === $registration['option_uuid'] ) {
+		$family = $registration;
+	}
+}
+oras_training_assert( is_array( $individual ) && is_array( $family ), 'Operation fixtures resolve seeded individual and family registrations' );
+
+$individual_request = array(
+	'request_uuid'      => '44444444-4444-4444-8444-444444444444',
+	'registration_uuid' => $individual['registration_uuid'],
+	'attendee_uuids'    => array( $individual['attendees'][0]['attendee_uuid'] ),
+);
+$individual_check_in = $service_class::check_in_state( $seed_a, $individual_request, $operation_context );
+oras_training_assert( is_array( $individual_check_in ) && isset( $individual_check_in['state'], $individual_check_in['result'] ), 'Seeded individual can check in on the simulated date' );
+$state_after_individual = $individual_check_in['state'];
+oras_training_assert( 1 === count( $state_after_individual['attendance']['2026-10-06'] ?? array() ), 'Training attendance is stored under the simulated event date' );
+
+$selected_family = array( $family['attendees'][0]['attendee_uuid'], $family['attendees'][2]['attendee_uuid'] );
+$family_check_in = $service_class::check_in_state(
+	$state_after_individual,
+	array(
+		'request_uuid'      => '55555555-5555-4555-8555-555555555555',
+		'registration_uuid' => $family['registration_uuid'],
+		'attendee_uuids'    => $selected_family,
+	),
+	$operation_context
+);
+oras_training_assert( is_array( $family_check_in ) && 2 === count( $family_check_in['result']['attendee_uuids'] ?? array() ), 'Training family check-in honors selected attendees' );
+$state_after_family = $family_check_in['state'];
+oras_training_assert( 3 === count( $state_after_family['attendance']['2026-10-06'] ?? array() ), 'Selected family attendance is added without duplicating the individual' );
+
+$later_roster = $service_class::roster( $state_after_family, array( 'status' => 'checked_in' ), '2026-10-07' );
+oras_training_assert( 0 === count( $later_roster['items'] ?? array() ), 'Prior-day check-ins do not count on a newly selected training date' );
+oras_training_assert( 3 === count( $state_after_family['attendance']['2026-10-06'] ?? array() ), 'Prior-day check-ins remain in training history after a date change' );
+
+$replay = $service_class::check_in_state( $state_after_individual, $individual_request, $operation_context );
+oras_training_assert( is_array( $replay ) && $individual_check_in['result'] === $replay['result'], 'Identical request replay returns the historical result' );
+oras_training_assert( $state_after_individual === $replay['state'], 'Identical request replay does not duplicate attendance' );
+$request_conflict = $individual_request;
+$request_conflict['attendee_uuids'] = array();
+$conflict = $service_class::check_in_state( $state_after_individual, $request_conflict, $operation_context );
+oras_training_assert( $conflict instanceof WP_Error && 'oras_desk_training_request_conflict' === $conflict->get_error_code(), 'Request UUID reuse with another payload fails closed' );
+
+$stale_offerings = $offerings;
+$stale_offerings[0]['offering_fingerprint'] = str_repeat( '9', 64 );
+$stale_operation_context = $operation_context;
+$stale_operation_context['canonical_offerings'] = $stale_offerings;
+$stale_check_in = $service_class::check_in_state( $seed_a, $individual_request, $stale_operation_context );
+oras_training_assert( $stale_check_in instanceof WP_Error && 'oras_desk_training_offering_changed' === $stale_check_in->get_error_code(), 'Training transition fails closed when its canonical offering changed' );
+
+$walk_in_state = $seed_a;
+foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $payment_index => $payment_assertion ) {
+	$walk_in = $service_class::walk_in_state(
+		$walk_in_state,
+		array(
+			'request_uuid'        => sprintf( '66666666-6666-4666-8666-%012d', $payment_index + 1 ),
+			'option_uuid'         => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+			'offering_fingerprint' => str_repeat( '1', 64 ),
+			'contact_name'        => 'Practice Guest ' . ( $payment_index + 1 ),
+			'email'               => 'practice' . ( $payment_index + 1 ) . '@example.invalid',
+			'phone'               => '555-0199',
+			'attendees'           => array( array( 'name' => 'Practice Guest ' . ( $payment_index + 1 ) ) ),
+			'payment_assertion'    => $payment_assertion,
+		),
+		$operation_context
+	);
+	oras_training_assert( is_array( $walk_in ), "Training walk-in accepts {$payment_assertion} as a simulation-only assertion" );
+	$walk_in_state = $walk_in['state'];
+}
+$walk_in_roster = $service_class::roster( $walk_in_state, array( 'status' => 'walk_in' ), '2026-10-06' );
+oras_training_assert( 4 === count( $walk_in_roster['items'] ?? array() ), 'Training walk-ins persist in the isolated roster across refreshes' );
+
+$family_walk_in = $service_class::walk_in_state(
+	$walk_in_state,
+	array(
+		'request_uuid'        => '77777777-7777-4777-8777-777777777777',
+		'option_uuid'         => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+		'offering_fingerprint' => str_repeat( '2', 64 ),
+		'contact_name'        => 'Practice Family',
+		'email'               => 'practice.family@example.invalid',
+		'attendees'           => array( array( 'name' => 'Adult One' ), array( 'name' => 'Youth Two' ) ),
+		'payment_assertion'    => 'paid_cash',
+	),
+	$operation_context
+);
+oras_training_assert( is_array( $family_walk_in ) && 2 === count( $family_walk_in['result']['attendee_uuids'] ?? array() ), 'Training family walk-in preserves its attendee set' );
+
+$wrong_one_day_context = $operation_context;
+$wrong_one_day_context['simulated_local_date'] = '2026-10-07';
+$wrong_one_day = $service_class::walk_in_state(
+	$walk_in_state,
+	array(
+		'request_uuid'        => '88888888-8888-4888-8888-888888888888',
+		'option_uuid'         => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+		'offering_fingerprint' => str_repeat( '3', 64 ),
+		'contact_name'        => 'Practice Student',
+		'attendees'           => array( array( 'name' => 'Practice Student' ) ),
+		'payment_assertion'    => 'unpaid',
+	),
+	$wrong_one_day_context
+);
+oras_training_assert( $wrong_one_day instanceof WP_Error && 'oras_desk_training_date_invalid' === $wrong_one_day->get_error_code(), 'One-day training walk-in cannot be recorded on another simulated date' );
+oras_training_assert( false === strpos( $service_source, 'Registration_Store' ) && false === strpos( $service_source, 'Attendance_Store' ), 'Training operations have no fallback to live stores' );
+
 echo "Registration Desk training checks passed.\n";

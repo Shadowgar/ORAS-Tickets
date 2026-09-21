@@ -26,7 +26,7 @@ function oras_operation_assert( bool $condition, string $message ): void {
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
-foreach ( array( 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Recovery_Service.php', 'Service.php', 'Rest_Controller.php' ) as $file ) {
+foreach ( array( 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Recovery_Service.php', 'Service.php', 'Training_Service.php', 'Rest_Controller.php' ) as $file ) {
 	oras_operation_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
@@ -36,8 +36,13 @@ $rest    = '\\ORAS\\Tickets\\Registration_Desk\\Rest_Controller';
 $registration_store = '\\ORAS\\Tickets\\Registration_Desk\\Registration_Store';
 $attendee_store     = '\\ORAS\\Tickets\\Registration_Desk\\Attendee_Store';
 $attendance_store   = '\\ORAS\\Tickets\\Registration_Desk\\Attendance_Store';
+$training_service   = '\\ORAS\\Tickets\\Registration_Desk\\Training_Service';
 oras_operation_assert( class_exists( $service ), 'Attendance service loads' );
 oras_operation_assert( class_exists( $rest ), 'REST controller loads' );
+oras_operation_assert( class_exists( $training_service ), 'Training operation service loads separately' );
+foreach ( array( 'check_in_state', 'walk_in_state' ) as $method ) {
+	oras_operation_assert( method_exists( $training_service, $method ), "Training service exposes isolated {$method}" );
+}
 
 $hash_a = $service::payload_hash(
 	array(
@@ -92,7 +97,10 @@ oras_operation_assert( method_exists( $attendance_store, 'for_attendees_on_date'
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $service_code = (string) file_get_contents( $base . 'Service.php' );
+$training_service_code = (string) file_get_contents( $base . 'Training_Service.php' );
 oras_operation_assert( false !== strpos( $service_code, 'Store::transaction' ), 'Business mutation and audit use a database transaction' );
+oras_operation_assert( false !== strpos( $training_service_code, "'attendance'" ) && false !== strpos( $training_service_code, "'requests'" ), 'Training operations persist attendance and idempotency in isolated state' );
+oras_operation_assert( false === strpos( $training_service_code, '$wpdb' ) && false === strpos( $training_service_code, 'Registration_Store' ), 'Training operations cannot fall through to live persistence' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $attendee_store_code = (string) file_get_contents( $base . 'Attendee_Store.php' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
