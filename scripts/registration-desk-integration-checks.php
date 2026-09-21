@@ -14,6 +14,7 @@ use ORAS\Tickets\Registration_Desk\Config;
 use ORAS\Tickets\Registration_Desk\Coverage_Store;
 use ORAS\Tickets\Registration_Desk\Event_Catalog;
 use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
+use ORAS\Tickets\Registration_Desk\Event_Stats_Service;
 use ORAS\Tickets\Registration_Desk\Manager_Access;
 use ORAS\Tickets\Registration_Desk\Membership_Credit_Service;
 use ORAS\Tickets\Registration_Desk\Membership_Offering_Resolver;
@@ -24,6 +25,9 @@ use ORAS\Tickets\Registration_Desk\Registration_Store;
 use ORAS\Tickets\Registration_Desk\Schema;
 use ORAS\Tickets\Registration_Desk\Service;
 use ORAS\Tickets\Registration_Desk\Station_Session;
+use ORAS\Tickets\Registration_Desk\Training_Context;
+use ORAS\Tickets\Registration_Desk\Training_Service;
+use ORAS\Tickets\Registration_Desk\Training_Store;
 use ORAS\Tickets\Reporting\Board_Report_Service;
 
 if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) || ! WP_CLI ) {
@@ -303,6 +307,7 @@ function oras_desk_integration_http_evidence( string $scope = '' ): array {
 /** Capture every protected non-desk surface after fixture setup. */
 function oras_desk_integration_protected_snapshot( array $context ): array {
 	global $wpdb;
+	$tables = Schema::table_names();
 	$orders = array();
 	foreach ( $context['order_ids'] as $order_id ) {
 		$orders[ $order_id ] = oras_desk_integration_order_snapshot( (int) $order_id );
@@ -329,7 +334,17 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		$membership_counts[ $post_type ] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s", $post_type ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
 	}
 	$pmpro_table = $wpdb->prefix . 'pmpro_memberships_users';
-	$membership_counts['pmpro'] = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $pmpro_table ) ) === $pmpro_table ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$pmpro_table}" ) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+	$pmpro_rows  = array();
+	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $pmpro_table ) ) === $pmpro_table ) {
+		$pmpro_rows = $wpdb->get_results( "SELECT * FROM {$pmpro_table} ORDER BY id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed prefixed test table.
+	}
+	$membership_counts['pmpro'] = count( $pmpro_rows );
+	$live_desk_rows = array();
+	foreach ( array( 'registrations', 'attendees', 'attendance', 'audit', 'offline_memberships' ) as $table_key ) {
+		$table = $tables[ $table_key ];
+		$live_desk_rows[ $table_key ] = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY id", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table.
+	}
+	$stats_event_id = (int) ( $context['synthetic_ticketed_a']['event_id'] ?? $context['event_id'] ?? 0 );
 	$order_query = wc_get_orders(
 		array(
 			'limit'    => 1,
@@ -347,7 +362,10 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		'orders'        => oras_desk_integration_hash( $orders ),
 		'products'      => oras_desk_integration_hash( $products ),
 		'users'         => oras_desk_integration_hash( array( $users, $usermeta ) ),
-		'memberships'   => oras_desk_integration_hash( $membership_counts ),
+		'memberships'   => oras_desk_integration_hash( array( $membership_counts, $pmpro_rows ) ),
+		'live_desk'     => oras_desk_integration_hash( $live_desk_rows ),
+		'event_stats'   => oras_desk_integration_hash( ( new Event_Stats_Service() )->for_event( $stats_event_id, (string) ( $context['today'] ?? '' ) ) ),
+		'board_totals'  => oras_desk_integration_hash( ( new Board_Report_Service() )->get_event_statistics( $stats_event_id ) ),
 		'qbo_actions'   => oras_desk_integration_hash( $scheduled ),
 		'mail_log'      => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
 		'write_log'     => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
@@ -1539,6 +1557,199 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	);
 }
 
+/** Prove the complete training lifecycle is durable and isolated from every live reporting surface. */
+function oras_desk_integration_training_workflow( array $context ): void {
+	global $wpdb;
+	$event_id    = (int) $context['synthetic_ticketed_a']['event_id'];
+	$config      = Config::get_event_config( $event_id );
+	$event       = Event_Catalog::find_any( $event_id );
+	$offerings   = Training_Service::canonical_offerings( $event_id, $config );
+	$memberships = Training_Service::canonical_membership_offerings();
+	if ( ! is_array( $event ) || count( $offerings ) < 4 || empty( $memberships ) ) {
+		oras_desk_integration_fail( 'training fixtures do not expose the required event and membership configuration.' );
+	}
+
+	wp_set_current_user( (int) $context['desk_id'] );
+	$issued = Station_Session::issue_training( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Training Volunteer', (string) $event['start_date'] );
+	if ( is_wp_error( $issued ) ) {
+		oras_desk_integration_fail( 'training station token could not be issued.' );
+	}
+	$station       = $issued['payload'];
+	$training_uuid = wp_generate_uuid4();
+	$store         = new Training_Store();
+	$tables        = Schema::table_names();
+	$before_rows   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table.
+	$live_before   = oras_desk_integration_protected_snapshot( $context );
+	$created       = $store->create(
+		array(
+			'training_uuid'       => $training_uuid,
+			'station_uuid'        => (string) $station['station_uuid'],
+			'user_id'             => (int) $station['user_id'],
+			'wp_session'          => (string) $station['wp_session'],
+			'event_id'            => $event_id,
+			'config_revision'     => (int) $config['revision'],
+			'simulated_local_date' => (string) $event['start_date'],
+		),
+		Training_Service::seed_state( $training_uuid, $offerings )
+	);
+	if ( is_wp_error( $created ) ) {
+		oras_desk_integration_fail( 'training session could not be created: ' . $created->get_error_code() );
+	}
+	/* phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table. */
+	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ), $before_rows + 1, 'training start creates exactly one isolated station row' );
+	oras_desk_integration_same( (string) $created['simulated_local_date'], (string) $event['start_date'], 'training defaults to the selected event start date' );
+	oras_desk_integration_same( count( $created['state']['registrations'] ), count( $offerings ), 'training roster contains one synthetic registration per canonical offering' );
+	oras_desk_integration_same( count( Training_Service::roster( $created['state'], array( 'q' => 'DEMO' ), (string) $created['simulated_local_date'] )['items'] ), count( $offerings ), 'training roster search returns only the seeded synthetic people' );
+
+	$resolved = Training_Context::validate_binding( $station, $created, $config, $event );
+	oras_desk_integration_true( is_array( $resolved ), 'training context is bound to its station, event, configuration revision, and simulated date' );
+	$changed_config = $config;
+	$changed_config['revision'] = (int) $config['revision'] + 1;
+	oras_desk_integration_error( Training_Context::validate_binding( $station, $created, $changed_config, $event ), 'oras_desk_training_config_changed', 'training fails closed when the event configuration revision changes' );
+
+	$live_issued = Station_Session::issue( (int) $context['desk_id'], $event_id, (int) $config['revision'], 'Live Volunteer' );
+	$live_station = Station_Session::validate( $live_issued, (int) $context['desk_id'], $event_id, (int) $config['revision'] );
+	oras_desk_integration_true( is_array( $live_station ) && true === ( new Training_Context( $store ) )->assert_station_live( $live_station ), 'a second station remains independently live while Training Mode is active' );
+	$live_route = oras_desk_integration_rest_offerings( (string) $issued['token'] );
+	oras_desk_integration_true( 409 === $live_route->get_status() && 'oras_desk_training_live_route_forbidden' === ( $live_route->get_data()['code'] ?? '' ), 'a training token cannot be reused against a live Registration Desk endpoint' );
+
+	$operation_context = static function ( array $row ) use ( $config, $event, $offerings, $memberships, $training_uuid ): array {
+		return array(
+			'training_uuid'                 => $training_uuid,
+			'config_revision'               => (int) $row['config_revision'],
+			'current_config_revision'       => (int) $config['revision'],
+			'simulated_local_date'          => (string) $row['simulated_local_date'],
+			'event_start_date'              => (string) $event['start_date'],
+			'event_end_date'                => (string) $event['end_date'],
+			'canonical_offerings'           => $offerings,
+			'canonical_membership_offerings' => $memberships,
+		);
+	};
+	$mutate = static function ( callable $transition ) use ( $store, $station ): array {
+		$row    = $store->find_for_station( (string) $station['station_uuid'] );
+		$result = is_array( $row ) ? $store->mutate( (string) $station['station_uuid'], (int) $row['record_version'], $transition ) : new WP_Error( 'missing', 'missing' );
+		if ( is_wp_error( $result ) ) {
+			oras_desk_integration_fail( 'training transition failed: ' . $result->get_error_code() );
+		}
+		return $result;
+	};
+
+	$seeded = array_values( $created['state']['registrations'] );
+	$individual = null;
+	$family     = null;
+	foreach ( $seeded as $registration ) {
+		if ( 'full_event' !== (string) ( $registration['validity_type'] ?? '' ) ) {
+			continue;
+		}
+		if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
+			$family = $registration;
+		} elseif ( null === $individual ) {
+			$individual = $registration;
+		}
+	}
+	if ( ! is_array( $individual ) || ! is_array( $family ) ) {
+		oras_desk_integration_fail( 'training fixtures require full-event individual and family registrations.' );
+	}
+	$check_in = static function ( array $registration, int $count ) use ( $mutate, $operation_context ): array {
+		$attendee_uuids = array_slice( array_column( $registration['attendees'], 'attendee_uuid' ), 0, $count );
+		$payload = array(
+			'request_uuid'     => wp_generate_uuid4(),
+			'registration_uuid' => (string) $registration['registration_uuid'],
+			'attendee_uuids'    => $attendee_uuids,
+		);
+		return $mutate(
+			static function ( array $state, array $row ) use ( $payload, $operation_context ) {
+				return Training_Service::check_in_state( $state, $payload, $operation_context( $row ) );
+			}
+		);
+	};
+	$check_in( $individual, 1 );
+	$check_in( $family, 2 );
+	$row_on_first_date = $store->find_for_station( (string) $station['station_uuid'] );
+	oras_desk_integration_same( Training_Service::stats( $row_on_first_date['state'], (string) $row_on_first_date['simulated_local_date'] )['today']['actual_people'], 3, 'individual and selected family attendees check in on the first simulated date' );
+
+	$second_date = (string) $event['end_date'];
+	$changed = $store->change_date( (string) $station['station_uuid'], (int) $row_on_first_date['record_version'], $second_date );
+	if ( is_wp_error( $changed ) ) {
+		oras_desk_integration_fail( 'training date could not be changed.' );
+	}
+	$reissued = Station_Session::reissue_training( $station, $second_date );
+	if ( is_wp_error( $reissued ) ) {
+		oras_desk_integration_fail( 'training station could not be rebound to the changed date.' );
+	}
+	$station = $reissued['payload'];
+	$row_on_second_date = $store->find_for_station( (string) $station['station_uuid'] );
+	$second_roster = Training_Service::roster( $row_on_second_date['state'], array(), $second_date );
+	$checked_now = array_filter( $second_roster['items'], static fn( array $item ): bool => true === ( $item['checked_in_today'] ?? false ) );
+	oras_desk_integration_same( count( $checked_now ), 0, 'changing the training date preserves prior attendance without counting it on the new date' );
+	oras_desk_integration_same( Training_Service::stats( $row_on_second_date['state'], $second_date )['event_total']['attendance_by_day'][ (string) $event['start_date'] ] ?? 0, 3, 'prior-date check-ins remain in training attendance history' );
+	oras_desk_integration_true( ! Training_Context::is_event_date( wp_date( 'Y-m-d', strtotime( $second_date . ' +1 day' ) ), (string) $event['start_date'], (string) $event['end_date'] ), 'a simulated date outside the event range is rejected' );
+
+	$walk_in = static function ( array $offering, string $payment, bool $family_walk_in = false ) use ( $mutate, $operation_context, $context ): array {
+		$payload = array(
+			'request_uuid'        => wp_generate_uuid4(),
+			'option_uuid'         => (string) $offering['option_uuid'],
+			'offering_fingerprint' => (string) $offering['offering_fingerprint'],
+			'payment_assertion'   => $payment,
+			'contact_name'        => 'Practice ' . ucwords( str_replace( '_', ' ', $payment ) ),
+			'email'               => 'training-' . $payment . '-' . $context['run'] . '@example.invalid',
+			'phone'               => '555-0199',
+			'attendees'           => $family_walk_in ? array( array( 'name' => 'Practice Adult' ), array( 'name' => 'Practice Child' ) ) : array( array( 'name' => 'Practice Attendee' ) ),
+		);
+		return $mutate(
+			static function ( array $state, array $row ) use ( $payload, $operation_context ) {
+				return Training_Service::walk_in_state( $state, $payload, $operation_context( $row ) );
+			}
+		);
+	};
+	$individual_offering = current( array_filter( $offerings, static fn( array $offering ): bool => 'individual' === (string) $offering['classification'] && 'full_event' === (string) $offering['validity_type'] ) );
+	$family_offering     = current( array_filter( $offerings, static fn( array $offering ): bool => 'family' === (string) $offering['classification'] && 'full_event' === (string) $offering['validity_type'] ) );
+	foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $payment ) {
+		$walk_in( 'paid_cash' === $payment ? $family_offering : $individual_offering, $payment, 'paid_cash' === $payment );
+	}
+	oras_desk_integration_same( count( Training_Service::member_lookup( $store->find_for_station( (string) $station['station_uuid'] )['state'], 'Morgan' ) ), 1, 'training member search uses only its synthetic directory' );
+	foreach ( array( 'cash', 'check' ) as $payment_method ) {
+		$payload = array(
+			'request_uuid'   => wp_generate_uuid4(),
+			'level_id'       => (int) $memberships[0]['level_id'],
+			'payment_method' => $payment_method,
+			'contact_name'   => 'Practice Membership ' . ucfirst( $payment_method ),
+			'email'          => 'training-membership-' . $payment_method . '-' . $context['run'] . '@example.invalid',
+		);
+		$mutate(
+			static function ( array $state, array $row ) use ( $payload, $operation_context ) {
+				return Training_Service::record_membership_state( $state, $payload, $operation_context( $row ) );
+			}
+		);
+	}
+	$worked = $store->find_for_station( (string) $station['station_uuid'] );
+	$stats  = Training_Service::stats( $worked['state'], $second_date );
+	oras_desk_integration_same( $stats['event_total']['walk_in_registrations'], 4, 'training stats include all simulated walk-ins' );
+	oras_desk_integration_same( $stats['event_total']['payment_assertions'], array( 'paid_card' => 1, 'paid_cash' => 1, 'paid_check' => 1, 'unpaid' => 1 ), 'training stats preserve each payment-method practice assertion without payment' );
+	oras_desk_integration_same( $stats['memberships']['total'], 2, 'training stats include cash and check membership simulations' );
+
+	$reset = $store->reset( (string) $station['station_uuid'], (int) $worked['record_version'], Training_Service::seed_state( $training_uuid, $offerings ) );
+	if ( is_wp_error( $reset ) ) {
+		oras_desk_integration_fail( 'training data reset failed.' );
+	}
+	$reset_row = $store->find_for_station( (string) $station['station_uuid'] );
+	oras_desk_integration_same( count( $reset_row['state']['registrations'] ), count( $offerings ), 'reset restores the default seeded training registrations' );
+	oras_desk_integration_same( array( count( $reset_row['state']['attendance'] ), count( $reset_row['state']['memberships'] ), count( $reset_row['state']['history'] ) ), array( 0, 0, 0 ), 'reset clears only the mutable training dataset' );
+
+	oras_desk_integration_true( $store->delete_for_station( (string) $station['station_uuid'] ), 'ending Training Mode removes its isolated station row' );
+	oras_desk_integration_same( $store->find_for_station( (string) $station['station_uuid'] ), null, 'ended training session cannot be restored' );
+	/* phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table. */
+	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ), $before_rows, 'training lifecycle leaves no residual training row' );
+	$ended_live_route = oras_desk_integration_rest_offerings( (string) $issued['token'] );
+	oras_desk_integration_true( 409 === $ended_live_route->get_status(), 'an ended training token still cannot be reused for live operations' );
+
+	$live_after = oras_desk_integration_protected_snapshot( $context );
+	foreach ( $live_before as $surface => $hash ) {
+		oras_desk_integration_same( $live_after[ $surface ], $hash, 'complete training lifecycle leaves live ' . $surface . ' unchanged' );
+	}
+	oras_desk_integration_pass( 'training check-in, family check-in, walk-ins, payment practice, membership, statistics, date change, reset, and end remain isolated from live data' );
+}
+
 /** Prepare fixtures and run all single-connection checks. */
 function oras_desk_integration_prepare(): void {
 	global $wpdb;
@@ -1546,13 +1757,14 @@ function oras_desk_integration_prepare(): void {
 	Schema::install();
 	$tables_first = Schema::table_names();
 	Schema::install();
-	oras_desk_integration_true( Schema::tables_exist(), 'repeat-safe schema setup leaves all five tables present' );
-	oras_desk_integration_true( Schema::verify_transactional_tables(), 'all five desk tables use InnoDB' );
-	oras_desk_integration_same( count( $tables_first ), 5, 'schema owns four registration tables and one pending-membership table' );
+	oras_desk_integration_true( Schema::tables_exist(), 'repeat-safe schema setup leaves all six tables present' );
+	oras_desk_integration_true( Schema::verify_transactional_tables(), 'all six desk tables use InnoDB' );
+	oras_desk_integration_same( count( $tables_first ), 6, 'schema owns four registration tables, one pending-membership table, and one isolated training table' );
 
 	$run        = strtolower( wp_generate_password( 8, false, false ) );
 	$today      = wp_date( 'Y-m-d', null, wp_timezone() );
 	$yesterday  = wp_date( 'Y-m-d', time() - DAY_IN_SECONDS, wp_timezone() );
+	$tomorrow   = wp_date( 'Y-m-d', time() + DAY_IN_SECONDS, wp_timezone() );
 	$event_id   = oras_desk_integration_event( $run, 'active', $today, $today );
 	update_post_meta( $event_id, '_oras_rsvp_v1', array( 'enabled' => true ) );
 	$other_id   = oras_desk_integration_event( $run, 'other', $today, $today );
@@ -1765,7 +1977,7 @@ function oras_desk_integration_prepare(): void {
 	if ( is_wp_error( $offering_config ) ) {
 		oras_desk_integration_fail( 'canonical offering configuration failed.' );
 	}
-	$synthetic_a_id = oras_desk_integration_event( $run, 'synthetic-ticketed-a', $today, $today );
+	$synthetic_a_id = oras_desk_integration_event( $run, 'synthetic-ticketed-a', $today, $tomorrow );
 	$synthetic_a_products = array();
 	$synthetic_a_tickets  = array();
 	$synthetic_a_names    = array( 'General Admission', 'Family Pass', 'Student Pass', 'Single-Day Pass' );
@@ -2174,6 +2386,7 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_event_roster( $context );
 	$context['order_ids'] = array_merge( $context['order_ids'], oras_desk_integration_paid_not_found_recovery( $context ) );
 	$context['membership_fixture'] = oras_desk_integration_membership_workflow( $context );
+	oras_desk_integration_training_workflow( $context );
 	$config = Config::get_event_config( $event_id );
 	$late_uuid = (string) $context['projected']['late_cancelled'];
 	$late_open_detail = $service->detail( $event_id, $late_uuid );
