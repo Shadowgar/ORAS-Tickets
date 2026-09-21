@@ -37,7 +37,7 @@ function oras_membership_assert( bool $condition, string $message ): void {
 }
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
-foreach ( array( 'Membership_Offering_Resolver.php', 'Config.php', 'Schema.php', 'Store.php', 'Offline_Membership_Store.php', 'Membership_Credit_Service.php', 'Member_Lookup_Service.php' ) as $file ) {
+foreach ( array( 'Membership_Offering_Resolver.php', 'Config.php', 'Schema.php', 'Store.php', 'Offline_Membership_Store.php', 'Membership_Credit_Service.php', 'Member_Lookup_Service.php', 'Training_Service.php' ) as $file ) {
 	oras_membership_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
@@ -48,7 +48,7 @@ $credit = '\\ORAS\\Tickets\\Registration_Desk\\Membership_Credit_Service';
 $resolver = '\\ORAS\\Tickets\\Registration_Desk\\Membership_Offering_Resolver';
 
 $sql = $schema::build_schema_sql( 'wp_', 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci' );
-oras_membership_assert( 5 === count( $sql ), 'Schema adds exactly one pending offline-membership table' );
+oras_membership_assert( 6 === count( $sql ), 'Schema retains live stores and adds one isolated training table' );
 $joined = implode( "\n", $sql );
 oras_membership_assert( false !== strpos( $joined, 'wp_oras_offline_memberships' ), 'Pending activation table is desk-owned' );
 oras_membership_assert( false !== strpos( $joined, 'UNIQUE KEY request_uuid (request_uuid)' ), 'Membership recording is idempotent by request identity' );
@@ -136,6 +136,12 @@ oras_membership_assert(
 	false !== strpos( $lookup_source, 'if ( isset( $seen_emails[ $email ] ) )' ),
 	'Member Lookup does not append an offline activation already represented by the shared membership report'
 );
+
+$training_source = (string) file_get_contents( $base . 'Training_Service.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
+oras_membership_assert( false !== strpos( $training_source, 'record_membership_state' ) && false !== strpos( $training_source, 'canonical_membership_offerings' ), 'Training membership uses explicit synthetic state and canonical display offerings' );
+foreach ( array( 'wp_mail(', 'pmpro_changeMembershipLevel(', 'Membership_Credit_Service', 'Offline_Membership_Store' ) as $forbidden ) {
+	oras_membership_assert( false === strpos( $training_source, $forbidden ), "Training membership never calls {$forbidden}" );
+}
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $admin_source = (string) file_get_contents( $base . 'Admin_Settings.php' );

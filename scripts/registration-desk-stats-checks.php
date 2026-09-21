@@ -14,7 +14,9 @@ function oras_stats_assert( bool $condition, string $message ): void {
 }
 
 $file = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/Event_Stats_Service.php';
+$training_file = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/Training_Service.php';
 oras_stats_assert( file_exists( $file ), 'Event_Stats_Service.php exists' );
+oras_stats_assert( file_exists( $training_file ), 'Training statistics service exists separately' );
 require_once $file;
 $class = '\\ORAS\\Tickets\\Registration_Desk\\Event_Stats_Service';
 
@@ -190,5 +192,9 @@ oras_stats_assert( 1 === $stats['event_total']['payment_assertions']['cash'] && 
 oras_stats_assert( 1 === $stats['event_total']['rsvp_registrations'] && 1 === $stats['event_total']['manager_verified_registrations'], 'RSVP and Manager Verified registrations remain distinct from website registrations' );
 oras_stats_assert( 1 === $stats['event_total']['direct_website_registrations'] && 1 === $stats['event_total']['included_event_registrations'], 'Direct website and included-event registrations have honest separate source totals' );
 oras_stats_assert( 2 === $stats['memberships']['total'] && 1 === $stats['memberships']['pending'] && 1 === $stats['memberships']['redeemed'], 'Event-originated membership lifecycle is summarized' );
+
+$training_source = (string) file_get_contents( $training_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
+oras_stats_assert( false !== strpos( $training_source, 'public static function stats' ), 'Training statistics have an isolated state summarizer' );
+oras_stats_assert( false === strpos( $training_source, 'Event_Stats_Service' ) && false === strpos( $training_source, 'Board_Reports' ) && false === strpos( $training_source, '$wpdb' ), 'Training statistics never read live stats or reporting sources' );
 
 echo "Registration Desk stats checks passed.\n";

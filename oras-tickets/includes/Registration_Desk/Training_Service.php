@@ -22,6 +22,11 @@ final class Training_Service {
 		return Event_Offering_Resolver::desk_offerings( $event_id, $config );
 	}
 
+	/** @return array<int,array<string,mixed>> */
+	public static function canonical_membership_offerings(): array {
+		return Membership_Offering_Resolver::all();
+	}
+
 	/**
 	 * Build a deterministic synthetic dataset for a training session.
 	 *
@@ -47,6 +52,17 @@ final class Training_Service {
 			'attendance'     => array(),
 			'requests'       => array(),
 			'memberships'    => array(),
+			'member_directory' => array(
+				array(
+					'member_uuid' => self::deterministic_uuid( $training_uuid, 'member|default' ),
+					'name'        => 'DEMO — Morgan Lee',
+					'email'       => 'demo.member@example.invalid',
+					'phone'       => '555-0188',
+					'level_name'  => 'DEMO — Active Member',
+					'status'      => 'active',
+					'synthetic'   => true,
+				),
+			),
 			'history'        => array(),
 		);
 	}
@@ -312,6 +328,201 @@ final class Training_Service {
 		return self::bounded_transition( $state, $result );
 	}
 
+	/** @param array<string,mixed> $state @return array<int,array<string,mixed>> */
+	public static function member_lookup( array $state, string $query ): array {
+		$query   = self::lower( trim( strip_tags( $query ) ) );
+		$matches = array();
+		if ( '' === $query ) {
+			return $matches;
+		}
+		foreach ( is_array( $state['member_directory'] ?? null ) ? $state['member_directory'] : array() as $member ) {
+			if ( ! is_array( $member ) ) {
+				continue;
+			}
+			$haystack = self::lower( implode( ' ', array( (string) ( $member['name'] ?? '' ), (string) ( $member['email'] ?? '' ), (string) ( $member['phone'] ?? '' ) ) ) );
+			if ( false !== strpos( $haystack, $query ) ) {
+				$matches[] = $member;
+			}
+		}
+
+		return $matches;
+	}
+
+	/**
+	 * Record a synthetic membership practice result without issuing credit or activation.
+	 *
+	 * @param array<string,mixed> $state
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $context
+	 * @return array{state:array<string,mixed>,result:array<string,mixed>}|\WP_Error
+	 */
+	public static function record_membership_state( array $state, array $payload, array $context ) {
+		$valid_context = self::validate_operation_context( $context );
+		if ( $valid_context instanceof \WP_Error ) {
+			return $valid_context;
+		}
+		$request = self::request_state( $state, 'membership', $payload );
+		if ( $request instanceof \WP_Error ) {
+			return $request;
+		}
+		if ( isset( $request['replay'] ) ) {
+			return array( 'state' => $state, 'result' => $request['replay'] );
+		}
+
+		$level_id = max( 0, (int) ( $payload['level_id'] ?? 0 ) );
+		$offering = null;
+		foreach ( is_array( $context['canonical_membership_offerings'] ?? null ) ? $context['canonical_membership_offerings'] : array() as $candidate ) {
+			if ( is_array( $candidate ) && $level_id === (int) ( $candidate['level_id'] ?? 0 ) ) {
+				$offering = $candidate;
+				break;
+			}
+		}
+		if ( null === $offering ) {
+			return new \WP_Error( 'oras_desk_training_membership_unavailable', 'That training membership option is no longer available.', array( 'status' => 409 ) );
+		}
+		$payment_method = strtolower( trim( (string) ( $payload['payment_method'] ?? '' ) ) );
+		if ( ! in_array( $payment_method, array( 'cash', 'check' ), true ) ) {
+			return new \WP_Error( 'oras_desk_training_membership_payment_invalid', 'Choose Cash or Check for the training membership scenario.', array( 'status' => 400 ) );
+		}
+		$contact_name = trim( strip_tags( (string) ( $payload['contact_name'] ?? '' ) ) );
+		$email        = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
+		if ( '' === $contact_name || '' === $email ) {
+			return new \WP_Error( 'oras_desk_training_membership_contact_required', 'Enter a name and email for the training membership scenario.', array( 'status' => 400 ) );
+		}
+		$membership_uuid = self::deterministic_uuid( (string) ( $context['training_uuid'] ?? '' ), 'membership|' . (string) $request['request_uuid'] );
+		$occurred        = self::occurred_at( $context );
+		$membership      = array(
+			'membership_uuid' => $membership_uuid,
+			'level_id'        => $level_id,
+			'level_name'      => (string) ( $offering['display_name'] ?? 'Membership' ),
+			'reference_price' => (string) ( $offering['price'] ?? '' ),
+			'period_label'    => (string) ( $offering['period_label'] ?? '' ),
+			'contact_name'    => self::demo_name( $contact_name ),
+			'email'           => $email,
+			'payment_method'  => $payment_method,
+			'status'          => 'simulated',
+			'synthetic'       => true,
+			'occurred_at_utc' => $occurred,
+		);
+		$state['memberships'][ $membership_uuid ] = $membership;
+		$result = array(
+			'membership_uuid' => $membership_uuid,
+			'level_name'      => $membership['level_name'],
+			'reference_price' => $membership['reference_price'],
+			'payment_method'  => $payment_method,
+			'simulated'       => true,
+			'activation_sent' => false,
+		);
+		$state = self::record_request( $state, (string) $request['request_uuid'], 'membership', (string) $request['payload_hash'], $result, $occurred );
+		$state['history'][] = array(
+			'action'          => 'membership',
+			'request_uuid'    => (string) $request['request_uuid'],
+			'membership_uuid' => $membership_uuid,
+			'local_date'      => (string) $valid_context['simulated_local_date'],
+			'occurred_at_utc' => $occurred,
+		);
+
+		return self::bounded_transition( $state, $result );
+	}
+
+	/** @param array<string,mixed> $state @return array<string,mixed> */
+	public static function stats( array $state, string $simulated_local_date ): array {
+		$registrations = self::registrations( $state );
+		$registration_by_attendee = array();
+		$pass_types      = array();
+		$classifications = array();
+		$validity        = array();
+		$walk_ins        = 0;
+		$payment         = array( 'paid_card' => 0, 'paid_cash' => 0, 'paid_check' => 0, 'unpaid' => 0 );
+		$people_registered = 0;
+		foreach ( $registrations as $registration_uuid => $registration ) {
+			self::increment_count( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
+			self::increment_count( $classifications, (string) ( $registration['classification'] ?? 'individual' ) );
+			self::increment_count( $validity, (string) ( $registration['validity_type'] ?? 'full_event' ) );
+			if ( 'training_walk_in' === (string) ( $registration['source_type'] ?? '' ) ) {
+				++$walk_ins;
+				$assertion = (string) ( $registration['payment_assertion'] ?? '' );
+				if ( isset( $payment[ $assertion ] ) ) {
+					++$payment[ $assertion ];
+				}
+			}
+			foreach ( is_array( $registration['attendees'] ?? null ) ? $registration['attendees'] : array() as $attendee ) {
+				if ( is_array( $attendee ) && '' !== (string) ( $attendee['attendee_uuid'] ?? '' ) ) {
+					$registration_by_attendee[ (string) $attendee['attendee_uuid'] ] = $registration_uuid;
+					++$people_registered;
+				}
+			}
+		}
+
+		$attendance_by_day = array();
+		$unique_attendees  = array();
+		$attended_registrations = array();
+		$today_people      = array();
+		$today_walk_ins    = array();
+		$today_pass_types  = array();
+		$attendance_instances = 0;
+		foreach ( is_array( $state['attendance'] ?? null ) ? $state['attendance'] : array() as $date => $instances ) {
+			if ( ! is_array( $instances ) ) {
+				continue;
+			}
+			foreach ( $instances as $attendee_uuid => $instance ) {
+				if ( ! isset( $registration_by_attendee[ (string) $attendee_uuid ] ) ) {
+					continue;
+				}
+				++$attendance_instances;
+				self::increment_count( $attendance_by_day, (string) $date );
+				$unique_attendees[ (string) $attendee_uuid ] = true;
+				$registration_uuid = $registration_by_attendee[ (string) $attendee_uuid ];
+				$attended_registrations[ $registration_uuid ] = true;
+				if ( (string) $date === $simulated_local_date ) {
+					$today_people[ (string) $attendee_uuid ] = true;
+					$registration = $registrations[ $registration_uuid ];
+					if ( 'training_walk_in' === (string) ( $registration['source_type'] ?? '' ) ) {
+						$today_walk_ins[ (string) $attendee_uuid ] = true;
+					}
+					self::increment_count( $today_pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
+				}
+			}
+		}
+		ksort( $attendance_by_day );
+
+		$membership_summary = array( 'total' => 0, 'cash' => 0, 'check' => 0, 'levels' => array() );
+		foreach ( is_array( $state['memberships'] ?? null ) ? $state['memberships'] : array() as $membership ) {
+			if ( ! is_array( $membership ) ) {
+				continue;
+			}
+			++$membership_summary['total'];
+			$method = (string) ( $membership['payment_method'] ?? '' );
+			if ( isset( $membership_summary[ $method ] ) ) {
+				++$membership_summary[ $method ];
+			}
+			self::increment_count( $membership_summary['levels'], (string) ( $membership['level_name'] ?? 'Other' ) );
+		}
+
+		return array(
+			'training' => true,
+			'today' => array(
+				'actual_people'  => count( $today_people ),
+				'walk_in_people' => count( $today_walk_ins ),
+				'pass_types'     => $today_pass_types,
+			),
+			'event_total' => array(
+				'active_registrations' => count( $registrations ),
+				'people_registered'    => $people_registered,
+				'unique_attendees'     => count( $unique_attendees ),
+				'attendance_instances' => $attendance_instances,
+				'attendance_by_day'    => $attendance_by_day,
+				'walk_in_registrations' => $walk_ins,
+				'no_show_registrations' => count( $registrations ) - count( $attended_registrations ),
+				'pass_types'            => $pass_types,
+				'classifications'       => $classifications,
+				'validity'              => $validity,
+				'payment_assertions'    => $payment,
+			),
+			'memberships' => $membership_summary,
+		);
+	}
+
 	/** @param array<string,mixed> $state */
 	public static function state_within_limit( array $state ): bool {
 		$encoded = json_encode( $state );
@@ -440,6 +651,12 @@ final class Training_Service {
 		$name = trim( $name );
 
 		return str_starts_with( $name, 'DEMO — ' ) ? $name : 'DEMO — ' . $name;
+	}
+
+	/** @param array<string,int> $counts */
+	private static function increment_count( array &$counts, string $key ): void {
+		$key = '' !== trim( $key ) ? $key : 'Other';
+		$counts[ $key ] = (int) ( $counts[ $key ] ?? 0 ) + 1;
 	}
 
 	/**

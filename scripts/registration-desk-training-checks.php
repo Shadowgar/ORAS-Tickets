@@ -336,4 +336,75 @@ $wrong_one_day = $service_class::walk_in_state(
 oras_training_assert( $wrong_one_day instanceof WP_Error && 'oras_desk_training_date_invalid' === $wrong_one_day->get_error_code(), 'One-day training walk-in cannot be recorded on another simulated date' );
 oras_training_assert( false === strpos( $service_source, 'Registration_Store' ) && false === strpos( $service_source, 'Attendance_Store' ), 'Training operations have no fallback to live stores' );
 
+$member_matches = $service_class::member_lookup( $seed_a, 'demo.member@example.invalid' );
+oras_training_assert( 1 === count( $member_matches ) && true === ( $member_matches[0]['synthetic'] ?? false ), 'Training member lookup returns an unmistakably synthetic fixture' );
+$membership_offerings = array(
+	array(
+		'level_id'     => 7,
+		'display_name' => 'Annual Individual Membership',
+		'price'        => '35.00',
+		'period_label' => 'Every 1 Year',
+	),
+	array(
+		'level_id'     => 8,
+		'display_name' => 'Annual Family Membership',
+		'price'        => '55.00',
+		'period_label' => 'Every 1 Year',
+	),
+);
+$membership_context = $operation_context;
+$membership_context['canonical_membership_offerings'] = $membership_offerings;
+$cash_membership = $service_class::record_membership_state(
+	$seed_a,
+	array(
+		'request_uuid'  => '99999999-9999-4999-8999-999999999999',
+		'level_id'      => 7,
+		'contact_name'  => 'Practice Member',
+		'email'         => 'practice.member@example.invalid',
+		'payment_method' => 'cash',
+	),
+	$membership_context
+);
+oras_training_assert( is_array( $cash_membership ) && true === ( $cash_membership['result']['simulated'] ?? false ), 'Training membership records a simulation-only Cash result' );
+oras_training_assert( 'Annual Individual Membership' === ( $cash_membership['result']['level_name'] ?? '' ) && '35.00' === ( $cash_membership['result']['reference_price'] ?? '' ), 'Training membership snapshots canonical PMPro display facts' );
+$check_membership = $service_class::record_membership_state(
+	$cash_membership['state'],
+	array(
+		'request_uuid'  => 'aaaaaaaa-9999-4999-8999-999999999999',
+		'level_id'      => 8,
+		'contact_name'  => 'Practice Family Member',
+		'email'         => 'practice.family.member@example.invalid',
+		'payment_method' => 'check',
+	),
+	$membership_context
+);
+oras_training_assert( is_array( $check_membership ) && 2 === count( $check_membership['state']['memberships'] ?? array() ), 'Training membership supports Cash and Check without activating membership' );
+
+$next_day_context = $operation_context;
+$next_day_context['simulated_local_date'] = '2026-10-07';
+$next_day_context['occurred_at_utc'] = '2026-09-21 15:00:00';
+$next_day_check_in = $service_class::check_in_state(
+	$family_walk_in['state'],
+	array(
+		'request_uuid'      => 'bbbbbbbb-9999-4999-8999-999999999999',
+		'registration_uuid' => $individual['registration_uuid'],
+		'attendee_uuids'    => array( $individual['attendees'][0]['attendee_uuid'] ),
+	),
+	$next_day_context
+);
+oras_training_assert( is_array( $next_day_check_in ), 'Training fixture can add attendance on a second simulated date' );
+$stats = $service_class::stats( $next_day_check_in['state'], '2026-10-07' );
+oras_training_assert( 1 === ( $stats['today']['actual_people'] ?? -1 ), 'Training statistics count only the selected simulated date as today' );
+oras_training_assert( 7 === ( $stats['event_total']['attendance_instances'] ?? -1 ), 'Training statistics retain current and historical attendance instances' );
+oras_training_assert( array( '2026-10-06' => 6, '2026-10-07' => 1 ) === ( $stats['event_total']['attendance_by_day'] ?? array() ), 'Training statistics group attendance by simulated event date' );
+oras_training_assert( 5 === ( $stats['event_total']['walk_in_registrations'] ?? -1 ), 'Training statistics report only synthetic walk-ins' );
+oras_training_assert( 2 === ( $stats['event_total']['payment_assertions']['paid_cash'] ?? -1 ), 'Training statistics expose assertion counts rather than revenue' );
+oras_training_assert( true === ( $stats['training'] ?? false ), 'Training statistics identify their isolated source' );
+
+$membership_stats = $service_class::stats( $check_membership['state'], '2026-10-06' );
+oras_training_assert( 2 === ( $membership_stats['memberships']['total'] ?? -1 ) && 1 === ( $membership_stats['memberships']['cash'] ?? -1 ) && 1 === ( $membership_stats['memberships']['check'] ?? -1 ), 'Training statistics summarize only simulated memberships' );
+foreach ( array( 'wp_mail(', 'pmpro_changeMembershipLevel(', 'Membership_Credit_Service', 'Offline_Membership_Store', 'Event_Stats_Service', 'Board_Reports', '$wpdb' ) as $forbidden ) {
+	oras_training_assert( false === strpos( $service_source, $forbidden ), "Training membership and stats avoid live side effect: {$forbidden}" );
+}
+
 echo "Registration Desk training checks passed.\n";
