@@ -90,6 +90,8 @@ oras_roster_assert( false !== strpos( $desk, 'SHOW MORE PEOPLE' ), 'Roster uses 
 oras_roster_assert( false !== strpos( $desk, 'CHOOSE REGISTRATION TYPE' ), 'Many registration types use a large picker' );
 oras_roster_assert( false !== strpos( $desk, 'ALL REGISTRATION TYPES' ), 'Type filtering always exposes the all-types state' );
 oras_roster_assert( false !== strpos( $desk, 'showEventRoster' ) && false !== strpos( $desk, 'showRegistration' ), 'Roster rows reuse Registration Detail' );
+oras_roster_assert( false !== strpos( $desk, '/training/roster' ) && false !== strpos( $desk, 'showTrainingRegistration' ), 'Training roster and detail stay on isolated browser paths' );
+oras_roster_assert( false !== strpos( $desk, '/training/registrations/' ) && false !== strpos( $desk, 'attendee_uuids' ), 'Training family check-in submits selected synthetic attendee identities' );
 oras_roster_assert( false !== strpos( $desk, 'RECORD MEMBERSHIP &amp; SEND EMAIL' ), 'Membership final action clearly states its effects' );
 oras_roster_assert( false !== strpos( $desk, 'PAYMENT RECORDED IN ALFAPOS' ), 'Membership flow keeps payment processing in AlfaPOS' );
 oras_roster_assert( false !== strpos( $desk, 'desk-membership-payment-choice' ), 'Membership payment methods use kiosk touch choices' );

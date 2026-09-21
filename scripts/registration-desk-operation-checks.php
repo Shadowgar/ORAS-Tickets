@@ -207,6 +207,17 @@ oras_operation_assert( false !== strpos( $desk_js, 'admission.check_in_allowed' 
 oras_operation_assert( false !== strpos( $desk_js, 'await showRegistration(registration.registration_uuid, state.detailReturn)' ), 'Final stale-admission rejection reloads authoritative registration detail' );
 oras_operation_assert( false !== strpos( $desk_js, 'await showEventRoster(false)' ), 'Stale website RSVP rejection returns to the authoritative roster state' );
 oras_operation_assert( false !== strpos( $desk_js, 'Operational registration' ) && false !== strpos( $desk_js, 'Canonical source status' ) && false !== strpos( $desk_js, 'Date validity' ), 'Manager detail renders readable admission diagnostics' );
+oras_operation_assert( false !== strpos( $desk_js, 'START TRAINING MODE' ), 'Manager Tools exposes the approved Training Mode entry point' );
+oras_operation_assert( false !== strpos( $desk_js, 'NO LIVE EVENT DATA WILL BE CHANGED' ), 'Training shell carries the persistent non-live warning' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/start'" ), 'Training start uses the dedicated server-authorized route' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/context'" ), 'Reload restores Training Mode from server context' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/walk-in'" ), 'Training walk-ins use the isolated route' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/memberships'" ), 'Training membership uses the isolated route' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/stats'" ), 'Training statistics use the isolated route' );
+oras_operation_assert( false !== strpos( $desk_js, 'TRAINING — DO NOT TAKE PAYMENT' ) && false !== strpos( $desk_js, 'TRAINING SELECTION ONLY' ), 'Training payment steps never instruct volunteers to take payment' );
+oras_operation_assert( false !== strpos( $desk_js, 'TRAINING ACTION COULD NOT BE SAVED' ) && false !== strpos( $desk_js, 'TRAINING ONLY — NO PAYMENT WAS TAKEN.' ), 'Training failures use the approved no-payment recovery copy' );
+oras_operation_assert( false !== strpos( $desk_js, 'RESET TRAINING DATA' ) && false !== strpos( $desk_js, 'CHANGE TRAINING DATE' ) && false !== strpos( $desk_js, 'END TRAINING MODE' ), 'Training Manager Tools expose reset, date change, and end controls' );
+oras_operation_assert( false !== strpos( $desk_js, "api('/training/reset'" ) && false !== strpos( $desk_js, "api('/training/date'" ) && false !== strpos( $desk_js, "api('/training/end'" ), 'Training lifecycle controls use dedicated manager routes' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $desk_css = (string) file_get_contents( dirname( __DIR__ ) . '/oras-tickets/assets/registration-desk/desk.css' );
@@ -217,6 +228,7 @@ oras_operation_assert( false !== strpos( $desk_css, '100dvh' ), 'Kiosk sizing us
 oras_operation_assert( false !== strpos( $desk_css, 'env(safe-area-inset-top)' ), 'Kiosk respects iOS safe-area insets' );
 oras_operation_assert( false !== strpos( $desk_css, 'overflow-x: hidden' ), 'Kiosk prevents horizontal page scrolling' );
 oras_operation_assert( false !== strpos( $desk_css, '.desk-touch-centered' ), 'Kiosk exposes one reusable centered large-control style' );
+oras_operation_assert( false !== strpos( $desk_css, '.desk-training-banner' ), 'Training warning has dedicated responsive styling' );
 oras_operation_assert( false !== strpos( $desk_css, 'align-items: center' ) && false !== strpos( $desk_css, 'justify-content: center' ), 'Large kiosk controls center wrapped labels on both axes' );
 
 echo "Registration Desk operation checks passed.\n";

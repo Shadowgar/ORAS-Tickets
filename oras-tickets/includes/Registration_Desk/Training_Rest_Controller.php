@@ -205,6 +205,20 @@ final class Training_Rest_Controller {
 			),
 			$resolved['offerings']
 		);
+		foreach ( $result['items'] as &$item ) {
+			$item['name']              = (string) ( $item['contact_name'] ?? '' );
+			$item['registration_type'] = (string) ( $item['option_label'] ?? 'Registration' );
+			$item['attendees']         = array_values(
+				array_map(
+					static fn( array $attendee ): string => (string) ( $attendee['name'] ?? '' ),
+					array_filter( is_array( $item['attendees'] ?? null ) ? $item['attendees'] : array(), 'is_array' )
+				)
+			);
+			$item['detail_kind'] = 'training';
+		}
+		unset( $item );
+		$result['next_offset'] = (int) $result['filters']['offset'] + count( $result['items'] );
+		$result['has_more']    = $result['next_offset'] < (int) $result['total'];
 		$result['record_version'] = (int) $resolved['row']['record_version'];
 		$result['training']       = true;
 
@@ -222,6 +236,13 @@ final class Training_Rest_Controller {
 		if ( null === $result ) {
 			return new \WP_Error( 'oras_desk_training_registration_missing', 'That training registration is no longer available.', array( 'status' => 404 ) );
 		}
+		$today_attendance = is_array( $resolved['row']['state']['attendance'][ $resolved['row']['simulated_local_date'] ] ?? null )
+			? $resolved['row']['state']['attendance'][ $resolved['row']['simulated_local_date'] ]
+			: array();
+		foreach ( $result['attendees'] as &$attendee ) {
+			$attendee['checked_in_today'] = isset( $today_attendance[ (string) ( $attendee['attendee_uuid'] ?? '' ) ] );
+		}
+		unset( $attendee );
 
 		return $this->response(
 			array(
@@ -572,6 +593,8 @@ final class Training_Rest_Controller {
 			'event_start_date'       => (string) $event['start_date'],
 			'event_end_date'         => (string) $event['end_date'],
 			'simulated_local_date'   => $date,
+			'local_date'             => $date,
+			'friendly_date'          => $this->friendly_date( $date ),
 			'friendly_training_date' => $this->friendly_date( $date ),
 			'config_revision'        => (int) $row['config_revision'],
 			'record_version'         => (int) $row['record_version'],

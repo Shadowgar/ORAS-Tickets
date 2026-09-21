@@ -333,6 +333,54 @@ button.desk-danger {
 	padding-block: 0.35rem;
 }
 
+.desk-training-banner {
+	position: sticky;
+	top: 96px;
+	z-index: 29;
+	display: grid;
+	grid-template-columns: auto auto minmax(0, 1fr);
+	align-items: center;
+	justify-content: center;
+	gap: 0.6rem 1.25rem;
+	min-height: 72px;
+	padding: 0.65rem max(1rem, env(safe-area-inset-right)) 0.65rem max(1rem, env(safe-area-inset-left));
+	border-block: 4px solid #111;
+	background: #ffd400;
+	color: #111;
+	box-shadow: 0 3px 12px rgb(5 34 56 / 25%);
+	text-align: center;
+}
+
+.desk-training-banner strong,
+.desk-training-banner span {
+	font-weight: 950;
+	letter-spacing: 0.06em;
+}
+
+.desk-training-banner strong {
+	font-size: 1.2rem;
+}
+
+.desk-training-banner small {
+	font-weight: 750;
+}
+
+.desk-training-banner + .desk-manager-status {
+	top: 168px;
+}
+
+.desk-training-start,
+.desk-training-manager .desk-manager-card {
+	border-color: #b58b00;
+	background: #fff9cf;
+}
+
+.desk-training-manager .desk-manager-card.desk-danger {
+	border-color: var(--desk-red);
+	background: #fff;
+	color: var(--desk-red);
+}
+
 .desk-stats-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -1871,6 +1919,13 @@ button.desk-link-button {
 
 	.desk-manager-status {
 		position: static;
+	}
+
+	.desk-training-banner {
+		position: static;
+		grid-template-columns: 1fr;
+		gap: 0.2rem;
+		min-height: 0;
 	}
 
 	.desk-task-grid,
