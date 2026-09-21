@@ -26,11 +26,13 @@ function oras_roster_assert( bool $condition, string $message ): void {
 
 $root         = dirname( __DIR__ );
 $service_file = $root . '/oras-tickets/includes/Registration_Desk/Event_Roster_Service.php';
+$training_service_file = $root . '/oras-tickets/includes/Registration_Desk/Training_Service.php';
 $rest_file    = $root . '/oras-tickets/includes/Registration_Desk/Rest_Controller.php';
 $desk_file    = $root . '/oras-tickets/assets/registration-desk/desk.js';
 $css_file     = $root . '/oras-tickets/assets/registration-desk/desk.css';
 
 oras_roster_assert( file_exists( $service_file ), 'Event roster has a dedicated read-only service' );
+oras_roster_assert( file_exists( $training_service_file ), 'Training roster has a separate synthetic-only service' );
 
 require_once $service_file;
 
@@ -63,11 +65,14 @@ $online_historical = \ORAS\Tickets\Registration_Desk\Event_Roster_Service::histo
 oras_roster_assert( 'Original Website Ticket' === $online_historical, 'Website roster labels use order-time ticket evidence' );
 
 $service = (string) file_get_contents( $service_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
+$training_service = (string) file_get_contents( $training_service_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $rest    = (string) file_get_contents( $rest_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $desk    = (string) file_get_contents( $desk_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 $css     = (string) file_get_contents( $css_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 
 oras_roster_assert( false !== strpos( $service, 'event_id = %d' ), 'Roster queries are event scoped' );
+oras_roster_assert( false !== strpos( $training_service, "'registrations'" ) && false !== strpos( $training_service, "'attendance'" ), 'Training roster reads the isolated training state shape' );
+oras_roster_assert( false === strpos( $training_service, '$wpdb' ), 'Training roster never queries live database tables' );
 oras_roster_assert( false !== strpos( $service, 'ORDER BY' ) && false !== strpos( $service, 'last_name' ), 'Roster ordering is alphabetical by person name' );
 oras_roster_assert( false !== strpos( $service, 'LIMIT %d OFFSET %d' ), 'Roster uses bounded offset pagination' );
 oras_roster_assert( false !== strpos( $service, "source_type IN ('walk_in','rsvp_walk_in')" ), 'Roster supports the walk-in status filter' );

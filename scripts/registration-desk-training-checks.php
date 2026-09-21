@@ -22,20 +22,24 @@ $schema     = $plugin_dir . 'includes/Registration_Desk/Schema.php';
 $base_store = $plugin_dir . 'includes/Registration_Desk/Store.php';
 $store      = $plugin_dir . 'includes/Registration_Desk/Training_Store.php';
 $context    = $plugin_dir . 'includes/Registration_Desk/Training_Context.php';
+$service    = $plugin_dir . 'includes/Registration_Desk/Training_Service.php';
 
 oras_training_assert( file_exists( $schema ), 'Registration Desk schema exists' );
 oras_training_assert( file_exists( $base_store ), 'Registration Desk base store exists' );
 oras_training_assert( file_exists( $store ), 'Dedicated Training Store exists' );
 oras_training_assert( file_exists( $context ), 'Server-authorized Training Context exists' );
+oras_training_assert( file_exists( $service ), 'Synthetic Training Service exists' );
 
 require_once $schema;
 require_once $base_store;
 require_once $store;
 require_once $context;
+require_once $service;
 
 $schema_class = '\\ORAS\\Tickets\\Registration_Desk\\Schema';
 $store_class  = '\\ORAS\\Tickets\\Registration_Desk\\Training_Store';
 $context_class = '\\ORAS\\Tickets\\Registration_Desk\\Training_Context';
+$service_class = '\\ORAS\\Tickets\\Registration_Desk\\Training_Service';
 
 oras_training_assert( 3 === $schema_class::VERSION, 'Training table advances the Registration Desk schema version' );
 $tables = $schema_class::table_names( 'wp_' );
@@ -126,5 +130,92 @@ oras_training_assert( $expired_result instanceof WP_Error && 'oras_desk_training
 $live_result = $context_class::assert_live( $row );
 oras_training_assert( $live_result instanceof WP_Error && 'oras_desk_training_live_route_forbidden' === $live_result->get_error_code(), 'Active training row blocks live operational routes' );
 oras_training_assert( true === $context_class::assert_live( null ), 'Station without a training row remains live' );
+
+$offerings = array(
+	array(
+		'option_uuid'         => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+		'ticket_key'          => 'individual',
+		'label'               => 'Individual',
+		'description'         => 'One event admission.',
+		'price'               => '25.00',
+		'classification'      => 'individual',
+		'validity_type'       => 'full_event',
+		'valid_local_date'    => '',
+		'max_attendees'       => 1,
+		'offering_fingerprint' => str_repeat( '1', 64 ),
+		'included_events'     => array( array( 'event_id' => 456, 'label' => 'Friday Star Party' ) ),
+	),
+	array(
+		'option_uuid'         => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+		'ticket_key'          => 'family',
+		'label'               => 'Family',
+		'description'         => 'One household.',
+		'price'               => '60.00',
+		'classification'      => 'family',
+		'validity_type'       => 'full_event',
+		'valid_local_date'    => '',
+		'max_attendees'       => 6,
+		'offering_fingerprint' => str_repeat( '2', 64 ),
+		'included_events'     => array(),
+	),
+	array(
+		'option_uuid'         => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+		'ticket_key'          => 'student',
+		'label'               => 'Student',
+		'description'         => 'Student admission.',
+		'price'               => '15.00',
+		'classification'      => 'individual',
+		'validity_type'       => 'one_day',
+		'valid_local_date'    => '2026-10-06',
+		'max_attendees'       => 1,
+		'offering_fingerprint' => str_repeat( '3', 64 ),
+		'included_events'     => array(),
+	),
+);
+$seed_a = $service_class::seed_state( '33333333-3333-4333-8333-333333333333', $offerings );
+$seed_b = $service_class::seed_state( '33333333-3333-4333-8333-333333333333', $offerings );
+oras_training_assert( $seed_a === $seed_b, 'Seeded training data is deterministic for one training session' );
+oras_training_assert( 3 === count( $seed_a['registrations'] ?? array() ), 'Seed includes one registration per meaningful canonical option' );
+
+$seed_names       = array();
+$seed_emails      = array();
+$family_attendees = 0;
+$has_student      = false;
+$has_included     = false;
+foreach ( $seed_a['registrations'] as $registration ) {
+	$seed_names[]  = (string) ( $registration['contact_name'] ?? '' );
+	$seed_emails[] = (string) ( $registration['email'] ?? '' );
+	if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
+		$family_attendees = count( $registration['attendees'] ?? array() );
+	}
+	if ( 'Student' === (string) ( $registration['option_label'] ?? '' ) ) {
+		$has_student = true;
+	}
+	if ( ! empty( $registration['included_events'] ) ) {
+		$has_included = true;
+	}
+}
+oras_training_assert( count( array_filter( $seed_names, static fn( string $name ): bool => str_starts_with( $name, 'DEMO — ' ) ) ) === count( $seed_names ), 'Every seed name is unmistakably synthetic' );
+oras_training_assert( count( array_filter( $seed_emails, static fn( string $email ): bool => str_ends_with( $email, '@example.invalid' ) ) ) === count( $seed_emails ), 'Every seed uses reserved example contact data' );
+oras_training_assert( $family_attendees >= 3, 'Family-capable option seeds multiple attendees' );
+oras_training_assert( $has_student, 'Student option receives a dedicated student example' );
+oras_training_assert( $has_included, 'Configured included access is copied as configuration-only evidence' );
+
+$roster = $service_class::roster( $seed_a, array( 'status' => 'everyone' ), '2026-10-06' );
+oras_training_assert( 3 === count( $roster['items'] ?? array() ), 'Training roster reads only the synthetic state' );
+$searched = $service_class::roster( $seed_a, array( 'q' => 'jamie' ), '2026-10-06' );
+oras_training_assert( 1 === count( $searched['items'] ?? array() ) && 'Student' === $searched['items'][0]['option_label'], 'Training roster searches synthetic name and contact fields' );
+$family_only = $service_class::roster( $seed_a, array( 'option_uuid' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' ), '2026-10-06' );
+oras_training_assert( 1 === count( $family_only['items'] ?? array() ), 'Training roster filters by canonical registration type' );
+$not_checked_in = $service_class::roster( $seed_a, array( 'status' => 'not_checked_in' ), '2026-10-06' );
+oras_training_assert( 3 === count( $not_checked_in['items'] ?? array() ), 'New training roster reports every seed as not checked in' );
+$detail = $service_class::detail( $seed_a, (string) $family_only['items'][0]['registration_uuid'], true );
+oras_training_assert( is_array( $detail ) && true === ( $detail['manager_detail']['synthetic'] ?? false ), 'Manager detail identifies synthetic origin explicitly' );
+oras_training_assert( strlen( (string) json_encode( $seed_a ) ) < 524288, 'Seeded state remains within the bounded training row' );
+
+$service_source = (string) file_get_contents( $service ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source assertion.
+foreach ( array( 'wc_get_orders', 'wc_get_order', 'WP_Query', 'oras_event_registrations' ) as $forbidden ) {
+	oras_training_assert( false === strpos( $service_source, $forbidden ), "Training seeding avoids live order/registration lookup: {$forbidden}" );
+}
 
 echo "Registration Desk training checks passed.\n";
