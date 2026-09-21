@@ -1,5 +1,34 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-20 - Release 0.4.57
+
+### Registration Desk
+
+- Added an iPad-focused Registration Desk for event registration, roster lookup, walk-ins, RSVP/waitlist handling, daily attendance, manager recovery, and event statistics.
+- Registration options now come directly from each event's canonical ORAS ticket configuration.
+- Added family, one-day, complimentary, speaker, and cross-event access workflows.
+- Added safe retry/recovery and manager-assisted missing-registration handling.
+- Added organization membership lookup and offline cash/check membership activation with emailed one-time website credit codes.
+
+### Bundled event access
+
+- Tickets can explicitly include access to additional The Events Calendar events.
+- Future purchases preserve that access in immutable Woo order-item metadata.
+- Registration Desk automatically recognizes bundled access.
+- Existing explicit legacy mappings remain supported for historical orders.
+
+### Board Reports
+
+- Added event registration and attendance reporting using the same canonical statistics as Registration Desk.
+
+### Safety
+
+- Registration Desk does not process event payments.
+- AlfaPOS/Stripe remain responsible for actual event sales.
+- Registration Desk walk-ins do not create Woo event orders or QuickBooks transactions.
+- Production event IDs and mappings are configuration, not hard-coded logic.
+- Production validation is pending controlled owner testing.
+
 ## 2026-09-07 - Release 0.4.56
 
 ### Changed
