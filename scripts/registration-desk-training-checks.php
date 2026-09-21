@@ -23,12 +23,14 @@ $base_store = $plugin_dir . 'includes/Registration_Desk/Store.php';
 $store      = $plugin_dir . 'includes/Registration_Desk/Training_Store.php';
 $context    = $plugin_dir . 'includes/Registration_Desk/Training_Context.php';
 $service    = $plugin_dir . 'includes/Registration_Desk/Training_Service.php';
+$rest       = $plugin_dir . 'includes/Registration_Desk/Training_Rest_Controller.php';
 
 oras_training_assert( file_exists( $schema ), 'Registration Desk schema exists' );
 oras_training_assert( file_exists( $base_store ), 'Registration Desk base store exists' );
 oras_training_assert( file_exists( $store ), 'Dedicated Training Store exists' );
 oras_training_assert( file_exists( $context ), 'Server-authorized Training Context exists' );
 oras_training_assert( file_exists( $service ), 'Synthetic Training Service exists' );
+oras_training_assert( file_exists( $rest ), 'Dedicated Training REST controller exists' );
 
 require_once $schema;
 require_once $base_store;
@@ -70,7 +72,7 @@ foreach (
 oras_training_assert( false === strpos( (string) file_get_contents( $store ), 'oras_event_registrations' ), 'Training Store never references the live registration table' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source assertion.
 
 oras_training_assert( class_exists( $store_class ), 'Training Store class loads' );
-foreach ( array( 'create', 'find_for_station', 'mutate', 'reset', 'delete_for_station', 'cleanup_expired' ) as $method ) {
+foreach ( array( 'create', 'find_for_station', 'mutate', 'change_date', 'reset', 'delete_for_station', 'cleanup_expired' ) as $method ) {
 	oras_training_assert( method_exists( $store_class, $method ), "Training Store exposes {$method}" );
 }
 
@@ -81,6 +83,8 @@ $station = array(
 	'event_id'        => 123,
 	'config_revision' => 7,
 	'wp_session'      => str_repeat( 'a', 64 ),
+	'mode'            => 'training',
+	'simulated_local_date' => '2026-10-06',
 );
 $row = array(
 	'station_uuid'        => $station['station_uuid'],
@@ -102,17 +106,23 @@ oras_training_assert( is_array( $valid_context ) && '2026-10-06' === $valid_cont
 
 $changed_date = $row;
 $changed_date['simulated_local_date'] = '2026-10-10';
-oras_training_assert( is_array( $context_class::validate_binding( $station, $changed_date, $config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) ) ), 'Simulated date is mutable without changing the station identity' );
+$changed_station = $station;
+$changed_station['simulated_local_date'] = '2026-10-10';
+oras_training_assert( is_array( $context_class::validate_binding( $changed_station, $changed_date, $config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) ) ), 'Simulated date is mutable without changing the station identity when the token is reissued' );
+oras_training_assert( $context_class::validate_binding( $station, $changed_date, $config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) ) instanceof WP_Error, 'Prior training token cannot authorize the changed simulated date' );
 
 $outside_date = $row;
 $outside_date['simulated_local_date'] = '2026-10-12';
-$outside_result = $context_class::validate_binding( $station, $outside_date, $config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) );
+$outside_station = $station;
+$outside_station['simulated_local_date'] = '2026-10-12';
+$outside_result = $context_class::validate_binding( $outside_station, $outside_date, $config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) );
 oras_training_assert( $outside_result instanceof WP_Error && 'oras_desk_training_date_invalid' === $outside_result->get_error_code(), 'Date outside the inclusive event range fails closed' );
 
 $stale_config = $config;
 $stale_config['revision'] = 8;
 $stale_result = $context_class::validate_binding( $station, $row, $stale_config, $event, strtotime( '2026-09-21 12:00:00 UTC' ) );
 oras_training_assert( $stale_result instanceof WP_Error && 'oras_desk_training_config_changed' === $stale_result->get_error_code(), 'Configuration revision change requires Training Mode restart' );
+oras_training_assert( is_array( $context_class::validate_scope( $station, $row, strtotime( '2026-09-21 12:00:00 UTC' ) ) ), 'Immutable scope remains valid so a manager can end a stale-configuration training session' );
 
 $other_station = $station;
 $other_station['station_uuid'] = '22222222-2222-4222-8222-222222222222';
@@ -405,6 +415,17 @@ $membership_stats = $service_class::stats( $check_membership['state'], '2026-10-
 oras_training_assert( 2 === ( $membership_stats['memberships']['total'] ?? -1 ) && 1 === ( $membership_stats['memberships']['cash'] ?? -1 ) && 1 === ( $membership_stats['memberships']['check'] ?? -1 ), 'Training statistics summarize only simulated memberships' );
 foreach ( array( 'wp_mail(', 'pmpro_changeMembershipLevel(', 'Membership_Credit_Service', 'Offline_Membership_Store', 'Event_Stats_Service', 'Board_Reports', '$wpdb' ) as $forbidden ) {
 	oras_training_assert( false === strpos( $service_source, $forbidden ), "Training membership and stats avoid live side effect: {$forbidden}" );
+}
+
+$rest_source = (string) file_get_contents( $rest ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source assertion.
+foreach ( array( '/training/start', '/training/context', '/training/offerings', '/training/roster', '/training/registrations/', '/training/walk-in', '/training/members', '/training/membership-offerings', '/training/memberships', '/training/stats', '/training/date', '/training/reset', '/training/end' ) as $route ) {
+	oras_training_assert( false !== strpos( $rest_source, $route ), "Training controller exposes {$route}" );
+}
+oras_training_assert( false !== strpos( $rest_source, 'permission_start' ) && false !== strpos( $rest_source, 'permission_training_manage' ), 'Training lifecycle uses manager-specific authorization' );
+oras_training_assert( false !== strpos( $rest_source, "get_param( 'confirmed' )" ), 'Destructive training lifecycle routes require explicit confirmation' );
+oras_training_assert( false !== strpos( $rest_source, 'Training_Store' ) && false !== strpos( $rest_source, 'Training_Service' ), 'Training routes target only the isolated store and service' );
+foreach ( array( 'Registration_Store', 'Attendance_Store', 'Membership_Credit_Service', 'Projection_Service' ) as $forbidden ) {
+	oras_training_assert( false === strpos( $rest_source, $forbidden ), "Training routes never invoke live writer: {$forbidden}" );
 }
 
 echo "Registration Desk training checks passed.\n";

@@ -24,7 +24,7 @@ final class Training_Service {
 
 	/** @return array<int,array<string,mixed>> */
 	public static function canonical_membership_offerings(): array {
-		return Membership_Offering_Resolver::all();
+		return Config::get_membership_offerings();
 	}
 
 	/**
@@ -46,12 +46,12 @@ final class Training_Service {
 		}
 
 		return array(
-			'schema_version' => 1,
-			'seed_version'   => 1,
-			'registrations'  => $registrations,
-			'attendance'     => array(),
-			'requests'       => array(),
-			'memberships'    => array(),
+			'schema_version'   => 1,
+			'seed_version'     => 1,
+			'registrations'    => $registrations,
+			'attendance'       => array(),
+			'requests'         => array(),
+			'memberships'      => array(),
 			'member_directory' => array(
 				array(
 					'member_uuid' => self::deterministic_uuid( $training_uuid, 'member|default' ),
@@ -63,7 +63,7 @@ final class Training_Service {
 					'synthetic'   => true,
 				),
 			),
-			'history'        => array(),
+			'history'          => array(),
 		);
 	}
 
@@ -139,7 +139,10 @@ final class Training_Service {
 			return $request;
 		}
 		if ( isset( $request['replay'] ) ) {
-			return array( 'state' => $state, 'result' => $request['replay'] );
+			return array(
+				'state'  => $state,
+				'result' => $request['replay'],
+			);
 		}
 
 		$registration_uuid = strtolower( trim( (string) ( $payload['registration_uuid'] ?? '' ) ) );
@@ -178,20 +181,20 @@ final class Training_Service {
 		foreach ( $selected as $attendee_uuid ) {
 			if ( ! isset( $attendance[ $attendee_uuid ] ) ) {
 				$attendance[ $attendee_uuid ] = array(
-					'attendee_uuid'      => $attendee_uuid,
-					'registration_uuid'  => $registration_uuid,
-					'checked_in_at_utc'  => $occurred,
+					'attendee_uuid'        => $attendee_uuid,
+					'registration_uuid'    => $registration_uuid,
+					'checked_in_at_utc'    => $occurred,
 					'simulated_local_date' => $date,
-					'synthetic'          => true,
+					'synthetic'            => true,
 				);
 			}
 		}
 		$state['attendance'][ $date ] = $attendance;
 		$result = array(
 			'registration_uuid' => $registration_uuid,
-			'attendee_uuids'   => $selected,
-			'local_date'       => $date,
-			'checked_in'       => true,
+			'attendee_uuids'    => $selected,
+			'local_date'        => $date,
+			'checked_in'        => true,
 		);
 		$state = self::record_request( $state, (string) $request['request_uuid'], 'check_in', (string) $request['payload_hash'], $result, $occurred );
 		$state['history'][] = array(
@@ -223,7 +226,10 @@ final class Training_Service {
 			return $request;
 		}
 		if ( isset( $request['replay'] ) ) {
-			return array( 'state' => $state, 'result' => $request['replay'] );
+			return array(
+				'state'  => $state,
+				'result' => $request['replay'],
+			);
 		}
 
 		$option_uuid = strtolower( trim( (string) ( $payload['option_uuid'] ?? '' ) ) );
@@ -249,7 +255,7 @@ final class Training_Service {
 		if ( empty( $submitted_attendees ) || count( $submitted_attendees ) > $maximum ) {
 			return new \WP_Error( 'oras_desk_training_attendees_invalid', 'Enter a valid number of training attendees for this registration type.', array( 'status' => 400 ) );
 		}
-		$contact_name = trim( strip_tags( (string) ( $payload['contact_name'] ?? '' ) ) );
+		$contact_name = self::clean_text( (string) ( $payload['contact_name'] ?? '' ) );
 		if ( '' === $contact_name ) {
 			return new \WP_Error( 'oras_desk_training_contact_required', 'Enter a name for the training walk-in.', array( 'status' => 400 ) );
 		}
@@ -257,7 +263,7 @@ final class Training_Service {
 		$registration_uuid = self::deterministic_uuid( (string) ( $context['training_uuid'] ?? '' ), 'walk-in|' . (string) $request['request_uuid'] );
 		$attendees         = array();
 		foreach ( $submitted_attendees as $index => $submitted ) {
-			$name = is_array( $submitted ) ? trim( strip_tags( (string) ( $submitted['name'] ?? '' ) ) ) : trim( strip_tags( (string) $submitted ) );
+			$name = is_array( $submitted ) ? self::clean_text( (string) ( $submitted['name'] ?? '' ) ) : self::clean_text( (string) $submitted );
 			if ( '' === $name ) {
 				$name = $contact_name;
 			}
@@ -268,27 +274,27 @@ final class Training_Service {
 			);
 		}
 		$registration = array(
-			'registration_uuid'  => $registration_uuid,
-			'source_type'        => 'training_walk_in',
-			'contact_name'       => $contact_name,
-			'email'              => trim( (string) ( $payload['email'] ?? '' ) ),
-			'phone'              => trim( (string) ( $payload['phone'] ?? '' ) ),
-			'option_uuid'        => $option_uuid,
-			'option_label'       => (string) ( $offering['label'] ?? $offering['name'] ?? 'Registration' ),
-			'option_description' => (string) ( $offering['description'] ?? '' ),
-			'option_price'       => (string) ( $offering['price'] ?? '' ),
-			'classification'     => 'family' === (string) ( $offering['classification'] ?? '' ) ? 'family' : 'individual',
-			'max_attendees'      => $maximum,
-			'validity_type'      => 'one_day' === (string) ( $offering['validity_type'] ?? '' ) ? 'one_day' : 'full_event',
-			'valid_local_date'   => (string) ( $offering['valid_local_date'] ?? '' ),
+			'registration_uuid'    => $registration_uuid,
+			'source_type'          => 'training_walk_in',
+			'contact_name'         => $contact_name,
+			'email'                => trim( (string) ( $payload['email'] ?? '' ) ),
+			'phone'                => trim( (string) ( $payload['phone'] ?? '' ) ),
+			'option_uuid'          => $option_uuid,
+			'option_label'         => (string) ( $offering['label'] ?? $offering['name'] ?? 'Registration' ),
+			'option_description'   => (string) ( $offering['description'] ?? '' ),
+			'option_price'         => (string) ( $offering['price'] ?? '' ),
+			'classification'       => 'family' === (string) ( $offering['classification'] ?? '' ) ? 'family' : 'individual',
+			'max_attendees'        => $maximum,
+			'validity_type'        => 'one_day' === (string) ( $offering['validity_type'] ?? '' ) ? 'one_day' : 'full_event',
+			'valid_local_date'     => (string) ( $offering['valid_local_date'] ?? '' ),
 			'offering_fingerprint' => (string) ( $offering['offering_fingerprint'] ?? '' ),
-			'included_events'    => self::included_events_snapshot( $offering['included_events'] ?? array() ),
-			'payment_assertion'  => $payment,
-			'attendees'          => $attendees,
-			'manager_detail'     => array(
-				'synthetic'        => true,
-				'origin'           => 'Training Mode walk-in',
-				'training_only'    => true,
+			'included_events'      => self::included_events_snapshot( $offering['included_events'] ?? array() ),
+			'payment_assertion'    => $payment,
+			'attendees'            => $attendees,
+			'manager_detail'       => array(
+				'synthetic'         => true,
+				'origin'            => 'Training Mode walk-in',
+				'training_only'     => true,
 				'payment_simulated' => true,
 			),
 		);
@@ -301,20 +307,20 @@ final class Training_Service {
 			$attendee_uuid = (string) $attendee['attendee_uuid'];
 			$attendee_uuids[] = $attendee_uuid;
 			$attendance[ $attendee_uuid ] = array(
-				'attendee_uuid'       => $attendee_uuid,
-				'registration_uuid'   => $registration_uuid,
-				'checked_in_at_utc'   => $occurred,
+				'attendee_uuid'        => $attendee_uuid,
+				'registration_uuid'    => $registration_uuid,
+				'checked_in_at_utc'    => $occurred,
 				'simulated_local_date' => $date,
-				'synthetic'           => true,
+				'synthetic'            => true,
 			);
 		}
 		$state['attendance'][ $date ] = $attendance;
 		$result = array(
 			'registration_uuid' => $registration_uuid,
-			'attendee_uuids'   => $attendee_uuids,
-			'local_date'       => $date,
+			'attendee_uuids'    => $attendee_uuids,
+			'local_date'        => $date,
 			'payment_assertion' => $payment,
-			'checked_in'       => true,
+			'checked_in'        => true,
 		);
 		$state = self::record_request( $state, (string) $request['request_uuid'], 'walk_in', (string) $request['payload_hash'], $result, $occurred );
 		$state['history'][] = array(
@@ -330,7 +336,7 @@ final class Training_Service {
 
 	/** @param array<string,mixed> $state @return array<int,array<string,mixed>> */
 	public static function member_lookup( array $state, string $query ): array {
-		$query   = self::lower( trim( strip_tags( $query ) ) );
+		$query   = self::lower( self::clean_text( $query ) );
 		$matches = array();
 		if ( '' === $query ) {
 			return $matches;
@@ -366,7 +372,10 @@ final class Training_Service {
 			return $request;
 		}
 		if ( isset( $request['replay'] ) ) {
-			return array( 'state' => $state, 'result' => $request['replay'] );
+			return array(
+				'state'  => $state,
+				'result' => $request['replay'],
+			);
 		}
 
 		$level_id = max( 0, (int) ( $payload['level_id'] ?? 0 ) );
@@ -384,7 +393,7 @@ final class Training_Service {
 		if ( ! in_array( $payment_method, array( 'cash', 'check' ), true ) ) {
 			return new \WP_Error( 'oras_desk_training_membership_payment_invalid', 'Choose Cash or Check for the training membership scenario.', array( 'status' => 400 ) );
 		}
-		$contact_name = trim( strip_tags( (string) ( $payload['contact_name'] ?? '' ) ) );
+		$contact_name = self::clean_text( (string) ( $payload['contact_name'] ?? '' ) );
 		$email        = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
 		if ( '' === $contact_name || '' === $email ) {
 			return new \WP_Error( 'oras_desk_training_membership_contact_required', 'Enter a name and email for the training membership scenario.', array( 'status' => 400 ) );
@@ -433,7 +442,12 @@ final class Training_Service {
 		$classifications = array();
 		$validity        = array();
 		$walk_ins        = 0;
-		$payment         = array( 'paid_card' => 0, 'paid_cash' => 0, 'paid_check' => 0, 'unpaid' => 0 );
+		$payment         = array(
+			'paid_card'  => 0,
+			'paid_cash'  => 0,
+			'paid_check' => 0,
+			'unpaid'     => 0,
+		);
 		$people_registered = 0;
 		foreach ( $registrations as $registration_uuid => $registration ) {
 			self::increment_count( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
@@ -486,7 +500,12 @@ final class Training_Service {
 		}
 		ksort( $attendance_by_day );
 
-		$membership_summary = array( 'total' => 0, 'cash' => 0, 'check' => 0, 'levels' => array() );
+		$membership_summary = array(
+			'total'  => 0,
+			'cash'   => 0,
+			'check'  => 0,
+			'levels' => array(),
+		);
 		foreach ( is_array( $state['memberships'] ?? null ) ? $state['memberships'] : array() as $membership ) {
 			if ( ! is_array( $membership ) ) {
 				continue;
@@ -500,18 +519,18 @@ final class Training_Service {
 		}
 
 		return array(
-			'training' => true,
-			'today' => array(
+			'training'    => true,
+			'today'       => array(
 				'actual_people'  => count( $today_people ),
 				'walk_in_people' => count( $today_walk_ins ),
 				'pass_types'     => $today_pass_types,
 			),
 			'event_total' => array(
-				'active_registrations' => count( $registrations ),
-				'people_registered'    => $people_registered,
-				'unique_attendees'     => count( $unique_attendees ),
-				'attendance_instances' => $attendance_instances,
-				'attendance_by_day'    => $attendance_by_day,
+				'active_registrations'  => count( $registrations ),
+				'people_registered'     => $people_registered,
+				'unique_attendees'      => count( $unique_attendees ),
+				'attendance_instances'  => $attendance_instances,
+				'attendance_by_day'     => $attendance_by_day,
 				'walk_in_registrations' => $walk_ins,
 				'no_show_registrations' => count( $registrations ) - count( $attended_registrations ),
 				'pass_types'            => $pass_types,
@@ -525,7 +544,7 @@ final class Training_Service {
 
 	/** @param array<string,mixed> $state */
 	public static function state_within_limit( array $state ): bool {
-		$encoded = json_encode( $state );
+		$encoded = self::json_encode( $state );
 
 		return is_string( $encoded ) && strlen( $encoded ) <= self::MAX_STATE_BYTES;
 	}
@@ -591,17 +610,24 @@ final class Training_Service {
 				return new \WP_Error( 'oras_desk_training_request_conflict', 'That training request was already used for a different action.', array( 'status' => 409 ) );
 			}
 
-			return array( 'request_uuid' => $request_uuid, 'payload_hash' => $payload_hash, 'replay' => is_array( $existing['result'] ?? null ) ? $existing['result'] : array() );
+			return array(
+				'request_uuid' => $request_uuid,
+				'payload_hash' => $payload_hash,
+				'replay'       => is_array( $existing['result'] ?? null ) ? $existing['result'] : array(),
+			);
 		}
 
-		return array( 'request_uuid' => $request_uuid, 'payload_hash' => $payload_hash );
+		return array(
+			'request_uuid' => $request_uuid,
+			'payload_hash' => $payload_hash,
+		);
 	}
 
 	/** @param array<string,mixed> $payload */
 	private static function payload_hash( array $payload ): string {
 		$canonical = self::canonicalize( $payload );
 
-		return hash( 'sha256', (string) json_encode( $canonical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+		return hash( 'sha256', (string) self::json_encode( $canonical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
 	}
 
 	private static function canonicalize( mixed $value ): mixed {
@@ -637,7 +663,10 @@ final class Training_Service {
 			return new \WP_Error( 'oras_desk_training_state_invalid', 'Training data is too large to save. No live event data was changed.', array( 'status' => 409 ) );
 		}
 
-		return array( 'state' => $state, 'result' => $result );
+		return array(
+			'state'  => $state,
+			'result' => $result,
+		);
 	}
 
 	/** @param array<string,mixed> $context */
@@ -683,23 +712,23 @@ final class Training_Service {
 		}
 
 		return array(
-			'registration_uuid'  => $registration_uuid,
-			'source_type'        => 'training_seed',
-			'contact_name'       => $identity['name'],
-			'email'              => $identity['email'],
-			'phone'              => sprintf( '555-01%02d', $index % 100 ),
-			'option_uuid'        => $option_uuid,
-			'option_label'       => $label,
-			'option_description' => (string) ( $offering['description'] ?? '' ),
-			'option_price'       => (string) ( $offering['price'] ?? '' ),
-			'classification'     => $classification,
-			'max_attendees'      => max( 1, (int) ( $offering['max_attendees'] ?? 1 ) ),
-			'validity_type'      => 'one_day' === (string) ( $offering['validity_type'] ?? '' ) ? 'one_day' : 'full_event',
-			'valid_local_date'   => (string) ( $offering['valid_local_date'] ?? '' ),
+			'registration_uuid'    => $registration_uuid,
+			'source_type'          => 'training_seed',
+			'contact_name'         => $identity['name'],
+			'email'                => $identity['email'],
+			'phone'                => sprintf( '555-01%02d', $index % 100 ),
+			'option_uuid'          => $option_uuid,
+			'option_label'         => $label,
+			'option_description'   => (string) ( $offering['description'] ?? '' ),
+			'option_price'         => (string) ( $offering['price'] ?? '' ),
+			'classification'       => $classification,
+			'max_attendees'        => max( 1, (int) ( $offering['max_attendees'] ?? 1 ) ),
+			'validity_type'        => 'one_day' === (string) ( $offering['validity_type'] ?? '' ) ? 'one_day' : 'full_event',
+			'valid_local_date'     => (string) ( $offering['valid_local_date'] ?? '' ),
 			'offering_fingerprint' => (string) ( $offering['offering_fingerprint'] ?? '' ),
-			'included_events'    => self::included_events_snapshot( $offering['included_events'] ?? array() ),
-			'attendees'          => $attendees,
-			'manager_detail'     => array(
+			'included_events'      => self::included_events_snapshot( $offering['included_events'] ?? array() ),
+			'attendees'            => $attendees,
+			'manager_detail'       => array(
 				'synthetic'     => true,
 				'origin'        => 'Deterministic Training Mode seed',
 				'training_only' => true,
@@ -710,13 +739,22 @@ final class Training_Service {
 	/** @return array{name:string,email:string} */
 	private static function seed_identity( string $classification, bool $student, int $index ): array {
 		if ( $student ) {
-			return array( 'name' => 'DEMO — Jamie Morgan', 'email' => 'demo.student@example.invalid' );
+			return array(
+				'name'  => 'DEMO — Jamie Morgan',
+				'email' => 'demo.student@example.invalid',
+			);
 		}
 		if ( 'family' === $classification ) {
-			return array( 'name' => 'DEMO — Taylor Family', 'email' => 'demo.family@example.invalid' );
+			return array(
+				'name'  => 'DEMO — Taylor Family',
+				'email' => 'demo.family@example.invalid',
+			);
 		}
 		if ( 1 === $index ) {
-			return array( 'name' => 'DEMO — Alex Carter', 'email' => 'demo.alex@example.invalid' );
+			return array(
+				'name'  => 'DEMO — Alex Carter',
+				'email' => 'demo.alex@example.invalid',
+			);
 		}
 
 		return array(
@@ -749,7 +787,7 @@ final class Training_Service {
 		}
 
 		return array(
-			'q'           => self::lower( trim( strip_tags( (string) ( $filters['q'] ?? '' ) ) ) ),
+			'q'           => self::lower( self::clean_text( (string) ( $filters['q'] ?? '' ) ) ),
 			'status'      => $status,
 			'option_uuid' => strtolower( trim( (string) ( $filters['option_uuid'] ?? '' ) ) ),
 			'offset'      => max( 0, min( 5000, (int) ( $filters['offset'] ?? 0 ) ) ),
@@ -827,5 +865,23 @@ final class Training_Service {
 
 	private static function lower( string $value ): string {
 		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+	}
+
+	private static function clean_text( string $value ): string {
+		if ( function_exists( 'wp_strip_all_tags' ) ) {
+			return trim( wp_strip_all_tags( $value ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Standalone host-check fallback when WordPress is unavailable.
+		return trim( strip_tags( $value ) );
+	}
+
+	private static function json_encode( mixed $value, int $flags = 0 ): string|false {
+		if ( function_exists( 'wp_json_encode' ) ) {
+			return wp_json_encode( $value, $flags );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone host-check fallback when WordPress is unavailable.
+		return json_encode( $value, $flags );
 	}
 }

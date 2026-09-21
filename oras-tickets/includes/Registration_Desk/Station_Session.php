@@ -10,21 +10,60 @@ final class Station_Session {
 	private const VERSION = 1;
 
 	public static function issue( int $user_id, int $event_id, int $config_revision, string $operator_label, int $ttl = 43200 ): string {
+		$issued = self::issue_payload( $user_id, $event_id, $config_revision, $operator_label, $ttl );
+
+		return $issued['token'];
+	}
+
+	/** @return array{token:string,payload:array<string,mixed>}|\WP_Error */
+	public static function issue_training( int $user_id, int $event_id, int $config_revision, string $operator_label, string $simulated_local_date, int $ttl = 43200 ) {
+		if ( 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $simulated_local_date ) ) {
+			return self::error( 'oras_desk_training_date_invalid', 'The training date is invalid.' );
+		}
+		return self::issue_payload( $user_id, $event_id, $config_revision, $operator_label, $ttl, 'training', $simulated_local_date );
+	}
+
+	/** @param array<string,mixed> $station @return array{token:string,payload:array<string,mixed>}|\WP_Error */
+	public static function reissue_training( array $station, string $simulated_local_date, int $ttl = 43200 ) {
+		if ( 'training' !== (string) ( $station['mode'] ?? '' ) || 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $simulated_local_date ) ) {
+			return self::error( 'oras_desk_training_date_invalid', 'The training date is invalid.' );
+		}
+		return self::issue_payload(
+			(int) ( $station['user_id'] ?? 0 ),
+			(int) ( $station['event_id'] ?? 0 ),
+			(int) ( $station['config_revision'] ?? 0 ),
+			(string) ( $station['operator_label'] ?? '' ),
+			$ttl,
+			'training',
+			$simulated_local_date,
+			(string) ( $station['station_uuid'] ?? '' )
+		);
+	}
+
+	/** @return array{token:string,payload:array<string,mixed>} */
+	private static function issue_payload( int $user_id, int $event_id, int $config_revision, string $operator_label, int $ttl, string $mode = 'live', string $simulated_local_date = '', string $station_uuid = '' ): array {
 		$now     = time();
 		$payload = array(
 			'v'               => self::VERSION,
-			'station_uuid'    => wp_generate_uuid4(),
+			'station_uuid'    => '' !== $station_uuid ? $station_uuid : wp_generate_uuid4(),
 			'user_id'         => $user_id,
 			'event_id'        => $event_id,
 			'config_revision' => $config_revision,
 			'operator_label'  => substr( sanitize_text_field( $operator_label ), 0, 100 ),
+			'mode'            => $mode,
 			'issued_at'       => $now,
 			'expires_at'      => $now + max( 300, min( 86400, $ttl ) ),
 			'wp_session'      => self::wordpress_session_digest(),
 		);
+		if ( 'training' === $mode ) {
+			$payload['simulated_local_date'] = $simulated_local_date;
+		}
 		$encoded = self::base64url_encode( (string) wp_json_encode( $payload ) );
 
-		return $encoded . '.' . hash_hmac( 'sha256', $encoded, wp_salt( 'auth' ) );
+		return array(
+			'token'   => $encoded . '.' . hash_hmac( 'sha256', $encoded, wp_salt( 'auth' ) ),
+			'payload' => $payload,
+		);
 	}
 
 	/** @return array<string,mixed>|\WP_Error */

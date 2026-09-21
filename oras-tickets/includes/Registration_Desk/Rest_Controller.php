@@ -299,6 +299,10 @@ final class Rest_Controller {
 		if ( $station instanceof \WP_Error ) {
 			return $station;
 		}
+		$live = $this->assert_live_station( $station );
+		if ( $live instanceof \WP_Error ) {
+			return $live;
+		}
 
 		return Manager_Access::validate( (string) $request->get_header( 'X-ORAS-Desk-Manager' ), $station ) instanceof \WP_Error
 			? new \WP_Error( 'oras_desk_manager_required', 'Enter the manager PIN to use this action.', array( 'status' => 403 ) )
@@ -774,6 +778,10 @@ final class Rest_Controller {
 		if ( $station instanceof \WP_Error ) {
 			return $station;
 		}
+		$live = $this->assert_live_station( $station );
+		if ( $live instanceof \WP_Error ) {
+			return $live;
+		}
 		$event_id = (int) $station['event_id'];
 		$config   = Config::get_event_config( $event_id );
 
@@ -793,6 +801,15 @@ final class Rest_Controller {
 		if ( $station instanceof \WP_Error ) {
 			return $station;
 		}
+		if ( 'training' === (string) ( $station['mode'] ?? '' ) ) {
+			$row = ( new Training_Store() )->find_for_station( (string) ( $station['station_uuid'] ?? '' ) );
+			if ( null === $row ) {
+				return new \WP_Error( 'oras_desk_training_required', 'Training Mode is not active for this station.', array( 'status' => 409 ) );
+			}
+			$training = Training_Context::validate_scope( $station, $row );
+
+			return $training instanceof \WP_Error ? $training : $station;
+		}
 		$event_id = (int) ( $station['event_id'] ?? 0 );
 		$config   = Config::get_event_config( $event_id );
 		if ( (int) ( $station['config_revision'] ?? -1 ) !== (int) $config['revision'] ) {
@@ -808,6 +825,19 @@ final class Rest_Controller {
 		}
 
 		return $station;
+	}
+
+	/** @param array<string,mixed> $station @return true|\WP_Error */
+	private function assert_live_station( array $station ) {
+		if ( 'training' === (string) ( $station['mode'] ?? '' ) ) {
+			return new \WP_Error(
+				'oras_desk_training_live_route_forbidden',
+				'This station is in Training Mode. Live event operations are unavailable until Training Mode ends.',
+				array( 'status' => 409 )
+			);
+		}
+
+		return ( new Training_Context() )->assert_station_live( $station );
 	}
 
 	private function is_manager_request( \WP_REST_Request $request ): bool {

@@ -26,22 +26,23 @@ final class Training_Store extends Store {
 			return $encoded;
 		}
 		$now           = self::utc_now();
-		$training_uuid = self::uuid();
+		$requested_uuid = strtolower( trim( (string) ( $binding['training_uuid'] ?? '' ) ) );
+		$training_uuid  = 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $requested_uuid ) ? $requested_uuid : self::uuid();
 		$created       = $wpdb->insert(
 			$this->table,
 			array(
-				'training_uuid'       => $training_uuid,
-				'station_uuid'        => sanitize_text_field( (string) ( $binding['station_uuid'] ?? '' ) ),
-				'user_id'             => absint( $binding['user_id'] ?? 0 ),
-				'wp_session_digest'   => sanitize_text_field( (string) ( $binding['wp_session'] ?? '' ) ),
-				'event_id'            => absint( $binding['event_id'] ?? 0 ),
-				'config_revision'     => absint( $binding['config_revision'] ?? 0 ),
+				'training_uuid'        => $training_uuid,
+				'station_uuid'         => sanitize_text_field( (string) ( $binding['station_uuid'] ?? '' ) ),
+				'user_id'              => absint( $binding['user_id'] ?? 0 ),
+				'wp_session_digest'    => sanitize_text_field( (string) ( $binding['wp_session'] ?? '' ) ),
+				'event_id'             => absint( $binding['event_id'] ?? 0 ),
+				'config_revision'      => absint( $binding['config_revision'] ?? 0 ),
 				'simulated_local_date' => sanitize_text_field( (string) ( $binding['simulated_local_date'] ?? '' ) ),
-				'state_json'          => $encoded,
-				'record_version'      => 1,
-				'expires_at_utc'      => gmdate( 'Y-m-d H:i:s', time() + max( 300, min( 86400, $ttl ) ) ),
-				'created_at_utc'      => $now,
-				'updated_at_utc'      => $now,
+				'state_json'           => $encoded,
+				'record_version'       => 1,
+				'expires_at_utc'       => gmdate( 'Y-m-d H:i:s', time() + max( 300, min( 86400, $ttl ) ) ),
+				'created_at_utc'       => $now,
+				'updated_at_utc'       => $now,
 			),
 			array( '%s', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
 		);
@@ -57,6 +58,7 @@ final class Training_Store extends Store {
 	public function find_for_station( string $station_uuid ): ?array {
 		global $wpdb;
 		$row = $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal plugin-owned table name.
 			$wpdb->prepare( "SELECT * FROM {$this->table} WHERE station_uuid = %s LIMIT 1", $station_uuid ),
 			ARRAY_A
 		);
@@ -74,6 +76,7 @@ final class Training_Store extends Store {
 			function () use ( $station_uuid, $expected_revision, $transition ) {
 				global $wpdb;
 				$row = $wpdb->get_row(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal plugin-owned table name.
 					$wpdb->prepare( "SELECT * FROM {$this->table} WHERE station_uuid = %s FOR UPDATE", $station_uuid ),
 					ARRAY_A
 				);
@@ -130,6 +133,53 @@ final class Training_Store extends Store {
 		);
 	}
 
+	/** @return array<string,mixed>|\WP_Error */
+	public function change_date( string $station_uuid, int $expected_revision, string $simulated_local_date ) {
+		if ( 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $simulated_local_date ) ) {
+			return new \WP_Error( 'oras_desk_training_date_invalid', 'The training date is invalid.', array( 'status' => 400 ) );
+		}
+
+		return self::transaction(
+			function () use ( $station_uuid, $expected_revision, $simulated_local_date ) {
+				global $wpdb;
+				$row = $wpdb->get_row(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal plugin-owned table name.
+					$wpdb->prepare( "SELECT * FROM {$this->table} WHERE station_uuid = %s FOR UPDATE", $station_uuid ),
+					ARRAY_A
+				);
+				if ( ! is_array( $row ) ) {
+					return new \WP_Error( 'oras_desk_training_required', 'Training Mode is not active for this station.', array( 'status' => 409 ) );
+				}
+				$normalized = $this->normalize_row( $row );
+				if ( $expected_revision !== (int) $normalized['record_version'] ) {
+					return new \WP_Error( 'oras_desk_training_stale', 'Training data changed. Reload and try again.', array( 'status' => 409 ) );
+				}
+				$updated = $wpdb->update(
+					$this->table,
+					array(
+						'simulated_local_date' => $simulated_local_date,
+						'record_version'       => $expected_revision + 1,
+						'updated_at_utc'       => self::utc_now(),
+					),
+					array(
+						'id'             => (int) $normalized['id'],
+						'record_version' => $expected_revision,
+					),
+					array( '%s', '%d', '%s' ),
+					array( '%d', '%d' )
+				);
+				if ( 1 !== $updated ) {
+					return new \WP_Error( 'oras_desk_training_save_failed', 'Training date could not be saved. No live event data was changed.' );
+				}
+
+				return array(
+					'simulated_local_date' => $simulated_local_date,
+					'record_version'       => $expected_revision + 1,
+				);
+			}
+		);
+	}
+
 	public function delete_for_station( string $station_uuid ): bool {
 		global $wpdb;
 
@@ -138,6 +188,7 @@ final class Training_Store extends Store {
 
 	public function cleanup_expired(): int {
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal plugin-owned table name.
 		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM {$this->table} WHERE expires_at_utc < %s", self::utc_now() ) );
 
 		return false === $deleted ? 0 : (int) $deleted;

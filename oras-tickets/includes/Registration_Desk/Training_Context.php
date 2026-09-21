@@ -54,13 +54,9 @@ final class Training_Context {
 	 * @return array<string,mixed>|\WP_Error
 	 */
 	public static function validate_binding( array $station, array $row, array $config, array $event, ?int $now = null ) {
-		if (
-			! hash_equals( (string) ( $station['station_uuid'] ?? '' ), (string) ( $row['station_uuid'] ?? '' ) )
-			|| (int) ( $station['user_id'] ?? 0 ) !== (int) ( $row['user_id'] ?? 0 )
-			|| ! hash_equals( (string) ( $station['wp_session'] ?? '' ), (string) ( $row['wp_session_digest'] ?? '' ) )
-			|| (int) ( $station['event_id'] ?? 0 ) !== (int) ( $row['event_id'] ?? 0 )
-		) {
-			return new \WP_Error( 'oras_desk_training_scope_invalid', 'Training Mode does not belong to this station.', array( 'status' => 403 ) );
+		$scope = self::validate_scope( $station, $row, $now );
+		if ( $scope instanceof \WP_Error ) {
+			return $scope;
 		}
 
 		$config_revision = (int) ( $config['revision'] ?? -1 );
@@ -79,17 +75,40 @@ final class Training_Context {
 			return new \WP_Error( 'oras_desk_training_event_changed', 'The training event is no longer available. End and restart Training Mode.', array( 'status' => 409 ) );
 		}
 
-		$now     = $now ?? time();
-		$expires = strtotime( (string) ( $row['expires_at_utc'] ?? '' ) . ' UTC' );
-		if ( false === $expires || $expires < $now ) {
-			return new \WP_Error( 'oras_desk_training_expired', 'Training Mode expired. Ask a manager to start a new training session.', array( 'status' => 401 ) );
-		}
-
 		$date  = (string) ( $row['simulated_local_date'] ?? '' );
 		$start = (string) ( $event['start_date'] ?? '' );
 		$end   = (string) ( $event['end_date'] ?? '' );
 		if ( ! self::is_event_date( $date, $start, $end ) ) {
 			return new \WP_Error( 'oras_desk_training_date_invalid', 'The training date must be within the selected event.', array( 'status' => 400 ) );
+		}
+
+		return $row;
+	}
+
+	/**
+	 * Validate immutable station ownership while allowing a manager to end a
+	 * session whose external event configuration changed.
+	 *
+	 * @param array<string,mixed> $station Signed station payload.
+	 * @param array<string,mixed> $row Training row.
+	 * @return array<string,mixed>|\WP_Error
+	 */
+	public static function validate_scope( array $station, array $row, ?int $now = null ) {
+		if (
+			'training' !== (string) ( $station['mode'] ?? '' )
+			|| ! hash_equals( (string) ( $station['station_uuid'] ?? '' ), (string) ( $row['station_uuid'] ?? '' ) )
+			|| (int) ( $station['user_id'] ?? 0 ) !== (int) ( $row['user_id'] ?? 0 )
+			|| ! hash_equals( (string) ( $station['wp_session'] ?? '' ), (string) ( $row['wp_session_digest'] ?? '' ) )
+			|| (int) ( $station['event_id'] ?? 0 ) !== (int) ( $row['event_id'] ?? 0 )
+			|| ! hash_equals( (string) ( $station['simulated_local_date'] ?? '' ), (string) ( $row['simulated_local_date'] ?? '' ) )
+		) {
+			return new \WP_Error( 'oras_desk_training_scope_invalid', 'Training Mode does not belong to this station.', array( 'status' => 403 ) );
+		}
+
+		$now     = $now ?? time();
+		$expires = strtotime( (string) ( $row['expires_at_utc'] ?? '' ) . ' UTC' );
+		if ( false === $expires || $expires < $now ) {
+			return new \WP_Error( 'oras_desk_training_expired', 'Training Mode expired. Ask a manager to start a new training session.', array( 'status' => 401 ) );
 		}
 
 		return $row;

@@ -129,6 +129,14 @@ $session_b = $station_class::validate( $token_b, 99, 123, 7 );
 oras_access_assert( is_array( $session_a ) && 'Alice' === $session_a['operator_label'], 'First device retains its operator label' );
 oras_access_assert( is_array( $session_b ) && 'Bob' === $session_b['operator_label'], 'Second device retains its operator label' );
 oras_access_assert( $session_a['station_uuid'] !== $session_b['station_uuid'], 'Station UUIDs are device-specific' );
+$training_issue = $station_class::issue_training( 99, 123, 7, 'Alice', '2026-10-06', 600 );
+oras_access_assert( is_array( $training_issue ) && is_string( $training_issue['token'] ?? null ), 'Training station issuance returns its signed token and server payload together' );
+$training_session = $station_class::validate( $training_issue['token'], 99, 123, 7 );
+oras_access_assert( is_array( $training_session ) && 'training' === ( $training_session['mode'] ?? '' ) && '2026-10-06' === ( $training_session['simulated_local_date'] ?? '' ), 'Training station token is explicitly mode- and date-bound' );
+$changed_training_issue = $station_class::reissue_training( $training_session, '2026-10-10', 600 );
+$changed_training_session = $station_class::validate( $changed_training_issue['token'], 99, 123, 7 );
+oras_access_assert( is_array( $changed_training_session ) && $training_session['station_uuid'] === $changed_training_session['station_uuid'], 'Changing training date preserves station identity' );
+oras_access_assert( '2026-10-10' === $changed_training_session['simulated_local_date'], 'Changing training date reissues a token bound to the new date' );
 oras_access_assert( $station_class::validate( $token_a, 99, 124, 7 ) instanceof WP_Error, 'Station token is bound to active event' );
 oras_access_assert( $station_class::validate( $token_a, 99, 123, 8 ) instanceof WP_Error, 'Station token is bound to configuration revision' );
 $GLOBALS['oras_test_session_token'] = 'wordpress-session-b';
@@ -190,6 +198,7 @@ oras_access_assert( is_array( $manager_class::validate( $manager_token, $session
 $changed_station = $session_a;
 $changed_station['event_id'] = 124;
 oras_access_assert( $manager_class::validate( $manager_token, $changed_station ) instanceof WP_Error, 'Changing event invalidates manager mode' );
+oras_access_assert( $manager_class::validate( $manager_token, $training_session ) instanceof WP_Error, 'Starting a new training station invalidates the prior manager token' );
 
 oras_access_assert( defined( $caps_class . '::REGISTRATION_DESK_ROLE' ), 'Dedicated desk role is defined' );
 oras_access_assert( in_array( 'oras_tickets_use_registration_desk', $caps_class::REGISTRATION_DESK_CAPS, true ), 'Desk role can use the desk' );
@@ -221,6 +230,10 @@ oras_access_assert( false !== strpos( $rest_code, 'oras_desk_station_event_ended
 oras_access_assert( false !== strpos( $rest_code, "get_param( 'event_id' )" ), 'Station creation binds the explicitly selected event' );
 oras_access_assert( false !== strpos( $rest_code, "'friendly_date'" ), 'Station bootstrap supplies a friendly site-local date' );
 oras_access_assert( false !== strpos( $rest_code, 'html_entity_decode( wp_logout_url' ), 'Station bootstrap supplies a usable single-escaped logout URL' );
+oras_access_assert( false !== strpos( $rest_code, 'assert_live_station' ) && false !== strpos( $rest_code, 'oras_desk_training_live_route_forbidden' ), 'Every live controller context rejects an active training station' );
+$training_rest_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Training_Rest_Controller.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
+oras_access_assert( false !== strpos( $training_rest_code, 'permission_start' ), 'Only manager-authorized requests can start Training Mode' );
+oras_access_assert( false !== strpos( $training_rest_code, 'permission_training_manage' ), 'Only manager-authorized requests can change, reset, or end Training Mode' );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $settings_code = (string) file_get_contents( $plugin_dir . 'includes/Registration_Desk/Admin_Settings.php' );
 oras_access_assert( false !== strpos( $settings_code, 'ticket_rules[' ), 'Administrator settings expose canonical-ticket supplemental fields' );

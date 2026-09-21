@@ -11,6 +11,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Context.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Rest_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';
@@ -212,6 +213,7 @@ final class Bootstrap
 
 		$registration_desk_api = new \ORAS\Tickets\Registration_Desk\Rest_Controller();
 		$registration_desk_api->register();
+		( new \ORAS\Tickets\Registration_Desk\Training_Rest_Controller() )->register();
 		( new \ORAS\Tickets\Registration_Desk\Source_Change_Listener() )->register();
 
         require_once ORAS_TICKETS_DIR . 'includes/Api/Rsvp.php'; // NOSONAR legacy include
