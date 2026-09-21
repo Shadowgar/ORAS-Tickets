@@ -304,8 +304,8 @@ function oras_desk_integration_http_evidence( string $scope = '' ): array {
 	);
 }
 
-/** Capture every protected non-desk surface after fixture setup. */
-function oras_desk_integration_protected_snapshot( array $context ): array {
+/** Capture protected live surfaces after fixture setup. */
+function oras_desk_integration_protected_snapshot( array $context, bool $include_live_reports = false ): array {
 	global $wpdb;
 	$tables = Schema::table_names();
 	$orders = array();
@@ -358,19 +358,23 @@ function oras_desk_integration_protected_snapshot( array $context ): array {
 		'products'    => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ('product','product_variation')" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
 		'users'       => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table.
 	);
-	return array(
+	$snapshot = array(
 		'orders'        => oras_desk_integration_hash( $orders ),
 		'products'      => oras_desk_integration_hash( $products ),
 		'users'         => oras_desk_integration_hash( array( $users, $usermeta ) ),
 		'memberships'   => oras_desk_integration_hash( array( $membership_counts, $pmpro_rows ) ),
-		'live_desk'     => oras_desk_integration_hash( $live_desk_rows ),
-		'event_stats'   => oras_desk_integration_hash( ( new Event_Stats_Service() )->for_event( $stats_event_id, (string) ( $context['today'] ?? '' ) ) ),
-		'board_totals'  => oras_desk_integration_hash( ( new Board_Report_Service() )->get_event_statistics( $stats_event_id ) ),
 		'qbo_actions'   => oras_desk_integration_hash( $scheduled ),
 		'mail_log'      => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_mail_log', array() ) ),
 		'write_log'     => oras_desk_integration_hash( get_option( 'oras_registration_desk_test_write_log', array() ) ),
 		'global_counts' => oras_desk_integration_hash( $global_counts ),
 	);
+	if ( $include_live_reports ) {
+		$snapshot['live_desk']    = oras_desk_integration_hash( $live_desk_rows );
+		$snapshot['event_stats']  = oras_desk_integration_hash( ( new Event_Stats_Service() )->for_event( $stats_event_id, (string) ( $context['today'] ?? '' ) ) );
+		$snapshot['board_totals'] = oras_desk_integration_hash( ( new Board_Report_Service() )->get_event_statistics( $stats_event_id ) );
+	}
+
+	return $snapshot;
 }
 
 /** Locate an expected callback class on a hook. */
@@ -1579,7 +1583,7 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$store         = new Training_Store();
 	$tables        = Schema::table_names();
 	$before_rows   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table.
-	$live_before   = oras_desk_integration_protected_snapshot( $context );
+	$live_before   = oras_desk_integration_protected_snapshot( $context, true );
 	$created       = $store->create(
 		array(
 			'training_uuid'       => $training_uuid,
@@ -1744,7 +1748,7 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$ended_live_route = oras_desk_integration_rest_offerings( (string) $issued['token'] );
 	oras_desk_integration_true( 409 === $ended_live_route->get_status(), 'an ended training token still cannot be reused for live operations' );
 
-	$live_after = oras_desk_integration_protected_snapshot( $context );
+	$live_after = oras_desk_integration_protected_snapshot( $context, true );
 	foreach ( $live_before as $surface => $hash ) {
 		oras_desk_integration_same( $live_after[ $surface ], $hash, 'complete training lifecycle leaves live ' . $surface . ' unchanged' );
 	}
