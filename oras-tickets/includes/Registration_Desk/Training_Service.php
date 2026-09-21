@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Synthetic-only Registration Desk behavior for one isolated training row. */
 final class Training_Service {
-	private const MAX_STATE_BYTES = 524288;
+	private const MAX_STATE_BYTES = 8388608;
 
 	/**
 	 * Read the selected event's canonical ticket configuration without reading registrations.
@@ -122,6 +122,76 @@ final class Training_Service {
 	}
 
 	/**
+	 * Return the copied record in the same shape as the live registration detail endpoint.
+	 *
+	 * @param array<string,mixed> $state
+	 * @return array<string,mixed>|null
+	 */
+	public static function live_detail( array $state, string $registration_uuid, string $simulated_local_date ): ?array {
+		$entry = self::registrations( $state )[ $registration_uuid ] ?? null;
+		if ( ! is_array( $entry ) ) {
+			return null;
+		}
+		$detail = is_array( $entry['live_detail'] ?? null ) ? $entry['live_detail'] : self::legacy_live_detail( $entry );
+		$detail['local_date'] = $simulated_local_date;
+		$attendance = is_array( $state['attendance'][ $simulated_local_date ] ?? null ) ? $state['attendance'][ $simulated_local_date ] : array();
+		$available  = 0;
+		$checked    = 0;
+		$base_allowed = ! empty( $detail['admission']['check_in_allowed'] );
+		$wrong_date = 'one_day' === (string) ( $entry['validity_type'] ?? '' ) && $simulated_local_date !== (string) ( $entry['valid_local_date'] ?? '' );
+		$maximum    = max( 1, (int) ( $detail['admission']['maximum_attendees'] ?? count( $detail['attendees'] ) ) );
+		foreach ( $detail['attendees'] as &$attendee ) {
+			$attendee_uuid = (string) ( $attendee['attendee_uuid'] ?? '' );
+			if ( isset( $attendance[ $attendee_uuid ] ) ) {
+				$attendee['current_attendance'] = array_merge( $attendance[ $attendee_uuid ], array( 'state' => 'checked_in' ) );
+				$attendee['admission'] = array(
+					'state'             => 'already_checked_in',
+					'selection_allowed' => false,
+					'status_label'      => 'CHECKED IN TODAY',
+				);
+				++$checked;
+			} else {
+				unset( $attendee['current_attendance'] );
+				$selection_allowed = $base_allowed && ! $wrong_date;
+				$attendee['admission'] = array(
+					'state'             => $selection_allowed ? 'eligible' : (string) ( $detail['admission']['state'] ?? 'manager_review_required' ),
+					'selection_allowed' => $selection_allowed,
+					'status_label'      => $selection_allowed ? 'READY TO CHECK IN' : (string) ( $detail['admission']['status_label'] ?? 'MANAGER HELP NEEDED' ),
+				);
+				$available += $selection_allowed ? 1 : 0;
+			}
+		}
+		unset( $attendee );
+		if ( $wrong_date ) {
+			$detail['admission'] = array_merge(
+				$detail['admission'],
+				array(
+					'state'             => 'wrong_date',
+					'status_label'      => 'NOT VALID TODAY',
+					'message'           => 'This registration is valid on another event date.',
+					'selection_allowed' => false,
+					'check_in_allowed'  => false,
+					'allowed'           => false,
+				)
+			);
+		} elseif ( $checked > 0 && 0 === $available && count( $detail['attendees'] ) >= $maximum ) {
+			$detail['admission'] = array_merge(
+				$detail['admission'],
+				array(
+					'state'             => 'already_checked_in',
+					'status_label'      => 'CHECKED IN TODAY',
+					'message'           => 'Everyone on this registration is already checked in today.',
+					'selection_allowed' => false,
+					'check_in_allowed'  => false,
+					'allowed'           => false,
+				)
+			);
+		}
+
+		return $detail;
+	}
+
+	/**
 	 * Apply one training-only attendance transition.
 	 *
 	 * @param array<string,mixed> $state
@@ -150,13 +220,16 @@ final class Training_Service {
 		if ( ! is_array( $registration ) ) {
 			return new \WP_Error( 'oras_desk_training_registration_missing', 'That training registration is no longer available.', array( 'status' => 404 ) );
 		}
-		$valid_offering = self::validate_registration_offering( $registration, $context );
+		$valid_offering = ! empty( $registration['snapshot'] ) ? $registration : self::validate_registration_offering( $registration, $context );
 		if ( $valid_offering instanceof \WP_Error ) {
 			return $valid_offering;
 		}
 		$date_valid = self::validate_offering_date( $valid_offering, (string) $valid_context['simulated_local_date'] );
 		if ( $date_valid instanceof \WP_Error ) {
 			return $date_valid;
+		}
+		if ( ! empty( $registration['snapshot'] ) && empty( $registration['live_detail']['admission']['check_in_allowed'] ) ) {
+			return new \WP_Error( 'oras_desk_not_eligible', 'This registration cannot be checked in right now.', array( 'status' => 409 ) );
 		}
 
 		$available = array();
@@ -166,6 +239,50 @@ final class Training_Service {
 			}
 		}
 		$selected = array_values( array_unique( array_map( 'strval', is_array( $payload['attendee_uuids'] ?? null ) ? $payload['attendee_uuids'] : array() ) ) );
+		$arrivals = is_array( $payload['arrivals'] ?? null ) ? $payload['arrivals'] : array();
+		if ( ! empty( $arrivals ) ) {
+			$by_slot = array();
+			foreach ( $available as $attendee_uuid => $attendee ) {
+				$slot_key = (string) ( $attendee['slot_key'] ?? '' );
+				if ( '' !== $slot_key ) {
+					$by_slot[ $slot_key ] = $attendee_uuid;
+				}
+			}
+			$maximum = max( 1, (int) ( $registration['live_detail']['admission']['maximum_attendees'] ?? $registration['max_attendees'] ?? count( $available ) ) );
+			foreach ( $arrivals as $arrival_index => $arrival ) {
+				if ( ! is_array( $arrival ) ) {
+					continue;
+				}
+				$slot_key = self::clean_text( (string) ( $arrival['slot_key'] ?? '' ) );
+				if ( isset( $by_slot[ $slot_key ] ) ) {
+					$selected[] = $by_slot[ $slot_key ];
+					continue;
+				}
+				if ( count( $available ) >= $maximum ) {
+					return new \WP_Error( 'oras_desk_training_attendees_invalid', 'Enter a valid number of attendees for this registration type.', array( 'status' => 400 ) );
+				}
+				$first_name = self::clean_text( (string) ( $arrival['first_name'] ?? '' ) );
+				$last_name  = self::clean_text( (string) ( $arrival['last_name'] ?? '' ) );
+				$name       = trim( $first_name . ' ' . $last_name );
+				$attendee_uuid = self::deterministic_uuid( (string) $valid_context['training_uuid'], 'arrival|' . (string) $request['request_uuid'] . '|' . $slot_key . '|' . $arrival_index );
+				$attendee = array(
+					'attendee_uuid' => $attendee_uuid,
+					'slot_key'      => '' !== $slot_key ? $slot_key : 'arrival-' . ( $arrival_index + 1 ),
+					'display_name'  => $name,
+					'name'          => $name,
+					'first_name'    => $first_name,
+					'last_name'     => $last_name,
+					'status'        => 'active',
+					'synthetic'     => true,
+				);
+				$available[ $attendee_uuid ] = $attendee;
+				$registration['attendees'][] = $attendee;
+				$registration['live_detail']['attendees'][] = $attendee;
+				$selected[] = $attendee_uuid;
+			}
+			$state['registrations'][ $registration_uuid ] = $registration;
+			$selected = array_values( array_unique( $selected ) );
+		}
 		if ( empty( $selected ) ) {
 			return new \WP_Error( 'oras_desk_training_attendee_required', 'Choose at least one training attendee to check in.', array( 'status' => 400 ) );
 		}
@@ -191,10 +308,11 @@ final class Training_Service {
 		}
 		$state['attendance'][ $date ] = $attendance;
 		$result = array(
-			'registration_uuid' => $registration_uuid,
-			'attendee_uuids'    => $selected,
-			'local_date'        => $date,
-			'checked_in'        => true,
+			'registration_uuid'  => $registration_uuid,
+			'attendee_uuids'     => $selected,
+			'local_date'         => $date,
+			'checked_in'         => true,
+			'current_attendance' => array_values( array_intersect_key( $attendance, array_flip( $selected ) ) ),
 		);
 		$state = self::record_request( $state, (string) $request['request_uuid'], 'check_in', (string) $request['payload_hash'], $result, $occurred );
 		$state['history'][] = array(
@@ -259,7 +377,6 @@ final class Training_Service {
 		if ( '' === $contact_name ) {
 			return new \WP_Error( 'oras_desk_training_contact_required', 'Enter a name for the training walk-in.', array( 'status' => 400 ) );
 		}
-		$contact_name      = self::demo_name( $contact_name );
 		$registration_uuid = self::deterministic_uuid( (string) ( $context['training_uuid'] ?? '' ), 'walk-in|' . (string) $request['request_uuid'] );
 		$attendees         = array();
 		foreach ( $submitted_attendees as $index => $submitted ) {
@@ -269,13 +386,13 @@ final class Training_Service {
 			}
 			$attendees[] = array(
 				'attendee_uuid' => self::deterministic_uuid( (string) ( $context['training_uuid'] ?? '' ), 'walk-in-attendee|' . (string) $request['request_uuid'] . '|' . $index ),
-				'name'          => self::demo_name( $name ),
+				'name'          => $name,
 				'synthetic'     => true,
 			);
 		}
 		$registration = array(
 			'registration_uuid'    => $registration_uuid,
-			'source_type'          => 'training_walk_in',
+			'source_type'          => 'walk_in',
 			'contact_name'         => $contact_name,
 			'email'                => trim( (string) ( $payload['email'] ?? '' ) ),
 			'phone'                => trim( (string) ( $payload['phone'] ?? '' ) ),
@@ -406,7 +523,7 @@ final class Training_Service {
 			'level_name'      => (string) ( $offering['display_name'] ?? 'Membership' ),
 			'reference_price' => (string) ( $offering['price'] ?? '' ),
 			'period_label'    => (string) ( $offering['period_label'] ?? '' ),
-			'contact_name'    => self::demo_name( $contact_name ),
+			'contact_name'    => $contact_name,
 			'email'           => $email,
 			'payment_method'  => $payment_method,
 			'status'          => 'simulated',
@@ -442,6 +559,15 @@ final class Training_Service {
 		$classifications = array();
 		$validity        = array();
 		$walk_ins        = 0;
+		$source_registrations = array(
+			'website'          => 0,
+			'included'         => 0,
+			'walk_in'          => 0,
+			'complimentary'    => 0,
+			'rsvp'             => 0,
+			'manager_verified' => 0,
+		);
+		$family_registrations = 0;
 		$payment         = array(
 			'paid_card'  => 0,
 			'paid_cash'  => 0,
@@ -453,12 +579,17 @@ final class Training_Service {
 			self::increment_count( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
 			self::increment_count( $classifications, (string) ( $registration['classification'] ?? 'individual' ) );
 			self::increment_count( $validity, (string) ( $registration['validity_type'] ?? 'full_event' ) );
-			if ( 'training_walk_in' === (string) ( $registration['source_type'] ?? '' ) ) {
+			if ( in_array( (string) ( $registration['source_type'] ?? '' ), array( 'training_walk_in', 'walk_in' ), true ) ) {
 				++$walk_ins;
 				$assertion = (string) ( $registration['payment_assertion'] ?? '' );
 				if ( isset( $payment[ $assertion ] ) ) {
 					++$payment[ $assertion ];
 				}
+			}
+			$source_bucket = self::source_bucket( (string) ( $registration['source_type'] ?? '' ) );
+			++$source_registrations[ $source_bucket ];
+			if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
+				++$family_registrations;
 			}
 			foreach ( is_array( $registration['attendees'] ?? null ) ? $registration['attendees'] : array() as $attendee ) {
 				if ( is_array( $attendee ) && '' !== (string) ( $attendee['attendee_uuid'] ?? '' ) ) {
@@ -473,6 +604,9 @@ final class Training_Service {
 		$attended_registrations = array();
 		$today_people      = array();
 		$today_walk_ins    = array();
+		$today_walk_in_registrations = array();
+		$today_by_source   = array_fill_keys( array_keys( $source_registrations ), array() );
+		$family_attendees_attended = array();
 		$today_pass_types  = array();
 		$attendance_instances = 0;
 		foreach ( is_array( $state['attendance'] ?? null ) ? $state['attendance'] : array() as $date => $instances ) {
@@ -488,11 +622,17 @@ final class Training_Service {
 				$unique_attendees[ (string) $attendee_uuid ] = true;
 				$registration_uuid = $registration_by_attendee[ (string) $attendee_uuid ];
 				$attended_registrations[ $registration_uuid ] = true;
+				$registration = $registrations[ $registration_uuid ];
+				if ( 'family' === (string) ( $registration['classification'] ?? '' ) ) {
+					$family_attendees_attended[ (string) $attendee_uuid ] = true;
+				}
 				if ( (string) $date === $simulated_local_date ) {
 					$today_people[ (string) $attendee_uuid ] = true;
-					$registration = $registrations[ $registration_uuid ];
-					if ( 'training_walk_in' === (string) ( $registration['source_type'] ?? '' ) ) {
+					$source_bucket = self::source_bucket( (string) ( $registration['source_type'] ?? '' ) );
+					$today_by_source[ $source_bucket ][ (string) $attendee_uuid ] = true;
+					if ( in_array( (string) ( $registration['source_type'] ?? '' ), array( 'training_walk_in', 'walk_in' ), true ) ) {
 						$today_walk_ins[ (string) $attendee_uuid ] = true;
+						$today_walk_in_registrations[ $registration_uuid ] = true;
 					}
 					self::increment_count( $today_pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
 				}
@@ -521,22 +661,35 @@ final class Training_Service {
 		return array(
 			'training'    => true,
 			'today'       => array(
-				'actual_people'  => count( $today_people ),
-				'walk_in_people' => count( $today_walk_ins ),
-				'pass_types'     => $today_pass_types,
+				'actual_people'             => count( $today_people ),
+				'website_people'            => count( $today_by_source['website'] ),
+				'included_event_people'     => count( $today_by_source['included'] ),
+				'walk_in_people'            => count( $today_walk_ins ),
+				'complimentary_people'      => count( $today_by_source['complimentary'] ),
+				'rsvp_people'               => count( $today_by_source['rsvp'] ),
+				'manager_verified_people'   => count( $today_by_source['manager_verified'] ),
+				'new_walk_in_registrations' => count( $today_walk_in_registrations ),
+				'pass_types'                => $today_pass_types,
 			),
 			'event_total' => array(
-				'active_registrations'  => count( $registrations ),
-				'people_registered'     => $people_registered,
-				'unique_attendees'      => count( $unique_attendees ),
-				'attendance_instances'  => $attendance_instances,
-				'attendance_by_day'     => $attendance_by_day,
-				'walk_in_registrations' => $walk_ins,
-				'no_show_registrations' => count( $registrations ) - count( $attended_registrations ),
-				'pass_types'            => $pass_types,
-				'classifications'       => $classifications,
-				'validity'              => $validity,
-				'payment_assertions'    => $payment,
+				'active_registrations'           => count( $registrations ),
+				'people_registered'              => $people_registered,
+				'unique_attendees'               => count( $unique_attendees ),
+				'attendance_instances'           => $attendance_instances,
+				'attendance_by_day'              => $attendance_by_day,
+				'direct_website_registrations'   => $source_registrations['website'],
+				'included_event_registrations'   => $source_registrations['included'],
+				'walk_in_registrations'          => $walk_ins,
+				'complimentary_registrations'    => $source_registrations['complimentary'],
+				'rsvp_registrations'             => $source_registrations['rsvp'],
+				'manager_verified_registrations' => $source_registrations['manager_verified'],
+				'family_registrations'           => $family_registrations,
+				'family_attendees_attended'      => count( $family_attendees_attended ),
+				'no_show_registrations'          => count( $registrations ) - count( $attended_registrations ),
+				'pass_types'                     => $pass_types,
+				'classifications'                => $classifications,
+				'validity'                       => $validity,
+				'payment_assertions'             => $payment,
 			),
 			'memberships' => $membership_summary,
 		);
@@ -782,7 +935,7 @@ final class Training_Service {
 	/** @param array<string,mixed> $filters @return array{q:string,status:string,option_uuid:string,offset:int,limit:int} */
 	private static function normalize_filters( array $filters ): array {
 		$status = strtolower( trim( (string) ( $filters['status'] ?? 'everyone' ) ) );
-		if ( ! in_array( $status, array( 'everyone', 'checked_in', 'not_checked_in', 'walk_in' ), true ) ) {
+		if ( ! in_array( $status, array( 'everyone', 'checked_in', 'not_checked_in', 'walk_in', 'walk_ins' ), true ) ) {
 			$status = 'everyone';
 		}
 
@@ -803,8 +956,8 @@ final class Training_Service {
 		if ( 'not_checked_in' === $status ) {
 			return ! $checked_in;
 		}
-		if ( 'walk_in' === $status ) {
-			return 'training_walk_in' === (string) ( $registration['source_type'] ?? '' );
+		if ( in_array( $status, array( 'walk_in', 'walk_ins' ), true ) ) {
+			return in_array( (string) ( $registration['source_type'] ?? '' ), array( 'training_walk_in', 'walk_in' ), true );
 		}
 
 		return true;
@@ -824,6 +977,18 @@ final class Training_Service {
 		}
 
 		return false !== strpos( self::lower( implode( ' ', $values ) ), $query );
+	}
+
+	private static function source_bucket( string $source_type ): string {
+		return match ( $source_type ) {
+			'online'                                  => 'website',
+			'online_included'                         => 'included',
+			'training_walk_in', 'walk_in'             => 'walk_in',
+			'complimentary', 'speaker'                 => 'complimentary',
+			'rsvp_walk_in', 'rsvp_website', 'rsvp_waitlist' => 'rsvp',
+			'manager_verified_manual'                 => 'manager_verified',
+			default                                   => 'website',
+		};
 	}
 
 	/** @param array<string,mixed> $state @param array<string,mixed> $registration */
@@ -854,6 +1019,61 @@ final class Training_Service {
 		return $registrations;
 	}
 
+	/** @param array<string,mixed> $entry @return array<string,mixed> */
+	private static function legacy_live_detail( array $entry ): array {
+		$attendees = array();
+		foreach ( is_array( $entry['attendees'] ?? null ) ? $entry['attendees'] : array() as $index => $attendee ) {
+			if ( ! is_array( $attendee ) ) {
+				continue;
+			}
+			$name        = (string) ( $attendee['display_name'] ?? $attendee['name'] ?? '' );
+			$attendees[] = array_merge(
+				$attendee,
+				array(
+					'attendee_uuid' => (string) ( $attendee['attendee_uuid'] ?? '' ),
+					'slot_key'      => (string) ( $attendee['slot_key'] ?? ( (string) ( $entry['classification'] ?? '' ) . '-' . ( $index + 1 ) ) ),
+					'display_name'  => $name,
+					'first_name'    => (string) ( $attendee['first_name'] ?? '' ),
+					'last_name'     => (string) ( $attendee['last_name'] ?? '' ),
+				)
+			);
+		}
+
+		return array(
+			'registration' => array(
+				'registration_uuid' => (string) ( $entry['registration_uuid'] ?? '' ),
+				'option_uuid'       => (string) ( $entry['option_uuid'] ?? '' ),
+				'source_type'       => (string) ( $entry['source_type'] ?? 'walk_in' ),
+				'classification'    => (string) ( $entry['classification'] ?? 'individual' ),
+				'status'            => 'active',
+				'website_status'    => '',
+				'contact_name'      => (string) ( $entry['contact_name'] ?? '' ),
+				'contact_email'     => self::mask_email( (string) ( $entry['email'] ?? '' ) ),
+				'contact_phone'     => self::mask_phone( (string) ( $entry['phone'] ?? '' ) ),
+				'validity_type'     => (string) ( $entry['validity_type'] ?? 'full_event' ),
+				'valid_local_date'  => (string) ( $entry['valid_local_date'] ?? '' ),
+				'payment_assertion' => (string) ( $entry['payment_assertion'] ?? '' ),
+				'registration_type' => (string) ( $entry['option_label'] ?? 'Event registration' ),
+				'record_version'    => 1,
+			),
+			'attendees'    => $attendees,
+			'local_date'   => '',
+			'admission'    => array(
+				'state'             => 'eligible',
+				'status_label'      => 'REGISTRATION VALID',
+				'message'           => '',
+				'selection_allowed' => true,
+				'check_in_allowed'  => true,
+				'allowed'           => true,
+				'maximum_attendees' => max( 1, (int) ( $entry['max_attendees'] ?? count( $attendees ) ) ),
+			),
+			'coverage'     => array(
+				'complete'    => true,
+				'limitations' => array(),
+			),
+		);
+	}
+
 	private static function deterministic_uuid( string $training_uuid, string $identity ): string {
 		$hex      = substr( hash( 'sha256', 'oras-training|' . strtolower( trim( $training_uuid ) ) . '|' . $identity ), 0, 32 );
 		$hex[12]  = '5';
@@ -865,6 +1085,18 @@ final class Training_Service {
 
 	private static function lower( string $value ): string {
 		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+	}
+
+	private static function mask_email( string $email ): string {
+		$parts = explode( '@', $email, 2 );
+
+		return 2 === count( $parts ) ? substr( $parts[0], 0, 1 ) . '***@' . $parts[1] : '';
+	}
+
+	private static function mask_phone( string $phone ): string {
+		$digits = preg_replace( '/\D+/', '', $phone ) ?? '';
+
+		return strlen( $digits ) >= 4 ? '***-***-' . substr( $digits, -4 ) : '';
 	}
 
 	private static function clean_text( string $value ): string {

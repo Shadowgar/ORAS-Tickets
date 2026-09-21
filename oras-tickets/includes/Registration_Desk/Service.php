@@ -342,15 +342,15 @@ final class Service {
 	}
 
 	/** @return array<string,mixed>|\WP_Error */
-	public function detail( int $event_id, string $registration_uuid ) {
+	public function detail( int $event_id, string $registration_uuid, string $local_date = '', bool $ignore_attendance = false ) {
 		$registration = $this->registrations->find_by_uuid( $registration_uuid );
 		if ( ! $registration || $event_id !== (int) $registration['event_id'] ) {
 			return new \WP_Error( 'oras_desk_registration_missing', 'Registration was not found for the active event.', array( 'status' => 404 ) );
 		}
 
-		$today       = wp_date( 'Y-m-d', null, wp_timezone() );
+		$today       = 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $local_date ) ? $local_date : wp_date( 'Y-m-d', null, wp_timezone() );
 		$attendees   = $this->attendees->for_registration( (int) $registration['id'] );
-		$attendance  = $this->attendance->for_attendees_on_date( $event_id, array_column( $attendees, 'id' ), $today );
+		$attendance  = $ignore_attendance ? array() : $this->attendance->for_attendees_on_date( $event_id, array_column( $attendees, 'id' ), $today );
 		foreach ( $attendees as &$attendee ) {
 			$attendee['current_attendance'] = $attendance[ (int) $attendee['id'] ] ?? null;
 		}

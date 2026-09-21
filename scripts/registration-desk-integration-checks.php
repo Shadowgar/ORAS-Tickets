@@ -1581,10 +1581,15 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$station       = $issued['payload'];
 	$training_uuid = wp_generate_uuid4();
 	$store         = new Training_Store();
+	$snapshot      = new Training_Snapshot_Service();
 	$tables        = Schema::table_names();
 	$before_rows   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table.
 	$live_before   = oras_desk_integration_protected_snapshot( $context, true );
-	$created       = $store->create(
+	$captured_state = $snapshot->capture( $event_id, $training_uuid, $offerings, (string) $event['start_date'] );
+	if ( is_wp_error( $captured_state ) ) {
+		oras_desk_integration_fail( 'current event roster could not be copied into training: ' . $captured_state->get_error_code() );
+	}
+	$created = $store->create(
 		array(
 			'training_uuid'        => $training_uuid,
 			'station_uuid'         => (string) $station['station_uuid'],
@@ -1594,7 +1599,7 @@ function oras_desk_integration_training_workflow( array $context ): void {
 			'config_revision'      => (int) $config['revision'],
 			'simulated_local_date' => (string) $event['start_date'],
 		),
-		Training_Service::seed_state( $training_uuid, $offerings )
+		$captured_state
 	);
 	if ( is_wp_error( $created ) ) {
 		oras_desk_integration_fail( 'training session could not be created: ' . $created->get_error_code() );
@@ -1602,8 +1607,19 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	/* phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned test table. */
 	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$tables['training_sessions']}" ), $before_rows + 1, 'training start creates exactly one isolated station row' );
 	oras_desk_integration_same( (string) $created['simulated_local_date'], (string) $event['start_date'], 'training defaults to the selected event start date' );
-	oras_desk_integration_same( count( $created['state']['registrations'] ), count( $offerings ), 'training roster contains one synthetic registration per canonical offering' );
-	oras_desk_integration_same( count( Training_Service::roster( $created['state'], array( 'q' => 'DEMO' ), (string) $created['simulated_local_date'] )['items'] ), count( $offerings ), 'training roster search returns only the seeded synthetic people' );
+	$current_roster = ( new Event_Roster_Service() )->get(
+		$event_id,
+		array(
+			'status' => 'everyone',
+			'limit'  => 50,
+		)
+	);
+	oras_desk_integration_same( count( $created['state']['registrations'] ), count( $current_roster['items'] ), 'training roster snapshots every current event registration' );
+	$current_names = array_column( $current_roster['items'], 'name' );
+	$snapshot_names = array_column( array_values( $created['state']['registrations'] ), 'contact_name' );
+	sort( $current_names );
+	sort( $snapshot_names );
+	oras_desk_integration_same( $snapshot_names, $current_names, 'training roster preserves the current event roster identities' );
 
 	$resolved = Training_Context::validate_binding( $station, $created, $config, $event );
 	oras_desk_integration_true( is_array( $resolved ), 'training context is bound to its station, event, configuration revision, and simulated date' );
@@ -1712,7 +1728,7 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $payment ) {
 		$walk_in( 'paid_cash' === $payment ? $family_offering : $individual_offering, $payment, 'paid_cash' === $payment );
 	}
-	oras_desk_integration_same( count( Training_Service::member_lookup( $store->find_for_station( (string) $station['station_uuid'] )['state'], 'Morgan' ) ), 1, 'training member search uses only its synthetic directory' );
+	oras_desk_integration_same( count( Training_Service::member_lookup( $store->find_for_station( (string) $station['station_uuid'] )['state'], 'Morgan' ) ), 0, 'training member search does not invent event-roster people as members' );
 	foreach ( array( 'cash', 'check' ) as $payment_method ) {
 		$payload = array(
 			'request_uuid'   => wp_generate_uuid4(),
@@ -1729,7 +1745,8 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	}
 	$worked = $store->find_for_station( (string) $station['station_uuid'] );
 	$stats  = Training_Service::stats( $worked['state'], $second_date );
-	oras_desk_integration_same( $stats['event_total']['walk_in_registrations'], 4, 'training stats include all simulated walk-ins' );
+	$baseline_stats = Training_Service::stats( $created['state'], (string) $created['simulated_local_date'] );
+	oras_desk_integration_same( $stats['event_total']['walk_in_registrations'], $baseline_stats['event_total']['walk_in_registrations'] + 4, 'training stats include the copied roster and all training walk-ins' );
 	oras_desk_integration_same(
 		$stats['event_total']['payment_assertions'],
 		array(
@@ -1742,12 +1759,16 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	);
 	oras_desk_integration_same( $stats['memberships']['total'], 2, 'training stats include cash and check membership simulations' );
 
-	$reset = $store->reset( (string) $station['station_uuid'], (int) $worked['record_version'], Training_Service::seed_state( $training_uuid, $offerings ) );
+	$reset_state = $snapshot->capture( $event_id, $training_uuid, $offerings, $second_date );
+	if ( is_wp_error( $reset_state ) ) {
+		oras_desk_integration_fail( 'current event roster could not be refreshed during reset.' );
+	}
+	$reset = $store->reset( (string) $station['station_uuid'], (int) $worked['record_version'], $reset_state );
 	if ( is_wp_error( $reset ) ) {
 		oras_desk_integration_fail( 'training data reset failed.' );
 	}
 	$reset_row = $store->find_for_station( (string) $station['station_uuid'] );
-	oras_desk_integration_same( count( $reset_row['state']['registrations'] ), count( $offerings ), 'reset restores the default seeded training registrations' );
+	oras_desk_integration_same( count( $reset_row['state']['registrations'] ), count( $current_roster['items'] ), 'reset refreshes the complete current event roster snapshot' );
 	oras_desk_integration_same( array( count( $reset_row['state']['attendance'] ), count( $reset_row['state']['memberships'] ), count( $reset_row['state']['history'] ) ), array( 0, 0, 0 ), 'reset clears only the mutable training dataset' );
 
 	oras_desk_integration_true( $store->delete_for_station( (string) $station['station_uuid'] ), 'ending Training Mode removes its isolated station row' );

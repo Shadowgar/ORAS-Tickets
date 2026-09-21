@@ -10,10 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Training_Rest_Controller {
 	private Training_Store $store;
 	private Training_Context $training_context;
+	private Training_Snapshot_Service $snapshot;
 
-	public function __construct( ?Training_Store $store = null, ?Training_Context $training_context = null ) {
+	public function __construct( ?Training_Store $store = null, ?Training_Context $training_context = null, ?Training_Snapshot_Service $snapshot = null ) {
 		$this->store            = $store ?? new Training_Store();
 		$this->training_context = $training_context ?? new Training_Context( $this->store );
+		$this->snapshot         = $snapshot ?? new Training_Snapshot_Service();
 	}
 
 	public function register(): void {
@@ -135,7 +137,10 @@ final class Training_Rest_Controller {
 		}
 		$training_uuid = wp_generate_uuid4();
 		$offerings     = Training_Service::canonical_offerings( $event_id, $config );
-		$state         = Training_Service::seed_state( $training_uuid, $offerings );
+		$state         = $this->snapshot->capture( $event_id, $training_uuid, $offerings, $date );
+		if ( $state instanceof \WP_Error ) {
+			return $state;
+		}
 		$binding       = $issued['payload'];
 		$binding['training_uuid']       = $training_uuid;
 		$binding['simulated_local_date'] = $date;
@@ -206,6 +211,17 @@ final class Training_Rest_Controller {
 			$resolved['offerings']
 		);
 		foreach ( $result['items'] as &$item ) {
+			if ( is_array( $item['roster_item'] ?? null ) ) {
+				$checked_in = ! empty( $item['checked_in_today'] );
+				$item = array_merge(
+					$item['roster_item'],
+					array(
+						'checked_in_today' => $checked_in,
+						'detail_kind'      => 'registration',
+					)
+				);
+				continue;
+			}
 			$item['name']              = (string) ( $item['contact_name'] ?? '' );
 			$item['registration_type'] = (string) ( $item['option_label'] ?? 'Registration' );
 			$item['attendees']         = array_values(
@@ -214,7 +230,7 @@ final class Training_Rest_Controller {
 					array_filter( is_array( $item['attendees'] ?? null ) ? $item['attendees'] : array(), 'is_array' )
 				)
 			);
-			$item['detail_kind'] = 'training';
+			$item['detail_kind'] = 'registration';
 		}
 		unset( $item );
 		$result['next_offset'] = (int) $result['filters']['offset'] + count( $result['items'] );
@@ -231,24 +247,22 @@ final class Training_Rest_Controller {
 		if ( $resolved instanceof \WP_Error ) {
 			return $resolved;
 		}
-		$manager = is_array( Manager_Access::validate( (string) $request->get_header( 'X-ORAS-Desk-Manager' ), $resolved['station'] ) );
-		$result  = Training_Service::detail( $resolved['row']['state'], sanitize_text_field( (string) $request['registration_uuid'] ), $manager );
+		$result = Training_Service::live_detail(
+			$resolved['row']['state'],
+			sanitize_text_field( (string) $request['registration_uuid'] ),
+			(string) $resolved['row']['simulated_local_date']
+		);
 		if ( null === $result ) {
 			return new \WP_Error( 'oras_desk_training_registration_missing', 'That training registration is no longer available.', array( 'status' => 404 ) );
 		}
-		$today_attendance = is_array( $resolved['row']['state']['attendance'][ $resolved['row']['simulated_local_date'] ] ?? null )
-			? $resolved['row']['state']['attendance'][ $resolved['row']['simulated_local_date'] ]
-			: array();
-		foreach ( $result['attendees'] as &$attendee ) {
-			$attendee['checked_in_today'] = isset( $today_attendance[ (string) ( $attendee['attendee_uuid'] ?? '' ) ] );
-		}
-		unset( $attendee );
 
 		return $this->response(
-			array(
-				'registration'   => $result,
-				'record_version' => (int) $resolved['row']['record_version'],
-				'training'       => true,
+			array_merge(
+				$result,
+				array(
+					'record_version' => (int) $resolved['row']['record_version'],
+					'training'       => true,
+				)
 			)
 		);
 	}
@@ -260,10 +274,12 @@ final class Training_Rest_Controller {
 			return $resolved;
 		}
 		$arrivals = $request->get_param( 'attendee_uuids' );
+		$live_arrivals = $request->get_param( 'arrivals' );
 		$payload  = array(
 			'request_uuid'      => $this->request_uuid( $request ),
 			'registration_uuid' => sanitize_text_field( (string) $request['registration_uuid'] ),
 			'attendee_uuids'    => is_array( $arrivals ) ? array_map( 'sanitize_text_field', $arrivals ) : array(),
+			'arrivals'          => is_array( $live_arrivals ) ? $live_arrivals : array(),
 		);
 
 		return $this->mutate( $resolved, $request, static fn( array $state, array $context ) => Training_Service::check_in_state( $state, $payload, $context ) );
@@ -397,7 +413,15 @@ final class Training_Rest_Controller {
 		if ( $resolved instanceof \WP_Error ) {
 			return $resolved;
 		}
-		$seed = Training_Service::seed_state( (string) $resolved['row']['training_uuid'], $resolved['offerings'] );
+		$seed = $this->snapshot->capture(
+			(int) $resolved['row']['event_id'],
+			(string) $resolved['row']['training_uuid'],
+			$resolved['offerings'],
+			(string) $resolved['row']['simulated_local_date']
+		);
+		if ( $seed instanceof \WP_Error ) {
+			return $seed;
+		}
 		$result = $this->store->reset( (string) $resolved['station']['station_uuid'], $this->expected_revision( $request ), $seed );
 		if ( $result instanceof \WP_Error ) {
 			return $result;

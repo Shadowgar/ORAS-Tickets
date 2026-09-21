@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Durable state for one isolated Registration Desk training station. */
 final class Training_Store extends Store {
-	private const MAX_STATE_BYTES = 524288;
+	private const MAX_STATE_BYTES = 8388608;
 
 	public function __construct() {
 		parent::__construct( 'training_sessions' );

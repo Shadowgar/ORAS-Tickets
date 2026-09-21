@@ -11,6 +11,7 @@ require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Context.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Service.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Snapshot_Service.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Rest_Controller.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';

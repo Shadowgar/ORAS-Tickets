@@ -207,7 +207,7 @@
 		const code = String(error?.code || '');
 		if (code === 'oras_desk_training_config_changed') return 'Event configuration changed. End and restart Training Mode before continuing.';
 		if (code === 'oras_desk_training_stale') return 'Training data changed on this station. Reload the training screen and try again.';
-		if (code.startsWith('oras_desk_training_')) return 'TRAINING ACTION COULD NOT BE SAVED. No live event data was changed.';
+		if (code.startsWith('oras_desk_training_')) return 'We couldn’t save that action. Please try again or ask a manager for help.';
 		if (code.startsWith('oras_desk_station_') || ['oras_desk_config_changed', 'oras_desk_active_event_changed'].includes(code)) {
 			return 'The event settings changed while you were working. Return to the home screen and set up this station again.';
 		}
@@ -246,7 +246,7 @@
 
 	function showConnectionLost(container, retry, paymentHandled = false) {
 		resetViewport();
-		const paymentWarning = isTraining() && paymentHandled ? '<p><strong>TRAINING ONLY — NO PAYMENT WAS TAKEN.</strong></p>' : paymentHandled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : '';
+		const paymentWarning = paymentHandled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : '';
 		container.innerHTML = `<section class="desk-centered desk-connection-lost"><span class="desk-large-icon">${icon('help')}</span><h1>CONNECTION LOST</h1><p>We can’t reach the Registration Desk right now.</p><p>Your information is still here.</p><p>Please wait for the connection to return, then try again.</p>${paymentWarning}<div class="desk-actions"><button type="button" class="desk-primary" id="desk-connection-retry">TRY AGAIN</button><button type="button" class="desk-secondary" id="desk-connection-manager">MANAGER HELP</button></div></section>`;
 		container.querySelector('#desk-connection-retry').addEventListener('click', retry);
 		container.querySelector('#desk-connection-manager').addEventListener('click', () => state.station.manager_token ? showManagerArea() : showManagerHelp());
@@ -361,14 +361,14 @@
 
 	function renderShell() {
 		const station = state.station;
-		const trainingBanner = isTraining() ? `<section class="desk-training-banner" role="status"><strong>TRAINING MODE</strong><span>NO LIVE EVENT DATA WILL BE CHANGED</span><small>${escapeHtml(station.event_title)} · Training date: ${escapeHtml(station.friendly_training_date || formatDateValue(station.simulated_local_date))}</small></section>` : '';
+		const trainingMarker = isTraining() ? `<div class="desk-training-marker" role="status"><strong>TRAINING</strong><span>${escapeHtml(station.friendly_training_date || formatDateValue(station.simulated_local_date))}</span></div>` : '';
 		root.innerHTML = `<header class="desk-topbar">
 			<button type="button" class="desk-brand-button" id="desk-brand-home" aria-label="Return to Registration Desk home">${brandMark()}</button>
-			<div class="desk-event-block"><strong>${escapeHtml(station.event_title)}</strong><small>${escapeHtml(station.event_date || station.friendly_date || formatDateValue(station.local_date))}</small></div>
+			<div class="desk-event-block"><strong>${escapeHtml(station.event_title)}</strong><small>${escapeHtml(station.event_date || station.friendly_date || formatDateValue(station.local_date))}</small>${trainingMarker}</div>
 			<div class="desk-user-block"><span><strong>${escapeHtml(station.operator_label)}</strong></span><button id="desk-change-volunteer" class="desk-header-button" type="button">Change</button></div>
-			${isTraining() ? '' : '<button id="desk-change-event" class="desk-header-button" type="button">CHANGE EVENT</button>'}
+			<button id="desk-change-event" class="desk-header-button" type="button">CHANGE EVENT</button>
 			<a class="desk-header-button desk-logout" id="desk-logout" href="${escapeHtml(station.logout_url)}">Log out</a>
-			</header>${trainingBanner}<aside id="desk-manager-status" class="desk-manager-status" hidden><strong>${isTraining() ? 'TRAINING MANAGER MODE' : 'MANAGER MODE'}</strong><button type="button" id="desk-exit-manager-mode">EXIT MANAGER MODE</button></aside><main id="desk-main" class="desk-main" tabindex="-1"></main>`;
+			</header><aside id="desk-manager-status" class="desk-manager-status" hidden><strong>MANAGER MODE</strong><button type="button" id="desk-exit-manager-mode">EXIT MANAGER MODE</button></aside><main id="desk-main" class="desk-main" tabindex="-1"></main>`;
 		refreshManagerStatus();
 		root.querySelector('#desk-brand-home').addEventListener('click', () => requestHome());
 		root.querySelector('#desk-change-volunteer').addEventListener('click', () => {
@@ -378,6 +378,11 @@
 			}
 		});
 		root.querySelector('#desk-change-event')?.addEventListener('click', async () => {
+			if (isTraining()) {
+				if (state.station.manager_token) showTrainingManagerArea();
+				else showManagerHelp('training');
+				return;
+			}
 			const warning = hasUnsavedDraft() ? 'Changing events will discard the unfinished information for this event. Change event?' : 'Change the event for this station?';
 			if (!window.confirm(warning)) return;
 			state.operatorLabel = state.station.operator_label;
@@ -402,7 +407,7 @@
 		state.finalizing = false;
 		state.view = 'event-ended';
 		const paymentWarning = state.wizard?.payment_handled || state.membershipWizard?.payment_handled
-			? isTraining() ? '<p><strong>TRAINING ONLY — NO PAYMENT WAS TAKEN.</strong></p>' : '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>'
+			? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>'
 			: '';
 		main().innerHTML = `<section class="desk-centered desk-event-ended"><span class="desk-large-icon">${icon('calendar')}</span><h1>THIS EVENT HAS ENDED</h1><p>Please choose the event you are working today.</p>${hasUnsavedDraft() ? '<p>Your unfinished information is still saved for this event.</p>' : ''}${paymentWarning}<button type="button" class="desk-primary" id="desk-ended-choose-event">CHOOSE EVENT</button></section>`;
 		main().querySelector('#desk-ended-choose-event').addEventListener('click', chooseEventAfterEnd);
@@ -613,7 +618,7 @@
 	}
 
 	function rosterStatusChoices() {
-		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'HERE TODAY'], [isTraining() ? 'walk_in' : 'walk_ins', 'WALK-INS']];
+		return state.roster.mode === 'rsvp' ? [['everyone', 'ALL RSVPs'], ['admitted', 'CONFIRMED'], ['waitlist', 'WAITLISTED'], ['checked_in', 'HERE TODAY']] : [['everyone', 'EVERYONE'], ['not_checked_in', 'NOT CHECKED IN'], ['checked_in', 'HERE TODAY'], ['walk_ins', 'WALK-INS']];
 	}
 
 	function selectedRosterTypeLabel() {
@@ -689,7 +694,7 @@
 			] : [
 				['Active registrations', data.active_registrations], ['People registered', data.people_registered], ['Unique actual attendees', data.unique_attendees], ['Total check-ins', data.attendance_instances], ['Direct website registrations', data.direct_website_registrations], ['Included through another event', data.included_event_registrations], ['Walk-in registrations', data.walk_in_registrations], ['Complimentary registrations', data.complimentary_registrations], ['RSVP registrations', data.rsvp_registrations], ['Manager Verified registrations', data.manager_verified_registrations], ['Family registrations', data.family_registrations], ['Actual family attendees', data.family_attendees_attended], ['Registered but never attended', data.no_show_registrations],
 			];
-			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-stats"><h1>${isTraining() ? 'TRAINING EVENT STATS' : 'EVENT STATS'}</h1><div class="desk-segmented"><button type="button" data-stats-view="today" class="${view === 'today' ? 'is-selected' : ''}">${isTraining() ? 'TRAINING DATE' : 'TODAY'}</button><button type="button" data-stats-view="total" class="${view === 'total' ? 'is-selected' : ''}">EVENT TOTAL</button></div><p>Registrations are passes. People are actual attendees.</p><div class="desk-stats-grid">${cards.map(([label, value]) => `<div class="desk-stat-card"><strong>${Number(value || 0)}</strong><span>${escapeHtml(label)}</span></div>`).join('')}</div>${renderStatsBreakdown(view === 'today' ? data.pass_types : data.attendance_by_day, view === 'today' ? 'Today by pass type' : 'Attendance by day')}</section>`;
+			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-stats"><h1>EVENT STATS</h1><div class="desk-segmented"><button type="button" data-stats-view="today" class="${view === 'today' ? 'is-selected' : ''}">TODAY</button><button type="button" data-stats-view="total" class="${view === 'total' ? 'is-selected' : ''}">EVENT TOTAL</button></div><p>Registrations are passes. People are actual attendees.</p><div class="desk-stats-grid">${cards.map(([label, value]) => `<div class="desk-stat-card"><strong>${Number(value || 0)}</strong><span>${escapeHtml(label)}</span></div>`).join('')}</div>${renderStatsBreakdown(view === 'today' ? data.pass_types : data.attendance_by_day, view === 'today' ? 'Today by pass type' : 'Attendance by day')}</section>`;
 			bindScreenActions(requestHome);
 			main().querySelectorAll('[data-stats-view]').forEach((button) => button.addEventListener('click', () => showEventStats(button.dataset.statsView)));
 			focusMain();
@@ -831,15 +836,16 @@
 	}
 
 	async function showRegistration(registrationUuid, returnTo = 'roster') {
-		if (isTraining()) return showTrainingRegistration(registrationUuid, returnTo);
 		state.view = 'registration';
 		state.detailReturn = returnTo;
 		main().innerHTML = '<div class="desk-loading">Opening registration…</div>';
 		try {
-			const data = await api(`/registrations/${encodeURIComponent(registrationUuid)}`);
+			const detailPath = isTraining() ? `/training/registrations/${encodeURIComponent(registrationUuid)}` : `/registrations/${encodeURIComponent(registrationUuid)}`;
+			const data = await api(detailPath);
 			const registration = data.registration;
 			const admission = data.admission || {state: 'manager_review_required', status_label: 'MANAGER HELP NEEDED', message: 'This registration needs manager help before check-in.', selection_allowed: false, check_in_allowed: false, manager_help: true};
 			state.station.local_date = data.local_date || state.station.local_date;
+			if (isTraining()) state.station.record_version = Number(data.record_version || state.station.record_version);
 			saveStation(state.station);
 			const option = optionFor(registration.option_uuid);
 			const maximum = Number(admission.maximum_attendees || option.max_attendees || 1);
@@ -877,52 +883,6 @@
 		} catch (error) {
 			main().innerHTML = `${screenActions('Back to Find Registration')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
 			bindScreenActions(state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false));
-		}
-	}
-
-	async function showTrainingRegistration(registrationUuid, returnTo = 'roster') {
-		state.view = 'registration';
-		state.detailReturn = returnTo;
-		main().innerHTML = '<div class="desk-loading">Opening training registration…</div>';
-		try {
-			const data = await api(`/training/registrations/${encodeURIComponent(registrationUuid)}`);
-			const registration = data.registration;
-			state.station.record_version = Number(data.record_version || state.station.record_version);
-			saveStation(state.station);
-			const attendees = Array.isArray(registration.attendees) ? registration.attendees : [];
-			const available = attendees.filter((attendee) => !attendee.checked_in_today);
-			const back = () => renderEventRoster(false);
-			const attendeeCards = attendees.map((attendee) => `<label class="desk-attendee-card ${attendee.checked_in_today ? 'is-checked-in' : ''}"><input type="checkbox" name="training_attendee" value="${escapeHtml(attendee.attendee_uuid)}" ${attendee.checked_in_today ? 'disabled' : ''}><span class="desk-select-box">${attendee.checked_in_today ? icon('check') : ''}</span><span><strong>${escapeHtml(attendee.name || 'DEMO — Attendee')}</strong><small>${attendee.checked_in_today ? '✓ CHECKED IN ON THIS TRAINING DATE' : 'Tap to select this practice attendee'}</small></span></label>`).join('');
-			const managerDetail = state.station.manager_token && registration.manager_detail ? `<section class="desk-manager-inline"><div class="desk-manager-banner"><strong>TRAINING MANAGER DETAIL</strong></div><p><strong>Synthetic:</strong> Yes</p><p><strong>Origin:</strong> ${escapeHtml(registration.manager_detail.origin || 'Training Mode')}</p><p>No live order, payment, customer, or attendance record exists for this registration.</p></section>` : '';
-			main().innerHTML = `${screenActions('Back to Find Registration')}<section class="desk-detail-heading"><p class="desk-eyebrow">Training registration details</p><h1>${escapeHtml(registration.contact_name)}</h1><div class="desk-admission-status is-positive">${available.length ? '✓ TRAINING REGISTRATION VALID' : '✓ CHECKED IN ON THIS TRAINING DATE'}</div><div class="desk-detail-summary"><span>${escapeHtml(registration.option_label)}</span><span>${escapeHtml(registration.classification === 'family' ? 'Family training registration' : 'Individual training registration')}</span><span>Email: ${escapeHtml(registration.email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.phone || 'Not recorded')}</span></div></section><div id="desk-detail-message"></div><section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE ON THE TRAINING DATE?</h2><p>Select only the synthetic people you want to practice checking in.</p><form id="desk-training-checkin-form" class="desk-form"><div class="desk-attendee-list">${attendeeCards}</div><button type="submit" class="desk-primary" ${available.length ? '' : 'disabled'}>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></form></section>${managerDetail}`;
-			bindScreenActions(back);
-			const form = main().querySelector('#desk-training-checkin-form');
-			form.addEventListener('submit', async (event) => {
-				event.preventDefault();
-				const attendee_uuids = [...form.querySelectorAll('[name="training_attendee"]:checked')].map((input) => input.value);
-				if (!attendee_uuids.length) {
-					main().querySelector('#desk-detail-message').innerHTML = notice('Choose at least one training attendee.', 'warning');
-					return;
-				}
-				if (!state.pendingRequest) state.pendingRequest = uuid();
-				state.pendingPayload = {attendee_uuids, expected_record_version: Number(state.station.record_version)};
-				const submitTrainingCheckIn = async () => {
-					form.querySelector('button').disabled = true;
-					try {
-						const result = await api(`/training/registrations/${registration.registration_uuid}/check-in`, {method: 'POST', body: JSON.stringify(state.pendingPayload)}, state.pendingRequest);
-						state.station.record_version = Number(result.record_version);
-						saveStation(state.station);
-						resetPending();
-						showSuccess({kind: 'checkin', name: registration.contact_name, count: attendee_uuids.length, type: registration.option_label});
-					} catch (error) {
-						showTrainingFailure(error, submitTrainingCheckIn);
-					}
-				};
-				await submitTrainingCheckIn();
-			});
-			focusMain();
-		} catch (error) {
-			showTrainingFailure(error, () => showTrainingRegistration(registrationUuid, returnTo));
 		}
 	}
 
@@ -988,12 +948,19 @@
 		}
 		if (!state.pendingRequest) state.pendingRequest = uuid();
 		state.pendingPayload = {arrivals, attendance_local_date: state.station.local_date, explicit_unpaid: explicitUnpaid};
+		if (isTraining()) state.pendingPayload.expected_record_version = Number(state.station.record_version);
 		const message = main().querySelector('#desk-detail-message');
 		form.querySelectorAll('button').forEach((button) => { button.disabled = true; });
 		try {
-			const result = await api(`/registrations/${registration.registration_uuid}/check-in`, {method: 'POST', body: JSON.stringify(state.pendingPayload)}, state.pendingRequest);
-			const count = result.historical_result?.attendance?.length || arrivals.length;
-			const attendance = Array.isArray(result.current_attendance) ? result.current_attendance[0] : result.current_attendance;
+			const checkInPath = isTraining() ? `/training/registrations/${registration.registration_uuid}/check-in` : `/registrations/${registration.registration_uuid}/check-in`;
+			const result = await api(checkInPath, {method: 'POST', body: JSON.stringify(state.pendingPayload)}, state.pendingRequest);
+			const operation = result.result || result;
+			if (isTraining()) {
+				state.station.record_version = Number(result.record_version || state.station.record_version);
+				saveStation(state.station);
+			}
+			const count = operation.historical_result?.attendance?.length || operation.attendee_uuids?.length || arrivals.length;
+			const attendance = Array.isArray(operation.current_attendance) ? operation.current_attendance[0] : operation.current_attendance;
 			resetPending();
 			showSuccess({kind: 'checkin', name: registration.contact_name || 'Registration', count, type: registrationType(option, registration), when: attendance?.checked_in_at_utc || ''});
 		} catch (error) {
@@ -1139,9 +1106,7 @@
 	}
 
 	function showWizardHandoff() {
-		const content = isTraining()
-			? `<div class="desk-wizard-heading"><p class="desk-eyebrow">Training payment handoff</p><h1>TRAINING — DO NOT TAKE PAYMENT</h1><p>Normally this sale would be completed in AlfaPOS.</p><p>For this practice session, pretend the sale is complete and continue.</p></div><button type="button" class="desk-primary desk-wide" id="desk-handoff-done">CONTINUE TRAINING ${icon('arrow')}</button>`
-			: `<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>PAYMENT IS HANDLED IN ALFAPOS</h1><p><strong>Before taking payment, ask whether they are buying anything else today.</strong></p><p>Add the registration and any other items — such as pizza, T-shirts, merchandise, or door-prize tickets — in AlfaPOS and take ONE payment.</p><p>Return here when the sale is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-handoff-done">THE ALFAPOS SALE IS FINISHED ${icon('arrow')}</button>`;
+		const content = `<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>PAYMENT IS HANDLED IN ALFAPOS</h1><p><strong>Before taking payment, ask whether they are buying anything else today.</strong></p><p>Add the registration and any other items — such as pizza, T-shirts, merchandise, or door-prize tickets — in AlfaPOS and take ONE payment.</p><p>Return here when the sale is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-handoff-done">THE ALFAPOS SALE IS FINISHED ${icon('arrow')}</button>`;
 		wizardFrame(content, () => showWalkInStep('review'));
 		main().querySelector('#desk-handoff-done').addEventListener('click', () => {
 			state.wizard.payment_handled = true;
@@ -1151,8 +1116,8 @@
 	}
 
 	function showWizardPayment() {
-		const trainingCopy = isTraining() ? '<p><strong>TRAINING SELECTION ONLY<br>NO PAYMENT WAS TAKEN</strong></p>' : `<p>The sale stays in AlfaPOS.</p>${state.wizard.payment_handled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}`;
-		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">${isTraining() ? 'Training statement only' : 'Operational statement only'}</p><h1>HOW WAS THE REGISTRATION PAID?</h1>${trainingCopy}</div><div class="desk-payment-grid"><button type="button" data-payment="paid_card">${icon('card')}<strong>CARD</strong></button><button type="button" data-payment="paid_cash">${icon('cash')}<strong>CASH</strong></button><button type="button" data-payment="paid_check">${icon('check')}<strong>CHECK</strong></button><button type="button" data-payment="unpaid" class="desk-unpaid-choice">${icon('help')}<strong>UNPAID</strong></button></div><div id="desk-payment-message"></div><button type="button" class="desk-primary desk-wide" id="desk-complete-registration" ${state.wizard.payment ? '' : 'disabled'}>COMPLETE REGISTRATION &amp; CHECK IN ${isTraining() ? 'TRAINING DATE' : 'TODAY'} ${icon('arrow')}</button>`, () => showWalkInStep('handoff'));
+		const paymentCopy = `<p>The sale stays in AlfaPOS.</p>${state.wizard.payment_handled ? '<p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p>' : ''}`;
+		wizardFrame(`<div class="desk-wizard-heading"><p class="desk-eyebrow">Operational statement only</p><h1>HOW WAS THE REGISTRATION PAID?</h1>${paymentCopy}</div><div class="desk-payment-grid"><button type="button" data-payment="paid_card">${icon('card')}<strong>CARD</strong></button><button type="button" data-payment="paid_cash">${icon('cash')}<strong>CASH</strong></button><button type="button" data-payment="paid_check">${icon('check')}<strong>CHECK</strong></button><button type="button" data-payment="unpaid" class="desk-unpaid-choice">${icon('help')}<strong>UNPAID</strong></button></div><div id="desk-payment-message"></div><button type="button" class="desk-primary desk-wide" id="desk-complete-registration" ${state.wizard.payment ? '' : 'disabled'}>COMPLETE REGISTRATION &amp; CHECK IN TODAY ${icon('arrow')}</button>`, () => showWalkInStep('handoff'));
 		main().querySelectorAll('[data-payment]').forEach((button) => button.addEventListener('click', () => selectWizardPayment(button.dataset.payment)));
 		main().querySelector('#desk-complete-registration').addEventListener('click', () => {
 			if (state.wizard.payment === 'unpaid') return showUnpaidWarning();
@@ -1170,7 +1135,7 @@
 
 	function showUnpaidWarning() {
 		const message = main().querySelector('#desk-payment-message');
-		message.innerHTML = `<div class="desk-confirm-card"><h2>${isTraining() ? 'PRACTICE THE UNPAID SELECTION?' : 'CONTINUE WITHOUT A RECORDED PAYMENT?'}</h2><p>${isTraining() ? 'TRAINING ONLY — NO PAYMENT WAS TAKEN.' : 'This registration will be saved and checked in as unpaid.'}</p><div class="desk-actions"><button type="button" class="desk-warning-button" id="desk-continue-unpaid">CONTINUE UNPAID</button><button type="button" class="desk-secondary" id="desk-cancel-unpaid">GO BACK</button></div></div>`;
+		message.innerHTML = '<div class="desk-confirm-card"><h2>CONTINUE WITHOUT A RECORDED PAYMENT?</h2><p>This registration will be saved and checked in as unpaid.</p><div class="desk-actions"><button type="button" class="desk-warning-button" id="desk-continue-unpaid">CONTINUE UNPAID</button><button type="button" class="desk-secondary" id="desk-cancel-unpaid">GO BACK</button></div></div>';
 		message.querySelector('#desk-continue-unpaid').addEventListener('click', () => saveManual('unpaid', false));
 		message.querySelector('#desk-cancel-unpaid').addEventListener('click', () => { message.innerHTML = ''; });
 	}
@@ -1233,7 +1198,6 @@
 			else showSuccess({kind: option.kind === 'rsvp' ? 'rsvp' : administrator ? 'manager' : 'walk-in', name, count, type: option.kind === 'rsvp' ? 'Event RSVP' : registrationType(option), when: attendance?.checked_in_at_utc || '', payment});
 		} catch (error) {
 			state.finalizing = false;
-			if (isTraining()) return showTrainingFailure(error, () => saveManual(payment, administrator, acknowledge));
 			if (error.code === 'oras_desk_possible_duplicate') {
 				main().querySelectorAll('button').forEach((button) => { button.disabled = false; });
 				const candidates = Array.isArray(error.data?.candidates) ? error.data.candidates : [];
@@ -1274,7 +1238,6 @@
 	}
 
 	function showPaymentRecovery(error, payment, acknowledge) {
-		if (isTraining()) return showTrainingFailure(error, () => saveManual(payment, false, acknowledge));
 		state.view = 'recovery';
 		if (error.code === 'network_error') {
 			return showConnectionLost(main(), () => saveManual(payment, false, acknowledge), payment !== 'unpaid');
@@ -1303,9 +1266,9 @@
 		const isWalkIn = details.kind === 'walk-in' || details.kind === 'manager';
 		const isRsvp = details.kind === 'rsvp';
 		const time = formatLocalTime(details.when);
-		const payment = isTraining() ? ({paid_card: 'Card — training selection only', paid_cash: 'Cash — training selection only', paid_check: 'Check — training selection only', unpaid: 'Unpaid — training selection only'}[details.payment] || '') : ({paid_card: 'Paid by card recorded', paid_cash: 'Paid by cash recorded', paid_check: 'Paid by check recorded', unpaid: 'Unpaid recorded', complimentary: 'Manager registration'}[details.payment] || '');
+		const payment = ({paid_card: 'Paid by card recorded', paid_cash: 'Paid by cash recorded', paid_check: 'Paid by check recorded', unpaid: 'Unpaid recorded', complimentary: 'Manager registration'}[details.payment] || '');
 		state.wizard = null;
-		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">${isTraining() ? 'Training practice complete' : 'All set'}</p><h1>${isTraining() ? isWalkIn ? 'TRAINING REGISTRATION COMPLETE' : 'TRAINING CHECK-IN COMPLETE' : isRsvp ? 'RSVP CONFIRMED' : isWalkIn ? 'REGISTRATION COMPLETE' : 'CHECK-IN COMPLETE'}</h1><p class="desk-success-name">${escapeHtml(details.name)}</p><div class="desk-success-statements">${isWalkIn ? '<p>✓ Registered</p>' : isRsvp ? '<p>✓ RSVP recorded</p>' : ''}<p>${isTraining() ? '✓ Checked in on the training date' : '✓ Checked in today'}</p></div><p>${isTraining() ? '<strong>No live registration, payment, or attendance was created.</strong>' : `${isWalkIn ? 'The registration was saved and ' : ''}${Number(details.count || 1)} ${Number(details.count || 1) === 1 ? 'person was' : 'people were'} checked in for today.`}</p><div class="desk-success-summary"><span><strong>Registration</strong>${escapeHtml(details.type || '')}</span><span><strong>Event</strong>${escapeHtml(state.station.event_title)}</span><span><strong>Checked in</strong>${escapeHtml(isTraining() ? state.station.friendly_training_date : state.station.friendly_date || formatDateValue(state.station.local_date))}${time ? ` at ${escapeHtml(time)}` : ''}</span>${payment ? `<span><strong>Statement</strong>${escapeHtml(payment)}</span>` : ''}<span><strong>Volunteer</strong>${escapeHtml(state.station.operator_label)}</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">${isWalkIn || isRsvp ? 'REGISTER ANOTHER' : 'FIND ANOTHER REGISTRATION'}</button></div></section>`;
+		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><p class="desk-eyebrow">All set</p><h1>${isRsvp ? 'RSVP CONFIRMED' : isWalkIn ? 'REGISTRATION COMPLETE' : 'CHECK-IN COMPLETE'}</h1><p class="desk-success-name">${escapeHtml(details.name)}</p><div class="desk-success-statements">${isWalkIn ? '<p>✓ Registered</p>' : isRsvp ? '<p>✓ RSVP recorded</p>' : ''}<p>✓ Checked in today</p></div><p>${isWalkIn ? 'The registration was saved and ' : ''}${Number(details.count || 1)} ${Number(details.count || 1) === 1 ? 'person was' : 'people were'} checked in for today.</p><div class="desk-success-summary"><span><strong>Registration</strong>${escapeHtml(details.type || '')}</span><span><strong>Event</strong>${escapeHtml(state.station.event_title)}</span><span><strong>Checked in</strong>${escapeHtml(state.station.friendly_date || formatDateValue(state.station.local_date))}${time ? ` at ${escapeHtml(time)}` : ''}</span>${payment ? `<span><strong>Statement</strong>${escapeHtml(payment)}</span>` : ''}<span><strong>Volunteer</strong>${escapeHtml(state.station.operator_label)}</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-success-home">DONE — RETURN HOME</button><button type="button" class="desk-secondary" id="desk-success-another">${isWalkIn || isRsvp ? 'REGISTER ANOTHER' : 'FIND ANOTHER REGISTRATION'}</button></div></section>`;
 		main().querySelector('#desk-success-home').addEventListener('click', () => showHome());
 		main().querySelector('#desk-success-another').addEventListener('click', () => isWalkIn || isRsvp ? startWalkInWizard(false) : showEventRoster(true));
 		focusMain();
@@ -1379,7 +1342,7 @@
 			saveStation(station);
 			resetPending();
 			renderShell();
-			showHome('Training Mode started. Manager Mode was closed for the new training station.');
+			showHome();
 		} catch (error) {
 			showTrainingFailure(error, () => startTrainingMode(event, date));
 		}
@@ -1387,7 +1350,7 @@
 
 	function showTrainingManagerArea(messageText = '') {
 		resetViewport();
-		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area desk-training-manager"><div class="desk-wizard-heading"><p class="desk-eyebrow">TRAINING</p><h1>TRAINING MANAGER TOOLS</h1><p>These actions affect only this station’s isolated practice dataset.</p></div>${messageText ? notice(messageText, 'success') : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-change-training-date">${icon('calendar')}<strong>CHANGE TRAINING DATE</strong><span>Preserve registrations and attendance history; start a fresh simulated day.</span></button><button type="button" class="desk-manager-card" id="desk-reset-training">${icon('person')}<strong>RESET TRAINING DATA</strong><span>Clear practice activity and restore deterministic demo people.</span></button><button type="button" class="desk-manager-card desk-danger" id="desk-end-training">${icon('back')}<strong>END TRAINING MODE</strong><span>Close this practice session and return to the live desk setup.</span></button></div></section>`;
+		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-manager-area desk-training-manager"><div class="desk-wizard-heading"><p class="desk-eyebrow">TRAINING</p><h1>TRAINING MANAGER TOOLS</h1><p>These actions affect only this station’s isolated training dataset.</p></div>${messageText ? notice(messageText, 'success') : ''}<div class="desk-manager-grid"><button type="button" class="desk-manager-card" id="desk-change-training-date">${icon('calendar')}<strong>CHANGE TRAINING DATE</strong><span>Preserve registrations and attendance history; start a fresh simulated day.</span></button><button type="button" class="desk-manager-card" id="desk-reset-training">${icon('person')}<strong>RESET TRAINING DATA</strong><span>Clear training activity and refresh the complete current event roster.</span></button><button type="button" class="desk-manager-card desk-danger" id="desk-end-training">${icon('back')}<strong>END TRAINING MODE</strong><span>Close this training session and return to the live desk setup.</span></button></div></section>`;
 		bindScreenActions(showHome);
 		main().querySelector('#desk-change-training-date').addEventListener('click', showChangeTrainingDate);
 		main().querySelector('#desk-reset-training').addEventListener('click', confirmResetTraining);
@@ -1426,7 +1389,7 @@
 			const managerToken = state.station.manager_token;
 			saveStation({...state.station, ...data, manager_token: managerToken});
 			resetPending();
-			showTrainingManagerArea('Training data reset and demo registrations restored.');
+			showTrainingManagerArea('Training data reset and the current event roster was refreshed.');
 		} catch (error) {
 			showTrainingFailure(error, resetTrainingData);
 		}
@@ -1553,9 +1516,7 @@
 	}
 
 	function showMembershipHandoff() {
-		const content = isTraining()
-			? `<div class="desk-wizard-heading"><p class="desk-eyebrow">Training membership handoff</p><h1>TRAINING — DO NOT TAKE PAYMENT</h1><p>Normally the membership payment would be recorded in AlfaPOS.</p><p>For this practice session, pretend that step is complete.</p></div><button type="button" class="desk-primary desk-wide" id="desk-membership-handoff-done">CONTINUE TRAINING ${icon('arrow')}</button>`
-			: `<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>RECORD THE PAYMENT IN ALFAPOS</h1><p>Put the cash/check in the event payment bag.</p><p>Record this membership in AlfaPOS using the same payment method.</p><p>Return here when AlfaPOS is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-membership-handoff-done">PAYMENT RECORDED IN ALFAPOS ${icon('arrow')}</button>`;
+		const content = `<div class="desk-wizard-heading"><p class="desk-eyebrow">Use AlfaPOS now</p><h1>RECORD THE PAYMENT IN ALFAPOS</h1><p>Put the cash/check in the event payment bag.</p><p>Record this membership in AlfaPOS using the same payment method.</p><p>Return here when AlfaPOS is finished.</p></div><button type="button" class="desk-primary desk-wide" id="desk-membership-handoff-done">PAYMENT RECORDED IN ALFAPOS ${icon('arrow')}</button>`;
 		membershipFrame(content, () => showMembershipStep('payment'));
 		main().querySelector('#desk-membership-handoff-done').addEventListener('click', () => {
 			state.membershipWizard.payment_handled = true;
@@ -1566,7 +1527,7 @@
 	function showMembershipReview() {
 		const data = state.membershipWizard.data;
 		const level = selectedMembershipLevel();
-		membershipFrame(`<div class="desk-wizard-heading"><h1>REVIEW MEMBERSHIP</h1><p><strong>${isTraining() ? 'TRAINING SELECTION ONLY<br>NO PAYMENT WAS TAKEN' : 'PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.'}</strong></p></div><section class="desk-review-card"><dl><dt>Name</dt><dd>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</dd><dt>Email</dt><dd>${escapeHtml(data.email)}</dd><dt>Phone</dt><dd>${escapeHtml(data.phone || 'Not provided')}</dd><dt>Membership</dt><dd>${escapeHtml(level.display_name || 'Membership')}<small>$${Number(level.price || 0).toFixed(2)} · ${escapeHtml(level.period_label || '')}</small></dd><dt>Payment</dt><dd>${escapeHtml(state.membershipWizard.payment_method.toUpperCase())}${isTraining() ? ' — training selection only' : ' — recorded in AlfaPOS'}</dd></dl></section><div id="desk-membership-message"></div><button type="button" class="desk-primary desk-wide" id="desk-membership-submit">${isTraining() ? 'RECORD TRAINING MEMBERSHIP' : 'RECORD MEMBERSHIP &amp; SEND EMAIL'}</button>`, () => showMembershipStep('handoff'));
+		membershipFrame(`<div class="desk-wizard-heading"><h1>REVIEW MEMBERSHIP</h1><p><strong>PAYMENT WAS ALREADY HANDLED.<br>DO NOT CHARGE THIS PERSON AGAIN.</strong></p></div><section class="desk-review-card"><dl><dt>Name</dt><dd>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</dd><dt>Email</dt><dd>${escapeHtml(data.email)}</dd><dt>Phone</dt><dd>${escapeHtml(data.phone || 'Not provided')}</dd><dt>Membership</dt><dd>${escapeHtml(level.display_name || 'Membership')}<small>$${Number(level.price || 0).toFixed(2)} · ${escapeHtml(level.period_label || '')}</small></dd><dt>Payment</dt><dd>${escapeHtml(state.membershipWizard.payment_method.toUpperCase())} — recorded in AlfaPOS</dd></dl></section><div id="desk-membership-message"></div><button type="button" class="desk-primary desk-wide" id="desk-membership-submit">RECORD MEMBERSHIP &amp; SEND EMAIL</button>`, () => showMembershipStep('handoff'));
 		main().querySelector('#desk-membership-submit').addEventListener('click', recordMembership);
 	}
 
@@ -1595,7 +1556,6 @@
 			resetPending();
 			showMembershipComplete(result);
 		} catch (error) {
-			if (isTraining()) return showTrainingFailure(error, () => { showMembershipStep('review'); recordMembership(); });
 			const activation = error.data?.activation;
 			if (activation) {
 				resetPending();
@@ -1610,9 +1570,7 @@
 	function showMembershipComplete(record, emailFailed = false) {
 		resetViewport();
 		state.view = 'success';
-		main().innerHTML = isTraining()
-			? `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>TRAINING MEMBERSHIP RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-statements"><p>✓ Training result saved</p><p>No email, membership, credit, or payment was created.</p></div><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Status</strong>TRAINING ONLY</span></div><div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-membership-done">DONE — RETURN HOME</button></div></section>`
-			: `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>MEMBERSHIP RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-statements"><p>✓ Membership payment recorded</p><p>${emailFailed ? '⚠ Activation email needs manager help' : '✓ Activation email sent'}</p></div><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Status</strong>PENDING ONLINE ACTIVATION</span></div>${emailFailed ? notice('The membership is safely recorded, but the email could not be sent. Ask a manager to recover the existing activation.', 'warning') : ''}<div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-membership-done">DONE — RETURN HOME</button>${emailFailed ? '<button type="button" class="desk-secondary" id="desk-membership-manager">MANAGER HELP</button>' : ''}</div></section>`;
+		main().innerHTML = `<section class="desk-success-screen"><span class="desk-success-check">${icon('check')}</span><h1>MEMBERSHIP RECORDED</h1><p class="desk-success-name">${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</p><div class="desk-success-statements"><p>✓ Membership payment recorded</p><p>${emailFailed ? '⚠ Activation email needs manager help' : '✓ Activation email sent'}</p></div><div class="desk-success-summary"><span><strong>Membership</strong>${escapeHtml(record.level_name)}</span><span><strong>Status</strong>PENDING ONLINE ACTIVATION</span></div>${emailFailed ? notice('The membership is safely recorded, but the email could not be sent. Ask a manager to recover the existing activation.', 'warning') : ''}<div class="desk-success-actions"><button type="button" class="desk-primary" id="desk-membership-done">DONE — RETURN HOME</button>${emailFailed ? '<button type="button" class="desk-secondary" id="desk-membership-manager">MANAGER HELP</button>' : ''}</div></section>`;
 		main().querySelector('#desk-membership-done').addEventListener('click', () => showHome());
 		main().querySelector('#desk-membership-manager')?.addEventListener('click', () => state.station.manager_token ? showPendingMemberships() : showManagerHelp());
 		focusMain();

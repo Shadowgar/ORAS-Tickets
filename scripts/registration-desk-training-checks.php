@@ -23,6 +23,7 @@ $base_store = $plugin_dir . 'includes/Registration_Desk/Store.php';
 $store      = $plugin_dir . 'includes/Registration_Desk/Training_Store.php';
 $context    = $plugin_dir . 'includes/Registration_Desk/Training_Context.php';
 $service    = $plugin_dir . 'includes/Registration_Desk/Training_Service.php';
+$snapshot   = $plugin_dir . 'includes/Registration_Desk/Training_Snapshot_Service.php';
 $rest       = $plugin_dir . 'includes/Registration_Desk/Training_Rest_Controller.php';
 
 oras_training_assert( file_exists( $schema ), 'Registration Desk schema exists' );
@@ -30,6 +31,7 @@ oras_training_assert( file_exists( $base_store ), 'Registration Desk base store 
 oras_training_assert( file_exists( $store ), 'Dedicated Training Store exists' );
 oras_training_assert( file_exists( $context ), 'Server-authorized Training Context exists' );
 oras_training_assert( file_exists( $service ), 'Synthetic Training Service exists' );
+oras_training_assert( file_exists( $snapshot ), 'Production roster Training Snapshot Service exists' );
 oras_training_assert( file_exists( $rest ), 'Dedicated Training REST controller exists' );
 
 require_once $schema;
@@ -37,11 +39,64 @@ require_once $base_store;
 require_once $store;
 require_once $context;
 require_once $service;
+require_once $snapshot;
 
 $schema_class = '\\ORAS\\Tickets\\Registration_Desk\\Schema';
 $store_class  = '\\ORAS\\Tickets\\Registration_Desk\\Training_Store';
 $context_class = '\\ORAS\\Tickets\\Registration_Desk\\Training_Context';
 $service_class = '\\ORAS\\Tickets\\Registration_Desk\\Training_Service';
+$snapshot_class = '\\ORAS\\Tickets\\Registration_Desk\\Training_Snapshot_Service';
+
+oras_training_assert( method_exists( $service_class, 'live_detail' ), 'Training Service exposes the shared live-shaped registration detail' );
+$snapshot_registration = $snapshot_class::normalize_registration(
+	array(
+		'registration_uuid' => '12121212-1212-4212-8212-121212121212',
+		'name'              => 'Jamie Morgan',
+		'phone'             => '814-555-0103',
+		'registration_type' => 'AstroBlast 2026 - Student',
+		'source_type'       => 'online',
+	),
+	array(
+		'registration' => array(
+			'registration_uuid'   => '12121212-1212-4212-8212-121212121212',
+			'option_uuid'         => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+			'source_contact_name' => 'Jamie Morgan',
+			'source_email'        => 'jamie@example.com',
+			'source_phone'        => '814-555-0103',
+			'source_type'         => 'online',
+			'classification'      => 'individual',
+			'validity_type'       => 'full_event',
+			'valid_local_date'    => '',
+			'payment_assertion'   => 'paid_card',
+		),
+		'attendees'    => array(
+			array(
+				'attendee_uuid'      => '13131313-1313-4313-8313-131313131313',
+				'slot_key'           => 'individual-1',
+				'display_name'       => 'Jamie Morgan',
+				'first_name'         => 'Jamie',
+				'last_name'          => 'Morgan',
+				'current_attendance' => array( 'state' => 'checked_in' ),
+			),
+		),
+		'admission'    => array(
+			'selection_allowed' => true,
+			'check_in_allowed'  => true,
+			'maximum_attendees' => 1,
+		),
+	)
+);
+oras_training_assert( 'Jamie Morgan' === $snapshot_registration['contact_name'] && 'jamie@example.com' === $snapshot_registration['email'], 'Training snapshot preserves the real event roster identity and contact fields' );
+oras_training_assert( ! isset( $snapshot_registration['attendees'][0]['current_attendance'] ), 'Training snapshot starts with separate attendance state' );
+$snapshot_stats = $service_class::stats(
+	array(
+		'registrations' => array( $snapshot_registration['registration_uuid'] => $snapshot_registration ),
+		'attendance'    => array(),
+		'memberships'   => array(),
+	),
+	'2026-10-06'
+);
+oras_training_assert( 1 === ( $snapshot_stats['event_total']['direct_website_registrations'] ?? -1 ), 'Training stats classify copied website registrations exactly like live Event Stats' );
 
 oras_training_assert( 3 === $schema_class::VERSION, 'Training table advances the Registration Desk schema version' );
 $tables = $schema_class::table_names( 'wp_' );
