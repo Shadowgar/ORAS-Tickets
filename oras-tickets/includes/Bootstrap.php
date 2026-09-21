@@ -8,6 +8,7 @@ use ORAS\Tickets\Support\Logger;
 require_once ORAS_TICKETS_DIR . 'includes/Support/DbLock.php'; // NOSONAR legacy include
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Schema.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Store.php';
+require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Training_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Registration_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendee_Store.php';
 require_once ORAS_TICKETS_DIR . 'includes/Registration_Desk/Attendance_Store.php';

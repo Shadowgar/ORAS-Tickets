@@ -17,7 +17,7 @@ function oras_desk_assert( bool $condition, string $message ): void {
 
 $base = dirname( __DIR__ ) . '/oras-tickets/includes/Registration_Desk/';
 
-foreach ( array( 'Schema.php', 'Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Audit_Store.php' ) as $file ) {
+foreach ( array( 'Schema.php', 'Store.php', 'Training_Store.php', 'Registration_Store.php', 'Attendee_Store.php', 'Attendance_Store.php', 'Audit_Store.php' ) as $file ) {
 	oras_desk_assert( file_exists( $base . $file ), "{$file} exists" );
 	require_once $base . $file;
 }
@@ -26,13 +26,14 @@ $schema_class = '\\ORAS\\Tickets\\Registration_Desk\\Schema';
 oras_desk_assert( class_exists( $schema_class ), 'Schema class loads' );
 
 $sql = $schema_class::build_schema_sql( 'wp_', 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci' );
-oras_desk_assert( 5 === count( $sql ), 'Schema defines four registration tables and one pending-membership table' );
+oras_desk_assert( 6 === count( $sql ), 'Schema defines four registration tables, one pending-membership table, and one isolated training table' );
 
 $joined = implode( "\n", $sql );
 foreach ( array( 'wp_oras_event_registrations', 'wp_oras_event_attendees', 'wp_oras_event_attendance', 'wp_oras_event_audit' ) as $table ) {
 	oras_desk_assert( false !== strpos( $joined, "CREATE TABLE {$table}" ), "Schema defines {$table}" );
 }
 oras_desk_assert( false !== strpos( $joined, 'CREATE TABLE wp_oras_offline_memberships' ), 'Schema defines the pending offline-membership table' );
+oras_desk_assert( false !== strpos( $joined, 'CREATE TABLE wp_oras_registration_desk_training_sessions' ), 'Schema defines the isolated training-session table' );
 
 oras_desk_assert( false !== strpos( $joined, 'source_order_id bigint(20) unsigned NULL' ), 'Online order source is nullable' );
 oras_desk_assert( false !== strpos( $joined, 'source_order_item_id bigint(20) unsigned NULL' ), 'Online order-item source is nullable' );
@@ -47,12 +48,12 @@ oras_desk_assert( false !== strpos( $joined, 'UNIQUE KEY request_uuid (request_u
 oras_desk_assert( false !== strpos( $joined, 'payload_hash char(64) NOT NULL' ), 'Audit binds the normalized payload hash' );
 oras_desk_assert( false !== strpos( $joined, 'config_revision bigint(20) unsigned NOT NULL' ), 'Audit binds the configuration revision' );
 oras_desk_assert( false !== strpos( $joined, 'created_at_utc datetime NOT NULL' ), 'Audit and operational records use explicit UTC timestamps' );
-oras_desk_assert( 5 === substr_count( $joined, 'ENGINE=InnoDB' ), 'All five stores require transactional InnoDB tables' );
+oras_desk_assert( 6 === substr_count( $joined, 'ENGINE=InnoDB' ), 'All six stores require transactional InnoDB tables' );
 oras_desk_assert( false === stripos( $joined, 'FOREIGN KEY' ), 'Schema does not make online sources mandatory through foreign keys' );
 oras_desk_assert( false === stripos( $joined, 'UNIQUE KEY email' ), 'Email is not globally unique' );
 oras_desk_assert( false === stripos( $joined, 'UNIQUE KEY phone' ), 'Phone is not globally unique' );
 
-foreach ( array( 'Registration_Store', 'Attendee_Store', 'Attendance_Store', 'Audit_Store' ) as $store ) {
+foreach ( array( 'Training_Store', 'Registration_Store', 'Attendee_Store', 'Attendance_Store', 'Audit_Store' ) as $store ) {
 	$class = '\\ORAS\\Tickets\\Registration_Desk\\' . $store;
 	oras_desk_assert( class_exists( $class ), "{$store} class loads" );
 }

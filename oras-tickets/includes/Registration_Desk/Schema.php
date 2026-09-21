@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Schema {
-	public const VERSION = 2;
+	public const VERSION = 3;
 	public const OPTION_VERSION = 'oras_registration_desk_schema_version';
 
 	/** @return array<string,string> */
@@ -23,6 +23,7 @@ final class Schema {
 			'attendance'          => $prefix . 'oras_event_attendance',
 			'audit'               => $prefix . 'oras_event_audit',
 			'offline_memberships' => $prefix . 'oras_offline_memberships',
+			'training_sessions'   => $prefix . 'oras_registration_desk_training_sessions',
 		);
 	}
 
@@ -169,9 +170,28 @@ final class Schema {
 				UNIQUE KEY request_uuid (request_uuid),
 				UNIQUE KEY credit_code (credit_code),
 				KEY event_status (event_id,status,id),
-				KEY email_status (normalized_email,status,id),
-				KEY discount_code_id (discount_code_id)
-			) {$suffix};",
+					KEY email_status (normalized_email,status,id),
+					KEY discount_code_id (discount_code_id)
+				) {$suffix};",
+			"CREATE TABLE {$tables['training_sessions']} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					training_uuid char(36) NOT NULL,
+					station_uuid char(36) NOT NULL,
+					user_id bigint(20) unsigned NOT NULL,
+					wp_session_digest char(64) NOT NULL,
+					event_id bigint(20) unsigned NOT NULL,
+					config_revision bigint(20) unsigned NOT NULL,
+					simulated_local_date date NOT NULL,
+					state_json longtext NOT NULL,
+					record_version bigint(20) unsigned NOT NULL DEFAULT 1,
+					expires_at_utc datetime NOT NULL,
+					created_at_utc datetime NOT NULL,
+					updated_at_utc datetime NOT NULL,
+					PRIMARY KEY  (id),
+					UNIQUE KEY training_uuid (training_uuid),
+					UNIQUE KEY station_uuid (station_uuid),
+					KEY expires_at_utc (expires_at_utc)
+				) {$suffix};",
 		);
 	}
 
