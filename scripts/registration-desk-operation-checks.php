@@ -97,6 +97,7 @@ oras_operation_assert( method_exists( $attendance_store, 'for_attendees_on_date'
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $service_code = (string) file_get_contents( $base . 'Service.php' );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads a local source fixture.
 $training_service_code = (string) file_get_contents( $base . 'Training_Service.php' );
 oras_operation_assert( false !== strpos( $service_code, 'Store::transaction' ), 'Business mutation and audit use a database transaction' );
 oras_operation_assert( false !== strpos( $training_service_code, "'attendance'" ) && false !== strpos( $training_service_code, "'requests'" ), 'Training operations persist attendance and idempotency in isolated state' );

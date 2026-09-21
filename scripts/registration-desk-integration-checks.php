@@ -1586,12 +1586,12 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$live_before   = oras_desk_integration_protected_snapshot( $context, true );
 	$created       = $store->create(
 		array(
-			'training_uuid'       => $training_uuid,
-			'station_uuid'        => (string) $station['station_uuid'],
-			'user_id'             => (int) $station['user_id'],
-			'wp_session'          => (string) $station['wp_session'],
-			'event_id'            => $event_id,
-			'config_revision'     => (int) $config['revision'],
+			'training_uuid'        => $training_uuid,
+			'station_uuid'         => (string) $station['station_uuid'],
+			'user_id'              => (int) $station['user_id'],
+			'wp_session'           => (string) $station['wp_session'],
+			'event_id'             => $event_id,
+			'config_revision'      => (int) $config['revision'],
 			'simulated_local_date' => (string) $event['start_date'],
 		),
 		Training_Service::seed_state( $training_uuid, $offerings )
@@ -1619,13 +1619,13 @@ function oras_desk_integration_training_workflow( array $context ): void {
 
 	$operation_context = static function ( array $row ) use ( $config, $event, $offerings, $memberships, $training_uuid ): array {
 		return array(
-			'training_uuid'                 => $training_uuid,
-			'config_revision'               => (int) $row['config_revision'],
-			'current_config_revision'       => (int) $config['revision'],
-			'simulated_local_date'          => (string) $row['simulated_local_date'],
-			'event_start_date'              => (string) $event['start_date'],
-			'event_end_date'                => (string) $event['end_date'],
-			'canonical_offerings'           => $offerings,
+			'training_uuid'                  => $training_uuid,
+			'config_revision'                => (int) $row['config_revision'],
+			'current_config_revision'        => (int) $config['revision'],
+			'simulated_local_date'           => (string) $row['simulated_local_date'],
+			'event_start_date'               => (string) $event['start_date'],
+			'event_end_date'                 => (string) $event['end_date'],
+			'canonical_offerings'            => $offerings,
 			'canonical_membership_offerings' => $memberships,
 		);
 	};
@@ -1657,7 +1657,7 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$check_in = static function ( array $registration, int $count ) use ( $mutate, $operation_context ): array {
 		$attendee_uuids = array_slice( array_column( $registration['attendees'], 'attendee_uuid' ), 0, $count );
 		$payload = array(
-			'request_uuid'     => wp_generate_uuid4(),
+			'request_uuid'      => wp_generate_uuid4(),
 			'registration_uuid' => (string) $registration['registration_uuid'],
 			'attendee_uuids'    => $attendee_uuids,
 		);
@@ -1692,14 +1692,14 @@ function oras_desk_integration_training_workflow( array $context ): void {
 
 	$walk_in = static function ( array $offering, string $payment, bool $family_walk_in = false ) use ( $mutate, $operation_context, $context ): array {
 		$payload = array(
-			'request_uuid'        => wp_generate_uuid4(),
-			'option_uuid'         => (string) $offering['option_uuid'],
+			'request_uuid'         => wp_generate_uuid4(),
+			'option_uuid'          => (string) $offering['option_uuid'],
 			'offering_fingerprint' => (string) $offering['offering_fingerprint'],
-			'payment_assertion'   => $payment,
-			'contact_name'        => 'Practice ' . ucwords( str_replace( '_', ' ', $payment ) ),
-			'email'               => 'training-' . $payment . '-' . $context['run'] . '@example.invalid',
-			'phone'               => '555-0199',
-			'attendees'           => $family_walk_in ? array( array( 'name' => 'Practice Adult' ), array( 'name' => 'Practice Child' ) ) : array( array( 'name' => 'Practice Attendee' ) ),
+			'payment_assertion'    => $payment,
+			'contact_name'         => 'Practice ' . ucwords( str_replace( '_', ' ', $payment ) ),
+			'email'                => 'training-' . $payment . '-' . $context['run'] . '@example.invalid',
+			'phone'                => '555-0199',
+			'attendees'            => $family_walk_in ? array( array( 'name' => 'Practice Adult' ), array( 'name' => 'Practice Child' ) ) : array( array( 'name' => 'Practice Attendee' ) ),
 		);
 		return $mutate(
 			static function ( array $state, array $row ) use ( $payload, $operation_context ) {
@@ -1730,7 +1730,16 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$worked = $store->find_for_station( (string) $station['station_uuid'] );
 	$stats  = Training_Service::stats( $worked['state'], $second_date );
 	oras_desk_integration_same( $stats['event_total']['walk_in_registrations'], 4, 'training stats include all simulated walk-ins' );
-	oras_desk_integration_same( $stats['event_total']['payment_assertions'], array( 'paid_card' => 1, 'paid_cash' => 1, 'paid_check' => 1, 'unpaid' => 1 ), 'training stats preserve each payment-method practice assertion without payment' );
+	oras_desk_integration_same(
+		$stats['event_total']['payment_assertions'],
+		array(
+			'paid_card'  => 1,
+			'paid_cash'  => 1,
+			'paid_check' => 1,
+			'unpaid'     => 1,
+		),
+		'training stats preserve each payment-method practice assertion without payment'
+	);
 	oras_desk_integration_same( $stats['memberships']['total'], 2, 'training stats include cash and check membership simulations' );
 
 	$reset = $store->reset( (string) $station['station_uuid'], (int) $worked['record_version'], Training_Service::seed_state( $training_uuid, $offerings ) );

@@ -78,22 +78,22 @@ foreach ( array( 'create', 'find_for_station', 'mutate', 'change_date', 'reset',
 
 oras_training_assert( class_exists( $context_class ), 'Training Context class loads' );
 $station = array(
-	'station_uuid'    => '11111111-1111-4111-8111-111111111111',
-	'user_id'         => 99,
-	'event_id'        => 123,
-	'config_revision' => 7,
-	'wp_session'      => str_repeat( 'a', 64 ),
-	'mode'            => 'training',
+	'station_uuid'         => '11111111-1111-4111-8111-111111111111',
+	'user_id'              => 99,
+	'event_id'             => 123,
+	'config_revision'      => 7,
+	'wp_session'           => str_repeat( 'a', 64 ),
+	'mode'                 => 'training',
 	'simulated_local_date' => '2026-10-06',
 );
 $row = array(
-	'station_uuid'        => $station['station_uuid'],
-	'user_id'             => 99,
-	'event_id'            => 123,
-	'config_revision'     => 7,
-	'wp_session_digest'   => $station['wp_session'],
+	'station_uuid'         => $station['station_uuid'],
+	'user_id'              => 99,
+	'event_id'             => 123,
+	'config_revision'      => 7,
+	'wp_session_digest'    => $station['wp_session'],
 	'simulated_local_date' => '2026-10-06',
-	'expires_at_utc'      => '2026-10-07 12:00:00',
+	'expires_at_utc'       => '2026-10-07 12:00:00',
 );
 $config = array( 'revision' => 7 );
 $event  = array(
@@ -143,43 +143,48 @@ oras_training_assert( true === $context_class::assert_live( null ), 'Station wit
 
 $offerings = array(
 	array(
-		'option_uuid'         => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-		'ticket_key'          => 'individual',
-		'label'               => 'Individual',
-		'description'         => 'One event admission.',
-		'price'               => '25.00',
-		'classification'      => 'individual',
-		'validity_type'       => 'full_event',
-		'valid_local_date'    => '',
-		'max_attendees'       => 1,
+		'option_uuid'          => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+		'ticket_key'           => 'individual',
+		'label'                => 'Individual',
+		'description'          => 'One event admission.',
+		'price'                => '25.00',
+		'classification'       => 'individual',
+		'validity_type'        => 'full_event',
+		'valid_local_date'     => '',
+		'max_attendees'        => 1,
 		'offering_fingerprint' => str_repeat( '1', 64 ),
-		'included_events'     => array( array( 'event_id' => 456, 'label' => 'Friday Star Party' ) ),
+		'included_events'      => array(
+			array(
+				'event_id' => 456,
+				'label'    => 'Friday Star Party',
+			),
+		),
 	),
 	array(
-		'option_uuid'         => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-		'ticket_key'          => 'family',
-		'label'               => 'Family',
-		'description'         => 'One household.',
-		'price'               => '60.00',
-		'classification'      => 'family',
-		'validity_type'       => 'full_event',
-		'valid_local_date'    => '',
-		'max_attendees'       => 6,
+		'option_uuid'          => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+		'ticket_key'           => 'family',
+		'label'                => 'Family',
+		'description'          => 'One household.',
+		'price'                => '60.00',
+		'classification'       => 'family',
+		'validity_type'        => 'full_event',
+		'valid_local_date'     => '',
+		'max_attendees'        => 6,
 		'offering_fingerprint' => str_repeat( '2', 64 ),
-		'included_events'     => array(),
+		'included_events'      => array(),
 	),
 	array(
-		'option_uuid'         => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-		'ticket_key'          => 'student',
-		'label'               => 'Student',
-		'description'         => 'Student admission.',
-		'price'               => '15.00',
-		'classification'      => 'individual',
-		'validity_type'       => 'one_day',
-		'valid_local_date'    => '2026-10-06',
-		'max_attendees'       => 1,
+		'option_uuid'          => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+		'ticket_key'           => 'student',
+		'label'                => 'Student',
+		'description'          => 'Student admission.',
+		'price'                => '15.00',
+		'classification'       => 'individual',
+		'validity_type'        => 'one_day',
+		'valid_local_date'     => '2026-10-06',
+		'max_attendees'        => 1,
 		'offering_fingerprint' => str_repeat( '3', 64 ),
-		'included_events'     => array(),
+		'included_events'      => array(),
 	),
 );
 $seed_a = $service_class::seed_state( '33333333-3333-4333-8333-333333333333', $offerings );
@@ -221,7 +226,7 @@ $not_checked_in = $service_class::roster( $seed_a, array( 'status' => 'not_check
 oras_training_assert( 3 === count( $not_checked_in['items'] ?? array() ), 'New training roster reports every seed as not checked in' );
 $detail = $service_class::detail( $seed_a, (string) $family_only['items'][0]['registration_uuid'], true );
 oras_training_assert( is_array( $detail ) && true === ( $detail['manager_detail']['synthetic'] ?? false ), 'Manager detail identifies synthetic origin explicitly' );
-oras_training_assert( strlen( (string) json_encode( $seed_a ) ) < 524288, 'Seeded state remains within the bounded training row' );
+oras_training_assert( strlen( (string) json_encode( $seed_a ) ) < 524288, 'Seeded state remains within the bounded training row' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Standalone fixture has no WordPress JSON helper.
 
 $service_source = (string) file_get_contents( $service ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source assertion.
 foreach ( array( 'wc_get_orders', 'wc_get_order', 'WP_Query', 'oras_event_registrations' ) as $forbidden ) {
@@ -229,16 +234,17 @@ foreach ( array( 'wc_get_orders', 'wc_get_order', 'WP_Query', 'oras_event_regist
 }
 
 $operation_context = array(
-	'training_uuid'          => '33333333-3333-4333-8333-333333333333',
-	'simulated_local_date'   => '2026-10-06',
-	'event_start_date'       => '2026-10-06',
-	'event_end_date'         => '2026-10-11',
-	'config_revision'        => 7,
+	'training_uuid'           => '33333333-3333-4333-8333-333333333333',
+	'simulated_local_date'    => '2026-10-06',
+	'event_start_date'        => '2026-10-06',
+	'event_end_date'          => '2026-10-11',
+	'config_revision'         => 7,
 	'current_config_revision' => 7,
-	'canonical_offerings'    => $offerings,
-	'occurred_at_utc'        => '2026-09-21 14:00:00',
+	'canonical_offerings'     => $offerings,
+	'occurred_at_utc'         => '2026-09-21 14:00:00',
 );
-$individual = $family = null;
+$individual = null;
+$family     = null;
 foreach ( $seed_a['registrations'] as $registration ) {
 	if ( 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' === $registration['option_uuid'] ) {
 		$individual = $registration;
@@ -297,13 +303,13 @@ foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $payment_
 	$walk_in = $service_class::walk_in_state(
 		$walk_in_state,
 		array(
-			'request_uuid'        => sprintf( '66666666-6666-4666-8666-%012d', $payment_index + 1 ),
-			'option_uuid'         => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+			'request_uuid'         => sprintf( '66666666-6666-4666-8666-%012d', $payment_index + 1 ),
+			'option_uuid'          => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
 			'offering_fingerprint' => str_repeat( '1', 64 ),
-			'contact_name'        => 'Practice Guest ' . ( $payment_index + 1 ),
-			'email'               => 'practice' . ( $payment_index + 1 ) . '@example.invalid',
-			'phone'               => '555-0199',
-			'attendees'           => array( array( 'name' => 'Practice Guest ' . ( $payment_index + 1 ) ) ),
+			'contact_name'         => 'Practice Guest ' . ( $payment_index + 1 ),
+			'email'                => 'practice' . ( $payment_index + 1 ) . '@example.invalid',
+			'phone'                => '555-0199',
+			'attendees'            => array( array( 'name' => 'Practice Guest ' . ( $payment_index + 1 ) ) ),
 			'payment_assertion'    => $payment_assertion,
 		),
 		$operation_context
@@ -317,12 +323,12 @@ oras_training_assert( 4 === count( $walk_in_roster['items'] ?? array() ), 'Train
 $family_walk_in = $service_class::walk_in_state(
 	$walk_in_state,
 	array(
-		'request_uuid'        => '77777777-7777-4777-8777-777777777777',
-		'option_uuid'         => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+		'request_uuid'         => '77777777-7777-4777-8777-777777777777',
+		'option_uuid'          => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
 		'offering_fingerprint' => str_repeat( '2', 64 ),
-		'contact_name'        => 'Practice Family',
-		'email'               => 'practice.family@example.invalid',
-		'attendees'           => array( array( 'name' => 'Adult One' ), array( 'name' => 'Youth Two' ) ),
+		'contact_name'         => 'Practice Family',
+		'email'                => 'practice.family@example.invalid',
+		'attendees'            => array( array( 'name' => 'Adult One' ), array( 'name' => 'Youth Two' ) ),
 		'payment_assertion'    => 'paid_cash',
 	),
 	$operation_context
@@ -334,11 +340,11 @@ $wrong_one_day_context['simulated_local_date'] = '2026-10-07';
 $wrong_one_day = $service_class::walk_in_state(
 	$walk_in_state,
 	array(
-		'request_uuid'        => '88888888-8888-4888-8888-888888888888',
-		'option_uuid'         => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+		'request_uuid'         => '88888888-8888-4888-8888-888888888888',
+		'option_uuid'          => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 		'offering_fingerprint' => str_repeat( '3', 64 ),
-		'contact_name'        => 'Practice Student',
-		'attendees'           => array( array( 'name' => 'Practice Student' ) ),
+		'contact_name'         => 'Practice Student',
+		'attendees'            => array( array( 'name' => 'Practice Student' ) ),
 		'payment_assertion'    => 'unpaid',
 	),
 	$wrong_one_day_context
@@ -367,10 +373,10 @@ $membership_context['canonical_membership_offerings'] = $membership_offerings;
 $cash_membership = $service_class::record_membership_state(
 	$seed_a,
 	array(
-		'request_uuid'  => '99999999-9999-4999-8999-999999999999',
-		'level_id'      => 7,
-		'contact_name'  => 'Practice Member',
-		'email'         => 'practice.member@example.invalid',
+		'request_uuid'   => '99999999-9999-4999-8999-999999999999',
+		'level_id'       => 7,
+		'contact_name'   => 'Practice Member',
+		'email'          => 'practice.member@example.invalid',
 		'payment_method' => 'cash',
 	),
 	$membership_context
@@ -380,10 +386,10 @@ oras_training_assert( 'Annual Individual Membership' === ( $cash_membership['res
 $check_membership = $service_class::record_membership_state(
 	$cash_membership['state'],
 	array(
-		'request_uuid'  => 'aaaaaaaa-9999-4999-8999-999999999999',
-		'level_id'      => 8,
-		'contact_name'  => 'Practice Family Member',
-		'email'         => 'practice.family.member@example.invalid',
+		'request_uuid'   => 'aaaaaaaa-9999-4999-8999-999999999999',
+		'level_id'       => 8,
+		'contact_name'   => 'Practice Family Member',
+		'email'          => 'practice.family.member@example.invalid',
 		'payment_method' => 'check',
 	),
 	$membership_context
@@ -406,7 +412,13 @@ oras_training_assert( is_array( $next_day_check_in ), 'Training fixture can add 
 $stats = $service_class::stats( $next_day_check_in['state'], '2026-10-07' );
 oras_training_assert( 1 === ( $stats['today']['actual_people'] ?? -1 ), 'Training statistics count only the selected simulated date as today' );
 oras_training_assert( 7 === ( $stats['event_total']['attendance_instances'] ?? -1 ), 'Training statistics retain current and historical attendance instances' );
-oras_training_assert( array( '2026-10-06' => 6, '2026-10-07' => 1 ) === ( $stats['event_total']['attendance_by_day'] ?? array() ), 'Training statistics group attendance by simulated event date' );
+oras_training_assert(
+	array(
+		'2026-10-06' => 6,
+		'2026-10-07' => 1,
+	) === ( $stats['event_total']['attendance_by_day'] ?? array() ),
+	'Training statistics group attendance by simulated event date'
+);
 oras_training_assert( 5 === ( $stats['event_total']['walk_in_registrations'] ?? -1 ), 'Training statistics report only synthetic walk-ins' );
 oras_training_assert( 2 === ( $stats['event_total']['payment_assertions']['paid_cash'] ?? -1 ), 'Training statistics expose assertion counts rather than revenue' );
 oras_training_assert( true === ( $stats['training'] ?? false ), 'Training statistics identify their isolated source' );
