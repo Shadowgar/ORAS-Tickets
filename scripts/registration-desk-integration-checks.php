@@ -1683,7 +1683,8 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$checked_now = array_filter( $second_roster['items'], static fn( array $item ): bool => true === ( $item['checked_in_today'] ?? false ) );
 	oras_desk_integration_same( count( $checked_now ), 0, 'changing the training date preserves prior attendance without counting it on the new date' );
 	oras_desk_integration_same( Training_Service::stats( $row_on_second_date['state'], $second_date )['event_total']['attendance_by_day'][ (string) $event['start_date'] ] ?? 0, 3, 'prior-date check-ins remain in training attendance history' );
-	oras_desk_integration_true( ! Training_Context::is_event_date( wp_date( 'Y-m-d', strtotime( $second_date . ' +1 day' ) ), (string) $event['start_date'], (string) $event['end_date'] ), 'a simulated date outside the event range is rejected' );
+	$outside_date = ( new DateTimeImmutable( $second_date ) )->modify( '+1 day' )->format( 'Y-m-d' );
+	oras_desk_integration_true( ! Training_Context::is_event_date( $outside_date, (string) $event['start_date'], (string) $event['end_date'] ), 'a simulated date outside the event range is rejected' );
 
 	$walk_in = static function ( array $offering, string $payment, bool $family_walk_in = false ) use ( $mutate, $operation_context, $context ): array {
 		$payload = array(
