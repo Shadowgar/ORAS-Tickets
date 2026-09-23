@@ -90,18 +90,18 @@ oras_roster_assert( false === strpos( $desk, 'id="desk-home-roster"' ), 'Volunte
 oras_roster_assert( false !== strpos( $desk, "#desk-home-find').addEventListener('click', () => showEventRoster(true)" ), 'Find Registration is the one roster and search entry point' );
 oras_roster_assert( false !== strpos( $desk, 'SEARCH THIS EVENT' ), 'Find Registration search is optional and visible above the roster' );
 oras_roster_assert( false !== strpos( $desk, 'THEY SAY THEY ALREADY REGISTERED' ), 'Searched roster no-results retain paid-registration recovery' );
-oras_roster_assert( false !== strpos( $desk, 'SHOW EVERYONE' ), 'Roster has an explicit Show Everyone reset' );
+oras_roster_assert( false !== strpos( $desk, 'CLEAR SEARCH' ) && false !== strpos( $desk, 'CLEAR FILTERS' ), 'Search and filter resets remain separate' );
 oras_roster_assert( false !== strpos( $desk, 'SHOW MORE PEOPLE' ), 'Roster uses kiosk-style incremental pagination' );
-oras_roster_assert( false !== strpos( $desk, 'CHOOSE REGISTRATION TYPE' ), 'Many registration types use a large picker' );
-oras_roster_assert( false !== strpos( $desk, 'ALL REGISTRATION TYPES' ), 'Type filtering always exposes the all-types state' );
+oras_roster_assert( false !== strpos( $desk, 'FILTER REGISTRATIONS' ), 'Registration filters use a closed dialog' );
+oras_roster_assert( false !== strpos( $desk, 'ALL TYPES' ), 'Type filtering always exposes the all-types state' );
 oras_roster_assert( false !== strpos( $desk, 'showEventRoster' ) && false !== strpos( $desk, 'showRegistration' ), 'Roster rows reuse Registration Detail' );
-oras_roster_assert( false !== strpos( $desk, '/training/roster' ) && false !== strpos( $desk, 'showTrainingRegistration' ), 'Training roster and detail stay on isolated browser paths' );
+oras_roster_assert( false !== strpos( $desk, '/training/roster' ) && false !== strpos( $desk, 'const detailPath = isTraining()' ), 'Training roster and detail stay on isolated browser paths' );
 oras_roster_assert( false !== strpos( $desk, '/training/registrations/' ) && false !== strpos( $desk, 'attendee_uuids' ), 'Training family check-in submits selected synthetic attendee identities' );
 oras_roster_assert( false !== strpos( $desk, 'RECORD MEMBERSHIP &amp; SEND EMAIL' ), 'Membership final action clearly states its effects' );
 oras_roster_assert( false !== strpos( $desk, 'PAYMENT RECORDED IN ALFAPOS' ), 'Membership flow keeps payment processing in AlfaPOS' );
 oras_roster_assert( false !== strpos( $desk, 'desk-membership-payment-choice' ), 'Membership payment methods use kiosk touch choices' );
-oras_roster_assert( false !== strpos( $css, '.desk-roster-status' ), 'Roster status choices have dedicated touch-first styling' );
-oras_roster_assert( false !== strpos( $css, '.desk-type-picker' ), 'Registration type picker has dedicated large-control styling' );
+oras_roster_assert( false !== strpos( $css, '.desk-filter-choice' ), 'Roster status and type choices have dedicated touch-first styling' );
+oras_roster_assert( false !== strpos( $css, '.desk-filter-dialog' ), 'Responsive registration filter dialog has dedicated styling' );
 oras_roster_assert( false !== strpos( $css, '.desk-membership-payment-choice' ), 'Membership payment choices have dedicated large-control styling' );
 
 echo "Registration Desk roster checks passed.\n";

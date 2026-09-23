@@ -507,8 +507,8 @@ final class Training_Service {
 			return new \WP_Error( 'oras_desk_training_membership_unavailable', 'That training membership option is no longer available.', array( 'status' => 409 ) );
 		}
 		$payment_method = strtolower( trim( (string) ( $payload['payment_method'] ?? '' ) ) );
-		if ( ! in_array( $payment_method, array( 'cash', 'check' ), true ) ) {
-			return new \WP_Error( 'oras_desk_training_membership_payment_invalid', 'Choose Cash or Check for the training membership scenario.', array( 'status' => 400 ) );
+		if ( ! in_array( $payment_method, array( 'card', 'cash', 'check' ), true ) ) {
+			return new \WP_Error( 'oras_desk_training_membership_payment_invalid', 'Choose Card, Cash, or Check for the training membership scenario.', array( 'status' => 400 ) );
 		}
 		$contact_name = self::clean_text( (string) ( $payload['contact_name'] ?? '' ) );
 		$email        = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
@@ -642,6 +642,7 @@ final class Training_Service {
 
 		$membership_summary = array(
 			'total'  => 0,
+			'card'   => 0,
 			'cash'   => 0,
 			'check'  => 0,
 			'levels' => array(),
@@ -827,12 +828,6 @@ final class Training_Service {
 		$value = trim( (string) ( $context['occurred_at_utc'] ?? '' ) );
 
 		return '' !== $value ? $value : gmdate( 'Y-m-d H:i:s' );
-	}
-
-	private static function demo_name( string $name ): string {
-		$name = trim( $name );
-
-		return str_starts_with( $name, 'DEMO — ' ) ? $name : 'DEMO — ' . $name;
 	}
 
 	/** @param array<string,int> $counts */

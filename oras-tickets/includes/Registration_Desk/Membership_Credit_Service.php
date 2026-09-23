@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Bridges a desk-recorded cash/check payment to one normal PMPro checkout. */
+/** Bridges a desk-recorded AlfaPOS payment to one normal PMPro checkout. */
 final class Membership_Credit_Service {
 	private Offline_Membership_Store $store;
 
@@ -50,8 +50,8 @@ final class Membership_Credit_Service {
 		$payment    = sanitize_key( (string) ( $payload['payment_method'] ?? '' ) );
 		$level_id   = absint( $payload['level_id'] ?? 0 );
 		$mapping    = Config::membership_mapping( $level_id );
-		if ( '' === $first_name || '' === $last_name || ! is_email( $email ) || ! in_array( $payment, array( 'cash', 'check' ), true ) || null === $mapping ) {
-			return new \WP_Error( 'oras_desk_membership_invalid', 'Complete the name, email, membership level, and Cash or Check fields.', array( 'status' => 400 ) );
+		if ( '' === $first_name || '' === $last_name || ! is_email( $email ) || ! in_array( $payment, array( 'card', 'cash', 'check' ), true ) || null === $mapping ) {
+			return new \WP_Error( 'oras_desk_membership_invalid', 'Complete the name, email, membership level, and Card, Cash, or Check fields.', array( 'status' => 400 ) );
 		}
 		if ( ! class_exists( '\\PMPro_Discount_Code' ) || ! function_exists( 'pmpro_getLevel' ) ) {
 			return new \WP_Error( 'oras_desk_membership_unavailable', 'Membership activation is not available right now. Ask a manager for help.', array( 'status' => 503 ) );

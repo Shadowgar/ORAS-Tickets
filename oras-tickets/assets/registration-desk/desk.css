@@ -730,54 +730,38 @@ button.desk-link-button {
 	margin-bottom: 0;
 }
 
-.desk-roster-heading,
-.desk-roster-reset,
-.desk-type-filter {
+.desk-roster-heading {
 	text-align: center;
 }
 
-.desk-roster-reset {
-	margin: 0.75rem 0;
-}
-
-.desk-roster-filter {
-	margin: 1rem 0;
-	border: 0;
-	padding: 0;
-}
-
-.desk-roster-filter legend,
-.desk-type-filter h2 {
-	width: 100%;
-	margin-bottom: 0.65rem;
-	color: var(--desk-muted);
-	font-size: 0.88rem;
-	font-weight: 900;
-	letter-spacing: 0.08em;
-	text-align: center;
-}
-
-.desk-roster-status,
-.desk-roster-types {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 0.7rem;
-}
-
-.desk-roster-status button,
-.desk-roster-types button {
-	min-height: 68px;
-	border: 2px solid var(--desk-line);
-	background: #fff;
-	color: var(--desk-ink);
-}
-
-.desk-roster-status button.is-selected,
-.desk-roster-types button.is-selected {
-	border-color: var(--desk-blue);
-	background: var(--desk-pale-blue);
+.desk-clear-search {
+	min-height: 44px;
+	margin: 0.15rem 0 0.2rem;
+	padding: 0.25rem 0.65rem;
+	background: transparent;
 	color: var(--desk-blue-dark);
-	box-shadow: 0 0 0 3px rgb(8 118 209 / 14%);
+	font-size: 0.82rem;
+}
+
+.desk-filter-summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.4rem 0.8rem;
+	padding: 0.3rem 0;
+	color: var(--desk-muted);
+	font-size: 0.85rem;
+}
+
+.desk-filter-summary.is-active strong {
+	color: var(--desk-blue-dark);
+}
+
+.desk-filter-summary button {
+	min-height: 44px;
+	padding: 0.35rem 0.7rem;
+	font-size: 0.78rem;
 }
 
 .desk-roster-results {
@@ -820,47 +804,91 @@ button.desk-link-button {
 	margin-top: 1rem;
 }
 
-.desk-roster-type-summary {
-	display: grid;
-	justify-items: center;
-	gap: 0.5rem;
-	border: 2px solid var(--desk-line);
-	border-radius: 14px;
-	background: #fff;
-	padding: 1rem;
-}
-
-.desk-roster-type-summary > span,
-.desk-roster-type-summary > strong {
-	display: block;
-}
-
-.desk-roster-type-summary > div {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.75rem;
-}
-
-.desk-type-picker {
+.desk-filter-dialog {
 	width: min(680px, calc(100% - 2rem));
 	max-height: calc(100dvh - 2rem);
+	overflow-y: auto;
 	border: 0;
 	border-radius: 20px;
 	padding: 1.25rem;
 	box-shadow: 0 24px 80px rgb(5 34 56 / 35%);
+	color: var(--desk-ink);
 }
 
-.desk-type-picker::backdrop {
+.desk-filter-dialog::backdrop {
 	background: rgb(5 34 56 / 75%);
 }
 
-.desk-type-picker form {
+.desk-filter-dialog form {
 	display: grid;
-	gap: 0.75rem;
+	gap: 1rem;
 }
 
-.desk-type-picker button {
-	min-height: 64px;
+.desk-filter-dialog h2 {
+	margin: 0;
+}
+
+.desk-filter-dialog fieldset {
+	min-width: 0;
+	border: 0;
+	padding: 0;
+}
+
+.desk-filter-dialog legend {
+	margin-bottom: 0.5rem;
+	font-weight: 800;
+}
+
+.desk-filter-options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.55rem;
+}
+
+.desk-filter-choice {
+	position: relative;
+	display: block;
+	cursor: pointer;
+}
+
+.desk-filter-choice input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.desk-filter-choice span {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 56px;
+	border: 2px solid var(--desk-line);
+	border-radius: 12px;
+	padding: 0.5rem;
+	background: #fff;
+	font-weight: 750;
+	text-align: center;
+}
+
+.desk-filter-choice input:checked + span {
+	border-color: var(--desk-blue);
+	background: var(--desk-pale-blue);
+	color: var(--desk-blue-dark);
+}
+
+.desk-filter-choice input:focus-visible + span {
+	outline: 4px solid rgb(231 173 58 / 75%);
+	outline-offset: 3px;
+}
+
+.desk-filter-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
 }
 
 .desk-manager-roster-detail dl {
@@ -1924,11 +1952,6 @@ button.desk-link-button {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
-	.desk-roster-status,
-	.desk-roster-types {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
 	.desk-roster-row {
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	}
@@ -2001,8 +2024,6 @@ button.desk-link-button {
 	}
 
 	.desk-roster-row,
-	.desk-roster-status,
-	.desk-roster-types,
 	.desk-membership-payment-grid,
 	.desk-manager-roster-detail dl {
 		grid-template-columns: 1fr;
@@ -2010,6 +2031,22 @@ button.desk-link-button {
 
 	.desk-search-form {
 		grid-template-columns: 1fr;
+	}
+
+	.desk-filter-dialog {
+		width: 100%;
+		max-height: 90dvh;
+		margin: auto 0 0;
+		border-radius: 20px 20px 0 0;
+	}
+
+	.desk-filter-options,
+	.desk-filter-actions {
+		grid-template-columns: 1fr;
+	}
+
+	.desk-filter-actions {
+		display: grid;
 	}
 
 	.desk-result-card {
