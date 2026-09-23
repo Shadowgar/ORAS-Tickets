@@ -1718,10 +1718,19 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	}
 	$check_in = static function ( array $registration, int $count ) use ( $mutate, $operation_context ): array {
 		$attendee_uuids = array_slice( array_column( $registration['attendees'], 'attendee_uuid' ), 0, $count );
+		$arrivals = array();
+		for ( $index = count( $attendee_uuids ); $index < $count; ++$index ) {
+			$arrivals[] = array(
+				'slot_key'   => 'practice-family-' . ( $index + 1 ),
+				'first_name' => 'Practice',
+				'last_name'  => 'Family ' . ( $index + 1 ),
+			);
+		}
 		$payload = array(
 			'request_uuid'      => wp_generate_uuid4(),
 			'registration_uuid' => (string) $registration['registration_uuid'],
 			'attendee_uuids'    => $attendee_uuids,
+			'arrivals'          => $arrivals,
 		);
 		return $mutate(
 			static function ( array $state, array $row ) use ( $payload, $operation_context ) {
