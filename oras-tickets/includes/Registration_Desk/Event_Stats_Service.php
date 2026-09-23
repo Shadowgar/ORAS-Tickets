@@ -18,7 +18,8 @@ final class Event_Stats_Service {
 			$labels[ (string) $option['option_uuid'] ] = (string) $option['label'];
 		}
 		$registrations = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$tables['registrations']} WHERE event_id = %d AND status = 'active' ORDER BY id", $event_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name.
-		foreach ( is_array( $registrations ) ? $registrations : array() as &$registration ) {
+		$registrations = is_array( $registrations ) ? $registrations : array();
+		foreach ( $registrations as &$registration ) {
 			$evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
 			$snapshot = is_array( $evidence['offering'] ?? null ) ? sanitize_text_field( (string) ( $evidence['offering']['label'] ?? '' ) ) : '';
 			if ( '' === $snapshot && in_array( (string) $registration['source_type'], array( 'online', 'online_included' ), true ) && is_array( $evidence ) ) {
@@ -37,7 +38,7 @@ final class Event_Stats_Service {
 		$local_today = $today ?? wp_date( 'Y-m-d', null, wp_timezone() );
 
 		return self::summarize_rows(
-			is_array( $registrations ) ? $registrations : array(),
+			$registrations,
 			is_array( $attendees ) ? $attendees : array(),
 			is_array( $attendance ) ? $attendance : array(),
 			$memberships,
@@ -136,6 +137,7 @@ final class Event_Stats_Service {
 
 			$membership_summary = array(
 				'total'     => count( $memberships ),
+				'card'      => 0,
 				'cash'      => 0,
 				'check'     => 0,
 				'pending'   => 0,

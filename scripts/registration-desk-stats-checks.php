@@ -170,6 +170,12 @@ $memberships = array(
 		'status'         => 'redeemed',
 		'expires_at_utc' => '2026-12-18 12:00:00',
 	),
+	array(
+		'level_name'     => 'Individual',
+		'payment_method' => 'card',
+		'status'         => 'pending',
+		'expires_at_utc' => '2026-12-18 12:00:00',
+	),
 );
 
 $stats = $class::summarize_rows( $registrations, $attendees, $attendance, $memberships, '2026-09-19', '2026-09-19 12:00:00' );
@@ -191,7 +197,8 @@ oras_stats_assert(
 oras_stats_assert( 1 === $stats['event_total']['payment_assertions']['cash'] && 1 === $stats['event_total']['payment_assertions']['card'], 'Walk-in payment assertions are counts, not revenue' );
 oras_stats_assert( 1 === $stats['event_total']['rsvp_registrations'] && 1 === $stats['event_total']['manager_verified_registrations'], 'RSVP and Manager Verified registrations remain distinct from website registrations' );
 oras_stats_assert( 1 === $stats['event_total']['direct_website_registrations'] && 1 === $stats['event_total']['included_event_registrations'], 'Direct website and included-event registrations have honest separate source totals' );
-oras_stats_assert( 2 === $stats['memberships']['total'] && 1 === $stats['memberships']['pending'] && 1 === $stats['memberships']['redeemed'], 'Event-originated membership lifecycle is summarized' );
+oras_stats_assert( 3 === $stats['memberships']['total'] && 2 === $stats['memberships']['pending'] && 1 === $stats['memberships']['redeemed'], 'Event-originated membership lifecycle is summarized' );
+oras_stats_assert( 1 === $stats['memberships']['cash'] && 1 === $stats['memberships']['check'] && 1 === $stats['memberships']['card'], 'Event Stats preserves every recorded membership method' );
 
 $training_source = (string) file_get_contents( $training_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.
 oras_stats_assert( false !== strpos( $training_source, 'public static function stats' ), 'Training statistics have an isolated state summarizer' );

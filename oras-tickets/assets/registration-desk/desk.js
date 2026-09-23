@@ -18,7 +18,7 @@
 		pendingPayment: '',
 		failureCount: 0,
 		finalizing: false,
-		roster: {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []},
+		roster: {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: [], has_more: false},
 		detailReturn: 'search',
 		managerDestination: 'manager',
 	};
@@ -557,7 +557,7 @@
 	function showMembershipMenu() {
 		resetViewport();
 		state.view = 'membership-menu';
-		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-membership-menu"><p class="desk-eyebrow">Organization membership — not event registration</p><h1>ORAS MEMBERSHIP</h1><p class="desk-lede">What do you need to do?</p><div class="desk-option-grid desk-option-grid-two"><button type="button" class="desk-option-card" id="desk-membership-lookup">${icon('search')}<strong>LOOK UP MEMBER</strong><span>Find a current, expired, or pending member.</span></button><button type="button" class="desk-option-card" id="desk-membership-record">${icon('person')}<strong>RECORD MEMBERSHIP PAYMENT</strong><span>Card, cash, or check already handled in AlfaPOS.</span></button></div></section>`;
+		main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-kiosk-panel desk-membership-menu"><p class="desk-eyebrow">Organization membership — not event registration</p><h1>ORAS MEMBERSHIP</h1><p class="desk-lede">What do you need to do?</p><div class="desk-option-grid desk-option-grid-two"><button type="button" class="desk-option-card" id="desk-membership-lookup">${icon('search')}<strong>LOOK UP MEMBER</strong><span>Find a current, expired, or pending member.</span></button><button type="button" class="desk-option-card" id="desk-membership-record">${icon('person')}<strong>RECORD MEMBERSHIP PAYMENT</strong><span>Card, cash, or check payment through AlfaPOS.</span></button></div></section>`;
 		bindScreenActions(showHome);
 		main().querySelector('#desk-membership-lookup').addEventListener('click', showMemberLookup);
 		main().querySelector('#desk-membership-record').addEventListener('click', () => startMembershipWizard(true));
@@ -590,7 +590,7 @@
 	async function showEventRoster(reset = false) {
 		resetViewport();
 		state.view = 'roster';
-		if (reset) state.roster = {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: []};
+		if (reset) state.roster = {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: [], has_more: false};
 		main().innerHTML = '<div class="desk-loading">Loading event roster…</div>';
 		await loadEventRoster(true);
 	}
@@ -608,7 +608,8 @@
 			state.roster.registration_types = Array.isArray(data.registration_types) ? data.registration_types : [];
 			state.roster.items = replace ? (data.items || []) : [...state.roster.items, ...(data.items || [])];
 			state.roster.offset = Number(data.next_offset || state.roster.items.length);
-			renderEventRoster(Boolean(data.has_more));
+			state.roster.has_more = Boolean(data.has_more);
+			renderEventRoster(state.roster.has_more);
 		} catch (error) {
 			if (error.code === 'network_error') return showConnectionLost(main(), () => showEventRoster(false));
 			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>FIND REGISTRATION</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
@@ -678,7 +679,7 @@
 	function showPublicRsvp(item) {
 		if (!item) return showEventRoster(false);
 		main().innerHTML = `${screenActions('Back to Find Registration', false)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(item.name)}</h1><div class="desk-detail-summary"><span>${escapeHtml(item.registration_type)}</span><span>${escapeHtml(sourceLabel(item.source_type))}</span><span>Phone: ${escapeHtml(item.phone || 'Not recorded')}</span><span>${item.rsvp_status === 'waitlist' ? '⚠ WAITLISTED — NOT ADMITTED' : '✓ CONFIRMED'}</span></div></section><div id="desk-detail-message"></div><section class="desk-kiosk-panel desk-attendance-panel">${item.rsvp_status === 'waitlist' ? notice('⚠ This person is on the waitlist and cannot be checked in.', 'warning') : '<h2>WHO IS HERE TODAY?</h2><p>Confirm that this admitted website RSVP is here now.</p><button type="button" class="desk-primary desk-wide" id="desk-rsvp-checkin">CHECK IN THIS PERSON</button>'}</section>`;
-		bindScreenActions(() => renderEventRoster(false));
+		bindScreenActions(() => renderEventRoster(state.roster.has_more));
 		main().querySelector('#desk-rsvp-checkin')?.addEventListener('click', async (event) => {
 			event.currentTarget.disabled = true;
 			try {
@@ -866,14 +867,14 @@
 			const existing = data.attendees || [];
 			const canAddAttendee = admission.selection_allowed === true && registration.classification === 'family' && existing.length < maximum;
 			const everyoneCheckedIn = admission.state === 'already_checked_in';
-			const back = state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false);
+			const back = state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(state.roster.has_more);
 			const backLabel = state.detailReturn === 'recovery' ? 'Back to Missing Registration' : 'Back to Find Registration';
 			const status = admission.state === 'eligible' ? '✓ REGISTRATION VALID' : everyoneCheckedIn ? '✓ CHECKED IN TODAY' : `⚠ ${admission.status_label || 'MANAGER HELP NEEDED'}`;
 			const attendancePanel = admission.check_in_allowed === true
 				? `<section class="desk-kiosk-panel desk-attendance-panel"><h2>WHO IS HERE TODAY?</h2><p>Select only the people who are here now.${registration.classification === 'family' ? ` This registration allows up to ${maximum} people.` : ''}</p><form id="desk-checkin-form" class="desk-form" data-maximum="${maximum}" data-classification="${escapeHtml(registration.classification)}"><div id="desk-arrival-rows" class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><div class="desk-detail-actions">${canAddAttendee ? '<button type="button" class="desk-secondary" id="desk-add-arrival">+ ADD FAMILY MEMBER</button>' : ''}<button type="submit" class="desk-primary" disabled>CHECK IN SELECTED PEOPLE ${icon('arrow')}</button></div></form></section>`
 				: everyoneCheckedIn
-					? '<section class="desk-kiosk-panel desk-attendance-panel"><div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></div></section>'
-					: `<section class="desk-kiosk-panel desk-attendance-panel desk-admission-blocked"><span class="desk-large-icon desk-gold-icon">${icon('manager')}</span><h2>⚠ MANAGER HELP NEEDED</h2><p>${escapeHtml(admission.message || 'We found this registration, but it cannot be checked in right now.')}</p><div class="desk-actions"><button type="button" class="desk-primary" id="desk-detail-manager">GET MANAGER HELP</button><button type="button" class="desk-secondary" id="desk-detail-back">BACK TO FIND REGISTRATION</button></div></section>`;
+					? `<section class="desk-kiosk-panel desk-attendance-panel"><div class="desk-all-checked"><strong>✓ CHECKED IN TODAY</strong><p>Everyone on this registration is already checked in today.</p></div><div class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div><button type="button" class="desk-primary" id="desk-detail-done">DONE</button></section>`
+					: `<section class="desk-kiosk-panel desk-attendance-panel desk-admission-blocked"><span class="desk-large-icon desk-gold-icon">${icon('manager')}</span><h2>⚠ MANAGER HELP NEEDED</h2><p>${escapeHtml(admission.message || 'We found this registration, but it cannot be checked in right now.')}</p>${existing.length ? `<div class="desk-attendee-list">${existing.map((attendee) => renderExistingAttendee(attendee)).join('')}</div>` : ''}<div class="desk-actions"><button type="button" class="desk-primary" id="desk-detail-manager">GET MANAGER HELP</button><button type="button" class="desk-secondary" id="desk-detail-back">BACK TO FIND REGISTRATION</button></div></section>`;
 			main().innerHTML = `${screenActions(backLabel)}<section class="desk-detail-heading"><p class="desk-eyebrow">Registration details</p><h1>${escapeHtml(registration.contact_name || 'Registration')}</h1><div class="desk-admission-status ${admission.state === 'eligible' || everyoneCheckedIn ? 'is-positive' : 'is-blocked'}">${escapeHtml(status)}</div><div class="desk-detail-summary"><span>${escapeHtml(registration.registration_type || registrationType(option, registration))}</span><span>${escapeHtml(sourceLabel(registration.source_type))}</span><span>Email: ${escapeHtml(registration.contact_email || 'Not recorded')}</span><span>Phone: ${escapeHtml(registration.contact_phone || 'Not recorded')}</span>${admission.check_in_allowed === true ? `<span>${escapeHtml(paymentLabel(registration, admission))}</span>` : ''}</div></section>
 				<div id="desk-detail-message"></div>${attendancePanel}
 				${state.station.manager_token && data.manager_detail ? renderManagerRosterDetail(data.manager_detail) : ''}${state.station.manager_token && data.editable_registration ? `<section class="desk-manager-inline"><details><summary>Manager correction tools</summary>${renderCorrectionForm(data.editable_registration)}</details></section>` : ''}`;
@@ -882,6 +883,7 @@
 			main().querySelector('#desk-detail-done')?.addEventListener('click', back);
 			main().querySelector('#desk-detail-manager')?.addEventListener('click', () => state.station.manager_token ? showMissingRegistration() : showManagerHelp('recovery'));
 			main().querySelector('#desk-detail-back')?.addEventListener('click', back);
+			main().querySelectorAll('[data-reverse-attendee]').forEach((button) => button.addEventListener('click', () => reverseAttendance(registration, button)));
 			if (!form) { focusMain(); return; }
 			const updateSubmitState = () => { form.querySelector('[type="submit"]').disabled = admission.check_in_allowed !== true || !collectArrivals(form).length; };
 			const add = (name = {}) => { addArrivalRow(main().querySelector('#desk-arrival-rows'), registration.classification, maximum, name); updateSubmitState(); };
@@ -891,12 +893,11 @@
 			form.addEventListener('click', () => window.setTimeout(updateSubmitState, 0));
 			form.addEventListener('submit', (event) => submitCheckIn(event, registration, option));
 			updateSubmitState();
-			main().querySelectorAll('[data-reverse-attendee]').forEach((button) => button.addEventListener('click', () => reverseAttendance(registration, button)));
 			main().querySelector('#desk-correction-form')?.addEventListener('submit', (event) => saveCorrection(event, registration));
 			focusMain();
 		} catch (error) {
 			main().innerHTML = `${screenActions('Back to Find Registration')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
-			bindScreenActions(state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(false));
+			bindScreenActions(state.detailReturn === 'recovery' ? showMissingRegistration : () => renderEventRoster(state.roster.has_more));
 		}
 	}
 
@@ -919,7 +920,7 @@
 		const checkedIn = attendance?.state === 'checked_in';
 		const selectable = attendee.admission?.selection_allowed === true;
 		const blocked = !checkedIn && !selectable;
-		const helper = checkedIn ? `✓ CHECKED IN TODAY${formatLocalTime(attendance.checked_in_at_utc) ? ` at ${escapeHtml(formatLocalTime(attendance.checked_in_at_utc))}` : ''}` : blocked ? '⚠ MANAGER HELP NEEDED' : 'Tap to select this person';
+		const helper = checkedIn ? `✓ CHECKED IN TODAY${formatLocalTime(attendance.checked_in_at_utc) ? ` at ${escapeHtml(formatLocalTime(attendance.checked_in_at_utc))}` : ''}` : attendance?.state === 'reversed' ? 'CHECK-IN REVERSED TODAY — MANAGER HELP NEEDED' : blocked ? '⚠ MANAGER HELP NEEDED' : 'Tap to select this person';
 		return `<div class="desk-attendee-card ${checkedIn ? 'is-checked-in' : ''} ${blocked ? 'is-blocked' : ''}"><label><input type="checkbox" name="selected" value="${escapeHtml(attendee.slot_key)}" ${selectable ? '' : 'disabled'}><span class="desk-select-box">${checkedIn ? icon('check') : blocked ? icon('help') : ''}</span><span><strong>${escapeHtml(attendee.display_name || 'Unnamed attendee')}</strong><small>${helper}</small></span></label><input type="hidden" data-first value="${escapeHtml(attendee.first_name)}"><input type="hidden" data-last value="${escapeHtml(attendee.last_name)}">${state.station.manager_token && checkedIn ? `<button type="button" class="desk-danger desk-manager-action" data-reverse-attendee="${escapeHtml(attendee.attendee_uuid)}" data-version="${Number(attendance.record_version)}">Reverse check-in</button>` : ''}</div>`;
 	}
 
@@ -1085,7 +1086,13 @@
 		wizardFrame(`<div class="desk-wizard-heading"><h1>WHO ELSE IS ATTENDING?</h1><p>Names are optional. Add the people who are here if you know them.</p></div><form id="desk-family-form" class="desk-form"><div id="desk-family-members" class="desk-family-list"></div><button type="button" class="desk-secondary desk-wide" id="desk-add-family">+ ADD ANOTHER PERSON</button><p class="desk-help">The primary contact is already included. This registration allows up to ${maximum} people total.</p><button type="submit" class="desk-primary desk-wide">CONTINUE ${icon('arrow')}</button></form>`, () => showWalkInStep('contact'));
 		const container = main().querySelector('#desk-family-members');
 		state.wizard.additional_attendees.forEach((attendee) => addWizardFamilyRow(container, maximum, attendee));
-		main().querySelector('#desk-add-family').addEventListener('click', () => { addWizardFamilyRow(container, maximum); persistDraft('walk-in'); });
+		const addButton = main().querySelector('#desk-add-family');
+		addButton.disabled = container.children.length + 1 >= maximum;
+		addButton.addEventListener('click', () => {
+			addWizardFamilyRow(container, maximum);
+			addButton.disabled = container.children.length + 1 >= maximum;
+			persistDraft('walk-in');
+		});
 		container.addEventListener('input', () => {
 			state.wizard.additional_attendees = [...container.querySelectorAll('.desk-family-row')].map((row) => ({first_name: row.querySelector('[data-first]').value, last_name: row.querySelector('[data-last]').value}));
 			persistDraft('walk-in');
@@ -1104,6 +1111,7 @@
 		row.innerHTML = `<span class="desk-family-number">${container.children.length + 2}</span><div class="desk-field"><label>First name — optional</label><input data-first value="${escapeHtml(attendee.first_name || '')}"></div><div class="desk-field"><label>Last name — optional</label><input data-last value="${escapeHtml(attendee.last_name || '')}"></div><button type="button" class="desk-remove-button">Remove</button>`;
 		row.querySelector('button').addEventListener('click', () => {
 			row.remove();
+			container.closest('form')?.querySelector('#desk-add-family')?.removeAttribute('disabled');
 			state.wizard.additional_attendees = [...container.querySelectorAll('.desk-family-row')].map((item) => ({first_name: item.querySelector('[data-first]').value, last_name: item.querySelector('[data-last]').value}));
 			persistDraft('walk-in');
 		});

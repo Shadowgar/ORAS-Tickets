@@ -586,6 +586,10 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 	oras_desk_integration_same( $family['historical_result']['registration']['source_type'], 'walk_in', 'family walk-in retains its on-site source' );
 	$family_roster = ( new Event_Roster_Service() )->get( $ticketed_event, array( 'q' => 'REST Family' ) );
 	oras_desk_integration_same( $family_roster['items'][0]['registration_type'] ?? '', 'Family Pass', 'family roster keeps its canonical ticket type' );
+	$walk_in_stats = ( new Event_Stats_Service() )->for_event( $ticketed_event );
+	oras_desk_integration_true( (int) ( $walk_in_stats['today']['new_walk_in_registrations'] ?? 0 ) >= 2, 'today stats count the new student and family walk-in registrations' );
+	oras_desk_integration_true( (int) ( $walk_in_stats['today']['pass_types']['Student Pass'] ?? 0 ) >= 1, 'today stats retain the canonical Student Pass label' );
+	oras_desk_integration_true( (int) ( $walk_in_stats['today']['pass_types']['Family Pass'] ?? 0 ) >= 5, 'today stats retain the canonical Family Pass label for all five attendees' );
 	$overflow_attendees = $family_payload['additional_attendees'];
 	$overflow_attendees[] = array(
 		'first_name' => 'Family',
