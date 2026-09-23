@@ -884,6 +884,7 @@
 			main().querySelector('#desk-detail-manager')?.addEventListener('click', () => state.station.manager_token ? showMissingRegistration() : showManagerHelp('recovery'));
 			main().querySelector('#desk-detail-back')?.addEventListener('click', back);
 			main().querySelectorAll('[data-reverse-attendee]').forEach((button) => button.addEventListener('click', () => reverseAttendance(registration, button)));
+			main().querySelector('#desk-correction-form')?.addEventListener('submit', (event) => saveCorrection(event, registration));
 			if (!form) { focusMain(); return; }
 			const updateSubmitState = () => { form.querySelector('[type="submit"]').disabled = admission.check_in_allowed !== true || !collectArrivals(form).length; };
 			const add = (name = {}) => { addArrivalRow(main().querySelector('#desk-arrival-rows'), registration.classification, maximum, name); updateSubmitState(); };
@@ -893,7 +894,6 @@
 			form.addEventListener('click', () => window.setTimeout(updateSubmitState, 0));
 			form.addEventListener('submit', (event) => submitCheckIn(event, registration, option));
 			updateSubmitState();
-			main().querySelector('#desk-correction-form')?.addEventListener('submit', (event) => saveCorrection(event, registration));
 			focusMain();
 		} catch (error) {
 			main().innerHTML = `${screenActions('Back to Find Registration')}<section class="desk-centered"><h1>Registration</h1>${notice(friendlyError(error), 'error')}</section>`;
