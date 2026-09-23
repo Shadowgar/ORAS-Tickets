@@ -1802,14 +1802,13 @@ function oras_desk_integration_training_workflow( array $context ): void {
 	$stats  = Training_Service::stats( $worked['state'], $second_date );
 	$baseline_stats = Training_Service::stats( $created['state'], (string) $created['simulated_local_date'] );
 	oras_desk_integration_same( $stats['event_total']['walk_in_registrations'], $baseline_stats['event_total']['walk_in_registrations'] + 4, 'training stats include the copied roster and all training walk-ins' );
+	$expected_payment_assertions = $baseline_stats['event_total']['payment_assertions'];
+	foreach ( array( 'paid_card', 'paid_cash', 'paid_check', 'unpaid' ) as $method ) {
+		++$expected_payment_assertions[ $method ];
+	}
 	oras_desk_integration_same(
 		$stats['event_total']['payment_assertions'],
-		array(
-			'paid_card'  => 1,
-			'paid_cash'  => 1,
-			'paid_check' => 1,
-			'unpaid'     => 1,
-		),
+		$expected_payment_assertions,
 		'training stats preserve each payment-method practice assertion without payment'
 	);
 	oras_desk_integration_same( $stats['memberships']['total'], 3, 'shared membership choices support card, cash, and check simulations' );
