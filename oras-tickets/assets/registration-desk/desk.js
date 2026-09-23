@@ -623,10 +623,15 @@
 			renderEventRoster(state.roster.has_more);
 		} catch (error) {
 			if (generation !== rosterGeneration || state.view !== 'roster') return;
-			if (error.code === 'network_error') return showConnectionLost(main(), () => showEventRoster(false));
+			const retry = () => {
+				if (replace) return showEventRoster(false);
+				renderEventRoster(state.roster.has_more);
+				return loadEventRoster(false);
+			};
+			if (error.code === 'network_error') return showConnectionLost(main(), retry);
 			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>FIND REGISTRATION</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
 			bindScreenActions(showHome);
-			main().querySelector('#desk-roster-retry').addEventListener('click', () => showEventRoster(false));
+			main().querySelector('#desk-roster-retry').addEventListener('click', retry);
 		} finally {
 			if (generation === rosterGeneration) rosterRequestInFlight = false;
 		}
@@ -641,6 +646,7 @@
 	}
 
 	function renderEventRoster(hasMore) {
+		state.view = 'roster';
 		const types = state.roster.registration_types;
 		const statusLabel = rosterStatusChoices().find(([value]) => value === state.roster.status)?.[1] || 'EVERYONE';
 		const filtersActive = state.roster.status !== 'everyone' || Boolean(state.roster.option_uuid);
