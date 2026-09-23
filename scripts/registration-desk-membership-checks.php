@@ -120,10 +120,17 @@ $message = $credit::email_message(
 foreach ( array( 'John', 'Oil Region Astronomical Society', 'Individual Membership', 'Cash', 'Test Event', 'https://example.org/level-7', 'ORAS-TEST-CODE', 'SHOULD NOT BE CHARGED AGAIN', 'same email address' ) as $required ) {
 	oras_membership_assert( false !== stripos( $message, $required ), "Activation email contains {$required}" );
 }
-$card_message = $credit::email_message( array_merge( array( 'payment_method' => 'card' ), array(
-	'first_name' => 'Card', 'level_name' => 'Individual Membership', 'reference_price' => '35.00',
-	'event_title' => 'Test Event', 'checkout_url' => 'https://example.org/level-7', 'credit_code' => 'ORAS-TEST-CARD',
-) ) );
+$card_message = $credit::email_message(
+	array(
+		'first_name'      => 'Card',
+		'level_name'      => 'Individual Membership',
+		'reference_price' => '35.00',
+		'payment_method'  => 'card',
+		'event_title'     => 'Test Event',
+		'checkout_url'    => 'https://example.org/level-7',
+		'credit_code'     => 'ORAS-TEST-CARD',
+	)
+);
 oras_membership_assert( false !== strpos( $card_message, 'Card payment' ) && false !== strpos( $card_message, 'SHOULD NOT BE CHARGED AGAIN' ), 'Card activation email identifies the recorded method and prevents another charge' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local source fixture.

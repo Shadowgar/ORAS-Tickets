@@ -27,6 +27,7 @@ use ORAS\Tickets\Registration_Desk\Service;
 use ORAS\Tickets\Registration_Desk\Station_Session;
 use ORAS\Tickets\Registration_Desk\Training_Context;
 use ORAS\Tickets\Registration_Desk\Training_Service;
+use ORAS\Tickets\Registration_Desk\Training_Snapshot_Service;
 use ORAS\Tickets\Registration_Desk\Training_Store;
 use ORAS\Tickets\Reporting\Board_Report_Service;
 use ORAS\Tickets\Reporting\Membership_Report_Service;
@@ -1478,7 +1479,14 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	$config = Config::get_event_config( (int) $context['event_id'] );
 	$token = Station_Session::issue( (int) $context['desk_id'], (int) $context['event_id'], (int) $config['revision'], 'Membership Volunteer' );
 	$users_before = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
-	$orders_before = count( wc_get_orders( array( 'limit' => -1, 'return' => 'ids' ) ) );
+	$orders_before = count(
+		wc_get_orders(
+			array(
+				'limit'  => -1,
+				'return' => 'ids',
+			)
+		)
+	);
 	$cash_context = oras_desk_integration_context( (int) $context['desk_id'], (int) $context['event_id'], $config, $token, wp_generate_uuid4() );
 	$cash = $service->create(
 		array(
@@ -1554,7 +1562,18 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	oras_desk_integration_same( $card_replay['activation_uuid'], $card['activation_uuid'], 'card retry reuses its activation' );
 	oras_desk_integration_same( $card_replay['credit_code'], $card['credit_code'], 'card retry reuses its credit' );
 	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), $users_before, 'membership recording creates no WordPress attendee account' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
-	oras_desk_integration_same( count( wc_get_orders( array( 'limit' => -1, 'return' => 'ids' ) ) ), $orders_before, 'membership method recording creates no Woo order' );
+	oras_desk_integration_same(
+		count(
+			wc_get_orders(
+				array(
+					'limit'  => -1,
+					'return' => 'ids',
+				)
+			)
+		),
+		$orders_before,
+		'membership method recording creates no Woo order'
+	);
 
 	$corrected = $service->correct_contact(
 		(string) $cash['activation_uuid'],
@@ -1572,7 +1591,12 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	oras_desk_integration_same( count( $rows ), 3, 'cash, check, card, and retries produce exactly three pending membership records' );
 	$card_row = ( new Offline_Membership_Store() )->find_activation( (string) $card['activation_uuid'] );
 	oras_desk_integration_same( (int) $card_row['email_attempts'], 1, 'card retry does not send a second activation email' );
-	$membership_report = ( new Membership_Report_Service() )->get_report( array( 'roster_scope' => Membership_Report_Service::ROSTER_ALL, 'origin_event' => (int) $context['event_id'] ) );
+	$membership_report = ( new Membership_Report_Service() )->get_report(
+		array(
+			'roster_scope' => Membership_Report_Service::ROSTER_ALL,
+			'origin_event' => (int) $context['event_id'],
+		)
+	);
 	$reported_card = array_values( array_filter( $membership_report['rows'], static fn( array $row ): bool => (string) $row['email'] === $card_payload['email'] ) );
 	oras_desk_integration_true( 1 === count( $reported_card ) && 'Card' === $reported_card[0]['recorded_method_label'] && (int) $context['event_id'] === (int) $reported_card[0]['origin_event_id'], 'membership reporting shows one Card activation with its origin event' );
 
