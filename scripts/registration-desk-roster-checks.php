@@ -31,6 +31,11 @@ $rest_file    = $root . '/oras-tickets/includes/Registration_Desk/Rest_Controlle
 $desk_file    = $root . '/oras-tickets/assets/registration-desk/desk.js';
 $css_file     = $root . '/oras-tickets/assets/registration-desk/desk.css';
 
+$desk_source = (string) file_get_contents( $desk_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local UI source fixture.
+oras_roster_assert( false !== strpos( $desk_source, '<dialog class="desk-filter-dialog"' ), 'Roster filter choices are contained in a closed-by-default dialog' );
+oras_roster_assert( false !== strpos( $desk_source, 'CHANGE FILTERS' ) && false !== strpos( $desk_source, 'CLEAR SEARCH' ), 'Roster has compact filter and search controls' );
+oras_roster_assert( false === strpos( $desk_source, 'id="desk-show-everyone"' ), 'Roster does not show a large reset button' );
+
 oras_roster_assert( file_exists( $service_file ), 'Event roster has a dedicated read-only service' );
 oras_roster_assert( file_exists( $training_service_file ), 'Training roster has a separate synthetic-only service' );
 

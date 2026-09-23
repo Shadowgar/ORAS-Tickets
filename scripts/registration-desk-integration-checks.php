@@ -1537,6 +1537,20 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 		$check_context
 	);
 	oras_desk_integration_true( is_array( $check ) && 'check' === $check['payment_method'], 'volunteer check membership uses the same pending activation workflow' );
+	$card_context = oras_desk_integration_context( (int) $context['desk_id'], (int) $context['event_id'], $config, $token, wp_generate_uuid4() );
+	$card_payload = array(
+		'first_name'     => 'Card',
+		'last_name'      => 'Member',
+		'email'          => 'card-member-' . $context['run'] . '@example.test',
+		'phone'          => '814-555-0173',
+		'level_id'       => $level_id,
+		'payment_method' => 'card',
+	);
+	$card = $service->create( $card_payload, $card_context );
+	oras_desk_integration_true( is_array( $card ) && 'card' === $card['payment_method'] && 'sent' === $card['email_status'], 'card membership records a pending activation and sends its email' );
+	$card_replay = $service->create( $card_payload, $card_context );
+	oras_desk_integration_same( $card_replay['activation_uuid'], $card['activation_uuid'], 'card retry reuses its activation' );
+	oras_desk_integration_same( $card_replay['credit_code'], $card['credit_code'], 'card retry reuses its credit' );
 	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), $users_before, 'membership recording creates no WordPress attendee account' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
 
 	$corrected = $service->correct_contact(
@@ -1552,7 +1566,7 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	$resent = $service->resend( (string) $cash['activation_uuid'] );
 	oras_desk_integration_true( is_array( $resent ) && $resent['credit_code'] === $cash['credit_code'], 'manager resend preserves the existing one-time credit' );
 	$rows = ( new Offline_Membership_Store() )->for_event( (int) $context['event_id'] );
-	oras_desk_integration_same( count( $rows ), 2, 'cash, check, and retries produce exactly two pending membership records' );
+	oras_desk_integration_same( count( $rows ), 3, 'cash, check, card, and retries produce exactly three pending membership records' );
 
 	return array(
 		'cash_activation'  => (string) $cash['activation_uuid'],
