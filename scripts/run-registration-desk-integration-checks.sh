@@ -667,15 +667,19 @@ dispatch_probe_count() {
 run_dispatch_probe() {
 	local role="$1" user_id="$2" transport="$3" expected_status="$4"
 	local cookie url status body_file count
+	local -a curl_route=()
+	if [[ "$EXPECTED_URL" != http://localhost:* && "$EXPECTED_URL" != http://127.0.0.1:* ]]; then
+		curl_route=( --connect-to "${EXPECTED_URL#http://}:127.0.0.1:${EXPECTED_URL##*:}" --noproxy '*' )
+	fi
 	wp_env run "$TEST_SERVICE" wp option delete oras_registration_desk_test_dispatch_probes >/dev/null 2>&1 || true
 	cookie="$(auth_cookie_for_user "$user_id")"
 	body_file="$($MKTEMP_BIN /tmp/oras-desk-dispatch.XXXXXX)"
 	if [[ "$transport" == 'admin_ajax' ]]; then
 		url="$EXPECTED_URL/wp-admin/admin-ajax.php"
-		status="$($CURL_BIN --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data 'action=oras_registration_desk_probe' "$url")"
+		status="$($CURL_BIN "${curl_route[@]}" --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data 'action=oras_registration_desk_probe' "$url")"
 	else
 		url="$EXPECTED_URL/?wc-ajax=oras_registration_desk_probe"
-		status="$($CURL_BIN --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data '' "$url")"
+		status="$($CURL_BIN "${curl_route[@]}" --silent --show-error --max-time 45 --output "$body_file" --write-out '%{http_code}' --cookie "$cookie" --data '' "$url")"
 	fi
 	count="$(dispatch_probe_count)"
 	if [[ "$role" == 'restricted' ]]; then
@@ -730,6 +734,87 @@ run_concurrency() {
 	[[ "$status_one" -eq 0 && "$status_two" -eq 0 ]] || fail 'an independent concurrency worker failed.'
 }
 
+wait_membership_race_barrier() {
+	local suffix="$1" attempt
+	for attempt in {1..40}; do
+		if [[ "$(wp_safe option get "oras_registration_desk_membership_race_$suffix" 2>/dev/null || true)" == 'yes' ]]; then
+			return 0
+		fi
+		"$SLEEP_BIN" 1
+	done
+	fail "membership concurrency $suffix barrier timed out."
+}
+
+run_membership_concurrency() {
+	local cli_id tmp_dir holder_status one_status two_status
+	cli_id="$(verify_container tests-cli)"
+	tmp_dir="$($MKTEMP_BIN -d /tmp/oras-desk-membership-race.XXXXXX)"
+	docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_MEMBERSHIP_RACE_MODE','hold');" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-membership-concurrency-worker.php >"$tmp_dir/hold.out" 2>"$tmp_dir/hold.err" &
+	local holder_pid=$!
+	wait_membership_race_barrier hold_ready
+	docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_MEMBERSHIP_RACE_MODE','create');define('ORAS_REGISTRATION_DESK_WORKER_INDEX',1);" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-membership-concurrency-worker.php >"$tmp_dir/one.out" 2>"$tmp_dir/one.err" &
+	local one_pid=$!
+	docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_MEMBERSHIP_RACE_MODE','create');define('ORAS_REGISTRATION_DESK_WORKER_INDEX',2);" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-membership-concurrency-worker.php >"$tmp_dir/two.out" 2>"$tmp_dir/two.err" &
+	local two_pid=$!
+	wait_membership_race_barrier worker_ready_1
+	wait_membership_race_barrier worker_ready_2
+	wp_safe option update oras_registration_desk_membership_race_release_workers yes >/dev/null
+	wp_env run "$TEST_SERVICE" wp eval '
+		$c=get_option("oras_registration_desk_integration_context",array());
+		$f=$c["membership_concurrency"];
+		global $wpdb;
+		$credit_count=defined("PMPRO_VERSION") ? (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}pmpro_discount_codes") : (int)get_option("oras_registration_desk_test_pmpro_credit_id",1000);
+		if($credit_count!==(int)$f["credit_before"] || (int)get_option("oras_registration_desk_membership_race_mail_calls",0)!==0 || (new ORAS\Tickets\Registration_Desk\Offline_Membership_Store())->find_request((string)$f["request_uuid"]) ){exit(1);}
+	' >/dev/null || fail 'membership writers bypassed the held database lock.'
+	wp_safe option update oras_registration_desk_membership_race_release_hold yes >/dev/null
+	set +e
+	wait "$holder_pid"; holder_status=$?
+	wait "$one_pid"; one_status=$?
+	wait "$two_pid"; two_status=$?
+	set -e
+	printf '%s\n' 'Membership lock holder:'; /usr/bin/cat "$tmp_dir/hold.out" "$tmp_dir/hold.err"
+	printf '%s\n' 'Membership worker 1:'; /usr/bin/cat "$tmp_dir/one.out" "$tmp_dir/one.err"
+	printf '%s\n' 'Membership worker 2:'; /usr/bin/cat "$tmp_dir/two.out" "$tmp_dir/two.err"
+	"$FIND_BIN" "$tmp_dir" -depth -mindepth 1 -delete
+	"$RMDIR_BIN" "$tmp_dir"
+	[[ "$holder_status" -eq 0 && "$one_status" -eq 0 && "$two_status" -eq 0 ]] || fail 'an independent membership concurrency worker failed.'
+	run_eval_file registration-desk-integration-checks.php membership_race_finish
+}
+
+run_manager_pin_concurrency() {
+	local cli_id tmp_dir worker pid status=0
+	local -a pids=()
+	cli_id="$(verify_container tests-cli)"
+	tmp_dir="$($MKTEMP_BIN -d /tmp/oras-desk-manager-race.XXXXXX)"
+	for worker in 1 2 3 4 5; do
+		docker_cmd exec "$cli_id" wp --allow-root --path=/var/www/html --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');define('ORAS_REGISTRATION_DESK_WORKER_INDEX',$worker);" eval-file /var/www/html/wp-content/oras-qbo-tests/registration-desk-manager-pin-concurrency-worker.php >"$tmp_dir/$worker.out" 2>"$tmp_dir/$worker.err" &
+		pids+=( "$!" )
+	done
+	for worker in 1 2 3 4 5; do
+		local attempt
+		for attempt in {1..40}; do
+			if [[ "$(wp_safe option get "oras_registration_desk_manager_race_ready_$worker" 2>/dev/null || true)" == 'yes' ]]; then
+				break
+			fi
+			"$SLEEP_BIN" 1
+		done
+		[[ "$attempt" -lt 40 ]] || fail "manager PIN worker $worker was not ready."
+	done
+	wp_safe option update oras_registration_desk_manager_race_release yes >/dev/null
+	set +e
+	for pid in "${pids[@]}"; do
+		wait "$pid" || status=1
+	done
+	set -e
+	for worker in 1 2 3 4 5; do
+		/usr/bin/cat "$tmp_dir/$worker.out" "$tmp_dir/$worker.err"
+	done
+	"$FIND_BIN" "$tmp_dir" -depth -mindepth 1 -delete
+	"$RMDIR_BIN" "$tmp_dir"
+	[[ "$status" -eq 0 ]] || fail 'an independent manager PIN attempt failed.'
+	run_eval_file registration-desk-integration-checks.php manager_race_finish
+}
+
 run_config_race() {
 	local mode="$1" cli_id tmp_dir status_one status_two combined
 	cli_id="$(verify_container tests-cli)"
@@ -782,12 +867,16 @@ main() {
 	ensure_dependencies
 	configure_order_storage
 	run_eval_file registration-desk-integration-checks.php prepare
+	run_membership_concurrency
+	run_manager_pin_concurrency
 	run_config_race same_event
 	run_config_race activation
 	run_http_access_probes
 	run_eval_file registration-desk-integration-checks.php baseline
 	run_concurrency
 	run_eval_file registration-desk-integration-checks.php finish
+	wp_safe option delete oras_unified_event_reporting_keep_fixture >/dev/null 2>&1 || true
+	run_eval_file unified-event-reporting-integration-checks.php board_reporting
 	run_eval_file included-event-access-integration-checks.php included_event_access
 	run_eval_file core-regression-checks.php regression
 	wp_env run "$TEST_SERVICE" wp --exec="define('ORAS_REGISTRATION_DESK_DISPOSABLE_MARKER_EXPECTED','$DISPOSABLE_MARKER');" eval-file /var/www/html/wp-content/plugins/oras-tickets/tools/bootstrap-regression-checks.php

@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Support\DbLock;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -26,29 +28,34 @@ final class Manager_Access {
 
 	/** @param array<string,mixed> $station @return string|\WP_Error */
 	public static function unlock( string $pin, array $station, string $rate_identity = '' ) {
-		$key      = self::rate_key( $station, $rate_identity );
-		$failures = (int) get_transient( $key );
-		if ( $failures >= self::MAX_FAILURES ) {
-			return new \WP_Error( 'oras_desk_pin_rate_limited', 'Too many incorrect attempts. Please wait a few minutes.', array( 'status' => 429 ) );
-		}
-		$hash = (string) get_option( self::PIN_HASH_OPTION, '' );
-		if ( '' === $hash || ! wp_check_password( $pin, $hash ) ) {
-			set_transient( $key, $failures + 1, self::FAILURE_WINDOW );
-			return new \WP_Error( 'oras_desk_pin_incorrect', 'That PIN was not correct.', array( 'status' => 403 ) );
-		}
-		delete_transient( $key );
-		$payload = array(
-			'v'            => self::VERSION,
-			'manager_uuid' => wp_generate_uuid4(),
-			'user_id'      => (int) ( $station['user_id'] ?? 0 ),
-			'station_uuid' => (string) ( $station['station_uuid'] ?? '' ),
-			'event_id'     => (int) ( $station['event_id'] ?? 0 ),
-			'wp_session'   => (string) ( $station['wp_session'] ?? '' ),
-			'issued_at'    => time(),
-		);
-		$encoded = self::base64url_encode( (string) wp_json_encode( $payload ) );
+		$key = self::rate_key( $station, $rate_identity );
+		return DbLock::withLock(
+			'desk-manager-pin:' . $key,
+			static function () use ( $pin, $station, $key ) {
+				$failures = (int) get_transient( $key );
+				if ( $failures >= self::MAX_FAILURES ) {
+					return new \WP_Error( 'oras_desk_pin_rate_limited', 'Too many incorrect attempts. Please wait a few minutes.', array( 'status' => 429 ) );
+				}
+				$hash = (string) get_option( self::PIN_HASH_OPTION, '' );
+				if ( '' === $hash || ! wp_check_password( $pin, $hash ) ) {
+					set_transient( $key, $failures + 1, self::FAILURE_WINDOW );
+					return new \WP_Error( 'oras_desk_pin_incorrect', 'That PIN was not correct.', array( 'status' => 403 ) );
+				}
+				delete_transient( $key );
+				$payload = array(
+					'v'            => self::VERSION,
+					'manager_uuid' => wp_generate_uuid4(),
+					'user_id'      => (int) ( $station['user_id'] ?? 0 ),
+					'station_uuid' => (string) ( $station['station_uuid'] ?? '' ),
+					'event_id'     => (int) ( $station['event_id'] ?? 0 ),
+					'wp_session'   => (string) ( $station['wp_session'] ?? '' ),
+					'issued_at'    => time(),
+				);
+				$encoded = self::base64url_encode( (string) wp_json_encode( $payload ) );
 
-		return $encoded . '.' . hash_hmac( 'sha256', $encoded, wp_salt( 'auth' ) );
+				return $encoded . '.' . hash_hmac( 'sha256', $encoded, wp_salt( 'auth' ) );
+			}
+		);
 	}
 
 	/** @param array<string,mixed> $station @return array<string,mixed>|\WP_Error */
@@ -73,7 +80,8 @@ final class Manager_Access {
 
 	/** @param array<string,mixed> $station */
 	private static function rate_key( array $station, string $identity ): string {
-		return 'oras_desk_pin_' . substr( hash( 'sha256', (string) ( $station['user_id'] ?? 0 ) . '|' . (string) ( $station['station_uuid'] ?? '' ) . '|' . $identity ), 0, 32 );
+		$user_id = (int) ( $station['user_id'] ?? 0 );
+		return 'oras_desk_pin_' . substr( hash( 'sha256', $user_id > 0 ? 'user:' . $user_id : 'fallback:' . $identity ), 0, 32 );
 	}
 
 	private static function base64url_encode( string $value ): string {

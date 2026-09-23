@@ -22,6 +22,8 @@
 		detailReturn: 'search',
 		managerDestination: 'manager',
 	};
+	let rosterGeneration = 0;
+	let rosterRequestInFlight = false;
 
 	const isTraining = () => state.station?.mode === 'training' || state.station?.training === true;
 
@@ -590,6 +592,8 @@
 	async function showEventRoster(reset = false) {
 		resetViewport();
 		state.view = 'roster';
+		rosterGeneration++;
+		rosterRequestInFlight = false;
 		if (reset) state.roster = {q: '', status: 'everyone', option_uuid: '', offset: 0, items: [], mode: 'tickets', registration_types: [], has_more: false};
 		main().innerHTML = '<div class="desk-loading">Loading event roster…</div>';
 		await loadEventRoster(true);
@@ -601,8 +605,15 @@
 	}
 
 	async function loadEventRoster(replace) {
+		if (rosterRequestInFlight) return;
+		const generation = rosterGeneration;
+		const query = rosterQuery();
+		rosterRequestInFlight = true;
+		const moreButton = main().querySelector('#desk-roster-more');
+		if (moreButton) moreButton.disabled = true;
 		try {
-			const data = await api(rosterQuery());
+			const data = await api(query);
+			if (generation !== rosterGeneration || state.view !== 'roster' || query !== rosterQuery()) return;
 			state.roster.mode = data.mode || 'tickets';
 			if (isTraining()) state.station.record_version = Number(data.record_version || state.station.record_version);
 			state.roster.registration_types = Array.isArray(data.registration_types) ? data.registration_types : [];
@@ -611,10 +622,13 @@
 			state.roster.has_more = Boolean(data.has_more);
 			renderEventRoster(state.roster.has_more);
 		} catch (error) {
+			if (generation !== rosterGeneration || state.view !== 'roster') return;
 			if (error.code === 'network_error') return showConnectionLost(main(), () => showEventRoster(false));
 			main().innerHTML = `${screenActions('Back to Home', false)}<section class="desk-centered"><h1>FIND REGISTRATION</h1>${notice(friendlyError(error), 'error')}<button type="button" id="desk-roster-retry">TRY AGAIN</button></section>`;
 			bindScreenActions(showHome);
 			main().querySelector('#desk-roster-retry').addEventListener('click', () => showEventRoster(false));
+		} finally {
+			if (generation === rosterGeneration) rosterRequestInFlight = false;
 		}
 	}
 
@@ -670,6 +684,8 @@
 	}
 
 	function refreshRoster() {
+		rosterGeneration++;
+		rosterRequestInFlight = false;
 		state.roster.offset = 0;
 		state.roster.items = [];
 		main().innerHTML = '<div class="desk-loading">Updating event roster…</div>';
@@ -1576,7 +1592,7 @@
 			}
 			const result = await api('/memberships', {method: 'POST', body: JSON.stringify(payload)}, state.membershipWizard.request_uuid);
 			resetPending();
-			showMembershipComplete(result);
+			showMembershipComplete(result, result.email_sent !== true);
 		} catch (error) {
 			const activation = error.data?.activation;
 			if (activation) {
@@ -1644,8 +1660,8 @@
 	}
 
 	function renderCorrectionForm(editor) {
-		const options = availableOptions(true);
-		return `<form id="desk-correction-form" class="desk-form desk-manager-form"><p>Correct this desk-created registration. Attendance changes use the separate Reverse check-in action.</p><input type="hidden" name="expected_record_version" value="${Number(editor.expected_record_version)}"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" value="${escapeHtml(editor.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" value="${escapeHtml(editor.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" value="${escapeHtml(editor.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" value="${escapeHtml(editor.phone)}" required></div><div class="desk-field desk-field-wide"><label>Option</label><select name="option_uuid" required>${options.map((option) => `<option value="${escapeHtml(option.option_uuid)}" ${option.option_uuid === editor.option_uuid ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div><div class="desk-field"><label>One-day date</label><input name="valid_local_date" type="date" value="${escapeHtml(editor.valid_local_date)}"></div><div class="desk-field"><label>Recorded statement</label><select name="payment_assertion"><option value="paid_card" ${editor.payment_assertion === 'paid_card' ? 'selected' : ''}>Paid by card</option><option value="paid_cash" ${editor.payment_assertion === 'paid_cash' ? 'selected' : ''}>Paid by cash</option><option value="paid_check" ${editor.payment_assertion === 'paid_check' ? 'selected' : ''}>Paid by check</option><option value="unpaid" ${editor.payment_assertion === 'unpaid' ? 'selected' : ''}>Unpaid</option><option value="complimentary" ${editor.payment_assertion === 'complimentary' ? 'selected' : ''}>Complimentary / speaker</option><option value="manager_verified" ${editor.payment_assertion === 'manager_verified' ? 'selected' : ''}>Manager Verified</option></select></div></div><input type="hidden" name="address_1" value="${escapeHtml(editor.address_1)}"><input type="hidden" name="address_2" value="${escapeHtml(editor.address_2)}"><input type="hidden" name="city" value="${escapeHtml(editor.city)}"><input type="hidden" name="state" value="${escapeHtml(editor.state)}"><input type="hidden" name="postcode" value="${escapeHtml(editor.postcode)}"><button type="submit">SAVE CORRECTION</button></form>`;
+		const options = availableOptions(true).filter((option) => !editor.has_attendees || option.classification === editor.classification);
+		return `<form id="desk-correction-form" class="desk-form desk-manager-form"><p>Correct this desk-created registration. Attendance changes use the separate Reverse check-in action.</p>${editor.has_attendees ? '<p class="desk-help">Registration type cannot be changed after attendee records exist. Contact and payment details can still be corrected.</p>' : ''}<input type="hidden" name="expected_record_version" value="${Number(editor.expected_record_version)}"><div class="desk-fields"><div class="desk-field"><label>First name</label><input name="first_name" value="${escapeHtml(editor.first_name)}" required></div><div class="desk-field"><label>Last name</label><input name="last_name" value="${escapeHtml(editor.last_name)}" required></div><div class="desk-field"><label>Email</label><input name="email" type="email" value="${escapeHtml(editor.email)}" required></div><div class="desk-field"><label>Phone</label><input name="phone" type="tel" value="${escapeHtml(editor.phone)}" required></div><div class="desk-field desk-field-wide"><label>Option</label><select name="option_uuid" required>${options.map((option) => `<option value="${escapeHtml(option.option_uuid)}" ${option.option_uuid === editor.option_uuid ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div><div class="desk-field"><label>One-day date</label><input name="valid_local_date" type="date" value="${escapeHtml(editor.valid_local_date)}"></div><div class="desk-field"><label>Recorded statement</label><select name="payment_assertion"><option value="paid_card" ${editor.payment_assertion === 'paid_card' ? 'selected' : ''}>Paid by card</option><option value="paid_cash" ${editor.payment_assertion === 'paid_cash' ? 'selected' : ''}>Paid by cash</option><option value="paid_check" ${editor.payment_assertion === 'paid_check' ? 'selected' : ''}>Paid by check</option><option value="unpaid" ${editor.payment_assertion === 'unpaid' ? 'selected' : ''}>Unpaid</option><option value="complimentary" ${editor.payment_assertion === 'complimentary' ? 'selected' : ''}>Complimentary / speaker</option><option value="manager_verified" ${editor.payment_assertion === 'manager_verified' ? 'selected' : ''}>Manager Verified</option></select></div></div><input type="hidden" name="address_1" value="${escapeHtml(editor.address_1)}"><input type="hidden" name="address_2" value="${escapeHtml(editor.address_2)}"><input type="hidden" name="city" value="${escapeHtml(editor.city)}"><input type="hidden" name="state" value="${escapeHtml(editor.state)}"><input type="hidden" name="postcode" value="${escapeHtml(editor.postcode)}"><button type="submit">SAVE CORRECTION</button></form>`;
 	}
 
 	async function reverseAttendance(registration, button) {

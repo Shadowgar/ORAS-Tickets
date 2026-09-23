@@ -595,6 +595,8 @@ final class Rest_Controller {
 				'email'                   => (string) $raw_registration['source_email'],
 				'phone'                   => (string) $raw_registration['source_phone'],
 				'option_uuid'             => (string) $raw_registration['option_uuid'],
+				'classification'          => (string) $raw_registration['classification'],
+				'has_attendees'           => ! empty( $result['attendees'] ),
 				'valid_local_date'        => (string) $raw_registration['valid_local_date'],
 				'payment_assertion'       => (string) $raw_registration['payment_assertion'],
 				'expected_record_version' => (int) $raw_registration['record_version'],

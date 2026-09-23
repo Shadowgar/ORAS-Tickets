@@ -269,6 +269,10 @@ final class Service {
 
 		$result = Store::transaction(
 			function () use ( $registration, $arrivals, $local_date, $context, $binding, $payment_label, $maximum ) {
+				$locked_registration = $this->registrations->find_locked_by_uuid( (string) $registration['registration_uuid'] );
+				if ( ! $locked_registration || (int) $locked_registration['record_version'] !== (int) $registration['record_version'] ) {
+					return new \WP_Error( 'oras_desk_registration_stale', 'Registration changed before check-in. Open it again and review the attendee list.', array( 'status' => 409 ) );
+				}
 				$attendee_rows  = array();
 				$attendance_rows = array();
 				$used_slots     = array();

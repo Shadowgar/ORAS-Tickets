@@ -2,6 +2,8 @@
 
 namespace ORAS\Tickets\Registration_Desk;
 
+use ORAS\Tickets\Support\DbLock;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -40,6 +42,18 @@ final class Membership_Credit_Service {
 		if ( 1 !== preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $request_uuid ) ) {
 			return new \WP_Error( 'oras_desk_request_required', 'This request could not be safely identified.', array( 'status' => 400 ) );
 		}
+
+		// Hold the database lock through the first email status update so a replay
+		// always observes the completed result of the winning request.
+		return DbLock::withLock(
+			'desk-membership:' . $request_uuid,
+			fn() => $this->create_locked( $payload, $context, $request_uuid ),
+			10
+		);
+	}
+
+	/** @param array<string,mixed> $payload @param array<string,mixed> $context @return array<string,mixed>|\WP_Error */
+	private function create_locked( array $payload, array $context, string $request_uuid ) {
 		$existing = $this->store->find_request( $request_uuid );
 		if ( $existing ) {
 			return $this->public_record( $existing );
@@ -108,6 +122,12 @@ final class Membership_Credit_Service {
 			}
 		);
 		if ( $result instanceof \WP_Error ) {
+			// A unique-key collision after a provisional PMPro save rolls the
+			// transaction back. Only then may the existing activation be returned.
+			$existing = $this->store->find_request( $request_uuid );
+			if ( $existing ) {
+				return $this->public_record( $existing );
+			}
 			return $result;
 		}
 		$sent = $this->send_email( $result );

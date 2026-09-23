@@ -301,7 +301,7 @@ final class Board_Report_Service {
 					continue;
 				}
 				if ( ! isset( $grouped_fallback[ $key ] ) ) {
-					$grouped_fallback[ $key ] = $this->build_desk_ticket_row( $event_id, $registration, $desk );
+					$grouped_fallback[ $key ] = $this->build_desk_ticket_row( $event_id, $registration );
 					$grouped_fallback[ $key ]['source'] = 'online_included' === $source_type ? __( 'Included with another event', 'oras-tickets' ) : __( 'Website', 'oras-tickets' );
 					$grouped_fallback[ $key ]['source_group'] = 'website';
 					$grouped_fallback[ $key ]['quantity'] = 0;
@@ -313,7 +313,7 @@ final class Board_Report_Service {
 			if ( ! in_array( $source_type, array( 'walk_in', 'rsvp_walk_in' ), true ) ) {
 				continue;
 			}
-			$rows[] = $this->build_desk_ticket_row( $event_id, $registration, $desk );
+			$rows[] = $this->build_desk_ticket_row( $event_id, $registration );
 		}
 		$rows = array_merge( $rows, array_values( $grouped_fallback ) );
 
@@ -360,10 +360,9 @@ final class Board_Report_Service {
 		return $rows;
 	}
 
-	/** @param array<string,mixed> $registration @param array<string,mixed> $desk @return array<string,mixed> */
-	private function build_desk_ticket_row( int $event_id, array $registration, array $desk ): array {
+	/** @param array<string,mixed> $registration @return array<string,mixed> */
+	private function build_desk_ticket_row( int $event_id, array $registration ): array {
 		$registration_id = absint( $registration['id'] ?? 0 );
-		$attendee_count = count( $desk['attendees_by_registration'][ $registration_id ] ?? array() );
 
 		return array(
 			'report_type'             => self::TYPE_TICKETS,
@@ -375,7 +374,7 @@ final class Board_Report_Service {
 			'phone'                   => sanitize_text_field( (string) ( $registration['source_phone'] ?? '' ) ),
 			'address_summary'         => '',
 			'item_label'              => Event_Roster_Service::historical_label( $registration ),
-			'quantity'                => max( 1, $attendee_count ),
+			'quantity'                => 1,
 			'order_status'            => __( 'Active registration', 'oras-tickets' ),
 			'order_id'                => 0,
 			'order_item_id'           => 0,

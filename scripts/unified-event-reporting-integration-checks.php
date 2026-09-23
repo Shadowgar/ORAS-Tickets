@@ -196,15 +196,16 @@ function oras_unified_event_reporting_run(): void {
 				'evidence'          => array(
 					'offering' => array(
 						'label'         => 'Family Registration',
-						'max_attendees' => 4,
+						'max_attendees' => 5,
 					),
 				),
 			)
 		);
 		oras_unified_event_report_assert( is_array( $family ), 'Family registration created' );
 		$registration_ids[] = (int) $family['id'];
-		oras_unified_event_report_assert( is_array( $attendees->confirm_slot( (int) $family['id'], 'family-1', 'Family', 'Guest' ) ), 'Named family attendee created' );
-		oras_unified_event_report_assert( is_array( $attendees->confirm_slot( (int) $family['id'], 'family-2' ) ), 'Unnamed family attendee created' );
+		for ( $slot = 1; $slot <= 5; $slot++ ) {
+			oras_unified_event_report_assert( is_array( $attendees->confirm_slot( (int) $family['id'], 'family-' . $slot, 'Family', 'Guest' . $slot ) ), 'Family attendee slot created' );
+		}
 
 		$membership = ( new Offline_Membership_Store() )->create(
 			array(
@@ -248,22 +249,24 @@ function oras_unified_event_reporting_run(): void {
 		oras_unified_event_report_same( count( $report['tickets'] ), 3, 'Tickets contain one website and two on-site issuance rows' );
 		$website_ticket = oras_unified_event_report_row( $report['tickets'], static fn( array $row ): bool => 'Website' === ( $row['source'] ?? '' ), 'Website Basic Ticket row missing' );
 		$walk_in_ticket = oras_unified_event_report_row( $report['tickets'], static fn( array $row ): bool => 'Walkin Attendee' === ( $row['name'] ?? '' ), 'Walk-in Basic Ticket row missing' );
+		$family_ticket = oras_unified_event_report_row( $report['tickets'], static fn( array $row ): bool => 'Family Registrant' === ( $row['name'] ?? '' ), 'Family desk ticket row missing' );
+		oras_unified_event_report_same( (int) $family_ticket['quantity'], 1, 'One five-person Family desk registration issues one ticket' );
 		oras_unified_event_report_same( $website_ticket['item_label'], 'Basic Ticket', 'Website row uses canonical ticket label' );
 		oras_unified_event_report_same( (int) $website_ticket['order_id'], $order->get_id(), 'Website row preserves its real Woo order' );
 		oras_unified_event_report_same( $walk_in_ticket['source'], 'On-site / Registration Desk', 'Walk-in row exposes a human source label' );
 		oras_unified_event_report_same( (int) $walk_in_ticket['order_id'], 0, 'Walk-in row has no fabricated Woo order' );
 		oras_unified_event_report_same( $walk_in_ticket['payment_assertion_label'], 'Card', 'Walk-in row exposes the operational payment assertion' );
 
-		oras_unified_event_report_same( count( $report['roster'] ), 4, 'Roster is people-oriented across website, walk-in, and family attendees' );
+		oras_unified_event_report_same( count( $report['roster'] ), 7, 'Roster is people-oriented across website, walk-in, and family attendees' );
 		oras_unified_event_report_row( $report['roster'], static fn( array $row ): bool => 'Website Attendee' === ( $row['name'] ?? '' ), 'Website attendee missing from roster' );
 		$roster_walk_in = oras_unified_event_report_row( $report['roster'], static fn( array $row ): bool => 'Walkin Attendee' === ( $row['name'] ?? '' ), 'Walk-in attendee missing from roster' );
 		oras_unified_event_report_same( $roster_walk_in['attendance_status'], 'Checked in today', 'Walk-in check-in state is visible' );
-		oras_unified_event_report_same( count( array_filter( $report['roster'], static fn( array $row ): bool => 'family' === ( $row['classification'] ?? '' ) ) ), 2, 'Family registration preserves both attendee slots' );
-		oras_unified_event_report_assert( 4 === count( array_unique( wp_list_pluck( $report['roster'], 'identity' ) ) ), 'Roster uses stable attendee identities rather than name/email deduplication' );
+		oras_unified_event_report_same( count( array_filter( $report['roster'], static fn( array $row ): bool => 'family' === ( $row['classification'] ?? '' ) ) ), 5, 'Family registration preserves all five attendee slots' );
+		oras_unified_event_report_assert( 7 === count( array_unique( wp_list_pluck( $report['roster'], 'identity' ) ) ), 'Roster uses stable attendee identities rather than name/email deduplication' );
 
 		$overview = $report['overview'];
 		oras_unified_event_report_same( $overview['total_registrations'], 3, 'Overview counts canonical registrations once' );
-		oras_unified_event_report_same( $overview['people_registered'], 4, 'Overview counts actual covered people' );
+		oras_unified_event_report_same( $overview['people_registered'], 7, 'Overview counts actual covered people, including five under one Family ticket' );
 		oras_unified_event_report_same( $overview['website_registrations'], 1, 'Overview counts website registrations' );
 		oras_unified_event_report_same( $overview['walk_in_registrations'], 2, 'Overview counts on-site registrations' );
 		oras_unified_event_report_same( $overview['checked_in_today'], 1, 'Overview uses Registration Desk attendance truth' );

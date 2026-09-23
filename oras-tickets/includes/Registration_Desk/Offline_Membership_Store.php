@@ -43,9 +43,7 @@ final class Offline_Membership_Store extends Store {
 		$record['created_at_utc'] = $now;
 		$record['updated_at_utc'] = $now;
 		if ( false === $wpdb->insert( $this->table, $record ) ) {
-			$existing = $this->find_request( (string) ( $record['request_uuid'] ?? '' ) );
-
-			return $existing ?? new \WP_Error( 'oras_desk_membership_save_failed', 'The membership record could not be saved.', array( 'status' => 500 ) );
+			return new \WP_Error( 'oras_desk_membership_save_failed', 'The membership record could not be saved.', array( 'status' => 500 ) );
 		}
 
 		return $this->find_request( (string) $record['request_uuid'] ) ?? array();

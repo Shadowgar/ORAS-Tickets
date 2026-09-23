@@ -306,6 +306,16 @@ function oras_desk_integration_http_evidence( string $scope = '' ): array {
 	);
 }
 
+/** Count real PMPro discount rows, or the guarded stand-in when PMPro is absent. */
+function oras_desk_integration_credit_count(): int {
+	global $wpdb;
+	if ( defined( 'PMPRO_VERSION' ) ) {
+		$table = $wpdb->prefix . 'pmpro_discount_codes';
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed PMPro table in the disposable database.
+	}
+	return (int) get_option( 'oras_registration_desk_test_pmpro_credit_id', 1000 );
+}
+
 /** Capture protected live surfaces after fixture setup. */
 function oras_desk_integration_protected_snapshot( array $context, bool $include_live_reports = false ): array {
 	global $wpdb;
@@ -584,6 +594,44 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 	);
 	$family = oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $family_payload ), 'paid_card', 5, 'family purchaser plus four walk-in through REST' );
 	oras_desk_integration_same( $family['historical_result']['registration']['source_type'], 'walk_in', 'family walk-in retains its on-site source' );
+	$individual_registration = $student['historical_result']['registration'];
+	$individual_attendees = ( new Attendee_Store() )->for_registration( (int) $individual_registration['id'] );
+	$individual_attendance = ( new Attendance_Store() )->find_daily( $ticketed_event, (int) $individual_attendees[0]['id'], (string) $context['today'] );
+	$classification_payload = array_merge(
+		$student_payload,
+		array(
+			'option_uuid'             => (string) $by_key['synthetic-a-2']['option_uuid'],
+			'offering_fingerprint'    => (string) $by_key['synthetic-a-2']['offering_fingerprint'],
+			'expected_record_version' => (int) $individual_registration['record_version'],
+		)
+	);
+	wp_set_current_user( (int) $context['admin_id'] );
+	$admin_ticketed_token = Station_Session::issue( (int) $context['admin_id'], $ticketed_event, (int) $ticketed_config['revision'], 'Correction Manager' );
+	$admin_ticketed_context = oras_desk_integration_context( (int) $context['admin_id'], $ticketed_event, $ticketed_config, $admin_ticketed_token, wp_generate_uuid4() );
+	oras_desk_integration_error( ( new Service() )->correct_registration( (string) $individual_registration['registration_uuid'], $classification_payload, $admin_ticketed_context ), 'oras_desk_registration_type_locked', 'Individual with attendee cannot become Family through service' );
+	$manager_station = Station_Session::validate( $admin_ticketed_token, (int) $context['admin_id'], $ticketed_event, (int) $ticketed_config['revision'] );
+	$manager_token = Manager_Access::unlock( '4826', $manager_station, 'correction-rest' );
+	oras_desk_integration_true( is_string( $manager_token ), 'manager unlock permits authorized correction REST probe' );
+	$crafted = new WP_REST_Request( 'POST', '/oras-tickets/v1/registration-desk/registrations/' . $individual_registration['registration_uuid'] . '/correct' );
+	$crafted->set_header( 'X-ORAS-Desk-Station', $admin_ticketed_token );
+	$crafted->set_header( 'X-ORAS-Desk-Manager', $manager_token );
+	$crafted->set_header( 'X-ORAS-Desk-Request', wp_generate_uuid4() );
+	$crafted->set_body_params( $classification_payload );
+	$crafted_result = rest_do_request( $crafted );
+	oras_desk_integration_same( array( $crafted_result->get_status(), $crafted_result->get_data()['code'] ?? '' ), array( 409, 'oras_desk_registration_type_locked' ), 'crafted REST classification change is rejected server-side' );
+	oras_desk_integration_same( ( new Attendee_Store() )->for_registration( (int) $individual_registration['id'] ), $individual_attendees, 'rejected Individual correction preserves attendee identity' );
+	oras_desk_integration_same( ( new Attendance_Store() )->find_daily( $ticketed_event, (int) $individual_attendees[0]['id'], (string) $context['today'] ), $individual_attendance, 'rejected Individual correction preserves attendance history' );
+	wp_set_current_user( (int) $context['desk_id'] );
+	$family_registration = $family['historical_result']['registration'];
+	$family_attendees = ( new Attendee_Store() )->for_registration( (int) $family_registration['id'] );
+	$family_attendance = ( new Attendance_Store() )->find_daily( $ticketed_event, (int) $family_attendees[0]['id'], (string) $context['today'] );
+	oras_desk_integration_error(
+		( new Registration_Store() )->correct_manual( (string) $family_registration['registration_uuid'], (int) $family_registration['record_version'], array( 'classification' => 'individual' ) ),
+		'oras_desk_registration_type_locked',
+		'family registration with attendees cannot become Individual'
+	);
+	oras_desk_integration_same( ( new Attendee_Store() )->for_registration( (int) $family_registration['id'] ), $family_attendees, 'rejected Family correction preserves all attendee identities' );
+	oras_desk_integration_same( ( new Attendance_Store() )->find_daily( $ticketed_event, (int) $family_attendees[0]['id'], (string) $context['today'] ), $family_attendance, 'rejected Family correction preserves attendance history' );
 	$family_roster = ( new Event_Roster_Service() )->get( $ticketed_event, array( 'q' => 'REST Family' ) );
 	oras_desk_integration_same( $family_roster['items'][0]['registration_type'] ?? '', 'Family Pass', 'family roster keeps its canonical ticket type' );
 	$walk_in_stats = ( new Event_Stats_Service() )->for_event( $ticketed_event );
@@ -1507,6 +1555,13 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	oras_desk_integration_same( $renamed['price'], '42.00', 'canonical membership price change reaches the desk without reconfiguration' );
 
 	$service = new Membership_Credit_Service();
+	$credit_before = oras_desk_integration_credit_count();
+	$mail_calls = 0;
+	$count_mail = static function ( $preempted ) use ( &$mail_calls ) {
+		++$mail_calls;
+		return $preempted;
+	};
+	add_filter( 'pre_wp_mail', $count_mail, PHP_INT_MAX );
 	$config = Config::get_event_config( (int) $context['event_id'] );
 	$token = Station_Session::issue( (int) $context['desk_id'], (int) $context['event_id'], (int) $config['revision'], 'Membership Volunteer' );
 	$users_before = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
@@ -1578,6 +1633,18 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 		$check_context
 	);
 	oras_desk_integration_true( is_array( $check ) && 'check' === $check['payment_method'], 'volunteer check membership uses the same pending activation workflow' );
+	$check_replay = $service->create(
+		array(
+			'first_name'     => 'Check',
+			'last_name'      => 'Member',
+			'email'          => 'check-member-' . $context['run'] . '@example.test',
+			'phone'          => '814-555-0172',
+			'level_id'       => $level_id,
+			'payment_method' => 'check',
+		),
+		$check_context
+	);
+	oras_desk_integration_same( $check_replay['activation_uuid'], $check['activation_uuid'], 'check retry reuses one activation' );
 	$card_context = oras_desk_integration_context( (int) $context['desk_id'], (int) $context['event_id'], $config, $token, wp_generate_uuid4() );
 	$card_payload = array(
 		'first_name'     => 'Card',
@@ -1592,6 +1659,9 @@ function oras_desk_integration_membership_workflow( array $context ): array {
 	$card_replay = $service->create( $card_payload, $card_context );
 	oras_desk_integration_same( $card_replay['activation_uuid'], $card['activation_uuid'], 'card retry reuses its activation' );
 	oras_desk_integration_same( $card_replay['credit_code'], $card['credit_code'], 'card retry reuses its credit' );
+	oras_desk_integration_same( oras_desk_integration_credit_count(), $credit_before + 3, 'Cash, Check, Card and retries save exactly three credits' );
+	oras_desk_integration_same( $mail_calls, 3, 'Cash, Check, Card and retries send exactly three initial emails' );
+	remove_filter( 'pre_wp_mail', $count_mail, PHP_INT_MAX );
 	oras_desk_integration_same( (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" ), $users_before, 'membership recording creates no WordPress attendee account' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed core table in guarded disposable database.
 	oras_desk_integration_same(
 		count(
@@ -2506,6 +2576,12 @@ function oras_desk_integration_prepare(): void {
 	oras_desk_integration_event_roster( $context );
 	$context['order_ids'] = array_merge( $context['order_ids'], oras_desk_integration_paid_not_found_recovery( $context ) );
 	$context['membership_fixture'] = oras_desk_integration_membership_workflow( $context );
+	update_option( 'oras_registration_desk_membership_race_mail_calls', 0, false );
+	$context['membership_concurrency'] = array(
+		'request_uuid'  => wp_generate_uuid4(),
+		'level_id'      => (int) $context['membership_fixture']['level_id'],
+		'credit_before' => oras_desk_integration_credit_count(),
+	);
 	oras_desk_integration_training_workflow( $context );
 	$config = Config::get_event_config( $event_id );
 	$late_uuid = (string) $context['projected']['late_cancelled'];
@@ -2848,6 +2924,66 @@ function oras_desk_integration_reset_baseline(): void {
 	oras_desk_integration_pass( 'protected baseline reset after authenticated dispatcher controls' );
 }
 
+/** Verify two independent membership writers converged before resetting the protected baseline. */
+function oras_desk_integration_membership_race_finish(): void {
+	global $wpdb;
+	$context = get_option( 'oras_registration_desk_integration_context', array() );
+	$fixture = $context['membership_concurrency'] ?? array();
+	if ( ! is_array( $fixture ) || empty( $fixture['request_uuid'] ) ) {
+		oras_desk_integration_fail( 'membership concurrency fixture is missing.' );
+	}
+	$store = new Offline_Membership_Store();
+	$row = $store->find_request( (string) $fixture['request_uuid'] );
+	oras_desk_integration_true( is_array( $row ), 'overlapping membership requests created one pending activation' );
+	$table = Schema::table_names()['offline_memberships'];
+	$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE request_uuid = %s", $fixture['request_uuid'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed desk table.
+	oras_desk_integration_same( $count, 1, 'overlapping membership requests retain one activation row' );
+	oras_desk_integration_same( oras_desk_integration_credit_count(), (int) $fixture['credit_before'] + 1, 'overlapping membership requests retain one PMPro credit save' );
+	oras_desk_integration_same( (int) get_option( 'oras_registration_desk_membership_race_mail_calls', 0 ), 1, 'overlapping membership requests send one initial activation email' );
+	oras_desk_integration_same( array( $row['status'], $row['email_status'], (int) $row['email_attempts'] ), array( 'pending', 'sent', 1 ), 'winner committed the pending activation and email state' );
+	$payload = array(
+		'first_name'     => 'Concurrent',
+		'last_name'      => 'Member',
+		'email'          => 'concurrent-' . $context['run'] . '@example.test',
+		'level_id'       => (int) $fixture['level_id'],
+		'payment_method' => 'card',
+	);
+	$retry = ( new Membership_Credit_Service() )->create( $payload, array( 'request_uuid' => (string) $fixture['request_uuid'] ) );
+	oras_desk_integration_true( is_array( $retry ) && $retry['activation_uuid'] === $row['activation_uuid'] && true === $retry['email_sent'], 'later membership retry returns original sent activation' );
+	oras_desk_integration_same( oras_desk_integration_credit_count(), (int) $fixture['credit_before'] + 1, 'later retry saves no additional credit' );
+	oras_desk_integration_same( (int) get_option( 'oras_registration_desk_membership_race_mail_calls', 0 ), 1, 'later retry sends no additional email' );
+	delete_option( 'oras_registration_desk_membership_race_mail_calls' );
+	foreach ( array( 'hold_ready', 'release_hold', 'release_workers', 'worker_ready_1', 'worker_ready_2' ) as $suffix ) {
+		delete_option( 'oras_registration_desk_membership_race_' . $suffix );
+	}
+	oras_desk_integration_pass( 'independent overlapping membership request qualification complete' );
+}
+
+/** Confirm five parallel failures consume one stable account budget. */
+function oras_desk_integration_manager_race_finish(): void {
+	$context = get_option( 'oras_registration_desk_integration_context', array() );
+	$desk_station_b = array(
+		'user_id'      => (int) $context['desk_id'],
+		'station_uuid' => wp_generate_uuid4(),
+	);
+	oras_desk_integration_error( Manager_Access::unlock( '0000', $desk_station_b, 'new-network-identity' ), 'oras_desk_pin_rate_limited', 'a new station and request identity cannot reset five concurrent failed PIN attempts' );
+	$admin_station = array(
+		'user_id'      => (int) $context['admin_id'],
+		'station_uuid' => wp_generate_uuid4(),
+	);
+	oras_desk_integration_error( Manager_Access::unlock( '0000', $admin_station ), 'oras_desk_pin_incorrect', 'another authenticated user has an independent PIN budget' );
+	oras_desk_integration_true( is_string( Manager_Access::unlock( '4826', $admin_station ) ), 'successful manager PIN still unlocks and resets that user budget' );
+	oras_desk_integration_error( Manager_Access::unlock( '0000', $admin_station ), 'oras_desk_pin_incorrect', 'successful manager unlock clears prior failures' );
+	foreach ( array( (int) $context['desk_id'], (int) $context['admin_id'] ) as $user_id ) {
+		delete_transient( 'oras_desk_pin_' . substr( hash( 'sha256', 'user:' . $user_id ), 0, 32 ) );
+	}
+	for ( $worker = 1; $worker <= 5; $worker++ ) {
+		delete_option( 'oras_registration_desk_manager_race_ready_' . $worker );
+	}
+	delete_option( 'oras_registration_desk_manager_race_release' );
+	oras_desk_integration_pass( 'five independent PIN requests preserve the stable per-user rate limit' );
+}
+
 /** Verify concurrent results, side-effect isolation, and the normal checkout control. */
 function oras_desk_integration_finish(): void {
 	global $wpdb;
@@ -2929,6 +3065,10 @@ if ( 'prepare' === $phase ) {
 	oras_desk_integration_prepare();
 } elseif ( 'baseline' === $phase ) {
 	oras_desk_integration_reset_baseline();
+} elseif ( 'membership_race_finish' === $phase ) {
+	oras_desk_integration_membership_race_finish();
+} elseif ( 'manager_race_finish' === $phase ) {
+	oras_desk_integration_manager_race_finish();
 } elseif ( 'finish' === $phase ) {
 	oras_desk_integration_finish();
 } else {

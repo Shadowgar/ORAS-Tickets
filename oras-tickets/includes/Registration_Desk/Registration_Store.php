@@ -23,6 +23,14 @@ final class Registration_Store extends Store {
 	}
 
 	/** @return array<string,mixed>|null */
+	public function find_locked_by_uuid( string $uuid ): ?array {
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE registration_uuid = %s FOR UPDATE", $uuid ), ARRAY_A );
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	/** @return array<string,mixed>|null */
 	public function find_by_source_key( int $event_id, string $source_key ): ?array {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name is fixed by Schema.
@@ -167,9 +175,17 @@ final class Registration_Store extends Store {
 	/** @param array<string,mixed> $changes @return array<string,mixed>|\WP_Error */
 	public function correct_manual( string $uuid, int $expected_version, array $changes ) {
 		global $wpdb;
-		$current = $this->find_by_uuid( $uuid );
+		$current = $this->find_locked_by_uuid( $uuid );
 		if ( ! $current || in_array( (string) $current['source_type'], array( 'online', 'online_included' ), true ) ) {
 			return new \WP_Error( 'oras_desk_correction_forbidden', 'Only desk-created registration details can be corrected here.', array( 'status' => 409 ) );
+		}
+		$classification = sanitize_key( (string) ( $changes['classification'] ?? $current['classification'] ) );
+		if ( $classification !== (string) $current['classification'] ) {
+			$attendee_table = Schema::table_names()['attendees'];
+			$attendee_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$attendee_table} WHERE registration_id = %d", (int) $current['id'] ) );
+			if ( $attendee_count > 0 ) {
+				return new \WP_Error( 'oras_desk_registration_type_locked', 'Registration type cannot be changed after attendee records exist. Correct contact or payment details instead.', array( 'status' => 409 ) );
+			}
 		}
 		$first_name = sanitize_text_field( (string) ( $changes['first_name'] ?? '' ) );
 		$last_name  = sanitize_text_field( (string) ( $changes['last_name'] ?? '' ) );
@@ -181,8 +197,8 @@ final class Registration_Store extends Store {
 			$this->table,
 			array(
 				'option_uuid'         => sanitize_text_field( (string) ( $changes['option_uuid'] ?? $current['option_uuid'] ) ),
-				'classification'      => sanitize_key( (string) ( $changes['classification'] ?? $current['classification'] ) ),
-				'coverage_type'       => sanitize_key( (string) ( $changes['classification'] ?? $current['classification'] ) ),
+				'classification'      => $classification,
+				'coverage_type'       => $classification,
 				'validity_type'       => sanitize_key( (string) ( $changes['validity_type'] ?? $current['validity_type'] ) ),
 				'valid_local_date'    => '' !== (string) ( $changes['valid_local_date'] ?? '' ) ? (string) $changes['valid_local_date'] : null,
 				'payment_assertion'   => sanitize_key( (string) ( $changes['payment_assertion'] ?? $current['payment_assertion'] ) ),

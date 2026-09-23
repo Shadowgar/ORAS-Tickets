@@ -60,6 +60,7 @@ function oras_access_assert( bool $condition, string $message ): void {
 $plugin_dir = dirname( __DIR__ ) . '/oras-tickets/';
 $php_files  = array(
 	'includes/Capabilities.php',
+	'includes/Support/DbLock.php',
 	'includes/Registration_Desk/Config.php',
 	'includes/Registration_Desk/Access.php',
 	'includes/Registration_Desk/Station_Session.php',
