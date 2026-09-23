@@ -1,5 +1,29 @@
 # CHANGELOG (Append-Only)
 
+## 2026-09-23 - Release 0.4.60
+
+### Unified Board Reports
+
+- Unified event reporting now combines website and Registration Desk sources across Overview, Tickets, Roster, and Memberships, replacing the separate legacy Event Registration & Attendance report.
+- Registration Desk attendees appear as people in the roster; on-site registrations use canonical ticket names. A Family registration counts as one issued ticket while retaining its full attendee count.
+- Membership reporting includes the originating event and the payment method recorded at the desk.
+
+### Registration Desk go-live hardening
+
+- Added Card beside Cash and Check as a recorded on-site membership payment method. Card records a sale already completed through AlfaPOS/Stripe; the desk creates no financial transaction.
+- Membership recording resists concurrent requests and duplicate credits or initial activation emails. Completion messages reflect whether the activation email was sent.
+- Find Registration opens with search and roster visible and filters collapsed across desktop, tablet, and phone layouts.
+- Search, filters, and pagination discard stale responses and duplicate requests. Returning from registration details restores roster state; a failed pagination retry retains existing rows and retries the intended page.
+- Manager PIN limits persist across station recreation and use the authenticated user. Manager correction and reverse check-in remain available where appropriate.
+- Individual/Family classification changes that would invalidate existing attendee identities are blocked. Family walk-ins are limited to five total attendees.
+- New walk-ins are reflected in Event Stats and Board Reports.
+
+### Verification and production boundary
+
+- Focused acceptance covered legacy Woo storage and HPOS; Individual, Student, and Family walk-ins; check-in and reverse check-in; retries and idempotency; Cash, Check, and Card membership recording; included-event access; Board Reports; and desktop, tablet, and phone desk layouts.
+- Equivalent bundled-access mapping passed automated regression tests. The exact production Pro-Am event 4292, products 6001 and 6002, and AstroBlast event 4077 were unavailable in the disposable environment and require owner verification after deployment.
+- Registration Desk records on-site operational and payment-method information. It does not create Stripe charges, WooCommerce financial orders, or QuickBooks transactions.
+
 ## 2026-09-20 - Release 0.4.57
 
 ### Registration Desk
