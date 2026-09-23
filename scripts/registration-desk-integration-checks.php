@@ -551,9 +551,14 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 	$ticketed_config = Config::get_event_config( $ticketed_event );
 	$ticketed_token = Station_Session::issue( (int) $context['desk_id'], $ticketed_event, (int) $ticketed_config['revision'], 'REST Coverage' );
 	$ticketed_response = oras_desk_integration_rest_offerings( $ticketed_token );
-	oras_desk_integration_same( $ticketed_response->get_status(), 200, 'family and one-day REST fixture loads current canonical offerings' );
+	oras_desk_integration_same( $ticketed_response->get_status(), 200, 'student, family, and one-day REST fixtures load current canonical offerings' );
 	$ticketed = $ticketed_response->get_data()['items'] ?? array();
 	$by_key = array_column( $ticketed, null, 'ticket_key' );
+	$student_payload = $payload_for( 'Student', 'paid_card', $by_key['synthetic-a-3'] );
+	$student = oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $student_payload ), 'paid_card', 1, 'student walk-in through REST' );
+	oras_desk_integration_same( $student['historical_result']['registration']['source_type'], 'walk_in', 'student walk-in retains its on-site source' );
+	$student_roster = ( new Event_Roster_Service() )->get( $ticketed_event, array( 'q' => 'REST Student' ) );
+	oras_desk_integration_same( $student_roster['items'][0]['registration_type'] ?? '', 'Student Pass', 'student roster keeps its canonical ticket type' );
 	$family_payload = $payload_for(
 		'Family',
 		'paid_card',
@@ -567,9 +572,31 @@ function oras_desk_integration_walk_in_rest_contract( array $context ): void {
 				'first_name' => 'Family',
 				'last_name'  => 'Three',
 			),
+			array(
+				'first_name' => 'Family',
+				'last_name'  => 'Four',
+			),
+			array(
+				'first_name' => 'Family',
+				'last_name'  => 'Five',
+			),
 		)
 	);
-	oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $family_payload ), 'paid_card', 3, 'family selected-arrivals walk-in through REST' );
+	$family = oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $family_payload ), 'paid_card', 5, 'family purchaser plus four walk-in through REST' );
+	oras_desk_integration_same( $family['historical_result']['registration']['source_type'], 'walk_in', 'family walk-in retains its on-site source' );
+	$family_roster = ( new Event_Roster_Service() )->get( $ticketed_event, array( 'q' => 'REST Family' ) );
+	oras_desk_integration_same( $family_roster['items'][0]['registration_type'] ?? '', 'Family Pass', 'family roster keeps its canonical ticket type' );
+	$overflow_attendees = $family_payload['additional_attendees'];
+	$overflow_attendees[] = array(
+		'first_name' => 'Family',
+		'last_name'  => 'Six',
+	);
+	$overflow_payload = $payload_for( 'FamilyOverflow', 'paid_card', $by_key['synthetic-a-2'], $overflow_attendees );
+	$overflow_request = wp_generate_uuid4();
+	$overflow_response = oras_desk_integration_rest_walk_in( $ticketed_token, $overflow_request, $overflow_payload );
+	oras_desk_integration_same( $overflow_response->get_status(), 400, 'sixth family arrival is refused through REST' );
+	oras_desk_integration_same( $overflow_response->get_data()['code'] ?? '', 'oras_desk_arrivals_invalid', 'family limit is enforced by the live server' );
+	oras_desk_integration_same( oras_desk_integration_walk_in_request_counts( $ticketed_event, $overflow_request, (string) $overflow_payload['email'] )['registrations'], 0, 'refused sixth arrival creates no registration' );
 	$day_payload = $payload_for( 'OneDay', 'paid_cash', $by_key['synthetic-a-4'] );
 	oras_desk_integration_assert_walk_in_success( oras_desk_integration_rest_walk_in( $ticketed_token, wp_generate_uuid4(), $day_payload ), 'paid_cash', 1, 'one-day valid-today walk-in through REST' );
 
