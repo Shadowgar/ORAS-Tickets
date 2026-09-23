@@ -100,6 +100,7 @@ final class Membership_Report_Service {
 		return array(
 			'available'         => true,
 			'website_available' => $website_available,
+			'origin_events'     => $this->get_origin_events( $offline_rows ),
 			'all_rows'          => $all_rows,
 			'filtered_rows'     => $filtered_rows,
 			'rows'              => $filtered_rows,
@@ -195,7 +196,7 @@ final class Membership_Report_Service {
 			$source_labels[] = __( 'Legacy PayPal', 'oras-tickets' );
 		}
 		if ( ! empty( $offline ) ) {
-			$source_labels[] = __( 'Offline Event Activation', 'oras-tickets' );
+			$source_labels[] = __( 'On-site / Registration Desk', 'oras-tickets' );
 		}
 		$primary['source']                     = ! empty( $website ) ? self::SOURCE_WEBSITE : ( ! empty( $legacy ) ? self::SOURCE_LEGACY : self::SOURCE_OFFLINE );
 		$primary['source_label']               = implode( ' + ', $source_labels );
@@ -205,6 +206,12 @@ final class Membership_Report_Service {
 		$primary['legacy_paypal_records']      = $legacy;
 		$primary['offline_activation_records'] = $offline;
 		$primary['person_key']                 = $person['person_key'];
+		if ( ! empty( $offline ) ) {
+			$primary['origin_event_id']          = absint( $offline[0]['origin_event_id'] ?? 0 );
+			$primary['origin_event_title']       = (string) ( $offline[0]['origin_event_title'] ?? '' );
+			$primary['recorded_method']          = (string) ( $offline[0]['recorded_method'] ?? '' );
+			$primary['recorded_method_label']    = (string) ( $offline[0]['recorded_method_label'] ?? '' );
+		}
 		if ( empty( $current_website ) && ! empty( $current_legacy ) ) {
 			$primary['level_name'] = __( 'Legacy PayPal Membership', 'oras-tickets' );
 		}
@@ -214,7 +221,11 @@ final class Membership_Report_Service {
 
 	/** @param array<string,mixed> $row */
 	private function is_current( array $row ): bool {
-		return in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
+		return in_array(
+			(string) ( $row['operational_status'] ?? '' ),
+			array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_PENDING_ACTIVATION, self::STATUS_REDEEMED_OFFLINE ),
+			true
+		);
 	}
 
 	/** @param array<int,array<string,mixed>> $rows */
@@ -266,37 +277,37 @@ final class Membership_Report_Service {
 		$membership_questions = $this->get_membership_questions( $user_id );
 
 		return array(
-			'source'              => self::SOURCE_WEBSITE,
-			'source_label'        => __( 'Website / PMPro', 'oras-tickets' ),
-			'source_record_id'    => absint( $raw['id'] ?? 0 ),
-			'user_id'             => $user_id,
-			'linked_user_id'      => $user_id,
-			'username'            => sanitize_user( (string) ( $raw['user_login'] ?? '' ) ),
-			'member_name'         => sanitize_text_field( (string) ( $raw['display_name'] ?? '' ) ),
-			'email'               => sanitize_email( (string) ( $raw['user_email'] ?? '' ) ),
-			'level_id'            => absint( $raw['membership_id'] ?? 0 ),
-			'level_name'          => sanitize_text_field( (string) ( $raw['level_name'] ?? '' ) ),
-			'source_status'       => $source_status,
-			'start_date'          => $start_date,
-			'end_date'            => $end_date,
-			'membership_date'     => $membership_date['date'],
+			'source'                => self::SOURCE_WEBSITE,
+			'source_label'          => __( 'Website / PMPro', 'oras-tickets' ),
+			'source_record_id'      => absint( $raw['id'] ?? 0 ),
+			'user_id'               => $user_id,
+			'linked_user_id'        => $user_id,
+			'username'              => sanitize_user( (string) ( $raw['user_login'] ?? '' ) ),
+			'member_name'           => sanitize_text_field( (string) ( $raw['display_name'] ?? '' ) ),
+			'email'                 => sanitize_email( (string) ( $raw['user_email'] ?? '' ) ),
+			'level_id'              => absint( $raw['membership_id'] ?? 0 ),
+			'level_name'            => sanitize_text_field( (string) ( $raw['level_name'] ?? '' ) ),
+			'source_status'         => $source_status,
+			'start_date'            => $start_date,
+			'end_date'              => $end_date,
+			'membership_date'       => $membership_date['date'],
 			'membership_date_state' => $membership_date['state'],
-			'operational_status'  => $this->get_operational_status( $source_status, $end_date ),
-			'account_link_status' => self::LINK_WEBSITE_ACCOUNT,
-			'match_type'          => 'none',
-			'matching_user_ids'   => array(),
-			'paypal_reference'    => '',
-			'transitioned'        => false,
-			'notes'               => '',
-			'phone'               => $contact['phone'],
-			'address_1'           => $contact['address_1'],
-			'address_2'           => $contact['address_2'],
-			'city'                => $contact['city'],
-			'state'               => $contact['state'],
-			'postcode'            => $contact['postcode'],
-			'country'             => $contact['country'],
-			'address_summary'     => $contact['address_summary'],
-			'membership_questions'=> $membership_questions,
+			'operational_status'    => $this->get_operational_status( $source_status, $end_date ),
+			'account_link_status'   => self::LINK_WEBSITE_ACCOUNT,
+			'match_type'            => 'none',
+			'matching_user_ids'     => array(),
+			'paypal_reference'      => '',
+			'transitioned'          => false,
+			'notes'                 => '',
+			'phone'                 => $contact['phone'],
+			'address_1'             => $contact['address_1'],
+			'address_2'             => $contact['address_2'],
+			'city'                  => $contact['city'],
+			'state'                 => $contact['state'],
+			'postcode'              => $contact['postcode'],
+			'country'               => $contact['country'],
+			'address_summary'       => $contact['address_summary'],
+			'membership_questions'  => $membership_questions,
 		);
 	}
 
@@ -574,37 +585,37 @@ final class Membership_Report_Service {
 			$source_status = sanitize_key( (string) ( $record['status'] ?? '' ) );
 			$end_date = (string) ( $record['end_date'] ?? '' );
 			$rows[] = array(
-				'source'              => self::SOURCE_LEGACY,
-				'source_label'        => __( 'Legacy PayPal', 'oras-tickets' ),
-				'source_record_id'    => absint( $record['id'] ?? 0 ),
-				'user_id'             => 0,
-				'linked_user_id'      => $linked_user_id,
-				'username'            => '',
-				'member_name'         => (string) ( $record['member_name'] ?? '' ),
-				'email'               => (string) ( $record['email'] ?? '' ),
-				'level_id'            => 0,
-				'level_name'          => __( 'Legacy PayPal Membership', 'oras-tickets' ),
-				'source_status'       => $source_status,
-				'start_date'          => (string) ( $record['start_date'] ?? '' ),
-				'end_date'            => $end_date,
-				'membership_date'     => $end_date,
+				'source'                => self::SOURCE_LEGACY,
+				'source_label'          => __( 'Legacy PayPal', 'oras-tickets' ),
+				'source_record_id'      => absint( $record['id'] ?? 0 ),
+				'user_id'               => 0,
+				'linked_user_id'        => $linked_user_id,
+				'username'              => '',
+				'member_name'           => (string) ( $record['member_name'] ?? '' ),
+				'email'                 => (string) ( $record['email'] ?? '' ),
+				'level_id'              => 0,
+				'level_name'            => __( 'Legacy PayPal Membership', 'oras-tickets' ),
+				'source_status'         => $source_status,
+				'start_date'            => (string) ( $record['start_date'] ?? '' ),
+				'end_date'              => $end_date,
+				'membership_date'       => $end_date,
 				'membership_date_state' => 'expiration_or_renewal',
-				'operational_status'  => $this->get_operational_status( $source_status, $end_date ),
-				'account_link_status' => $link_status,
-				'match_type'          => $match_type,
-				'matching_user_ids'   => $matching_user_ids,
-				'paypal_reference'    => (string) ( $record['paypal_reference'] ?? '' ),
-				'transitioned'        => ! empty( $record['transitioned'] ),
-				'notes'               => (string) ( $record['notes'] ?? '' ),
-				'phone'               => '',
-				'address_1'           => '',
-				'address_2'           => '',
-				'city'                => '',
-				'state'               => '',
-				'postcode'            => '',
-				'country'             => '',
-				'address_summary'     => '',
-				'membership_questions'=> array(),
+				'operational_status'    => $this->get_operational_status( $source_status, $end_date ),
+				'account_link_status'   => $link_status,
+				'match_type'            => $match_type,
+				'matching_user_ids'     => $matching_user_ids,
+				'paypal_reference'      => (string) ( $record['paypal_reference'] ?? '' ),
+				'transitioned'          => ! empty( $record['transitioned'] ),
+				'notes'                 => (string) ( $record['notes'] ?? '' ),
+				'phone'                 => '',
+				'address_1'             => '',
+				'address_2'             => '',
+				'city'                  => '',
+				'state'                 => '',
+				'postcode'              => '',
+				'country'               => '',
+				'address_summary'       => '',
+				'membership_questions'  => array(),
 			);
 		}
 
@@ -632,9 +643,11 @@ final class Membership_Report_Service {
 				'cancelled' => self::STATUS_CREDIT_CANCELLED,
 			)[ $status ] ?? self::STATUS_INACTIVE;
 			$linked_user_id = absint( $raw['linked_user_id'] ?? 0 );
+			$event_id = absint( $raw['event_id'] ?? 0 );
+			$recorded_method = sanitize_key( (string) ( $raw['payment_method'] ?? '' ) );
 			$rows[] = array(
 				'source'                => self::SOURCE_OFFLINE,
-				'source_label'          => __( 'Offline Event Activation', 'oras-tickets' ),
+				'source_label'          => __( 'On-site / Registration Desk', 'oras-tickets' ),
 				'source_record_id'      => absint( $raw['id'] ?? 0 ),
 				'user_id'               => 0,
 				'linked_user_id'        => $linked_user_id,
@@ -657,8 +670,8 @@ final class Membership_Report_Service {
 				'notes'                 => sprintf(
 					/* translators: 1: event title, 2: payment method, 3: activation email status. */
 					__( 'Purchased at %1$s. %2$s recorded. Activation email: %3$s.', 'oras-tickets' ),
-					get_the_title( absint( $raw['event_id'] ?? 0 ) ),
-					ucfirst( (string) ( $raw['payment_method'] ?? '' ) ),
+					get_the_title( $event_id ),
+					$this->recorded_method_label( $recorded_method ),
 					(string) ( $raw['email_status'] ?? '' )
 				),
 				'phone'                 => sanitize_text_field( (string) ( $raw['phone'] ?? '' ) ),
@@ -670,13 +683,39 @@ final class Membership_Report_Service {
 				'country'               => '',
 				'address_summary'       => '',
 				'membership_questions'  => array(),
-				'event_id'              => absint( $raw['event_id'] ?? 0 ),
+				'event_id'              => $event_id,
+				'origin_event_id'       => $event_id,
+				'origin_event_title'    => sanitize_text_field( get_the_title( $event_id ) ),
+				'recorded_method'       => $recorded_method,
+				'recorded_method_label' => $this->recorded_method_label( $recorded_method ),
 				'credit_code'           => (string) ( $raw['credit_code'] ?? '' ),
 				'email_status'          => (string) ( $raw['email_status'] ?? '' ),
 			);
 		}
 
 		return $rows;
+	}
+
+	private function recorded_method_label( string $method ): string {
+		return array(
+			'card'  => __( 'Card', 'oras-tickets' ),
+			'cash'  => __( 'Cash', 'oras-tickets' ),
+			'check' => __( 'Check', 'oras-tickets' ),
+		)[ $method ] ?? ( '' !== $method ? ucfirst( $method ) : '' );
+	}
+
+	/** @param array<int,array<string,mixed>> $rows @return array<int,string> */
+	private function get_origin_events( array $rows ): array {
+		$events = array();
+		foreach ( $rows as $row ) {
+			$event_id = absint( $row['origin_event_id'] ?? 0 );
+			if ( $event_id > 0 ) {
+				$events[ $event_id ] = (string) ( $row['origin_event_title'] ?? get_the_title( $event_id ) );
+			}
+		}
+		asort( $events, SORT_NATURAL | SORT_FLAG_CASE );
+
+		return $events;
 	}
 
 	private function get_operational_status( string $source_status, string $end_date ): string {
@@ -704,7 +743,9 @@ final class Membership_Report_Service {
 	/** @param array<string,mixed> $filters @return array<string,mixed> */
 	private function normalize_filters( array $filters ): array {
 		$scope = sanitize_key( (string) ( $filters['roster_scope'] ?? self::ROSTER_CURRENT ) );
-		if ( ! in_array( $scope, array( self::ROSTER_CURRENT, self::ROSTER_FORMER, self::ROSTER_ALL ), true ) ) { $scope = self::ROSTER_CURRENT; }
+		if ( ! in_array( $scope, array( self::ROSTER_CURRENT, self::ROSTER_FORMER, self::ROSTER_ALL ), true ) ) {
+			$scope = self::ROSTER_CURRENT;
+		}
 		$source = sanitize_key( (string) ( $filters['source'] ?? self::SOURCE_ALL ) );
 		if ( ! in_array( $source, array( self::SOURCE_ALL, self::SOURCE_WEBSITE, self::SOURCE_LEGACY, self::SOURCE_OFFLINE ), true ) ) {
 			$source = self::SOURCE_ALL;
@@ -723,6 +764,7 @@ final class Membership_Report_Service {
 			'source'       => $source,
 			'status'       => $status,
 			'account_link' => $link,
+			'origin_event' => absint( $filters['origin_event'] ?? 0 ),
 			'search'       => sanitize_text_field( (string) ( $filters['search'] ?? '' ) ),
 			'page'         => max( 1, absint( $filters['page'] ?? 1 ) ),
 			'per_page'     => min( 100, max( 1, absint( $filters['per_page'] ?? 25 ) ) ),
@@ -737,11 +779,32 @@ final class Membership_Report_Service {
 			array_filter(
 				$rows,
 				static function ( array $row ) use ( $filters, $needle ): bool {
-					$current = in_array( (string) ( $row['operational_status'] ?? '' ), array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
-					if ( self::ROSTER_CURRENT === $filters['roster_scope'] && ! $current ) return false;
-					if ( self::ROSTER_FORMER === $filters['roster_scope'] && $current ) return false;
-					if ( self::SOURCE_ALL !== $filters['source'] && $filters['source'] !== ( $row['source'] ?? '' ) ) {
+					$current = in_array(
+						(string) ( $row['operational_status'] ?? '' ),
+						array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_PENDING_ACTIVATION, self::STATUS_REDEEMED_OFFLINE ),
+						true
+					);
+					if ( self::ROSTER_CURRENT === $filters['roster_scope'] && ! $current ) {
 						return false;
+					}
+					if ( self::ROSTER_FORMER === $filters['roster_scope'] && $current ) {
+						return false;
+					}
+					$has_offline_source = ! empty( $row['offline_activation_records'] );
+					if ( self::SOURCE_ALL !== $filters['source'] && $filters['source'] !== ( $row['source'] ?? '' ) && ! ( self::SOURCE_OFFLINE === $filters['source'] && $has_offline_source ) ) {
+						return false;
+					}
+					if ( $filters['origin_event'] > 0 ) {
+						$event_match = false;
+						foreach ( (array) ( $row['offline_activation_records'] ?? array() ) as $offline ) {
+							if ( $filters['origin_event'] === absint( $offline['origin_event_id'] ?? $offline['event_id'] ?? 0 ) ) {
+								$event_match = true;
+								break;
+							}
+						}
+						if ( ! $event_match ) {
+							return false;
+						}
 					}
 					if ( self::STATUS_ALL !== $filters['status'] && $filters['status'] !== ( $row['operational_status'] ?? '' ) ) {
 						return false;
@@ -761,6 +824,8 @@ final class Membership_Report_Service {
 								(string) ( $row['username'] ?? '' ),
 								(string) ( $row['level_name'] ?? '' ),
 								(string) ( $row['paypal_reference'] ?? '' ),
+								(string) ( $row['origin_event_title'] ?? '' ),
+								(string) ( $row['recorded_method_label'] ?? '' ),
 							)
 						)
 					);
@@ -810,6 +875,7 @@ final class Membership_Report_Service {
 			'active_count'              => 0,
 			'website_active_count'      => 0,
 			'legacy_active_count'       => 0,
+			'offline_current_count'     => 0,
 			'expiring_count'            => 0,
 			'expired_count'             => 0,
 			'linked_count'              => 0,
@@ -820,7 +886,7 @@ final class Membership_Report_Service {
 		);
 		foreach ( $rows as $row ) {
 			$status = (string) ( $row['operational_status'] ?? '' );
-			$is_active = in_array( $status, array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON ), true );
+			$is_active = in_array( $status, array( self::STATUS_ACTIVE, self::STATUS_EXPIRING_SOON, self::STATUS_PENDING_ACTIVATION, self::STATUS_REDEEMED_OFFLINE ), true );
 			if ( $is_active ) {
 				++$summary['active_count'];
 				++$summary['current_unique_members'];
@@ -840,9 +906,25 @@ final class Membership_Report_Service {
 			if ( self::LINK_POSSIBLE_NAME === ( $row['match_type'] ?? '' ) ) {
 				++$summary['possible_name_match_count'];
 			}
-			if ( ! empty( $row['website_records'] ) || ( ! empty( $row['website_membership'] ) && ! empty( $row['legacy_paypal_records'] ) ) ) { if ( ! empty( $row['legacy_paypal_records'] ) ) ++$summary['matched_across_sources']; }
+			if ( ! empty( $row['website_records'] ) || ( ! empty( $row['website_membership'] ) && ! empty( $row['legacy_paypal_records'] ) ) ) {
+				if ( ! empty( $row['legacy_paypal_records'] ) ) {
+					++$summary['matched_across_sources'];
+				}
+			}
 		}
-		foreach ( $raw_rows as $row ) { if ( $this->is_current( $row ) ) { ++$summary[ self::SOURCE_WEBSITE === ( $row['source'] ?? '' ) ? 'website_active_count' : 'legacy_active_count' ]; } }
+		foreach ( $raw_rows as $row ) {
+			if ( ! $this->is_current( $row ) ) {
+				continue;
+			}
+			$source = (string) ( $row['source'] ?? '' );
+			if ( self::SOURCE_WEBSITE === $source ) {
+				++$summary['website_active_count'];
+			} elseif ( self::SOURCE_OFFLINE === $source ) {
+				++$summary['offline_current_count'];
+			} else {
+				++$summary['legacy_active_count'];
+			}
+		}
 
 		return $summary;
 	}

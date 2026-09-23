@@ -15,7 +15,6 @@ use ORAS\Tickets\Reporting\Observer_Pass_Report_Service;
 use ORAS\Tickets\Storage\Legacy_Membership_Store;
 use ORAS\Tickets\Storage\Manual_Observer_Pass_Store;
 use ORAS\Tickets\Waitlist_Store;
-use ORAS\Tickets\Registration_Desk\Event_Stats_Service;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -53,7 +52,7 @@ final class Board_Reports {
 	private const TAB_STATISTICS = 'statistics';
 	private const TAB_OBSERVER_PASSES = 'observer_passes';
 	private const TAB_MEMBERSHIPS = 'memberships';
-	private const TAB_EVENT_ATTENDANCE = 'event_registration_attendance';
+	private const LEGACY_TAB_EVENT_ATTENDANCE = 'event_registration_attendance';
 	private const OBSERVER_QUERY_PREFIX = 'oras_observer_';
 	private const MEMBERSHIP_QUERY_PREFIX = 'oras_membership_';
 
@@ -1228,6 +1227,7 @@ final class Board_Reports {
 
 			<h2><?php echo esc_html__( 'Board Reports / Event Management Dashboard', 'oras-tickets' ); ?></h2>
 			<p class="oras-board-reports__notice"><?php echo esc_html__( 'This report excludes payment method, transaction, card, and accounting details.', 'oras-tickets' ); ?></p>
+			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_OBSERVER_PASSES !== $active_tab && $service instanceof Board_Report_Service ) : ?>
 				<?php self::render_rsvp_approval_notice(); ?>
 				<?php self::render_waitlist_notice(); ?>
@@ -1236,13 +1236,10 @@ final class Board_Reports {
 				<?php self::render_overview_cards( $service, $filters['event_id'] ); ?>
 				<?php self::render_attention_notification_center( $filters['event_id'] ); ?>
 			<?php endif; ?>
-			<?php self::render_tabs( $active_tab ); ?>
 			<?php if ( self::TAB_OBSERVER_PASSES === $active_tab ) : ?>
 				<?php self::render_observer_passes_tab( $observer_report, $observer_filters, $page_id ); ?>
 			<?php elseif ( self::TAB_MEMBERSHIPS === $active_tab ) : ?>
 				<?php self::render_memberships_tab( $membership_report, $membership_filters, $page_id ); ?>
-			<?php elseif ( self::TAB_EVENT_ATTENDANCE === $active_tab ) : ?>
-				<?php self::render_event_attendance_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_OVERVIEW === $active_tab ) : ?>
 				<?php self::render_overview_tab( $filters['event_id'] ); ?>
 			<?php elseif ( self::TAB_TICKET_SALES === $active_tab ) : ?>
@@ -1286,20 +1283,19 @@ final class Board_Reports {
 		}
 
 		$stats = $service->get_event_statistics( $event_id );
-		$approval_counts = isset( $stats['rsvp_approval_counts'] ) && is_array( $stats['rsvp_approval_counts'] )
-			? $stats['rsvp_approval_counts']
-			: array();
 		$metrics = array(
-			__( 'Ticket Quantity', 'oras-tickets' )       => (string) absint( $stats['ticket_quantity'] ?? 0 ),
-			__( 'Ticket Orders', 'oras-tickets' )         => (string) absint( $stats['ticket_order_count'] ?? 0 ),
+			__( 'Total Registrations', 'oras-tickets' )   => (string) absint( $stats['total_registrations'] ?? 0 ),
+			__( 'People Registered', 'oras-tickets' )     => (string) absint( $stats['people_registered'] ?? 0 ),
+			__( 'Website Registrations', 'oras-tickets' ) => (string) absint( $stats['website_registrations'] ?? 0 ),
+			__( 'On-site / Walk-in Registrations', 'oras-tickets' ) => (string) absint( $stats['walk_in_registrations'] ?? 0 ),
+			__( 'Included With Another Event', 'oras-tickets' ) => (string) absint( $stats['included_event_registrations'] ?? 0 ),
 			__( 'RSVP Yes', 'oras-tickets' )              => (string) absint( $stats['rsvp_yes_count'] ?? 0 ),
-			__( 'Pending Virtual', 'oras-tickets' )       => (string) absint( $approval_counts[ Event_RSVP::APPROVAL_STATUS_PENDING ] ?? 0 ),
-			__( 'Approved Virtual', 'oras-tickets' )      => (string) absint( $stats['rsvp_virtual_approved_count'] ?? 0 ),
-			__( 'On-site Attendance', 'oras-tickets' )    => (string) absint( $stats['onsite_attendance_count'] ?? 0 ),
-			__( 'Virtual Attendance', 'oras-tickets' )    => (string) absint( $stats['virtual_attendance_count'] ?? 0 ),
 			__( 'Waitlist', 'oras-tickets' )              => (string) absint( $stats['rsvp_waitlist_count'] ?? 0 ),
+			__( 'Checked In Today', 'oras-tickets' )      => (string) absint( $stats['checked_in_today'] ?? 0 ),
+			__( 'Expected Attendance', 'oras-tickets' )   => (string) absint( $stats['expected_attendance'] ?? 0 ),
+			__( 'No-shows', 'oras-tickets' )              => (string) absint( $stats['no_show_registrations'] ?? 0 ),
+			__( 'Memberships Recorded', 'oras-tickets' )  => (string) absint( $stats['event_memberships'] ?? 0 ),
 			__( 'Open Attention Items', 'oras-tickets' )  => (string) Event_Question_Attention_Store::count_open( $event_id ),
-			__( 'Expected Attendance', 'oras-tickets' )   => (string) ( absint( $stats['onsite_attendance_count'] ?? 0 ) + absint( $stats['virtual_attendance_count'] ?? 0 ) ),
 			__( 'Communications Sent', 'oras-tickets' )   => (string) self::get_communication_count_for_event( $event_id ),
 		);
 		?>
@@ -1326,8 +1322,8 @@ final class Board_Reports {
 
 		$url = add_query_arg(
 			array(
-				'oras_board_tab'      => self::TAB_ATTENTION,
-				'oras_board_event_id' => $event_id,
+				'oras_board_tab'        => self::TAB_ATTENTION,
+				'oras_board_event_id'   => $event_id,
 				'oras_attention_status' => Event_Question_Attention_Store::STATUS_OPEN,
 			),
 			self::get_form_action_url()
@@ -1355,88 +1351,11 @@ final class Board_Reports {
 		?>
 		<section class="oras-board-reports__placeholder">
 			<h3><?php echo esc_html__( 'Event Overview', 'oras-tickets' ); ?></h3>
-			<p><?php echo esc_html__( 'Use Sales for paid ticket orders, RSVP Management for approvals and waitlists, Roster for the combined attendee list, and Communications for event emails.', 'oras-tickets' ); ?></p>
+			<p><?php echo esc_html__( 'Use Tickets to review website and on-site issuance, RSVP Management for approvals and waitlists, Roster for every covered person, and Communications for event emails.', 'oras-tickets' ); ?></p>
 			<?php if ( $event_id > 0 ) : ?>
 				<p><strong><?php echo esc_html__( 'Selected event:', 'oras-tickets' ); ?></strong> <?php echo esc_html( get_the_title( $event_id ) ); ?></p>
 			<?php endif; ?>
 		</section>
-		<?php
-	}
-
-	private static function render_event_attendance_tab( int $event_id ): void {
-		if ( $event_id <= 0 ) {
-			echo '<section class="oras-board-reports__placeholder"><h3>' . esc_html__( 'Event Registration & Attendance', 'oras-tickets' ) . '</h3><p>' . esc_html__( 'Select an event to view its Registration Desk history.', 'oras-tickets' ) . '</p></section>';
-			return;
-		}
-		$stats = ( new Event_Stats_Service() )->for_event( $event_id );
-		$total = $stats['event_total'];
-		$memberships = $stats['memberships'];
-		$metrics = array(
-			__( 'Active registrations', 'oras-tickets' )  => (int) $total['active_registrations'],
-			__( 'People registered', 'oras-tickets' )     => (int) $total['people_registered'],
-			__( 'Unique attendees', 'oras-tickets' )      => (int) $total['unique_attendees'],
-			__( 'Attendance instances', 'oras-tickets' )  => (int) $total['attendance_instances'],
-			__( 'No-show registrations', 'oras-tickets' ) => (int) $total['no_show_registrations'],
-			__( 'Direct website registrations', 'oras-tickets' ) => (int) $total['direct_website_registrations'],
-			__( 'Included with another event', 'oras-tickets' ) => (int) $total['included_event_registrations'],
-			__( 'Walk-in registrations', 'oras-tickets' ) => (int) $total['walk_in_registrations'],
-			__( 'Complimentary registrations', 'oras-tickets' ) => (int) $total['complimentary_registrations'],
-			__( 'RSVP registrations', 'oras-tickets' )    => (int) $total['rsvp_registrations'],
-			__( 'Manager Verified registrations', 'oras-tickets' ) => (int) $total['manager_verified_registrations'],
-			__( 'Family registrations', 'oras-tickets' )  => (int) $total['family_registrations'],
-			__( 'Actual family attendees', 'oras-tickets' ) => (int) $total['family_attendees_attended'],
-		);
-		?>
-		<section class="oras-board-reports__placeholder">
-			<h3><?php echo esc_html( get_the_title( $event_id ) ); ?> — <?php echo esc_html__( 'Registration & Attendance', 'oras-tickets' ); ?></h3>
-			<p><?php echo esc_html__( 'Registration Desk payment methods are operational assertions only; no dollar revenue is calculated here.', 'oras-tickets' ); ?></p>
-			<div class="oras-board-reports__overview-grid">
-				<?php foreach ( $metrics as $label => $value ) : ?>
-					<div class="oras-board-reports__metric"><p class="oras-board-reports__metric-label"><?php echo esc_html( $label ); ?></p><p class="oras-board-reports__metric-value"><?php echo esc_html( number_format_i18n( $value ) ); ?></p></div>
-				<?php endforeach; ?>
-			</div>
-			<div class="oras-board-reports__overview-grid">
-				<?php self::render_event_count_group( __( 'Attendance by day', 'oras-tickets' ), $total['attendance_by_day'] ); ?>
-				<?php self::render_event_count_group( __( 'Registration/pass types', 'oras-tickets' ), $total['pass_types'] ); ?>
-				<?php self::render_event_count_group( __( 'One-day and full-event', 'oras-tickets' ), $total['validity'] ); ?>
-				<?php self::render_event_count_group( __( 'Walk-in payment assertions', 'oras-tickets' ), $total['payment_assertions'] ); ?>
-			</div>
-			<h4><?php echo esc_html__( 'Memberships originating at this event', 'oras-tickets' ); ?></h4>
-			<div class="oras-board-reports__overview-grid">
-				<?php
-				self::render_event_count_group(
-					__( 'Activation status', 'oras-tickets' ),
-					array(
-						'Pending online activation' => $memberships['pending'],
-						'Redeemed / active'         => $memberships['redeemed'],
-						'Expired unused codes'      => $memberships['expired'],
-						'Cancelled codes'           => $memberships['cancelled'],
-					)
-				);
-				?>
-				<?php
-				self::render_event_count_group(
-					__( 'Cash / Check recorded', 'oras-tickets' ),
-					array(
-						'Cash'  => $memberships['cash'],
-						'Check' => $memberships['check'],
-					)
-				);
-				?>
-				<?php self::render_event_count_group( __( 'Membership levels', 'oras-tickets' ), $memberships['levels'] ); ?>
-			</div>
-		</section>
-		<?php
-	}
-
-	/** @param array<string,int> $counts */
-	private static function render_event_count_group( string $title, array $counts ): void {
-		?>
-		<div class="oras-board-reports__metric"><p class="oras-board-reports__metric-label"><?php echo esc_html( $title ); ?></p><dl>
-			<?php foreach ( $counts as $label => $count ) : ?>
-				<div><dt><?php echo esc_html( ucwords( str_replace( '_', ' ', (string) $label ) ) ); ?></dt><dd><?php echo esc_html( number_format_i18n( (int) $count ) ); ?></dd></div>
-			<?php endforeach; ?>
-		</dl></div>
 		<?php
 	}
 
@@ -1458,7 +1377,7 @@ final class Board_Reports {
 					<div class="oras-board-reports__notice" role="status"><?php echo esc_html__( 'Paid Memberships Pro data is unavailable. Legacy PayPal records remain available.', 'oras-tickets' ); ?></div>
 				<?php endif; ?>
 				<?php self::render_membership_summary_cards( is_array( $report['summary'] ?? null ) ? $report['summary'] : array() ); ?>
-				<?php self::render_membership_filters( $filters, $page_id ); ?>
+				<?php self::render_membership_filters( $filters, is_array( $report['origin_events'] ?? null ) ? $report['origin_events'] : array(), $page_id ); ?>
 				<?php if ( empty( $all_rows ) ) : ?>
 					<div class="oras-board-reports__empty" role="status"><?php echo esc_html__( 'No membership records found.', 'oras-tickets' ); ?></div>
 				<?php else : ?>
@@ -1672,8 +1591,9 @@ final class Board_Reports {
 	private static function render_membership_summary_cards( array $summary ): void {
 		$cards = array(
 			'current_unique_members' => __( 'Current Unique Members', 'oras-tickets' ),
-			'website_active_count' => __( 'PMPro Current Memberships', 'oras-tickets' ),
-			'legacy_active_count'  => __( 'Legacy PayPal Active Subscription Records', 'oras-tickets' ),
+			'website_active_count'   => __( 'PMPro Current Memberships', 'oras-tickets' ),
+			'offline_current_count'  => __( 'On-site Membership Records', 'oras-tickets' ),
+			'legacy_active_count'    => __( 'Legacy PayPal Active Subscription Records', 'oras-tickets' ),
 			'matched_across_sources' => __( 'Matched Across Both Sources', 'oras-tickets' ),
 		);
 		?>
@@ -1688,14 +1608,17 @@ final class Board_Reports {
 		<?php
 	}
 
-	/** @param array<string,mixed> $filters */
-	private static function render_membership_filters( array $filters, int $page_id ): void {
+	/** @param array<string,mixed> $filters @param array<int,string> $origin_events */
+	private static function render_membership_filters( array $filters, array $origin_events, int $page_id ): void {
 		?>
 		<form class="oras-board-reports__filters" method="get" action="<?php echo esc_url( self::get_form_action_url() ); ?>">
 			<?php if ( $page_id > 0 ) : ?>
 				<input type="hidden" name="page_id" value="<?php echo esc_attr( (string) $page_id ); ?>" />
 			<?php endif; ?>
 			<input type="hidden" name="oras_board_tab" value="<?php echo esc_attr( self::TAB_MEMBERSHIPS ); ?>" />
+			<?php if ( absint( $filters['origin_event'] ?? 0 ) > 0 ) : ?>
+				<input type="hidden" name="oras_board_event_id" value="<?php echo esc_attr( (string) absint( $filters['origin_event'] ) ); ?>" />
+			<?php endif; ?>
 			<label><?php echo esc_html__( 'Roster', 'oras-tickets' ); ?><select name="oras_membership_roster_scope">
 				<option value="current" <?php selected( (string) ( $filters['roster_scope'] ?? 'current' ), 'current' ); ?>><?php echo esc_html__( 'Current Members', 'oras-tickets' ); ?></option>
 				<option value="former" <?php selected( (string) ( $filters['roster_scope'] ?? '' ), 'former' ); ?>><?php echo esc_html__( 'Former / Inactive', 'oras-tickets' ); ?></option>
@@ -1714,6 +1637,12 @@ final class Board_Reports {
 			<label><?php echo esc_html__( 'Account link', 'oras-tickets' ); ?><select name="oras_membership_account_link">
 				<?php foreach ( self::get_membership_link_options() as $value => $label ) : ?>
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) ( $filters['account_link'] ?? Membership_Report_Service::LINK_ALL ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select></label>
+			<label><?php echo esc_html__( 'Origin Event', 'oras-tickets' ); ?><select name="oras_membership_origin_event">
+				<option value="0"><?php echo esc_html__( 'All Events', 'oras-tickets' ); ?></option>
+				<?php foreach ( $origin_events as $event_id => $event_title ) : ?>
+					<option value="<?php echo esc_attr( (string) $event_id ); ?>" <?php selected( absint( $filters['origin_event'] ?? 0 ), absint( $event_id ) ); ?>><?php echo esc_html( $event_title ); ?></option>
 				<?php endforeach; ?>
 			</select></label>
 			<label><?php echo esc_html__( 'Name, email, or username', 'oras-tickets' ); ?><input type="search" name="oras_membership_search" value="<?php echo esc_attr( (string) ( $filters['search'] ?? '' ) ); ?>" /></label>
@@ -1739,6 +1668,8 @@ final class Board_Reports {
 						<th><?php echo esc_html__( 'Member', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Level', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Origin Event', 'oras-tickets' ); ?></th>
+						<th><?php echo esc_html__( 'Recorded Method', 'oras-tickets' ); ?></th>
 						<th><?php echo esc_html__( 'Status', 'oras-tickets' ); ?></th>
 					</tr>
 				</thead>
@@ -1751,6 +1682,8 @@ final class Board_Reports {
 							</td>
 							<td><?php echo esc_html( (string) ( $row['source_label'] ?? '' ) ); ?></td>
 							<td><?php echo esc_html( (string) ( $row['level_name'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $row['origin_event_title'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $row['recorded_method_label'] ?? '' ) ); ?></td>
 							<td><?php echo esc_html( self::get_membership_status_label( (string) ( $row['operational_status'] ?? '' ) ) ); ?></td>
 						</tr>
 					<?php endforeach; ?>
@@ -1799,6 +1732,10 @@ final class Board_Reports {
 				<div><dt><?php echo esc_html__( 'Start date', 'oras-tickets' ); ?></dt><dd><?php self::render_observer_date( (string) ( $row['start_date'] ?? '' ) ); ?></dd></div>
 				<?php self::render_membership_timing_detail( $row ); ?>
 				<div><dt><?php echo esc_html__( 'Source', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_recorded_value( $row, 'source_label' ) ); ?></dd></div>
+				<?php if ( '' !== (string) ( $row['origin_event_title'] ?? '' ) ) : ?>
+					<div><dt><?php echo esc_html__( 'Origin Event', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) $row['origin_event_title'] ); ?></dd></div>
+					<div><dt><?php echo esc_html__( 'Recorded Method', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_recorded_value( $row, 'recorded_method_label' ) ); ?></dd></div>
+				<?php endif; ?>
 				<div><dt><?php echo esc_html__( 'Website-account linkage', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( self::get_membership_link_label( (string) ( $row['account_link_status'] ?? '' ) ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Source record', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( (string) absint( $row['source_record_id'] ?? 0 ) ); ?></dd></div>
 				<div><dt><?php echo esc_html__( 'Source status', 'oras-tickets' ); ?></dt><dd><?php echo esc_html( ucfirst( (string) ( $row['source_status'] ?? '' ) ) ); ?></dd></div>
@@ -1848,9 +1785,9 @@ final class Board_Reports {
 			echo '</ul></section>';
 		}
 		if ( ! empty( $offline ) ) {
-			echo '<section><h5>' . esc_html__( 'Offline Event Activations', 'oras-tickets' ) . '</h5><ul>';
+			echo '<section><h5>' . esc_html__( 'On-site / Registration Desk Memberships', 'oras-tickets' ) . '</h5><ul>';
 			foreach ( $offline as $record ) {
-				echo '<li>' . esc_html( get_the_title( absint( $record['event_id'] ?? 0 ) ) . ' — ' . ucfirst( str_replace( '_', ' ', (string) ( $record['operational_status'] ?? '' ) ) ) . ' — Email ' . (string) ( $record['email_status'] ?? '' ) ) . '</li>';
+				echo '<li>' . esc_html( (string) ( $record['origin_event_title'] ?? get_the_title( absint( $record['event_id'] ?? 0 ) ) ) . ' — ' . (string) ( $record['recorded_method_label'] ?? '' ) . ' — ' . self::get_membership_status_label( (string) ( $record['operational_status'] ?? '' ) ) . ' — Email ' . (string) ( $record['email_status'] ?? '' ) ) . '</li>';
 			}
 			echo '</ul></section>';
 		}
@@ -1859,7 +1796,17 @@ final class Board_Reports {
 	/** @param array<string,mixed> $report */
 	private static function render_membership_orphan_diagnostics( array $report ): void {
 		$orphans = isset( $report['orphan_pmpro_rows'] ) && is_array( $report['orphan_pmpro_rows'] ) ? $report['orphan_pmpro_rows'] : array();
-		?> <details class="oras-board-reports__observer-details"><summary><?php echo esc_html( sprintf( __( 'Unresolved PMPro history (%d)', 'oras-tickets' ), count( $orphans ) ) ); ?></summary><p><?php echo esc_html__( 'Read-only unresolved source relationships; they are not roster people.', 'oras-tickets' ); ?></p><?php foreach ( $orphans as $orphan ) : ?><p><?php echo esc_html( sprintf( __( 'Record #%d — %s', 'oras-tickets' ), absint( $orphan['source_record_id'] ?? 0 ), (string) ( $orphan['level_name'] ?? '' ) ) ); ?></p><?php endforeach; ?></details><?php
+		/* translators: %d: unresolved PMPro history record count. */
+		$summary = sprintf( __( 'Unresolved PMPro history (%d)', 'oras-tickets' ), count( $orphans ) );
+		?>
+		<details class="oras-board-reports__observer-details"><summary><?php echo esc_html( $summary ); ?></summary><p><?php echo esc_html__( 'Read-only unresolved source relationships; they are not roster people.', 'oras-tickets' ); ?></p>
+		<?php
+		foreach ( $orphans as $orphan ) :
+			/* translators: 1: PMPro source record ID, 2: membership level name. */
+			$record_label = sprintf( __( 'Record #%1$d — %2$s', 'oras-tickets' ), absint( $orphan['source_record_id'] ?? 0 ), (string) ( $orphan['level_name'] ?? '' ) );
+			?>
+			<p><?php echo esc_html( $record_label ); ?></p><?php endforeach; ?></details>
+		<?php
 	}
 
 	/** @param array<string,mixed> $row */
@@ -1965,7 +1912,7 @@ final class Board_Reports {
 			Membership_Report_Service::SOURCE_ALL     => __( 'All Sources', 'oras-tickets' ),
 			Membership_Report_Service::SOURCE_WEBSITE => __( 'Website / PMPro', 'oras-tickets' ),
 			Membership_Report_Service::SOURCE_LEGACY  => __( 'Legacy PayPal', 'oras-tickets' ),
-			Membership_Report_Service::SOURCE_OFFLINE => __( 'Offline Event Activation', 'oras-tickets' ),
+			Membership_Report_Service::SOURCE_OFFLINE => __( 'On-site / Registration Desk', 'oras-tickets' ),
 		);
 	}
 
@@ -1979,7 +1926,7 @@ final class Board_Reports {
 			Membership_Report_Service::STATUS_INACTIVE  => __( 'Inactive', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_CANCELLED => __( 'Cancelled', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_PENDING_ACTIVATION => __( 'Pending Online Activation', 'oras-tickets' ),
-			Membership_Report_Service::STATUS_REDEEMED_OFFLINE => __( 'Redeemed Offline Activation', 'oras-tickets' ),
+			Membership_Report_Service::STATUS_REDEEMED_OFFLINE => __( 'Redeemed', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_CREDIT_EXPIRED => __( 'Expired Credit', 'oras-tickets' ),
 			Membership_Report_Service::STATUS_CREDIT_CANCELLED => __( 'Cancelled Credit', 'oras-tickets' ),
 		);
@@ -2023,6 +1970,8 @@ final class Board_Reports {
 			'oras_membership_source'       => (string) ( $filters['source'] ?? Membership_Report_Service::SOURCE_ALL ),
 			'oras_membership_status'       => (string) ( $filters['status'] ?? Membership_Report_Service::STATUS_ALL ),
 			'oras_membership_account_link' => (string) ( $filters['account_link'] ?? Membership_Report_Service::LINK_ALL ),
+			'oras_membership_origin_event' => absint( $filters['origin_event'] ?? 0 ),
+			'oras_board_event_id'          => absint( $filters['origin_event'] ?? 0 ),
 			'oras_membership_search'       => (string) ( $filters['search'] ?? '' ),
 			'oras_membership_page'         => max( 1, $page ),
 			'oras_membership_per_page'     => absint( $filters['per_page'] ?? 25 ),
@@ -2813,6 +2762,13 @@ final class Board_Reports {
 			$filters['event_id'] = (int) $events[0]->ID;
 		}
 
+		$unfiltered_report = $service->get_event_report( $filters['event_id'] );
+		$ticket_types = array_values(
+			array_unique(
+				array_filter( wp_list_pluck( $unfiltered_report['tickets'], 'item_label' ) )
+			)
+		);
+		natcasesort( $ticket_types );
 		$rows = $service->get_rows( $filters['type'], $filters );
 		$summary_rows = $rows;
 		$page_data = self::paginate_rows( $rows, $filters );
@@ -2829,6 +2785,24 @@ final class Board_Reports {
 				<?php self::render_page_size_field( $filters['per_page'] ); ?>
 
 				<?php self::render_event_hidden_input( $filters['event_id'] ); ?>
+				<label>
+					<?php echo esc_html__( 'Source', 'oras-tickets' ); ?>
+					<select name="oras_board_ticket_source">
+						<option value="all" <?php selected( $filters['ticket_source'], 'all' ); ?>><?php echo esc_html__( 'All', 'oras-tickets' ); ?></option>
+						<option value="website" <?php selected( $filters['ticket_source'], 'website' ); ?>><?php echo esc_html__( 'Website', 'oras-tickets' ); ?></option>
+						<option value="onsite" <?php selected( $filters['ticket_source'], 'onsite' ); ?>><?php echo esc_html__( 'On-site', 'oras-tickets' ); ?></option>
+					</select>
+				</label>
+
+				<label>
+					<?php echo esc_html__( 'Ticket Type', 'oras-tickets' ); ?>
+					<select name="oras_board_ticket_type">
+						<option value=""><?php echo esc_html__( 'All Ticket Types', 'oras-tickets' ); ?></option>
+						<?php foreach ( $ticket_types as $ticket_type ) : ?>
+							<option value="<?php echo esc_attr( $ticket_type ); ?>" <?php selected( $filters['ticket_type'], $ticket_type ); ?>><?php echo esc_html( $ticket_type ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
 
 				<label>
 					<?php echo esc_html__( 'After', 'oras-tickets' ); ?>
@@ -2855,7 +2829,7 @@ final class Board_Reports {
 				</label>
 
 				<div class="oras-board-reports__actions">
-					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Sales', 'oras-tickets' ); ?></button>
+					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Tickets', 'oras-tickets' ); ?></button>
 					<?php if ( current_user_can( 'oras_tickets_export_reports' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
 						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Create Spreadsheet', 'oras-tickets' ); ?></a>
 						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Create PDF', 'oras-tickets' ); ?></a>
@@ -2875,7 +2849,7 @@ final class Board_Reports {
 				<?php self::render_pagination( $page_data ); ?>
 				<?php endif; ?>
 			<?php
-		}
+	}
 
 	private static function render_waitlist_section( int $event_id ): void {
 		$rows = Waitlist_Store::get_event_rows( $event_id, array( 'waiting' ), 250, 'joined_asc' );
@@ -3056,19 +3030,18 @@ final class Board_Reports {
 		$summary_rows = $rows;
 		$page_data = self::paginate_rows( $rows, $filters );
 		$rows = $page_data['rows'];
-		$ticket_export_filters = array_merge(
+		$roster_export_filters = array_merge(
 			$filters,
 			array(
-				'type'   => Board_Report_Service::TYPE_TICKETS,
-				'status' => $filters['ticket_status'],
+				'type' => Board_Report_Service::TYPE_ROSTER,
 			)
 		);
 		$spreadsheet_export_url = self::build_export_url(
-			$ticket_export_filters,
+			$roster_export_filters,
 			'spreadsheet'
 		);
 		$pdf_export_url = self::build_export_url(
-			$ticket_export_filters,
+			$roster_export_filters,
 			'pdf'
 		);
 		?>
@@ -3119,8 +3092,8 @@ final class Board_Reports {
 				<div class="oras-board-reports__actions">
 					<button class="button button-primary" type="submit"><?php echo esc_html__( 'Show Roster', 'oras-tickets' ); ?></button>
 					<?php if ( current_user_can( 'oras_tickets_export_reports' ) ) : // phpcs:ignore WordPress.WP.Capabilities.Unknown ?>
-						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Export Sales Spreadsheet', 'oras-tickets' ); ?></a>
-						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Export Sales PDF', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $spreadsheet_export_url ); ?>"><?php echo esc_html__( 'Export Roster Spreadsheet', 'oras-tickets' ); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url( $pdf_export_url ); ?>"><?php echo esc_html__( 'Export Roster PDF', 'oras-tickets' ); ?></a>
 					<?php endif; ?>
 				</div>
 			</form>
@@ -3139,7 +3112,7 @@ final class Board_Reports {
 				<?php self::render_pagination( $page_data ); ?>
 				<?php endif; ?>
 			<?php
-		}
+	}
 
 	private static function render_rsvps_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
@@ -3217,7 +3190,7 @@ final class Board_Reports {
 					<?php self::render_waitlist_section( $filters['event_id'] ); ?>
 				<?php endif; ?>
 			<?php
-		}
+	}
 
 	private static function render_attention_tab( int $page_id ): void {
 		$service = new Board_Report_Service();
@@ -3338,11 +3311,11 @@ final class Board_Reports {
 
 		self::render_compact_summary_bar(
 			array(
-				__( 'Rows Shown', 'oras-tickets' )     => count( $rows ),
-				__( 'Unique Orders', 'oras-tickets' )  => count( $order_ids ),
-				__( 'Ticket Quantity', 'oras-tickets' ) => $quantity,
+				__( 'Ticket Rows', 'oras-tickets' )    => count( $rows ),
+				__( 'Website Orders', 'oras-tickets' ) => count( $order_ids ),
+				__( 'People Covered', 'oras-tickets' ) => $quantity,
 			),
-			__( 'Sales result summary', 'oras-tickets' )
+			__( 'Tickets result summary', 'oras-tickets' )
 		);
 	}
 
@@ -3357,19 +3330,29 @@ final class Board_Reports {
 		$source = self::row_scalar( $row, 'source' );
 		$quantity = self::row_scalar( $row, 'quantity' );
 		$item = self::row_scalar( $row, 'item_label' );
+		$payment = self::row_scalar( $row, 'payment_assertion_label' );
+		$order_id = absint( $row['order_id'] ?? 0 );
+		$quantity_label = '';
+		if ( '' !== $quantity ) {
+			/* translators: %s: ticket quantity. */
+			$quantity_label = sprintf( __( 'Qty %s', 'oras-tickets' ), $quantity );
+		}
 		?>
 		<article class="oras-board-reports__report-card oras-board-reports__sales-card">
 			<div class="oras-board-reports__report-card-main">
-				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( '' !== $name ? $name : __( 'Unnamed purchaser', 'oras-tickets' ) ); ?></h3>
+				<h3 class="oras-board-reports__report-card-title"><?php echo esc_html( '' !== $item ? $item : __( 'Ticket registration', 'oras-tickets' ) ); ?></h3>
 				<?php self::render_report_card_contact( $email, $phone ); ?>
-				<?php self::render_report_card_badges( array_filter( array( $status, $source, '' !== $quantity ? sprintf( __( 'Qty %s', 'oras-tickets' ), $quantity ) : '' ) ) ); ?>
+				<?php self::render_report_card_badges( array_filter( array( $source, $quantity_label, $status, $payment ) ) ); ?>
 				<?php
 				self::render_report_card_fields(
-					array(
-						__( 'Item / Ticket / Pass', 'oras-tickets' ) => $item,
-						__( 'Order Date', 'oras-tickets' ) => self::row_scalar( $row, 'order_date' ),
-						__( 'Address', 'oras-tickets' ) => self::row_scalar( $row, 'address_summary' ),
-						__( 'Note', 'oras-tickets' ) => self::row_scalar( $row, 'note' ),
+					array_filter(
+						array(
+							__( 'Registrant / Purchaser', 'oras-tickets' ) => $name,
+							__( 'Woo Order', 'oras-tickets' ) => $order_id > 0 ? '#' . $order_id : '',
+							__( 'Order Date', 'oras-tickets' ) => self::row_scalar( $row, 'order_date' ),
+							__( 'Address', 'oras-tickets' ) => self::row_scalar( $row, 'address_summary' ),
+							__( 'Note', 'oras-tickets' ) => self::row_scalar( $row, 'note' ),
+						)
 					)
 				);
 				?>
@@ -3387,11 +3370,11 @@ final class Board_Reports {
 		$rsvp_rows = 0;
 		$virtual_rows = 0;
 		foreach ( $rows as $row ) {
-			$source = strtolower( self::row_scalar( $row, 'source' ) );
-			if ( str_contains( $source, 'ticket' ) ) {
+			$source_group = self::row_scalar( $row, 'source_group' );
+			if ( 'tickets' === $source_group ) {
 				++$ticket_rows;
 			}
-			if ( str_contains( $source, 'rsvp' ) ) {
+			if ( 'rsvps' === $source_group ) {
 				++$rsvp_rows;
 			}
 			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === strtolower( self::row_scalar( $row, 'attendance_type' ) ) ) {
@@ -3417,7 +3400,7 @@ final class Board_Reports {
 		$name = self::row_scalar( $row, 'name' );
 		$email = self::row_scalar( $row, 'email' );
 		$phone = self::row_scalar( $row, 'phone' );
-		$item = trim( self::row_scalar( $row, 'item_label' ) . self::format_status_suffix( self::row_scalar( $row, 'order_status' ) ) );
+		$item = self::row_scalar( $row, 'item_label' );
 		?>
 		<article class="oras-board-reports__report-card oras-board-reports__roster-card">
 			<div class="oras-board-reports__report-card-main">
@@ -3427,9 +3410,10 @@ final class Board_Reports {
 				<?php
 				self::render_report_card_fields(
 					array(
-						__( 'Item / Status', 'oras-tickets' ) => $item,
-						__( 'Quantity', 'oras-tickets' ) => self::row_scalar( $row, 'quantity' ),
-						__( 'Note', 'oras-tickets' )     => self::row_scalar( $row, 'note' ),
+						__( 'Registration / Ticket Type', 'oras-tickets' ) => $item,
+						__( 'Registration Status', 'oras-tickets' ) => self::row_scalar( $row, 'registration_status' ),
+						__( 'Attendance / Check-in Status', 'oras-tickets' ) => self::row_scalar( $row, 'attendance_status' ),
+						__( 'Note', 'oras-tickets' ) => self::row_scalar( $row, 'note' ),
 					)
 				);
 				?>
@@ -3514,8 +3498,8 @@ final class Board_Reports {
 				<?php
 				self::render_report_card_fields(
 					array(
-						__( 'Date Sent', 'oras-tickets' )       => self::row_scalar( $row, 'sent_at' ),
-						__( 'Sent By', 'oras-tickets' )         => trim( self::row_scalar( $row, 'sender_display_name' ) . ' <' . self::row_scalar( $row, 'sender_email' ) . '>' ),
+						__( 'Date Sent', 'oras-tickets' ) => self::row_scalar( $row, 'sent_at' ),
+						__( 'Sent By', 'oras-tickets' )   => trim( self::row_scalar( $row, 'sender_display_name' ) . ' <' . self::row_scalar( $row, 'sender_email' ) . '>' ),
 						__( 'Recipient Count', 'oras-tickets' ) => self::row_scalar( $row, 'recipient_count' ),
 					)
 				);
@@ -4162,7 +4146,7 @@ final class Board_Reports {
 
 	private static function get_active_tab(): string {
 		$tab = isset( $_GET['oras_board_tab'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_tab'] ) ) : self::TAB_OVERVIEW;
-		if ( self::TAB_STATISTICS === $tab ) {
+		if ( in_array( $tab, array( self::TAB_STATISTICS, self::LEGACY_TAB_EVENT_ATTENDANCE ), true ) ) {
 			return self::TAB_OVERVIEW;
 		}
 
@@ -4176,15 +4160,14 @@ final class Board_Reports {
 	 */
 	private static function get_dashboard_tabs(): array {
 		return array(
-			self::TAB_OVERVIEW         => __( 'Event Overview', 'oras-tickets' ),
-			self::TAB_TICKET_SALES     => __( 'Sales', 'oras-tickets' ),
-			self::TAB_RSVPS            => __( 'RSVP Management', 'oras-tickets' ),
-			self::TAB_ATTENTION        => __( 'Attention Needed', 'oras-tickets' ),
-			self::TAB_COMMUNICATIONS   => __( 'Communications', 'oras-tickets' ),
-			self::TAB_ATTENDEES        => __( 'Roster', 'oras-tickets' ),
-			self::TAB_OBSERVER_PASSES  => __( 'Observer Passes', 'oras-tickets' ),
-			self::TAB_MEMBERSHIPS      => __( 'Memberships', 'oras-tickets' ),
-			self::TAB_EVENT_ATTENDANCE => __( 'Event Registration & Attendance', 'oras-tickets' ),
+			self::TAB_OVERVIEW        => __( 'Event Overview', 'oras-tickets' ),
+			self::TAB_TICKET_SALES    => __( 'Tickets', 'oras-tickets' ),
+			self::TAB_RSVPS           => __( 'RSVP Management', 'oras-tickets' ),
+			self::TAB_ATTENTION       => __( 'Attention Needed', 'oras-tickets' ),
+			self::TAB_COMMUNICATIONS  => __( 'Communications', 'oras-tickets' ),
+			self::TAB_ATTENDEES       => __( 'Roster', 'oras-tickets' ),
+			self::TAB_OBSERVER_PASSES => __( 'Observer Passes', 'oras-tickets' ),
+			self::TAB_MEMBERSHIPS     => __( 'Memberships', 'oras-tickets' ),
 		);
 	}
 
@@ -4267,6 +4250,9 @@ final class Board_Reports {
 		if ( 0 === strpos( $key, 'oras_legacy_' ) ) {
 			return self::TAB_MEMBERSHIPS !== $tab;
 		}
+		if ( self::TAB_MEMBERSHIPS === $tab && 'oras_board_event_id' === $key ) {
+			return false;
+		}
 
 		if ( ! in_array( $tab, array( self::TAB_OBSERVER_PASSES, self::TAB_MEMBERSHIPS ), true ) || 'oras_board_tab' === $key ) {
 			return false;
@@ -4307,12 +4293,12 @@ final class Board_Reports {
 		}
 
 		return array(
-			'event_id'     => max( 0, $event_id ),
-			'status'       => $status,
-			'severity'     => $severity,
-			'source_type'  => $source_type,
-			'search'       => isset( $_GET['oras_attention_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_attention_search'] ) ) : '',
-			'limit'        => 250,
+			'event_id'    => max( 0, $event_id ),
+			'status'      => $status,
+			'severity'    => $severity,
+			'source_type' => $source_type,
+			'search'      => isset( $_GET['oras_attention_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_attention_search'] ) ) : '',
+			'limit'       => 250,
 		);
 	}
 
@@ -4321,9 +4307,9 @@ final class Board_Reports {
 	 */
 	private static function get_attention_status_options(): array {
 		return array(
-			Event_Question_Attention_Store::STATUS_OPEN      => __( 'Open', 'oras-tickets' ),
-			Event_Question_Attention_Store::STATUS_REVIEWED  => __( 'Reviewed', 'oras-tickets' ),
-			Event_Question_Attention_Store::STATUS_RESOLVED  => __( 'Resolved', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_OPEN => __( 'Open', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_REVIEWED => __( 'Reviewed', 'oras-tickets' ),
+			Event_Question_Attention_Store::STATUS_RESOLVED => __( 'Resolved', 'oras-tickets' ),
 			Event_Question_Attention_Store::STATUS_DISMISSED => __( 'Dismissed', 'oras-tickets' ),
 		);
 	}
@@ -4347,13 +4333,13 @@ final class Board_Reports {
 		$before = isset( $_GET['oras_comm_before'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_before'] ) ) : '';
 
 		return array(
-			'event_id'           => $event_id,
-			'sender_user_id'     => isset( $_GET['oras_comm_sender_id'] ) ? absint( $_GET['oras_comm_sender_id'] ) : 0,
-			'recipient_segment'  => isset( Communication_Recipients::get_segments()[ $segment ] ) ? $segment : '',
-			'search'             => isset( $_GET['oras_comm_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_search'] ) ) : '',
-			'after'              => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $after ) ? $after : '',
-			'before'             => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $before ) ? $before : '',
-			'limit'              => 50,
+			'event_id'          => $event_id,
+			'sender_user_id'    => isset( $_GET['oras_comm_sender_id'] ) ? absint( $_GET['oras_comm_sender_id'] ) : 0,
+			'recipient_segment' => isset( Communication_Recipients::get_segments()[ $segment ] ) ? $segment : '',
+			'search'            => isset( $_GET['oras_comm_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_comm_search'] ) ) : '',
+			'after'             => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $after ) ? $after : '',
+			'before'            => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $before ) ? $before : '',
+			'limit'             => 50,
 		);
 	}
 
@@ -4605,7 +4591,7 @@ final class Board_Reports {
 		return 'mass_email';
 	}
 
-	/** @return array{source:string,status:string,account_link:string,search:string,page:int,per_page:int} */
+	/** @return array{source:string,status:string,account_link:string,origin_event:int,search:string,page:int,per_page:int} */
 	private static function get_membership_filters_from_request(): array {
 		$source = isset( $_GET['oras_membership_source'] ) ? sanitize_key( wp_unslash( $_GET['oras_membership_source'] ) ) : Membership_Report_Service::SOURCE_ALL;
 		if ( ! isset( self::get_membership_source_options()[ $source ] ) ) {
@@ -4623,12 +4609,16 @@ final class Board_Reports {
 		}
 
 		$per_page = isset( $_GET['oras_membership_per_page'] ) ? absint( $_GET['oras_membership_per_page'] ) : 25;
+		$origin_event = isset( $_GET['oras_membership_origin_event'] )
+			? absint( $_GET['oras_membership_origin_event'] )
+			: ( isset( $_GET['oras_board_event_id'] ) ? absint( $_GET['oras_board_event_id'] ) : 0 );
 
 		return array(
 			'roster_scope' => isset( $_GET['oras_membership_roster_scope'] ) && in_array( sanitize_key( wp_unslash( $_GET['oras_membership_roster_scope'] ) ), array( 'current', 'former', 'all_people' ), true ) ? sanitize_key( wp_unslash( $_GET['oras_membership_roster_scope'] ) ) : 'current',
 			'source'       => $source,
 			'status'       => $status,
 			'account_link' => $account_link,
+			'origin_event' => $origin_event,
 			'search'       => isset( $_GET['oras_membership_search'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_membership_search'] ) ) : '',
 			'page'         => isset( $_GET['oras_membership_page'] ) ? max( 1, absint( $_GET['oras_membership_page'] ) ) : 1,
 			'per_page'     => in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25,
@@ -4741,7 +4731,7 @@ final class Board_Reports {
 	}
 
 	/**
-	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string,attendance_type:string,approval_status:string,attendee_source:string,ticket_status:string,rsvp_status:string,page:int,per_page:int}
+	 * @return array{type:string,event_id:int,after:string,before:string,search:string,status:string,attendance_type:string,approval_status:string,attendee_source:string,ticket_status:string,ticket_source:string,ticket_type:string,rsvp_status:string,page:int,per_page:int}
 	 */
 	private static function get_filters_from_request(): array {
 		$type = isset( $_GET['oras_board_report_type'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_report_type'] ) ) : Board_Report_Service::TYPE_TICKETS;
@@ -4763,6 +4753,10 @@ final class Board_Reports {
 		if ( ! isset( self::get_status_options( Board_Report_Service::TYPE_TICKETS )[ $ticket_status ] ) ) {
 			$ticket_status = 'all';
 		}
+		$ticket_source = isset( $_GET['oras_board_ticket_source'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_ticket_source'] ) ) : 'all';
+		if ( ! in_array( $ticket_source, array( 'all', 'website', 'onsite' ), true ) ) {
+			$ticket_source = 'all';
+		}
 		$rsvp_status = isset( $_GET['oras_board_rsvp_status'] ) ? sanitize_key( wp_unslash( $_GET['oras_board_rsvp_status'] ) ) : 'all';
 		if ( ! isset( self::get_status_options( Board_Report_Service::TYPE_RSVP )[ $rsvp_status ] ) ) {
 			$rsvp_status = 'all';
@@ -4779,6 +4773,8 @@ final class Board_Reports {
 			'approval_status' => $approval_status,
 			'attendee_source' => $attendee_source,
 			'ticket_status'   => $ticket_status,
+			'ticket_source'   => $ticket_source,
+			'ticket_type'     => isset( $_GET['oras_board_ticket_type'] ) ? sanitize_text_field( wp_unslash( $_GET['oras_board_ticket_type'] ) ) : '',
 			'rsvp_status'     => $rsvp_status,
 			'page'            => isset( $_GET['oras_board_page'] ) ? max( 1, absint( $_GET['oras_board_page'] ) ) : 1,
 			'per_page'        => isset( $_GET['oras_board_per_page'] ) && in_array( absint( $_GET['oras_board_per_page'] ), array( 25, 50, 100 ), true ) ? absint( $_GET['oras_board_per_page'] ) : 25,
@@ -4853,18 +4849,20 @@ final class Board_Reports {
 		return wp_nonce_url(
 			add_query_arg(
 				array(
-					'action'                 => $action,
-					'oras_board_report_type' => $filters['type'],
-					'oras_board_event_id'    => $filters['event_id'],
-					'oras_board_after'       => $filters['after'],
-					'oras_board_before'      => $filters['before'],
-					'oras_board_search'      => $filters['search'],
-					'oras_board_status'      => $filters['status'],
+					'action'                     => $action,
+					'oras_board_report_type'     => $filters['type'],
+					'oras_board_event_id'        => $filters['event_id'],
+					'oras_board_after'           => $filters['after'],
+					'oras_board_before'          => $filters['before'],
+					'oras_board_search'          => $filters['search'],
+					'oras_board_status'          => $filters['status'],
 					'oras_board_attendance_type' => $filters['attendance_type'],
 					'oras_board_approval_status' => $filters['approval_status'],
 					'oras_board_attendee_source' => $filters['attendee_source'],
-					'oras_board_ticket_status' => $filters['ticket_status'],
-					'oras_board_rsvp_status'  => $filters['rsvp_status'],
+					'oras_board_ticket_status'   => $filters['ticket_status'],
+					'oras_board_ticket_source'   => $filters['ticket_source'],
+					'oras_board_ticket_type'     => $filters['ticket_type'],
+					'oras_board_rsvp_status'     => $filters['rsvp_status'],
 				),
 				admin_url( 'admin-post.php' )
 			),
@@ -4934,8 +4932,8 @@ final class Board_Reports {
 	 */
 	private static function get_attendance_type_options(): array {
 		return array(
-			'all'                         => __( 'All', 'oras-tickets' ),
-			Ticket::ATTENDANCE_MODE_ONSITE => __( 'On Site', 'oras-tickets' ),
+			'all'                           => __( 'All', 'oras-tickets' ),
+			Ticket::ATTENDANCE_MODE_ONSITE  => __( 'On Site', 'oras-tickets' ),
 			Ticket::ATTENDANCE_MODE_VIRTUAL => __( 'Virtual', 'oras-tickets' ),
 		);
 	}
@@ -4945,8 +4943,8 @@ final class Board_Reports {
 	 */
 	private static function get_approval_status_options(): array {
 		return array(
-			'all'                             => __( 'All', 'oras-tickets' ),
-			Event_RSVP::APPROVAL_STATUS_PENDING => __( 'Pending', 'oras-tickets' ),
+			'all'                                => __( 'All', 'oras-tickets' ),
+			Event_RSVP::APPROVAL_STATUS_PENDING  => __( 'Pending', 'oras-tickets' ),
 			Event_RSVP::APPROVAL_STATUS_APPROVED => __( 'Approved', 'oras-tickets' ),
 			Event_RSVP::APPROVAL_STATUS_REJECTED => __( 'Rejected', 'oras-tickets' ),
 		);
@@ -4962,14 +4960,6 @@ final class Board_Reports {
 		}
 
 		return '' !== $status ? $status : __( 'Unknown', 'oras-tickets' );
-	}
-
-	private static function format_status_suffix( string $status ): string {
-		if ( '' === $status ) {
-			return '';
-		}
-
-		return ' (' . $status . ')';
 	}
 
 	/**

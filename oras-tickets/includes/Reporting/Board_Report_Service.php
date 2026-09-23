@@ -7,6 +7,9 @@ use ORAS\Tickets\Domain\Ticket;
 use ORAS\Tickets\Event_Questions;
 use ORAS\Tickets\Frontend\Event_RSVP;
 use ORAS\Tickets\Integrations\QuickBooks\Settings;
+use ORAS\Tickets\Registration_Desk\Event_Roster_Service;
+use ORAS\Tickets\Registration_Desk\Event_Stats_Service;
+use ORAS\Tickets\Registration_Desk\Schema;
 use ORAS\Tickets\Waitlist_Store;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Board_Report_Service {
 
 	public const TYPE_TICKETS  = 'tickets';
+	public const TYPE_ROSTER   = 'roster';
 	public const TYPE_RSVP     = 'rsvp';
 	public const TYPE_OBSERVER = 'observer';
 	public const TYPE_MERCH    = 'merchandise';
@@ -34,6 +38,7 @@ final class Board_Report_Service {
 	public function get_report_types(): array {
 		return array(
 			self::TYPE_TICKETS  => __( 'Ticket Buyers', 'oras-tickets' ),
+			self::TYPE_ROSTER   => __( 'Event Roster', 'oras-tickets' ),
 			self::TYPE_RSVP     => __( 'RSVP List', 'oras-tickets' ),
 			self::TYPE_OBSERVER => __( 'Observer Passes', 'oras-tickets' ),
 			self::TYPE_MERCH    => __( 'Merchandise', 'oras-tickets' ),
@@ -101,6 +106,10 @@ final class Board_Report_Service {
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function get_rows( string $type, array $filters ): array {
+		if ( self::TYPE_ROSTER === $type ) {
+			return $this->get_unified_attendees( absint( $filters['event_id'] ?? 0 ), $filters );
+		}
+
 		if ( self::TYPE_RSVP === $type ) {
 			return $this->get_rsvp_attendees( absint( $filters['event_id'] ?? 0 ), $filters );
 		}
@@ -113,7 +122,54 @@ final class Board_Report_Service {
 			return $this->get_merchandise_buyers( $filters );
 		}
 
-		return $this->get_event_ticket_buyers( absint( $filters['event_id'] ?? 0 ), $filters );
+		$event_id = absint( $filters['event_id'] ?? 0 );
+
+		return $this->get_event_report( $event_id, $filters )['tickets'];
+	}
+
+	/**
+	 * Canonical event reporting boundary shared by Overview, Tickets, Roster,
+	 * exports, and event-originated membership summaries.
+	 *
+	 * @param array<string,mixed> $filters
+	 * @return array{overview:array<string,mixed>,tickets:array<int,array<string,mixed>>,roster:array<int,array<string,mixed>>,memberships:array<string,mixed>}
+	 */
+	public function get_event_report( int $event_id, array $filters = array() ): array {
+		if ( $event_id <= 0 ) {
+			return array(
+				'overview'    => $this->empty_event_overview(),
+				'tickets'     => array(),
+				'roster'      => array(),
+				'memberships' => array( 'total' => 0 ),
+			);
+		}
+
+		$desk = $this->get_registration_desk_snapshot( $event_id );
+		$website_tickets = $this->get_event_ticket_buyers(
+			$event_id,
+			array_merge( $filters, array( 'status' => (string) ( $filters['ticket_status'] ?? $filters['status'] ?? 'all' ) ) )
+		);
+		$rsvp_rows = $this->get_rsvp_attendees(
+			$event_id,
+			array(
+				'status'          => (string) ( $filters['rsvp_status'] ?? 'all' ),
+				'attendance_type' => (string) ( $filters['attendance_type'] ?? 'all' ),
+				'approval_status' => (string) ( $filters['approval_status'] ?? 'all' ),
+				'search'          => '',
+			)
+		);
+		$tickets = $this->build_unified_ticket_rows( $event_id, $website_tickets, $desk, $filters );
+		$roster = $this->build_unified_roster_rows( $event_id, $website_tickets, $rsvp_rows, $desk );
+		$roster = $this->filter_unified_roster_rows( $roster, $filters );
+		$desk_stats = ( new Event_Stats_Service() )->for_event( $event_id );
+		$overview = $this->build_unified_overview( $event_id, $website_tickets, $rsvp_rows, $desk, $desk_stats );
+
+		return array(
+			'overview'    => $overview,
+			'tickets'     => $tickets,
+			'roster'      => $roster,
+			'memberships' => is_array( $desk_stats['memberships'] ?? null ) ? $desk_stats['memberships'] : array( 'total' => 0 ),
+		);
 	}
 
 	/**
@@ -125,63 +181,455 @@ final class Board_Report_Service {
 			return array();
 		}
 
-		$source = sanitize_key( (string) ( $filters['attendee_source'] ?? 'all' ) );
-		if ( ! in_array( $source, array( 'all', 'tickets', 'rsvps' ), true ) ) {
-			$source = 'all';
-		}
-
-		$rows = array();
-		if ( 'all' === $source || 'tickets' === $source ) {
-			$ticket_filters = $filters;
-			$ticket_filters['status'] = isset( $filters['ticket_status'] ) ? sanitize_key( (string) $filters['ticket_status'] ) : 'all';
-			$rows = array_merge( $rows, $this->get_event_ticket_buyers( $event_id, $ticket_filters ) );
-		}
-
-		if ( 'all' === $source || 'rsvps' === $source ) {
-			$rsvp_filters = $filters;
-			$rsvp_filters['status'] = isset( $filters['rsvp_status'] ) ? sanitize_key( (string) $filters['rsvp_status'] ) : 'all';
-			$rows = array_merge( $rows, $this->get_rsvp_attendees( $event_id, $rsvp_filters ) );
-		}
-
-		return $this->filter_rows_by_search(
-			$this->filter_attendee_rows( $this->merge_attendee_rows( $rows ), $filters ),
-			(string) ( $filters['search'] ?? '' )
-		);
+		return $this->get_event_report( $event_id, $filters )['roster'];
 	}
 
 	/**
 	 * @return array<string,mixed>
 	 */
 	public function get_event_statistics( int $event_id ): array {
-		$ticket_rows = $this->get_event_ticket_buyers(
-			$event_id,
-			array(
-				'status' => 'all',
-				'search' => '',
-			)
-		);
-		$rsvp_rows = $this->get_rsvp_attendees(
-			$event_id,
-			array(
-				'status'          => 'all',
-				'attendance_type' => 'all',
-				'approval_status' => 'all',
-				'search'          => '',
-			)
-		);
-		$attendees = $this->merge_attendee_rows( array_merge( $ticket_rows, $rsvp_rows ) );
+		return $this->get_event_report( $event_id )['overview'];
+	}
 
+	/** @return array<string,mixed> */
+	private function empty_event_overview(): array {
+		return array(
+			'total_registrations'            => 0,
+			'people_registered'              => 0,
+			'website_registrations'          => 0,
+			'walk_in_registrations'          => 0,
+			'included_event_registrations'   => 0,
+			'complimentary_registrations'    => 0,
+			'manager_verified_registrations' => 0,
+			'rsvp_yes_count'                 => 0,
+			'rsvp_waitlist_count'            => 0,
+			'checked_in_today'               => 0,
+			'expected_attendance'            => 0,
+			'no_show_registrations'          => 0,
+			'event_memberships'              => 0,
+			'total_attendee_rows'            => 0,
+			'ticket_quantity'                => 0,
+			'ticket_order_count'             => 0,
+			'ticket_status_counts'           => array(),
+			'ticket_onsite_count'            => 0,
+			'ticket_virtual_count'           => 0,
+			'rsvp_onsite_count'              => 0,
+			'rsvp_virtual_count'             => 0,
+			'rsvp_virtual_approved_count'    => 0,
+			'rsvp_approval_counts'           => array_fill_keys( Event_RSVP::get_approval_statuses(), 0 ),
+			'virtual_attendance_count'       => 0,
+			'onsite_attendance_count'        => 0,
+		);
+	}
+
+	/** @return array{registrations:array<int,array<string,mixed>>,attendees:array<int,array<string,mixed>>,attendance:array<int,array<string,mixed>>,attendees_by_registration:array<int,array<int,array<string,mixed>>>,attendance_by_attendee:array<int,array<int,array<string,mixed>>>} */
+	private function get_registration_desk_snapshot( int $event_id ): array {
+		global $wpdb;
+		$empty = array(
+			'registrations'             => array(),
+			'attendees'                 => array(),
+			'attendance'                => array(),
+			'attendees_by_registration' => array(),
+			'attendance_by_attendee'    => array(),
+		);
+		if ( ! $wpdb instanceof \wpdb ) {
+			return $empty;
+		}
+
+		$tables = Schema::table_names();
+		if ( $tables['registrations'] !== (string) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tables['registrations'] ) ) ) {
+			return $empty;
+		}
+
+		$registrations = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM {$tables['registrations']} WHERE event_id = %d AND status = 'active' ORDER BY id", $event_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned table name.
+			ARRAY_A
+		);
+		$attendees = $wpdb->get_results(
+			$wpdb->prepare( "SELECT a.* FROM {$tables['attendees']} a INNER JOIN {$tables['registrations']} r ON r.id = a.registration_id WHERE r.event_id = %d AND r.status = 'active' AND a.status = 'active' ORDER BY a.id", $event_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned table names.
+			ARRAY_A
+		);
+		$attendance = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM {$tables['attendance']} WHERE event_id = %d AND state = 'checked_in' ORDER BY attendance_local_date,id", $event_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned table name.
+			ARRAY_A
+		);
+		$registrations = is_array( $registrations ) ? $registrations : array();
+		$attendees = is_array( $attendees ) ? $attendees : array();
+		$attendance = is_array( $attendance ) ? $attendance : array();
+		$attendees_by_registration = array();
+		foreach ( $attendees as $attendee ) {
+			$attendees_by_registration[ (int) $attendee['registration_id'] ][] = $attendee;
+		}
+		$attendance_by_attendee = array();
+		foreach ( $attendance as $instance ) {
+			$attendance_by_attendee[ (int) $instance['attendee_id'] ][] = $instance;
+		}
+
+		return array(
+			'registrations'             => $registrations,
+			'attendees'                 => $attendees,
+			'attendance'                => $attendance,
+			'attendees_by_registration' => $attendees_by_registration,
+			'attendance_by_attendee'    => $attendance_by_attendee,
+		);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $website_rows
+	 * @param array<string,mixed>            $desk
+	 * @param array<string,mixed>            $filters
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function build_unified_ticket_rows( int $event_id, array $website_rows, array $desk, array $filters ): array {
+		$rows = array();
+		$website_items = array();
+		foreach ( $website_rows as $row ) {
+			$row['source'] = __( 'Website', 'oras-tickets' );
+			$row['source_group'] = 'website';
+			$row['identity'] = 'woo:' . absint( $row['order_id'] ?? 0 ) . ':' . absint( $row['order_item_id'] ?? 0 );
+			$row['payment_assertion_label'] = '';
+			$rows[] = $row;
+			$website_items[ absint( $row['order_id'] ?? 0 ) . ':' . absint( $row['order_item_id'] ?? 0 ) ] = true;
+		}
+
+		$grouped_fallback = array();
+		foreach ( $desk['registrations'] as $registration ) {
+			$source_type = (string) ( $registration['source_type'] ?? '' );
+			if ( in_array( $source_type, array( 'online', 'online_included' ), true ) ) {
+				$key = absint( $registration['source_order_id'] ?? 0 ) . ':' . absint( $registration['source_order_item_id'] ?? 0 );
+				if ( isset( $website_items[ $key ] ) ) {
+					continue;
+				}
+				if ( ! isset( $grouped_fallback[ $key ] ) ) {
+					$grouped_fallback[ $key ] = $this->build_desk_ticket_row( $event_id, $registration, $desk );
+					$grouped_fallback[ $key ]['source'] = 'online_included' === $source_type ? __( 'Included with another event', 'oras-tickets' ) : __( 'Website', 'oras-tickets' );
+					$grouped_fallback[ $key ]['source_group'] = 'website';
+					$grouped_fallback[ $key ]['quantity'] = 0;
+				}
+				++$grouped_fallback[ $key ]['quantity'];
+				continue;
+			}
+
+			if ( ! in_array( $source_type, array( 'walk_in', 'rsvp_walk_in' ), true ) ) {
+				continue;
+			}
+			$rows[] = $this->build_desk_ticket_row( $event_id, $registration, $desk );
+		}
+		$rows = array_merge( $rows, array_values( $grouped_fallback ) );
+
+		$source_filter = sanitize_key( (string) ( $filters['ticket_source'] ?? 'all' ) );
+		$type_filter = sanitize_text_field( (string) ( $filters['ticket_type'] ?? '' ) );
+		$status_filter = sanitize_key( (string) ( $filters['status'] ?? 'all' ) );
+		$after = sanitize_text_field( (string) ( $filters['after'] ?? '' ) );
+		$before = sanitize_text_field( (string) ( $filters['before'] ?? '' ) );
+		$search = (string) ( $filters['search'] ?? '' );
+		$rows = array_values(
+			array_filter(
+				$rows,
+				function ( array $row ) use ( $source_filter, $type_filter, $status_filter, $after, $before, $search ): bool {
+					if ( in_array( $source_filter, array( 'website', 'onsite' ), true ) && $source_filter !== (string) ( $row['source_group'] ?? '' ) ) {
+						return false;
+					}
+					if ( '' !== $type_filter && $type_filter !== (string) ( $row['item_label'] ?? '' ) ) {
+						return false;
+					}
+					if ( 'all' !== $status_filter && 'onsite' === (string) ( $row['source_group'] ?? '' ) ) {
+						return false;
+					}
+					$date = substr( (string) ( $row['order_date'] ?? '' ), 0, 10 );
+					if ( '' !== $after && '' !== $date && $date < $after ) {
+						return false;
+					}
+					if ( '' !== $before && '' !== $date && $date > $before ) {
+						return false;
+					}
+
+					return $this->row_matches_search( $row, $search );
+				}
+			)
+		);
+		usort(
+			$rows,
+			static function ( array $left, array $right ): int {
+				$date_order = strcmp( (string) ( $right['order_date'] ?? '' ), (string) ( $left['order_date'] ?? '' ) );
+
+				return 0 !== $date_order ? $date_order : strcmp( (string) ( $left['identity'] ?? '' ), (string) ( $right['identity'] ?? '' ) );
+			}
+		);
+
+		return $rows;
+	}
+
+	/** @param array<string,mixed> $registration @param array<string,mixed> $desk @return array<string,mixed> */
+	private function build_desk_ticket_row( int $event_id, array $registration, array $desk ): array {
+		$registration_id = absint( $registration['id'] ?? 0 );
+		$attendee_count = count( $desk['attendees_by_registration'][ $registration_id ] ?? array() );
+
+		return array(
+			'report_type'             => self::TYPE_TICKETS,
+			'event_id'                => $event_id,
+			'event_title'             => get_the_title( $event_id ),
+			'identity'                => 'desk-registration:' . (string) ( $registration['registration_uuid'] ?? $registration_id ),
+			'name'                    => sanitize_text_field( (string) ( $registration['source_contact_name'] ?? '' ) ),
+			'email'                   => sanitize_email( (string) ( $registration['source_email'] ?? '' ) ),
+			'phone'                   => sanitize_text_field( (string) ( $registration['source_phone'] ?? '' ) ),
+			'address_summary'         => '',
+			'item_label'              => Event_Roster_Service::historical_label( $registration ),
+			'quantity'                => max( 1, $attendee_count ),
+			'order_status'            => __( 'Active registration', 'oras-tickets' ),
+			'order_id'                => 0,
+			'order_item_id'           => 0,
+			'order_date'              => get_date_from_gmt( (string) ( $registration['created_at_utc'] ?? '' ), 'Y-m-d H:i:s' ),
+			'source'                  => __( 'On-site / Registration Desk', 'oras-tickets' ),
+			'source_group'            => 'onsite',
+			'note'                    => __( 'Operational registration record; no WooCommerce or Stripe revenue is asserted.', 'oras-tickets' ),
+			'user_id'                 => 0,
+			'attendance_type'         => Ticket::ATTENDANCE_MODE_ONSITE,
+			'attendance_label'        => __( 'On-site', 'oras-tickets' ),
+			'approval_status'         => '',
+			'approval_label'          => '',
+			'question_answers'        => array(),
+			'payment_assertion_label' => $this->payment_assertion_label( (string) ( $registration['payment_assertion'] ?? '' ) ),
+			'registration_status'     => __( 'Active', 'oras-tickets' ),
+		);
+	}
+
+	private function payment_assertion_label( string $assertion ): string {
+		return array(
+			'paid_card'  => __( 'Card', 'oras-tickets' ),
+			'card'       => __( 'Card', 'oras-tickets' ),
+			'paid_cash'  => __( 'Cash', 'oras-tickets' ),
+			'cash'       => __( 'Cash', 'oras-tickets' ),
+			'paid_check' => __( 'Check', 'oras-tickets' ),
+			'check'      => __( 'Check', 'oras-tickets' ),
+			'unpaid'     => __( 'Unpaid', 'oras-tickets' ),
+		)[ sanitize_key( $assertion ) ] ?? '';
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $website_rows
+	 * @param array<int,array<string,mixed>> $rsvp_rows
+	 * @param array<string,mixed>            $desk
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function build_unified_roster_rows( int $event_id, array $website_rows, array $rsvp_rows, array $desk ): array {
+		$rows = array();
+		$projected_website_units = array();
+		$projected_rsvp_users = array();
+		$today = wp_date( 'Y-m-d', null, wp_timezone() );
+		foreach ( $desk['registrations'] as $registration ) {
+			$registration_id = absint( $registration['id'] ?? 0 );
+			$source_type = (string) ( $registration['source_type'] ?? '' );
+			if ( in_array( $source_type, array( 'online', 'online_included' ), true ) ) {
+				$projected_website_units[ absint( $registration['source_order_id'] ?? 0 ) . ':' . absint( $registration['source_order_item_id'] ?? 0 ) . ':' . absint( $registration['source_unit_number'] ?? 0 ) ] = true;
+			}
+			$evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
+			$evidence = is_array( $evidence ) ? $evidence : array();
+			if ( 'rsvp_website' === $source_type && absint( $evidence['rsvp_user_id'] ?? 0 ) > 0 ) {
+				$projected_rsvp_users[ absint( $evidence['rsvp_user_id'] ) ] = true;
+			}
+			$registration_attendees = $desk['attendees_by_registration'][ $registration_id ] ?? array();
+			if ( empty( $registration_attendees ) ) {
+				$registration_attendees = array(
+					array(
+						'id'             => 0,
+						'attendee_uuid'  => '',
+						'slot_key'       => 'registration-coverage',
+						'display_name'   => (string) ( $registration['source_contact_name'] ?? '' ),
+						'identity_state' => 'registration',
+					),
+				);
+			}
+
+			foreach ( $registration_attendees as $attendee ) {
+				$attendee_id = absint( $attendee['id'] ?? 0 );
+				$instances = $desk['attendance_by_attendee'][ $attendee_id ] ?? array();
+				$checked_today = false;
+				foreach ( $instances as $instance ) {
+					if ( $today === (string) ( $instance['attendance_local_date'] ?? '' ) ) {
+						$checked_today = true;
+						break;
+					}
+				}
+				$name = trim( (string) ( $attendee['display_name'] ?? '' ) );
+				if ( '' === $name ) {
+					$name = 'family' === (string) ( $registration['classification'] ?? '' ) ? __( 'Unnamed family attendee', 'oras-tickets' ) : sanitize_text_field( (string) ( $registration['source_contact_name'] ?? '' ) );
+				}
+				$rows[] = array(
+					'report_type'           => self::TYPE_TICKETS,
+					'event_id'              => $event_id,
+					'event_title'           => get_the_title( $event_id ),
+					'identity'              => $attendee_id > 0 ? 'desk-attendee:' . (string) ( $attendee['attendee_uuid'] ?? $attendee_id ) : 'desk-registration:' . (string) ( $registration['registration_uuid'] ?? $registration_id ),
+					'registration_identity' => 'desk-registration:' . (string) ( $registration['registration_uuid'] ?? $registration_id ),
+					'name'                  => $name,
+					'email'                 => sanitize_email( (string) ( $registration['source_email'] ?? '' ) ),
+					'phone'                 => sanitize_text_field( (string) ( $registration['source_phone'] ?? '' ) ),
+					'address_summary'       => '',
+					'item_label'            => Event_Roster_Service::historical_label( $registration ),
+					'quantity'              => 1,
+					'order_status'          => __( 'Active', 'oras-tickets' ),
+					'order_id'              => absint( $registration['source_order_id'] ?? 0 ),
+					'order_item_id'         => absint( $registration['source_order_item_id'] ?? 0 ),
+					'order_date'            => get_date_from_gmt( (string) ( $registration['created_at_utc'] ?? '' ), 'Y-m-d H:i:s' ),
+					'source'                => $this->registration_source_label( $source_type ),
+					'source_group'          => str_starts_with( $source_type, 'rsvp_' ) ? 'rsvps' : 'tickets',
+					'note'                  => '',
+					'user_id'               => absint( $evidence['rsvp_user_id'] ?? 0 ),
+					'attendance_type'       => Ticket::ATTENDANCE_MODE_ONSITE,
+					'attendance_label'      => $checked_today ? __( 'Checked in today', 'oras-tickets' ) : ( ! empty( $instances ) ? __( 'Checked in previously', 'oras-tickets' ) : __( 'Not checked in', 'oras-tickets' ) ),
+					'attendance_status'     => $checked_today ? __( 'Checked in today', 'oras-tickets' ) : ( ! empty( $instances ) ? __( 'Checked in previously', 'oras-tickets' ) : __( 'Not checked in', 'oras-tickets' ) ),
+					'registration_status'   => __( 'Active', 'oras-tickets' ),
+					'approval_status'       => '',
+					'approval_label'        => '',
+					'question_answers'      => array(),
+					'classification'        => sanitize_key( (string) ( $registration['classification'] ?? '' ) ),
+					'source_type'           => $source_type,
+				);
+			}
+		}
+
+		foreach ( $website_rows as $website ) {
+			$quantity = max( 1, absint( $website['quantity'] ?? 1 ) );
+			for ( $unit = 1; $unit <= $quantity; ++$unit ) {
+				$key = absint( $website['order_id'] ?? 0 ) . ':' . absint( $website['order_item_id'] ?? 0 ) . ':' . $unit;
+				if ( isset( $projected_website_units[ $key ] ) ) {
+					continue;
+				}
+				$row = $website;
+				$row['identity'] = 'woo:' . $key;
+				$row['registration_identity'] = 'woo:' . absint( $website['order_id'] ?? 0 ) . ':' . absint( $website['order_item_id'] ?? 0 );
+				$row['quantity'] = 1;
+				$row['source'] = __( 'Website', 'oras-tickets' );
+				$row['source_group'] = 'tickets';
+				$row['registration_status'] = ucfirst( (string) ( $website['order_status'] ?? '' ) );
+				$row['attendance_status'] = __( 'Not checked in', 'oras-tickets' );
+				$row['attendance_label'] = __( 'Not checked in', 'oras-tickets' );
+				$row['classification'] = 'individual';
+				$rows[] = $row;
+			}
+		}
+
+		foreach ( $rsvp_rows as $rsvp ) {
+			$user_id = absint( $rsvp['user_id'] ?? 0 );
+			if ( $user_id > 0 && isset( $projected_rsvp_users[ $user_id ] ) ) {
+				continue;
+			}
+			$rsvp['identity'] = 'rsvp-user:' . $user_id;
+			$rsvp['registration_identity'] = 'rsvp-user:' . $user_id;
+			$rsvp['quantity'] = 1;
+			$rsvp['source'] = __( 'RSVP', 'oras-tickets' );
+			$rsvp['source_group'] = 'rsvps';
+			$rsvp['registration_status'] = 'waitlist' === (string) ( $rsvp['order_status'] ?? '' ) ? __( 'Waitlist', 'oras-tickets' ) : __( 'RSVP Yes', 'oras-tickets' );
+			$rsvp['attendance_status'] = __( 'Not checked in', 'oras-tickets' );
+			$rsvp['attendance_label'] = __( 'Not checked in', 'oras-tickets' );
+			$rsvp['classification'] = 'individual';
+			$rows[] = $rsvp;
+		}
+		usort(
+			$rows,
+			static function ( array $left, array $right ): int {
+				$name_order = strcasecmp( (string) ( $left['name'] ?? '' ), (string) ( $right['name'] ?? '' ) );
+
+				return 0 !== $name_order ? $name_order : strcmp( (string) ( $left['identity'] ?? '' ), (string) ( $right['identity'] ?? '' ) );
+			}
+		);
+
+		return $rows;
+	}
+
+	private function registration_source_label( string $source_type ): string {
+		return match ( $source_type ) {
+			'online'                  => __( 'Website', 'oras-tickets' ),
+			'online_included'         => __( 'Included with another event', 'oras-tickets' ),
+			'walk_in'                 => __( 'On-site / Registration Desk', 'oras-tickets' ),
+			'complimentary', 'speaker' => __( 'Complimentary', 'oras-tickets' ),
+			'rsvp_walk_in', 'rsvp_website', 'rsvp_waitlist' => __( 'RSVP', 'oras-tickets' ),
+			'manager_verified_manual' => __( 'Manager Verified', 'oras-tickets' ),
+			default                   => __( 'Registration', 'oras-tickets' ),
+		};
+	}
+
+	/** @param array<int,array<string,mixed>> $rows @param array<string,mixed> $filters @return array<int,array<string,mixed>> */
+	private function filter_unified_roster_rows( array $rows, array $filters ): array {
+		$source = sanitize_key( (string) ( $filters['attendee_source'] ?? 'all' ) );
+		$attendance_type = sanitize_key( (string) ( $filters['attendance_type'] ?? 'all' ) );
+		$approval = sanitize_key( (string) ( $filters['approval_status'] ?? 'all' ) );
+		$ticket_status = sanitize_key( (string) ( $filters['ticket_status'] ?? 'all' ) );
+		$rsvp_status = sanitize_key( (string) ( $filters['rsvp_status'] ?? 'all' ) );
+		$search = (string) ( $filters['search'] ?? '' );
+
+		return array_values(
+			array_filter(
+				$rows,
+				function ( array $row ) use ( $source, $attendance_type, $approval, $ticket_status, $rsvp_status, $search ): bool {
+					if ( in_array( $source, array( 'tickets', 'rsvps' ), true ) && $source !== (string) ( $row['source_group'] ?? '' ) ) {
+						return false;
+					}
+					if ( 'all' !== $attendance_type && $attendance_type !== (string) ( $row['attendance_type'] ?? Ticket::ATTENDANCE_MODE_ONSITE ) ) {
+						return false;
+					}
+					if ( 'all' !== $approval && 'rsvps' === (string) ( $row['source_group'] ?? '' ) && $approval !== (string) ( $row['approval_status'] ?? '' ) ) {
+						return false;
+					}
+					if ( 'all' !== $ticket_status && 'tickets' === (string) ( $row['source_group'] ?? '' ) && absint( $row['order_id'] ?? 0 ) > 0 && $ticket_status !== (string) ( $row['order_status'] ?? '' ) ) {
+						return false;
+					}
+					if ( 'all' !== $rsvp_status && 'rsvps' === (string) ( $row['source_group'] ?? '' ) && $rsvp_status !== (string) ( $row['order_status'] ?? '' ) ) {
+						return false;
+					}
+
+					return $this->row_matches_search( $row, $search );
+				}
+			)
+		);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $website_rows
+	 * @param array<int,array<string,mixed>> $rsvp_rows
+	 * @param array<string,mixed>            $desk
+	 * @param array<string,mixed>            $desk_stats
+	 * @return array<string,mixed>
+	 */
+	private function build_unified_overview( int $event_id, array $website_rows, array $rsvp_rows, array $desk, array $desk_stats ): array {
+		unset( $event_id );
+		$total = is_array( $desk_stats['event_total'] ?? null ) ? $desk_stats['event_total'] : array();
+		$today = is_array( $desk_stats['today'] ?? null ) ? $desk_stats['today'] : array();
+		$memberships = is_array( $desk_stats['memberships'] ?? null ) ? $desk_stats['memberships'] : array();
+		$projected_units = array();
+		$projected_rsvp_users = array();
+		foreach ( $desk['registrations'] as $registration ) {
+			$source_type = (string) ( $registration['source_type'] ?? '' );
+			if ( in_array( $source_type, array( 'online', 'online_included' ), true ) ) {
+				$projected_units[ absint( $registration['source_order_id'] ?? 0 ) . ':' . absint( $registration['source_order_item_id'] ?? 0 ) . ':' . absint( $registration['source_unit_number'] ?? 0 ) ] = true;
+			}
+			if ( 'rsvp_website' === $source_type ) {
+				$evidence = json_decode( (string) ( $registration['source_evidence'] ?? '' ), true );
+				$user_id = is_array( $evidence ) ? absint( $evidence['rsvp_user_id'] ?? 0 ) : 0;
+				if ( $user_id > 0 ) {
+					$projected_rsvp_users[ $user_id ] = true;
+				}
+			}
+		}
+
+		$fallback_website = 0;
 		$ticket_quantity = 0;
 		$ticket_orders = array();
 		$ticket_status_counts = array();
 		$ticket_virtual = 0;
 		$ticket_onsite = 0;
-		foreach ( $ticket_rows as $row ) {
-			$quantity = max( 1, (int) ( $row['quantity'] ?? 1 ) );
+		foreach ( $website_rows as $row ) {
+			$quantity = max( 1, absint( $row['quantity'] ?? 1 ) );
 			$ticket_quantity += $quantity;
 			$order_id = absint( $row['order_id'] ?? 0 );
+			$item_id = absint( $row['order_item_id'] ?? 0 );
 			if ( $order_id > 0 ) {
 				$ticket_orders[ $order_id ] = true;
+			}
+			for ( $unit = 1; $unit <= $quantity; ++$unit ) {
+				if ( ! isset( $projected_units[ $order_id . ':' . $item_id . ':' . $unit ] ) ) {
+					++$fallback_website;
+				}
 			}
 			$status = sanitize_key( (string) ( $row['order_status'] ?? '' ) );
 			if ( '' !== $status ) {
@@ -196,49 +644,71 @@ final class Board_Report_Service {
 
 		$rsvp_yes = 0;
 		$rsvp_waitlist = 0;
+		$fallback_rsvp = 0;
 		$rsvp_virtual = 0;
-		$rsvp_virtual_approved = 0;
 		$rsvp_onsite = 0;
+		$rsvp_virtual_approved = 0;
 		$rsvp_approval_counts = array_fill_keys( Event_RSVP::get_approval_statuses(), 0 );
 		foreach ( $rsvp_rows as $row ) {
-			if ( 'waitlist' === (string) ( $row['order_status'] ?? '' ) ) {
+			$is_waitlist = 'waitlist' === (string) ( $row['order_status'] ?? '' );
+			if ( $is_waitlist ) {
 				++$rsvp_waitlist;
 			} else {
 				++$rsvp_yes;
 			}
-
+			$user_id = absint( $row['user_id'] ?? 0 );
+			if ( ! $is_waitlist && ! isset( $projected_rsvp_users[ $user_id ] ) ) {
+				++$fallback_rsvp;
+			}
 			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $row['attendance_type'] ?? '' ) ) {
 				++$rsvp_virtual;
 			} else {
 				++$rsvp_onsite;
 			}
-
 			$approval = Event_RSVP::normalize_approval_status( (string) ( $row['approval_status'] ?? '' ), Event_RSVP::APPROVAL_STATUS_APPROVED );
 			$rsvp_approval_counts[ $approval ] = ( $rsvp_approval_counts[ $approval ] ?? 0 ) + 1;
-			if (
-				Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $row['attendance_type'] ?? '' )
-				&& Event_RSVP::APPROVAL_STATUS_APPROVED === $approval
-			) {
+			if ( Ticket::ATTENDANCE_MODE_VIRTUAL === (string) ( $row['attendance_type'] ?? '' ) && Event_RSVP::APPROVAL_STATUS_APPROVED === $approval ) {
 				++$rsvp_virtual_approved;
 			}
 		}
 
-		return array(
-			'total_attendee_rows'      => count( $attendees ),
-			'ticket_quantity'          => $ticket_quantity,
-			'ticket_order_count'       => count( $ticket_orders ),
-			'ticket_status_counts'     => $ticket_status_counts,
-			'ticket_onsite_count'      => $ticket_onsite,
-			'ticket_virtual_count'     => $ticket_virtual,
-			'rsvp_yes_count'           => $rsvp_yes,
-			'rsvp_waitlist_count'      => $rsvp_waitlist,
-			'rsvp_onsite_count'        => $rsvp_onsite,
-			'rsvp_virtual_count'       => $rsvp_virtual,
-			'rsvp_virtual_approved_count' => $rsvp_virtual_approved,
-			'rsvp_approval_counts'     => $rsvp_approval_counts,
-			'virtual_attendance_count' => $ticket_virtual + $rsvp_virtual,
-			'onsite_attendance_count'  => $ticket_onsite + $rsvp_onsite,
+		$desk_registrations = absint( $total['active_registrations'] ?? 0 );
+		$people_registered = absint( $total['people_registered'] ?? 0 ) + $fallback_website + $fallback_rsvp;
+		$total_registrations = $desk_registrations + $fallback_website + $fallback_rsvp;
+		$no_shows = absint( $total['no_show_registrations'] ?? 0 ) + $fallback_website + $fallback_rsvp;
+		$overview = $this->empty_event_overview();
+		$overview = array_merge(
+			$overview,
+			array(
+				'total_registrations'            => $total_registrations,
+				'people_registered'              => $people_registered,
+				'website_registrations'          => absint( $total['website_registrations'] ?? 0 ) + $fallback_website,
+				'walk_in_registrations'          => absint( $total['walk_in_registrations'] ?? 0 ),
+				'included_event_registrations'   => absint( $total['included_event_registrations'] ?? 0 ),
+				'complimentary_registrations'    => absint( $total['complimentary_registrations'] ?? 0 ),
+				'manager_verified_registrations' => absint( $total['manager_verified_registrations'] ?? 0 ),
+				'rsvp_yes_count'                 => $rsvp_yes,
+				'rsvp_waitlist_count'            => $rsvp_waitlist,
+				'checked_in_today'               => absint( $today['actual_people'] ?? 0 ),
+				'expected_attendance'            => $people_registered,
+				'no_show_registrations'          => max( 0, $no_shows ),
+				'event_memberships'              => absint( $memberships['total'] ?? 0 ),
+				'total_attendee_rows'            => $people_registered,
+				'ticket_quantity'                => $ticket_quantity + absint( $total['walk_in_registrations'] ?? 0 ),
+				'ticket_order_count'             => count( $ticket_orders ),
+				'ticket_status_counts'           => $ticket_status_counts,
+				'ticket_onsite_count'            => $ticket_onsite,
+				'ticket_virtual_count'           => $ticket_virtual,
+				'rsvp_onsite_count'              => $rsvp_onsite,
+				'rsvp_virtual_count'             => $rsvp_virtual,
+				'rsvp_virtual_approved_count'    => $rsvp_virtual_approved,
+				'rsvp_approval_counts'           => $rsvp_approval_counts,
+				'virtual_attendance_count'       => $ticket_virtual + $rsvp_virtual,
+				'onsite_attendance_count'        => max( 0, $people_registered - $ticket_virtual - $rsvp_virtual ),
+			)
 		);
+
+		return $overview;
 	}
 
 	/**
@@ -265,12 +735,12 @@ final class Board_Report_Service {
 					$order,
 					$item,
 					array(
-						'report_type' => self::TYPE_TICKETS,
-						'event_id'    => $event_id,
-						'event_title' => get_the_title( $event_id ),
-						'item_label'  => $ticket_name,
-						'source'      => __( 'Ticket', 'oras-tickets' ),
-						'attendance_type' => Ticket::normalizeAttendanceMode( (string) $item->get_meta( '_oras_ticket_attendance_mode', true ), Ticket::ATTENDANCE_MODE_ONSITE ),
+						'report_type'      => self::TYPE_TICKETS,
+						'event_id'         => $event_id,
+						'event_title'      => get_the_title( $event_id ),
+						'item_label'       => $ticket_name,
+						'source'           => __( 'Website', 'oras-tickets' ),
+						'attendance_type'  => Ticket::normalizeAttendanceMode( (string) $item->get_meta( '_oras_ticket_attendance_mode', true ), Ticket::ATTENDANCE_MODE_ONSITE ),
 						'attendance_label' => Event_RSVP::get_attendance_mode_label( Ticket::normalizeAttendanceMode( (string) $item->get_meta( '_oras_ticket_attendance_mode', true ), Ticket::ATTENDANCE_MODE_ONSITE ) ),
 					)
 				);
@@ -470,22 +940,23 @@ final class Board_Report_Service {
 
 		return array_merge(
 			array(
-				'name'            => $contact['name'],
-				'email'           => $contact['email'],
-				'phone'           => $contact['phone'],
-				'address_summary' => $contact['address_summary'],
-				'item_label'      => '',
-				'quantity'        => max( 1, (int) $item->get_quantity() ),
-				'order_status'    => (string) $order->get_status(),
-				'order_id'        => (int) $order->get_id(),
-				'order_date'      => $order_date ? $order_date->date( 'Y-m-d H:i:s' ) : '',
-				'source'          => '',
-				'note'            => '',
-				'user_id'         => (int) $order->get_user_id(),
-				'attendance_type' => Ticket::ATTENDANCE_MODE_ONSITE,
+				'name'             => $contact['name'],
+				'email'            => $contact['email'],
+				'phone'            => $contact['phone'],
+				'address_summary'  => $contact['address_summary'],
+				'item_label'       => '',
+				'quantity'         => max( 1, (int) $item->get_quantity() ),
+				'order_status'     => (string) $order->get_status(),
+				'order_id'         => (int) $order->get_id(),
+				'order_item_id'    => (int) $item->get_id(),
+				'order_date'       => $order_date ? $order_date->date( 'Y-m-d H:i:s' ) : '',
+				'source'           => '',
+				'note'             => '',
+				'user_id'          => (int) $order->get_user_id(),
+				'attendance_type'  => Ticket::ATTENDANCE_MODE_ONSITE,
 				'attendance_label' => __( 'On-site', 'oras-tickets' ),
-				'approval_status' => '',
-				'approval_label'  => '',
+				'approval_status'  => '',
+				'approval_label'   => '',
 				'question_answers' => $this->normalize_question_answer_snapshots( $item->get_meta( Event_Questions::ORDER_ITEM_KEY, true ) ),
 			),
 			$extra
@@ -511,27 +982,27 @@ final class Board_Report_Service {
 		$source = 'waitlist' === $status ? __( 'RSVP Waitlist', 'oras-tickets' ) : __( 'RSVP', 'oras-tickets' );
 
 		return array(
-			'report_type'     => self::TYPE_RSVP,
-			'event_id'        => $event_id,
-			'event_title'     => get_the_title( $event_id ),
-			'name'            => $contact['name'],
-			'email'           => $contact['email'],
-			'phone'           => $contact['phone'],
-			'address_summary' => $contact['address_summary'],
-			'item_label'      => $label,
-			'quantity'        => 1,
-			'order_status'    => $status,
-			'order_id'        => 0,
-			'order_date'      => '',
-			'source'          => $source,
-			'note'            => $contact['note'],
-			'user_id'         => $user_id,
-			'attendance_type' => $attendance_mode,
+			'report_type'      => self::TYPE_RSVP,
+			'event_id'         => $event_id,
+			'event_title'      => get_the_title( $event_id ),
+			'name'             => $contact['name'],
+			'email'            => $contact['email'],
+			'phone'            => $contact['phone'],
+			'address_summary'  => $contact['address_summary'],
+			'item_label'       => $label,
+			'quantity'         => 1,
+			'order_status'     => $status,
+			'order_id'         => 0,
+			'order_date'       => '',
+			'source'           => $source,
+			'note'             => $contact['note'],
+			'user_id'          => $user_id,
+			'attendance_type'  => $attendance_mode,
 			'attendance_label' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_attendance_mode_label( $attendance_mode ) : __( 'On-site', 'oras-tickets' ),
-			'approval_status' => $approval_status,
-			'approval_label'  => class_exists( Event_RSVP::class ) ? Event_RSVP::get_approval_status_label( $approval_status ) : __( 'Approved', 'oras-tickets' ),
-			'approved_by'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_by_display( $event_id, $user_id ) : '',
-			'approved_at'     => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_at( $event_id, $user_id ) : '',
+			'approval_status'  => $approval_status,
+			'approval_label'   => class_exists( Event_RSVP::class ) ? Event_RSVP::get_approval_status_label( $approval_status ) : __( 'Approved', 'oras-tickets' ),
+			'approved_by'      => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_by_display( $event_id, $user_id ) : '',
+			'approved_at'      => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_approved_at( $event_id, $user_id ) : '',
 			'rejection_reason' => class_exists( Event_RSVP::class ) ? Event_RSVP::get_user_rejection_reason( $event_id, $user_id ) : '',
 			'question_answers' => $question_answers,
 		);
@@ -641,58 +1112,6 @@ final class Board_Report_Service {
 	}
 
 	/**
-	 * @param array<int,array<string,mixed>> $rows
-	 * @return array<int,array<string,mixed>>
-	 */
-	private function merge_attendee_rows( array $rows ): array {
-		$merged = array();
-		$order = array();
-
-		foreach ( $rows as $row ) {
-			$user_id = absint( $row['user_id'] ?? 0 );
-			$email = strtolower( trim( (string) ( $row['email'] ?? '' ) ) );
-			$key = $user_id > 0
-				? 'u:' . $user_id
-				: 'e:' . $email . '|o:' . absint( $row['order_id'] ?? 0 ) . '|i:' . sanitize_title( (string) ( $row['item_label'] ?? '' ) );
-
-			if ( ! isset( $merged[ $key ] ) ) {
-				$merged[ $key ] = $row;
-				$order[] = $key;
-				continue;
-			}
-
-			$existing_source = (string) ( $merged[ $key ]['source'] ?? '' );
-			$new_source = (string) ( $row['source'] ?? '' );
-			if ( '' !== $new_source && false === stripos( $existing_source, $new_source ) ) {
-				$merged[ $key ]['source'] = '' === $existing_source ? $new_source : $existing_source . ' + ' . $new_source;
-			}
-
-			$merged[ $key ]['quantity'] = max( 1, (int) ( $merged[ $key ]['quantity'] ?? 1 ) ) + max( 1, (int) ( $row['quantity'] ?? 1 ) );
-			foreach ( array( 'phone', 'address_summary', 'note', 'attendance_type', 'attendance_label', 'approval_status', 'approval_label' ) as $field ) {
-				if ( empty( $merged[ $key ][ $field ] ) && ! empty( $row[ $field ] ) ) {
-					$merged[ $key ][ $field ] = $row[ $field ];
-				}
-			}
-
-			if ( ! empty( $row['question_answers'] ) && is_array( $row['question_answers'] ) ) {
-				$existing_answers = isset( $merged[ $key ]['question_answers'] ) && is_array( $merged[ $key ]['question_answers'] ) ? $merged[ $key ]['question_answers'] : array();
-				$merged[ $key ]['question_answers'] = array_merge( $existing_answers, $row['question_answers'] );
-			}
-
-			if ( 'waitlist' === (string) ( $row['order_status'] ?? '' ) ) {
-				$merged[ $key ]['order_status'] = 'waitlist';
-			}
-		}
-
-		$result = array();
-		foreach ( $order as $key ) {
-			$result[] = $merged[ $key ];
-		}
-
-		return $result;
-	}
-
-	/**
 	 * @param mixed $answers
 	 */
 	public function format_question_answers_for_report( $answers ): string {
@@ -718,40 +1137,6 @@ final class Board_Report_Service {
 
 		return implode( '; ', $parts );
 	}
-
-	/**
-	 * @param array<int,array<string,mixed>> $rows
-	 * @param array<string,mixed> $filters
-	 * @return array<int,array<string,mixed>>
-	 */
-	private function filter_attendee_rows( array $rows, array $filters ): array {
-		$attendance_type = sanitize_key( (string) ( $filters['attendance_type'] ?? 'all' ) );
-		if ( ! in_array( $attendance_type, array( 'all', Ticket::ATTENDANCE_MODE_ONSITE, Ticket::ATTENDANCE_MODE_VIRTUAL ), true ) ) {
-			$attendance_type = 'all';
-		}
-
-		$approval_status = sanitize_key( (string) ( $filters['approval_status'] ?? 'all' ) );
-		if ( ! in_array( $approval_status, array_merge( array( 'all' ), Event_RSVP::get_approval_statuses() ), true ) ) {
-			$approval_status = 'all';
-		}
-
-		return array_values(
-			array_filter(
-				$rows,
-				static function ( array $row ) use ( $attendance_type, $approval_status ): bool {
-					if ( 'all' !== $attendance_type && (string) ( $row['attendance_type'] ?? Ticket::ATTENDANCE_MODE_ONSITE ) !== $attendance_type ) {
-						return false;
-					}
-
-					if ( 'all' !== $approval_status && (string) ( $row['approval_status'] ?? '' ) !== $approval_status ) {
-						return false;
-					}
-
-					return true;
-				}
-			)
-			);
-		}
 
 	/**
 	 * @return int[]

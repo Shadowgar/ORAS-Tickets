@@ -795,7 +795,7 @@ function oras_board_reports_run_checks(): void {
 		);
 		$observer_html = do_shortcode( '[oras_board_reports]' );
 		oras_board_reports_assert( false !== strpos( $observer_html, '>Observer Passes<' ), 'Observer Passes tab appears for authorized users' );
-		foreach ( array( 'Event Overview', 'Sales', 'RSVP Management', 'Attention Needed', 'Communications', 'Roster' ) as $existing_tab_label ) {
+		foreach ( array( 'Event Overview', 'Tickets', 'RSVP Management', 'Attention Needed', 'Communications', 'Roster' ) as $existing_tab_label ) {
 			oras_board_reports_assert( false !== strpos( $observer_html, '>' . $existing_tab_label . '<' ), 'Existing tab remains present: ' . $existing_tab_label );
 		}
 		oras_board_reports_assert( false !== strpos( $observer_html, 'oras-board-reports__observer' ), 'Observer Passes routes to its dedicated renderer' );

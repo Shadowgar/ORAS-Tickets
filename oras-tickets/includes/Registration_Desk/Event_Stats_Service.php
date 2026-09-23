@@ -81,7 +81,7 @@ final class Event_Stats_Service {
 				self::increment( $classification, (string) ( $registration['classification'] ?? 'unclassified' ) );
 				self::increment( $validity, (string) ( $registration['validity_type'] ?? 'unclassified' ) );
 				self::increment( $pass_types, (string) ( $registration['option_label'] ?? 'Other' ) );
-				$assertion = (string) ( $registration['payment_assertion'] ?? '' );
+				$assertion = str_replace( 'paid_', '', (string) ( $registration['payment_assertion'] ?? '' ) );
 				if ( 'walk_in' === (string) ( $registration['source_type'] ?? '' ) && isset( $payment[ $assertion ] ) ) {
 					++$payment[ $assertion ];
 				}

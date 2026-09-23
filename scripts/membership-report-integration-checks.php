@@ -165,7 +165,7 @@ function oras_membership_run_checks(): void {
 		oras_membership_assert_same( $report['website_available'], true, 'PMPro-compatible website source is detected' );
 		oras_membership_assert_same( count( $all_people['all_rows'] ), 11, 'Website and legacy records normalize to one roster person per identity' );
 
-		$website_active = oras_membership_find_row( $all_people['all_rows'], 'website_legacy', $membership_ids[0] );
+		$website_active = oras_membership_find_row( $all_people['all_rows'], Membership_Report_Service::SOURCE_WEBSITE, $membership_ids[0] );
 		oras_membership_assert_same( $website_active['username'], 'exact_member_' . $suffix, 'Website row includes the WordPress username' );
 		oras_membership_assert_same( $website_active['level_name'], 'Family', 'Website row includes the PMPro-compatible level name' );
 		oras_membership_assert_same( $website_active['operational_status'], 'active', 'Future active website membership is Active' );
